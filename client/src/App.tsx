@@ -9,7 +9,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import DashboardPage from "@/pages/dashboard";
-import ProfilePage from "@/pages/profile";
+
 import KpiBuilderPage from "@/pages/kpi-builder";
 import KpiManagementPage from "@/pages/kpi-management";
 import ActionsPage from "@/pages/actions";
@@ -23,7 +23,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
-      <Route path="/profile" component={ProfilePage} />
+
       <Route path="/kpi-builder" component={KpiBuilderPage} />
       <Route path="/kpis" component={KpiManagementPage} />
       <Route path="/actions" component={ActionsPage} />

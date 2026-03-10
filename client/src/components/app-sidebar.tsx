@@ -1,6 +1,6 @@
 import { useLocation, Link } from "wouter";
 import {
-  LayoutDashboard, Building2, Target, ListChecks, Calendar,
+  LayoutDashboard, Target, ListChecks, Calendar,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles
 } from "lucide-react";
 import {
@@ -13,7 +13,6 @@ import { useAuth } from "@/lib/auth";
 
 const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Business Profile", url: "/profile", icon: Building2 },
 ];
 
 const performanceNav = [

@@ -1,16 +1,25 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/page-header";
 import { LoadingPage } from "@/components/loading-state";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, User, Building2, Database, Trash2, Plus, LayoutList } from "lucide-react";
+import { Settings, User, Building2, Database, Trash2, Plus, LayoutList, Save, X, Target } from "lucide-react";
 import type { Department, MeetingType } from "@shared/schema";
+
+const INDUSTRIES = [
+  "Offshore Helicopters", "Hospitality", "Restaurants", "Retail", "Real Estate", "Healthcare clinics",
+  "Trading companies", "Maintenance / field services", "Professional services",
+];
+
+const SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -18,9 +27,42 @@ export default function SettingsPage() {
   const [newDepartment, setNewDepartment] = useState("");
   const [newMeetingType, setNewMeetingType] = useState("");
 
+  const [companyName, setCompanyName] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [companySize, setCompanySize] = useState("");
+  const [country, setCountry] = useState("");
+  const [goals, setGoals] = useState<string[]>([]);
+  const [newGoal, setNewGoal] = useState("");
+
   const { data: company, isLoading: companyLoading } = useQuery<any>({ queryKey: ["/api/company"] });
   const { data: departments = [], isLoading: deptsLoading } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: meetingTypes = [], isLoading: mtLoading } = useQuery<MeetingType[]>({ queryKey: ["/api/meeting-types"] });
+
+  useEffect(() => {
+    if (company) {
+      setCompanyName(company.companyName || "");
+      setIndustry(company.industry || "");
+      setCompanySize(company.companySize || "");
+      setCountry(company.country || "");
+      setGoals(company.goals?.map((g: any) => g.goalText) || []);
+    }
+  }, [company]);
+
+  const saveProfile = useMutation({
+    mutationFn: async () => {
+      const deptNames = departments.map(d => d.name);
+      await apiRequest("POST", "/api/company", {
+        companyName, industry, companySize, country, departments: deptNames, goals,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/company"] });
+      toast({ title: "Saved", description: "Business profile updated successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   const createDepartment = useMutation({
     mutationFn: async (name: string) => {
@@ -97,11 +139,18 @@ export default function SettingsPage() {
     createMeetingType.mutate(trimmed);
   };
 
+  const addGoal = () => {
+    if (newGoal.trim()) {
+      setGoals(prev => [...prev, newGoal.trim()]);
+      setNewGoal("");
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-3xl">
       <PageHeader
         title="Settings"
-        description="Manage your account and application settings"
+        description="Manage your business profile, departments, and application settings"
         icon={Settings}
         testId="text-settings-title"
       />
@@ -115,6 +164,76 @@ export default function SettingsPage() {
         <CardContent className="divide-y">
           {infoRow("Name", user?.name, "text-setting-name")}
           {infoRow("Email", user?.email, "text-setting-email")}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Building2 className="h-4 w-4" />Business Profile
+          </CardTitle>
+          <CardDescription>Company information used for personalized KPIs and insights</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input id="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Your company name" data-testid="input-company-name" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="country">Country</Label>
+              <Input id="country" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" data-testid="input-country" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Industry</Label>
+              <Select value={industry} onValueChange={setIndustry}>
+                <SelectTrigger data-testid="select-industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                <SelectContent>
+                  {INDUSTRIES.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Company Size</Label>
+              <Select value={companySize} onValueChange={setCompanySize}>
+                <SelectTrigger data-testid="select-size"><SelectValue placeholder="Select size" /></SelectTrigger>
+                <SelectContent>
+                  {SIZES.map(s => <SelectItem key={s} value={s}>{s} employees</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button onClick={() => saveProfile.mutate()} disabled={saveProfile.isPending} data-testid="button-save-profile">
+            <Save className="h-4 w-4 mr-2" />
+            {saveProfile.isPending ? "Saving..." : "Save Profile"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-4 w-4" />Strategic Goals
+          </CardTitle>
+          <CardDescription>Key business priorities used for AI-generated insights</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {goals.map((goal, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="flex-1 p-2.5 rounded-lg bg-muted/50 border text-sm" data-testid={`text-goal-${i}`}>{goal}</div>
+              <Button size="icon" variant="ghost" onClick={() => setGoals(prev => prev.filter((_, idx) => idx !== i))} data-testid={`button-remove-goal-${i}`}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <Input value={newGoal} onChange={(e) => setNewGoal(e.target.value)} placeholder="Add a strategic goal..." onKeyDown={(e) => e.key === "Enter" && addGoal()} data-testid="input-new-goal" />
+            <Button size="icon" variant="secondary" onClick={addGoal} data-testid="button-add-goal">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

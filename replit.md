@@ -13,14 +13,13 @@ AI-powered SME performance and execution management platform.
 ## Key Features
 
 1. **Dashboard** - Welcome banner with company name/date/summary, 6 stat cards with percentage indicators, KPI health donut chart, action progress bar chart, recent actions with meeting type badges, department summary (KPI/action/overdue counts per dept), latest review
-2. **Business Profile** - Company setup with industry, dynamic departments (from DB), strategic goals, custom department input
-3. **KPI Builder** - Two tabs: "Manual KPI" (full form with RAG thresholds) and "AI Generate" (AI-generated KPIs)
+2. **KPI Builder** - Two tabs: "Manual KPI" (full form with RAG thresholds) and "AI Generate" (AI-generated KPIs)
 4. **KPI Management** - Table view with search, department/frequency filters, add actuals dialog, Excel import
 5. **Action Tracker** - Table with Meeting Type (first column, badge), Title, Owner, Due Date, Revised Due Date (amber/red coloring), Priority, Status; meeting type filter dropdown; uses dynamic meeting types from API
 6. **Meetings** - Card-based meeting list with linked action items, create dialog
 7. **Monthly Reviews** - AI-generated business performance reviews with strengths/gaps/recommendations
 8. **Dashboard Planner** - AI-recommended dashboard structure for Power BI/web dashboards
-9. **Settings** - Account info, Departments CRUD (add/delete), Meeting Types CRUD (add/delete), Application info
+9. **Settings** - Account info, Business Profile (company name/industry/size/country + save), Strategic Goals, Departments CRUD (add/delete), Meeting Types CRUD (add/delete), Application info
 
 ## Reusable Components
 
@@ -56,7 +55,7 @@ server/storage.ts         - Storage layer (IStorage interface + DatabaseStorage)
 server/auth.ts            - Authentication setup (passport + sessions)
 server/ai.ts              - AI service (gpt-4o, KPI generation, reviews, dashboard plans)
 server/routes.ts          - All API routes including Excel upload/template endpoints
-server/seed.ts            - Seed data (Al Noor Hospitality Group, 12 KPIs, 10 actions, 4 meetings, 9 meeting types)
+server/seed.ts            - Seed data (Sheth Offshore Helicopters, 12 KPIs, 10 actions, 4 meetings, 9 meeting types)
 client/src/App.tsx         - Main app with routing and sidebar layout
 client/src/lib/auth.tsx    - Auth context provider
 client/src/components/     - Reusable components (app-sidebar, page-header, status-badge, etc.)
