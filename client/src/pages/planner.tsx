@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Sparkles, LayoutTemplate, Loader2, BarChart3, PieChart, Table, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { Sparkles, LayoutTemplate, Loader2, BarChart3, PieChart, Table, AlertTriangle, Copy } from "lucide-react";
 import type { Department, DashboardPlan } from "@shared/schema";
 
 const INDUSTRIES = [
@@ -52,7 +53,7 @@ export default function PlannerPage() {
       const plan = data.structureJson ? JSON.parse(data.structureJson) : data;
       setGeneratedPlan(plan);
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard-plans"] });
-      toast({ title: "Dashboard Plan Generated" });
+      toast({ title: "Dashboard plan generated" });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -61,12 +62,21 @@ export default function PlannerPage() {
 
   const displayPlan = generatedPlan || (plans?.[0]?.structureJson ? JSON.parse(plans[0].structureJson) : null);
 
+  const copyPlan = () => {
+    if (!displayPlan) return;
+    const text = JSON.stringify(displayPlan, null, 2);
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied to clipboard" });
+  };
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold" data-testid="text-planner-title">Dashboard Planner</h1>
-        <p className="text-muted-foreground">AI-powered dashboard structure recommendations</p>
-      </div>
+      <PageHeader
+        title="Dashboard Planner"
+        description="AI-powered dashboard structure recommendations for Power BI or web dashboards"
+        icon={LayoutTemplate}
+        testId="text-planner-title"
+      />
 
       <Card>
         <CardHeader>
@@ -111,7 +121,12 @@ export default function PlannerPage() {
 
       {displayPlan && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold" data-testid="text-plan-title">{displayPlan.title || "Dashboard Plan"}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold" data-testid="text-plan-title">{displayPlan.title || "Dashboard Plan"}</h2>
+            <Button size="sm" variant="secondary" onClick={copyPlan} data-testid="button-copy-plan">
+              <Copy className="h-4 w-4 mr-1" />Copy JSON
+            </Button>
+          </div>
 
           {(displayPlan.pages || []).map((page: any, pi: number) => (
             <Card key={pi}>
@@ -124,19 +139,21 @@ export default function PlannerPage() {
                   {(page.sections || []).map((section: any, si: number) => {
                     const Icon = iconMap[section.type] || LayoutTemplate;
                     return (
-                      <div key={si} className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
-                        <Icon className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <div key={si} className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border border-border/50">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 flex-shrink-0 mt-0.5">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </div>
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-sm">{section.section_name}</span>
                             <Badge variant="secondary" className="text-xs">{section.type}</Badge>
                             {section.chart_type && <Badge variant="secondary" className="text-xs">{section.chart_type}</Badge>}
                           </div>
-                          {section.rationale && <p className="text-xs text-muted-foreground">{section.rationale}</p>}
+                          {section.rationale && <p className="text-xs text-muted-foreground leading-relaxed">{section.rationale}</p>}
                           {section.recommended_kpis && section.recommended_kpis.length > 0 && (
                             <div className="flex gap-1 flex-wrap mt-1">
                               {section.recommended_kpis.map((kpi: string, ki: number) => (
-                                <Badge key={ki} variant="secondary" className="text-xs">{kpi}</Badge>
+                                <Badge key={ki} variant="outline" className="text-xs">{kpi}</Badge>
                               ))}
                             </div>
                           )}
@@ -158,27 +175,27 @@ export default function PlannerPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {displayPlan.executive_summary_structure.key_metrics && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Key Metrics</p>
-                      <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Key Metrics</p>
+                      <div className="flex flex-wrap gap-1">
                         {displayPlan.executive_summary_structure.key_metrics.map((m: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="mr-1 text-xs">{m}</Badge>
+                          <Badge key={i} variant="secondary" className="text-xs">{m}</Badge>
                         ))}
                       </div>
                     </div>
                   )}
                   {displayPlan.executive_summary_structure.visualization_types && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Visualizations</p>
-                      <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Visualizations</p>
+                      <div className="flex flex-wrap gap-1">
                         {displayPlan.executive_summary_structure.visualization_types.map((v: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="mr-1 text-xs">{v}</Badge>
+                          <Badge key={i} variant="secondary" className="text-xs">{v}</Badge>
                         ))}
                       </div>
                     </div>
                   )}
                   {displayPlan.executive_summary_structure.refresh_frequency && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Refresh</p>
+                      <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Refresh</p>
                       <p className="text-sm">{displayPlan.executive_summary_structure.refresh_frequency}</p>
                     </div>
                   )}

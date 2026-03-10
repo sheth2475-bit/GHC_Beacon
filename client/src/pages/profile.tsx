@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PageHeader } from "@/components/page-header";
+import { LoadingPage } from "@/components/loading-state";
 import { Building2, Plus, X, Save } from "lucide-react";
 
 const INDUSTRIES = [
@@ -71,23 +73,20 @@ export default function ProfilePage() {
     }
   };
 
-  if (isLoading) {
-    return <div className="p-6"><p className="text-muted-foreground">Loading...</p></div>;
-  }
+  if (isLoading) return <LoadingPage />;
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold" data-testid="text-profile-title">Business Profile</h1>
-        <p className="text-muted-foreground">Set up your company information to get personalized KPIs and insights</p>
-      </div>
+      <PageHeader
+        title="Business Profile"
+        description="Set up your company information to get personalized KPIs and insights"
+        icon={Building2}
+        testId="text-profile-title"
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Company Information
-          </CardTitle>
+          <CardTitle className="text-base">Company Information</CardTitle>
           <CardDescription>Tell us about your business</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -132,16 +131,21 @@ export default function ProfilePage() {
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {DEFAULT_DEPARTMENTS.map(dept => (
-              <Badge
+              <button
                 key={dept}
-                variant={departments.includes(dept) ? "default" : "secondary"}
-                className="cursor-pointer"
+                type="button"
+                className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => toggleDepartment(dept)}
+                aria-pressed={departments.includes(dept)}
                 data-testid={`badge-dept-${dept.toLowerCase()}`}
+                style={{
+                  background: departments.includes(dept) ? 'hsl(var(--primary))' : 'hsl(var(--secondary))',
+                  color: departments.includes(dept) ? 'hsl(var(--primary-foreground))' : 'hsl(var(--secondary-foreground))',
+                }}
               >
                 {dept}
                 {departments.includes(dept) && <X className="ml-1 h-3 w-3" />}
-              </Badge>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -155,7 +159,7 @@ export default function ProfilePage() {
         <CardContent className="space-y-3">
           {goals.map((goal, i) => (
             <div key={i} className="flex items-center gap-2">
-              <div className="flex-1 p-2 rounded-md bg-muted text-sm" data-testid={`text-goal-${i}`}>{goal}</div>
+              <div className="flex-1 p-2.5 rounded-lg bg-muted/50 border text-sm" data-testid={`text-goal-${i}`}>{goal}</div>
               <Button size="icon" variant="ghost" onClick={() => setGoals(prev => prev.filter((_, idx) => idx !== i))} data-testid={`button-remove-goal-${i}`}>
                 <X className="h-4 w-4" />
               </Button>
@@ -170,7 +174,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} data-testid="button-save-profile">
+      <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="w-full sm:w-auto" data-testid="button-save-profile">
         <Save className="h-4 w-4 mr-2" />
         {saveMutation.isPending ? "Saving..." : "Save Profile"}
       </Button>

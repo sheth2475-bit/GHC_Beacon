@@ -1,25 +1,32 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Trash2, Plus, Edit, BarChart3 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { LoadingTable } from "@/components/loading-state";
+import { ErrorState } from "@/components/error-state";
+import { StatusBadge } from "@/components/status-badge";
+import { ExcelUpload } from "@/components/excel-upload";
+import { Trash2, Plus, Target, Search } from "lucide-react";
 import type { Kpi, Department } from "@shared/schema";
 
 export default function KpiManagementPage() {
   const { toast } = useToast();
-  const { data: kpis, isLoading } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
+  const { data: kpis, isLoading, error, refetch } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const [filterDept, setFilterDept] = useState("all");
   const [filterFreq, setFilterFreq] = useState("all");
+  const [search, setSearch] = useState("");
   const [actualDialog, setActualDialog] = useState<Kpi | null>(null);
   const [actualValue, setActualValue] = useState("");
   const [actualMonth, setActualMonth] = useState("");
@@ -30,8 +37,10 @@ export default function KpiManagementPage() {
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/kpis/${id}`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/kpis"] });
-      toast({ title: "Deleted", description: "KPI removed" });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+      toast({ title: "KPI deleted" });
     },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const addActualMutation = useMutation({
@@ -51,8 +60,9 @@ export default function KpiManagementPage() {
       setActualValue("");
       setActualMonth("");
       setActualComment("");
-      toast({ title: "Saved", description: "Actual value recorded" });
+      toast({ title: "Actual value saved" });
     },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const filteredKpis = (kpis || []).filter(kpi => {
@@ -61,6 +71,8 @@ export default function KpiManagementPage() {
       if (dept?.name !== filterDept) return false;
     }
     if (filterFreq !== "all" && kpi.frequency !== filterFreq) return false;
+    if (search && !kpi.kpiName.toLowerCase().includes(search.toLowerCase()) &&
+        !kpi.ownerName?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -69,16 +81,45 @@ export default function KpiManagementPage() {
     return departments?.find(d => d.id === deptId)?.name || "-";
   };
 
+  const kpiColumnMap: Record<string, string> = {
+    "KPI Name": "kpiName", "Description": "description", "Formula": "formula",
+    "Unit": "unit", "Frequency": "frequency", "Target Value": "targetValue",
+    "Green Threshold": "greenThreshold", "Amber Threshold": "amberThreshold",
+    "Red Threshold": "redThreshold", "Owner": "ownerName", "Data Source": "dataSource",
+    "Department": "department",
+  };
+
+  if (error) return <div className="p-6"><ErrorState message="Failed to load KPIs" onRetry={() => refetch()} /></div>;
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-kpi-mgmt-title">KPI Management</h1>
-          <p className="text-muted-foreground">View and manage all your KPIs</p>
-        </div>
-      </div>
+      <PageHeader
+        title="KPI Management"
+        description="View, track, and manage all your key performance indicators"
+        icon={Target}
+        testId="text-kpi-mgmt-title"
+        actions={
+          <ExcelUpload
+            templateUrl="/api/templates/kpis"
+            uploadUrl="/api/upload/kpis"
+            entityName="KPIs"
+            columnMap={kpiColumnMap}
+            onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/kpis"] })}
+          />
+        }
+      />
 
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search KPIs or owners..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+            data-testid="input-search-kpis"
+          />
+        </div>
         <Select value={filterDept} onValueChange={setFilterDept}>
           <SelectTrigger className="w-[180px]" data-testid="select-filter-dept"><SelectValue placeholder="Department" /></SelectTrigger>
           <SelectContent>
@@ -87,7 +128,7 @@ export default function KpiManagementPage() {
           </SelectContent>
         </Select>
         <Select value={filterFreq} onValueChange={setFilterFreq}>
-          <SelectTrigger className="w-[180px]" data-testid="select-filter-freq"><SelectValue placeholder="Frequency" /></SelectTrigger>
+          <SelectTrigger className="w-[160px]" data-testid="select-filter-freq"><SelectValue placeholder="Frequency" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Frequencies</SelectItem>
             <SelectItem value="Weekly">Weekly</SelectItem>
@@ -95,17 +136,23 @@ export default function KpiManagementPage() {
             <SelectItem value="Quarterly">Quarterly</SelectItem>
           </SelectContent>
         </Select>
+        {(filterDept !== "all" || filterFreq !== "all" || search) && (
+          <Button variant="ghost" size="sm" onClick={() => { setFilterDept("all"); setFilterFreq("all"); setSearch(""); }}>
+            Clear filters
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
-        <p className="text-muted-foreground">Loading KPIs...</p>
+        <LoadingTable rows={6} cols={5} />
       ) : filteredKpis.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No KPIs found. Use the KPI Builder to generate some.</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Target}
+          title="No KPIs found"
+          description={search || filterDept !== "all" || filterFreq !== "all"
+            ? "No KPIs match your current filters. Try adjusting your search."
+            : "Start by using the KPI Builder to generate AI-powered KPIs, or import from Excel."}
+        />
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -113,13 +160,13 @@ export default function KpiManagementPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>KPI Name</TableHead>
+                    <TableHead className="w-[250px]">KPI Name</TableHead>
                     <TableHead>Department</TableHead>
                     <TableHead>Target</TableHead>
                     <TableHead>Frequency</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Thresholds</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right w-[140px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -128,18 +175,20 @@ export default function KpiManagementPage() {
                       <TableCell>
                         <div>
                           <p className="font-medium text-sm" data-testid={`text-kpi-${kpi.id}`}>{kpi.kpiName}</p>
-                          <p className="text-xs text-muted-foreground">{kpi.formula}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.formula}</p>
                         </div>
                       </TableCell>
-                      <TableCell><Badge variant="secondary">{getDeptName(kpi.departmentId)}</Badge></TableCell>
-                      <TableCell className="text-sm">{kpi.targetValue} {kpi.unit}</TableCell>
-                      <TableCell className="text-sm">{kpi.frequency}</TableCell>
-                      <TableCell className="text-sm">{kpi.ownerName}</TableCell>
                       <TableCell>
-                        <div className="flex gap-1 flex-wrap">
-                          <span className="inline-block w-2 h-2 rounded-full bg-green-500" title={kpi.greenThreshold || ""} />
-                          <span className="inline-block w-2 h-2 rounded-full bg-yellow-500" title={kpi.amberThreshold || ""} />
-                          <span className="inline-block w-2 h-2 rounded-full bg-red-500" title={kpi.redThreshold || ""} />
+                        <Badge variant="secondary" className="font-normal">{getDeptName(kpi.departmentId)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium tabular-nums">{kpi.targetValue} {kpi.unit}</TableCell>
+                      <TableCell className="text-sm">{kpi.frequency}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{kpi.ownerName}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1.5 items-center">
+                          <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" title={kpi.greenThreshold || ""} />
+                          <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" title={kpi.amberThreshold || ""} />
+                          <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" title={kpi.redThreshold || ""} />
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -147,7 +196,7 @@ export default function KpiManagementPage() {
                           <Button size="sm" variant="ghost" onClick={() => setActualDialog(kpi)} data-testid={`button-add-actual-${kpi.id}`}>
                             <Plus className="h-3 w-3 mr-1" />Actual
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(kpi.id)} data-testid={`button-delete-kpi-${kpi.id}`}>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteMutation.mutate(kpi.id)} data-testid={`button-delete-kpi-${kpi.id}`}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -164,16 +213,22 @@ export default function KpiManagementPage() {
       <Dialog open={!!actualDialog} onOpenChange={(open) => !open && setActualDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Actual Value - {actualDialog?.kpiName}</DialogTitle>
+            <DialogTitle>Record Actual — {actualDialog?.kpiName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Review Month</Label>
-              <Input type="month" value={actualMonth} onChange={(e) => setActualMonth(e.target.value)} data-testid="input-actual-month" />
+            <div className="p-3 rounded-lg bg-muted/50 text-sm">
+              <span className="text-muted-foreground">Target: </span>
+              <span className="font-medium">{actualDialog?.targetValue} {actualDialog?.unit}</span>
             </div>
-            <div className="space-y-2">
-              <Label>Actual Value</Label>
-              <Input value={actualValue} onChange={(e) => setActualValue(e.target.value)} placeholder={`Target: ${actualDialog?.targetValue} ${actualDialog?.unit}`} data-testid="input-actual-value" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Review Month</Label>
+                <Input type="month" value={actualMonth} onChange={(e) => setActualMonth(e.target.value)} data-testid="input-actual-month" />
+              </div>
+              <div className="space-y-2">
+                <Label>Actual Value</Label>
+                <Input value={actualValue} onChange={(e) => setActualValue(e.target.value)} placeholder="Enter value" data-testid="input-actual-value" />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
@@ -188,10 +243,15 @@ export default function KpiManagementPage() {
             </div>
             <div className="space-y-2">
               <Label>Commentary</Label>
-              <Textarea value={actualComment} onChange={(e) => setActualComment(e.target.value)} placeholder="Add notes..." data-testid="input-actual-comment" />
+              <Textarea value={actualComment} onChange={(e) => setActualComment(e.target.value)} placeholder="What drove this result?" data-testid="input-actual-comment" />
             </div>
-            <Button onClick={() => addActualMutation.mutate()} disabled={addActualMutation.isPending || !actualMonth || !actualValue} className="w-full" data-testid="button-save-actual">
-              Save Actual
+            <Button
+              onClick={() => addActualMutation.mutate()}
+              disabled={addActualMutation.isPending || !actualMonth || !actualValue}
+              className="w-full"
+              data-testid="button-save-actual"
+            >
+              {addActualMutation.isPending ? "Saving..." : "Save Actual"}
             </Button>
           </div>
         </DialogContent>

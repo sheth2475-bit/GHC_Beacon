@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, requireAuth } from "./auth";
 import { generateKpis, generateMonthlyReview, generateDashboardPlan } from "./ai";
+import * as XLSX from "xlsx";
 
 async function getCompanyForUser(req: Request): Promise<{ id: number } | null> {
   const company = await storage.getCompanyByUserId(req.user!.id);
@@ -284,6 +285,104 @@ export async function registerRoutes(
       overdueActions,
       completedActions,
     });
+  });
+
+  app.get("/api/templates/kpis", requireAuth, (_req: Request, res: Response) => {
+    const wb = XLSX.utils.book_new();
+    const data = [
+      ["KPI Name", "Description", "Formula", "Unit", "Frequency", "Target Value", "Green Threshold", "Amber Threshold", "Red Threshold", "Owner", "Data Source", "Department"],
+      ["Occupancy Rate", "Percentage of rooms occupied", "(Rooms Sold / Available Rooms) × 100", "%", "Monthly", "85", ">= 85%", "75% - 84%", "< 75%", "Revenue Manager", "PMS System", "Sales"],
+      ["Employee Turnover", "Staff leaving per period", "(Separations / Avg Headcount) × 100", "%", "Monthly", "18", "<= 18%", "19% - 25%", "> 25%", "HR Manager", "HRMS", "HR"],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws["!cols"] = data[0].map(() => ({ wch: 22 }));
+    XLSX.utils.book_append_sheet(wb, ws, "KPIs");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=kpi_template.xlsx");
+    res.send(buf);
+  });
+
+  app.get("/api/templates/actions", requireAuth, (_req: Request, res: Response) => {
+    const wb = XLSX.utils.book_new();
+    const data = [
+      ["Title", "Description", "Owner", "Due Date (YYYY-MM-DD)", "Priority (Low/Medium/High/Critical)", "Status (Not Started/In Progress/Completed/Delayed)", "Department"],
+      ["Implement feedback system", "Deploy guest feedback kiosks", "Sarah Johnson", "2026-03-15", "High", "In Progress", "Operations"],
+      ["Review pricing", "Analyze competitor pricing", "Michael Chen", "2026-03-20", "Medium", "Not Started", "Sales"],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws["!cols"] = data[0].map(() => ({ wch: 28 }));
+    XLSX.utils.book_append_sheet(wb, ws, "Action Items");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=action_items_template.xlsx");
+    res.send(buf);
+  });
+
+  app.post("/api/upload/kpis", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company profile" });
+      const departments = await storage.getDepartments(company.id);
+      const { data } = req.body;
+      if (!Array.isArray(data) || data.length === 0) return res.status(400).json({ message: "No data provided" });
+
+      const created = [];
+      for (const row of data) {
+        const dept = departments.find(d => d.name.toLowerCase() === (row.department || "").toLowerCase());
+        const kpi = await storage.createKpi({
+          companyId: company.id,
+          departmentId: dept?.id || null,
+          kpiName: row.kpiName || row["KPI Name"] || "",
+          description: row.description || row["Description"] || null,
+          formula: row.formula || row["Formula"] || null,
+          unit: row.unit || row["Unit"] || null,
+          frequency: row.frequency || row["Frequency"] || null,
+          targetValue: row.targetValue || row["Target Value"] || null,
+          greenThreshold: row.greenThreshold || row["Green Threshold"] || null,
+          amberThreshold: row.amberThreshold || row["Amber Threshold"] || null,
+          redThreshold: row.redThreshold || row["Red Threshold"] || null,
+          ownerName: row.ownerName || row["Owner"] || null,
+          dataSource: row.dataSource || row["Data Source"] || null,
+          createdByAi: false,
+        });
+        created.push(kpi);
+      }
+      res.json({ imported: created.length, kpis: created });
+    } catch (err: any) {
+      console.error("KPI upload error:", err);
+      res.status(500).json({ message: "Failed to import KPIs" });
+    }
+  });
+
+  app.post("/api/upload/actions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company profile" });
+      const departments = await storage.getDepartments(company.id);
+      const { data } = req.body;
+      if (!Array.isArray(data) || data.length === 0) return res.status(400).json({ message: "No data provided" });
+
+      const created = [];
+      for (const row of data) {
+        const dept = departments.find(d => d.name.toLowerCase() === (row.department || row["Department"] || "").toLowerCase());
+        const item = await storage.createActionItem({
+          companyId: company.id,
+          departmentId: dept?.id || null,
+          title: row.title || row["Title"] || "",
+          description: row.description || row["Description"] || null,
+          ownerName: row.ownerName || row["Owner"] || null,
+          dueDate: row.dueDate || row["Due Date (YYYY-MM-DD)"] || null,
+          priority: row.priority || row["Priority (Low/Medium/High/Critical)"] || "Medium",
+          status: row.status || row["Status (Not Started/In Progress/Completed/Delayed)"] || "Not Started",
+        });
+        created.push(item);
+      }
+      res.json({ imported: created.length, items: created });
+    } catch (err: any) {
+      console.error("Action upload error:", err);
+      res.status(500).json({ message: "Failed to import actions" });
+    }
   });
 
   return httpServer;

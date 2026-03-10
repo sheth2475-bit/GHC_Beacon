@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Building2, Target, ListChecks, Calendar,
-  FileText, LayoutTemplate, Settings, LogOut, BarChart3
+  FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -11,65 +11,77 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
-const navItems = [
+const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Business Profile", url: "/profile", icon: Building2 },
-  { title: "KPI Builder", url: "/kpi-builder", icon: Target },
-  { title: "KPI Management", url: "/kpis", icon: BarChart3 },
+];
+
+const performanceNav = [
+  { title: "KPI Builder", url: "/kpi-builder", icon: Sparkles },
+  { title: "KPI Management", url: "/kpis", icon: Target },
   { title: "Action Tracker", url: "/actions", icon: ListChecks },
   { title: "Meetings", url: "/meetings", icon: Calendar },
+];
+
+const insightsNav = [
   { title: "Monthly Reviews", url: "/reviews", icon: FileText },
   { title: "Dashboard Planner", url: "/planner", icon: LayoutTemplate },
-  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
 
+  const renderGroup = (label: string, items: typeof mainNav) => (
+    <SidebarGroup>
+      <SidebarGroupLabel className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/70">{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton asChild data-active={location === item.url}>
+                <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-            <BarChart3 className="h-4 w-4 text-primary-foreground" />
+      <SidebarHeader className="p-4 pb-2">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm">
+            <BarChart3 className="h-[18px] w-[18px] text-primary-foreground" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold" data-testid="text-app-name">Performo AI</h2>
-            <p className="text-xs text-muted-foreground">Performance Management</p>
+            <h2 className="text-sm font-bold tracking-tight" data-testid="text-app-name">Performo AI</h2>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Performance Management</p>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild data-active={location === item.url}>
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+      <SidebarContent className="pt-1">
+        {renderGroup("Overview", mainNav)}
+        {renderGroup("Performance", performanceNav)}
+        {renderGroup("AI Insights", insightsNav)}
+        {renderGroup("System", [{ title: "Settings", url: "/settings", icon: Settings }])}
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-3 border-t border-sidebar-border">
         {user && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-xs font-medium">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
               {user.name.split(" ").map(n => n[0]).join("")}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate" data-testid="text-user-name">{user.name}</p>
-              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
             </div>
-            <Button size="icon" variant="ghost" onClick={logout} data-testid="button-logout">
+            <Button size="icon" variant="ghost" onClick={logout} className="h-8 w-8" data-testid="button-logout">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
