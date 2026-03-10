@@ -40,13 +40,6 @@ export async function registerRoutes(
         companySize: req.body.companySize,
         country: req.body.country,
       });
-      if (req.body.departments) {
-        const existingDepts = await storage.getDepartments(existing.id);
-        for (const d of existingDepts) await storage.deleteDepartment(d.id);
-        for (const name of req.body.departments) {
-          await storage.createDepartment({ companyId: existing.id, name });
-        }
-      }
       if (req.body.goals) {
         const existingGoals = await storage.getBusinessGoals(existing.id);
         for (const g of existingGoals) await storage.deleteBusinessGoal(g.id);

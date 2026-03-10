@@ -55,7 +55,7 @@ server/storage.ts         - Storage layer (IStorage interface + DatabaseStorage)
 server/auth.ts            - Authentication setup (passport + sessions)
 server/ai.ts              - AI service (gpt-4o, KPI generation, reviews, dashboard plans)
 server/routes.ts          - All API routes including Excel upload/template endpoints
-server/seed.ts            - Seed data (Sheth Offshore Helicopters, 12 KPIs, 10 actions, 4 meetings, 9 meeting types)
+server/seed.ts            - Seed data (OYO Hospitality, 12 KPIs, 10 actions, 4 meetings, 9 meeting types)
 client/src/App.tsx         - Main app with routing and sidebar layout
 client/src/lib/auth.tsx    - Auth context provider
 client/src/components/     - Reusable components (app-sidebar, page-header, status-badge, etc.)

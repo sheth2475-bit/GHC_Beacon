@@ -15,8 +15,9 @@ import { Settings, User, Building2, Database, Trash2, Plus, LayoutList, Save, X,
 import type { Department, MeetingType } from "@shared/schema";
 
 const INDUSTRIES = [
-  "Offshore Helicopters", "Hospitality", "Restaurants", "Retail", "Real Estate", "Healthcare clinics",
+  "Hospitality", "Restaurants", "Retail", "Real Estate", "Healthcare clinics",
   "Trading companies", "Maintenance / field services", "Professional services",
+  "Offshore Helicopters",
 ];
 
 const SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
@@ -50,9 +51,8 @@ export default function SettingsPage() {
 
   const saveProfile = useMutation({
     mutationFn: async () => {
-      const deptNames = departments.map(d => d.name);
       await apiRequest("POST", "/api/company", {
-        companyName, industry, companySize, country, departments: deptNames, goals,
+        companyName, industry, companySize, country, goals,
       });
     },
     onSuccess: () => {
