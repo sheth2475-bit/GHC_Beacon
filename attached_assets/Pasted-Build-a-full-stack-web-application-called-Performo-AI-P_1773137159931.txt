@@ -1,0 +1,892 @@
+Build a full-stack web application called **Performo AI**.
+
+Performo AI is a role-based business performance and PMO management platform for SMEs and mid-sized companies.
+
+The application must have:
+1. **Admin / Data Owner side** for uploading and maintaining backend data
+2. **Executive side** for CEO / GM users to view dashboards, progress, risks, and summaries
+3. **Role-based authentication and access control**
+
+The platform combines:
+- KPI Management
+- PMO / Initiative Tracking
+- Action Tracker
+- Monthly Review Copilot
+- Executive Dashboards
+
+====================================================
+1. PRODUCT PURPOSE
+====================================================
+
+Create a professional SaaS web app that allows operational users to maintain business data, while leaders such as CEO and GMs can log in to view high-level progress and dashboards.
+
+Core idea:
+- Admins upload and manage data
+- CEO / GMs view clean dashboards and progress
+- AI generates management summaries and insights
+
+The app should feel practical, premium, and ready as a real MVP.
+
+====================================================
+2. USER ROLES
+====================================================
+
+Implement these roles:
+
+### 1. Super Admin
+Can:
+- manage all users
+- manage all companies
+- manage all departments
+- configure KPI master data
+- upload and edit all KPI actuals
+- manage meetings, actions, initiatives, and reviews
+- assign permissions
+- view all dashboards
+
+### 2. Admin / Data Owner
+Can:
+- maintain KPI master data for assigned company/departments
+- upload KPI actuals
+- create and update meetings
+- create and update action items
+- update initiative / project progress
+- enter monthly review notes
+- generate AI summaries
+- view dashboards for allowed company/departments
+
+### 3. Executive Viewer
+This includes CEO and GM users.
+
+Can:
+- view dashboards
+- view KPI progress
+- view overdue actions
+- view initiative / PMO progress
+- read AI summaries
+- filter by department / period / business unit
+- optionally add comments or mark items as reviewed
+
+Cannot:
+- edit master data
+- upload operational data unless explicitly allowed
+
+### 4. Executive Subtypes
+Support these user types under executive:
+- CEO: can view all departments and all company data
+- GM: can view only assigned departments or business units
+- Department Head: optional, can view only own department
+
+====================================================
+3. HIGH-LEVEL APP STRUCTURE
+====================================================
+
+Create two main user experiences:
+
+### A. Admin Experience
+Operational, editable, data-entry friendly.
+Modules:
+- Admin Dashboard
+- KPI Setup
+- KPI Actual Upload
+- PMO / Initiative Tracker
+- Action Tracker
+- Meetings
+- Monthly Reviews
+- User Management
+- Settings
+
+### B. Executive Experience
+Clean, premium, read-only or mostly read-only.
+Modules:
+- Executive Dashboard
+- Department Scorecards
+- Initiative / PMO Progress
+- Action Status
+- Monthly Reviews
+- Risks & Issues
+- Commentary / Review Notes
+
+After login:
+- Super Admin -> Admin Dashboard
+- Admin / Data Owner -> Admin Dashboard
+- CEO -> Executive Dashboard
+- GM -> Executive Dashboard filtered to assigned departments
+- Department Head -> Department Scorecard
+
+====================================================
+4. CORE MODULES
+====================================================
+
+### A. Authentication & Authorization
+Implement:
+- Signup / login
+- Secure password hashing
+- Role-based access control
+- Session or token-based auth
+- Protected routes
+- Middleware for checking roles and permissions
+
+### B. Business / Company Setup
+Allow Super Admin to create:
+- company
+- departments
+- business units
+- user assignments
+
+Fields:
+- company name
+- industry
+- country
+- company size
+- business units
+- departments
+- strategic goals
+
+### C. KPI Master Setup
+Admin can create and maintain KPIs with:
+- KPI name
+- department
+- description
+- formula
+- unit
+- frequency
+- target value
+- green / amber / red thresholds
+- owner
+- data source
+- whether AI-generated or manual
+
+### D. KPI Actual Upload
+Admins should be able to:
+- enter KPI actuals manually
+- upload KPI actuals in bulk via CSV or Excel
+- validate uploaded data
+- map upload columns to fields
+- save monthly actuals
+
+Required fields:
+- review month
+- KPI
+- actual value
+- commentary
+- department
+- status
+
+### E. PMO / Initiative Tracker
+Create a module for strategic initiatives and projects.
+
+Each initiative should include:
+- initiative name
+- department
+- business unit
+- owner
+- strategic theme
+- start date
+- end date
+- progress percentage
+- RAG status
+- milestone
+- risks
+- remarks
+
+Allow periodic updates to initiative progress.
+
+### F. Meetings Module
+Allow admins to:
+- create meeting record
+- add title
+- department
+- meeting date
+- summary / notes
+- link action items
+- optionally attach decisions or discussion points
+
+### G. Action Tracker
+Allow admins to:
+- create action items
+- assign owner
+- assign department
+- due date
+- priority
+- status
+- link to meeting or initiative
+
+Statuses:
+- Not Started
+- In Progress
+- Completed
+- Delayed
+- Cancelled
+
+Priorities:
+- Low
+- Medium
+- High
+- Critical
+
+Highlight overdue actions.
+
+### H. Monthly Reviews
+Allow admins to:
+- select month
+- pull KPI results
+- enter commentary
+- add highlights, issues, achievements, support needed
+- generate AI monthly management summary
+
+### I. Executive Dashboards
+Executive users should be able to view:
+- total KPIs
+- on-track KPIs
+- below-target KPIs
+- KPI trends
+- overdue actions
+- completed actions
+- initiative progress
+- department performance
+- top issues / risks
+- AI-generated executive summary
+
+### J. Department Scorecards
+Provide department drill-down dashboards showing:
+- department KPI performance
+- trend over time
+- overdue actions
+- initiative status
+- monthly review notes
+
+====================================================
+5. UI / UX REQUIREMENTS
+====================================================
+
+Design style:
+- clean
+- executive-level
+- premium SaaS style
+- minimal and professional
+- responsive
+- modern corporate palette
+- white / slate / blue tones
+- subtle status colors
+- polished cards, tables, and charts
+
+Use:
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Lucide icons
+- Recharts
+
+Admin experience:
+- more detailed tables and forms
+- editable screens
+- upload components
+- filters and validation
+
+Executive experience:
+- simple navigation
+- KPI cards
+- charts
+- summaries
+- scorecards
+- very low clutter
+- read-only feel
+
+Sidebar should change based on role.
+
+Top bar should include:
+- Performo AI logo/title
+- company selector if relevant
+- period selector
+- search
+- notifications icon
+- user menu
+
+====================================================
+6. TECH STACK
+====================================================
+
+Use this stack:
+
+Frontend:
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Recharts
+
+Backend:
+- Node.js
+- Express.js
+- TypeScript
+
+Database:
+- PostgreSQL
+
+ORM:
+- Drizzle ORM preferred
+If Prisma is easier, Prisma is acceptable.
+
+Authentication:
+- Email/password auth
+- Secure password hashing
+- Session-based or JWT auth
+
+AI:
+- OpenAI API integration for:
+  - KPI generation
+  - Monthly review summary generation
+  - Dashboard planning / recommendations
+  - Executive summary generation
+
+File Upload:
+- CSV and Excel upload support
+- Parse and validate uploads before insert
+
+====================================================
+7. DATABASE SCHEMA
+====================================================
+
+Design and implement database models/tables for:
+
+### users
+- id
+- name
+- email
+- password_hash
+- role
+- executive_type (nullable: CEO, GM, Department Head)
+- company_id
+- allowed_departments (JSON or relation table)
+- is_active
+- created_at
+
+### companies
+- id
+- company_name
+- industry
+- company_size
+- country
+- created_at
+
+### departments
+- id
+- company_id
+- name
+- business_unit
+- created_at
+
+### business_goals
+- id
+- company_id
+- goal_text
+- created_at
+
+### kpis
+- id
+- company_id
+- department_id
+- kpi_name
+- description
+- formula
+- unit
+- frequency
+- target_value
+- green_threshold
+- amber_threshold
+- red_threshold
+- owner_name
+- data_source
+- created_by_ai
+- created_at
+
+### kpi_actuals
+- id
+- kpi_id
+- review_month
+- actual_value
+- commentary
+- status
+- uploaded_by
+- created_at
+
+### meetings
+- id
+- company_id
+- department_id
+- title
+- meeting_date
+- summary
+- created_by
+- created_at
+
+### action_items
+- id
+- company_id
+- meeting_id
+- initiative_id (nullable)
+- department_id
+- title
+- description
+- owner_name
+- due_date
+- priority
+- status
+- created_by
+- created_at
+
+### initiatives
+- id
+- company_id
+- department_id
+- business_unit
+- initiative_name
+- strategic_theme
+- owner_name
+- start_date
+- end_date
+- progress_percent
+- rag_status
+- milestone
+- risks
+- remarks
+- created_at
+
+### initiative_updates
+- id
+- initiative_id
+- update_date
+- progress_percent
+- rag_status
+- milestone
+- risks
+- remarks
+- updated_by
+- created_at
+
+### monthly_reviews
+- id
+- company_id
+- department_id (nullable for company-wide review)
+- review_month
+- highlights
+- issues
+- support_required
+- ai_generated_text
+- created_by
+- created_at
+
+### dashboard_plans
+- id
+- company_id
+- department_id
+- title
+- structure_json
+- ai_generated_text
+- created_at
+
+### executive_comments
+- id
+- user_id
+- related_type
+- related_id
+- comment_text
+- created_at
+
+====================================================
+8. PERMISSION MODEL
+====================================================
+
+Implement permission checks such that:
+
+### Super Admin
+- full access to all CRUD and all views
+
+### Admin / Data Owner
+- can edit only allowed company/departments
+- can upload KPI actuals
+- can update initiatives, meetings, and actions
+- can generate monthly reviews
+
+### CEO
+- can view all company dashboards
+- cannot edit operational data
+- can comment if comment feature enabled
+
+### GM
+- can view only assigned departments/business units
+- cannot edit operational data
+- can comment if enabled
+
+### Department Head
+- can view only own department
+- may optionally add comments
+
+Use middleware and reusable permission helpers.
+
+====================================================
+9. PAGES TO BUILD
+====================================================
+
+Create the following pages:
+
+### Public
+1. Login page
+2. Signup page
+3. Forgot password placeholder page if feasible
+
+### Admin Side
+4. Admin Dashboard
+5. Company Setup
+6. Department Management
+7. User Management
+8. KPI Builder / KPI Setup
+9. KPI Actual Upload
+10. KPI Management
+11. Initiatives / PMO Tracker
+12. Meetings
+13. Action Tracker
+14. Monthly Reviews
+15. Settings
+
+### Executive Side
+16. Executive Dashboard
+17. Department Scorecards
+18. Initiative Progress
+19. Action Status
+20. Monthly Review Viewer
+21. Risks & Issues
+22. Executive Notes / Comments
+
+====================================================
+10. PAGE DETAILS
+====================================================
+
+### Admin Dashboard
+Show:
+- total KPIs
+- latest uploads
+- below-target KPIs
+- overdue actions
+- initiatives at risk
+- pending reviews
+- quick links to upload and manage data
+
+### KPI Actual Upload Page
+Support:
+- manual form entry
+- CSV upload
+- Excel upload
+- data preview before save
+- error handling for invalid rows
+- success / failure messages
+
+### KPI Management Page
+Display:
+- filterable table
+- search by KPI name
+- filter by department, frequency, owner
+- edit / delete KPI
+- view actual history
+
+### Initiatives / PMO Tracker Page
+Display:
+- initiatives table
+- progress %
+- RAG status
+- owner
+- due dates
+- risk remarks
+- timeline
+- update progress modal/form
+
+### Action Tracker Page
+Display:
+- action title
+- owner
+- linked meeting or initiative
+- due date
+- status
+- priority
+- department
+- overdue indicator
+- filters and sorting
+
+### Monthly Review Page
+Allow admin to:
+- select month
+- select department or all
+- review KPI results
+- add qualitative commentary
+- click “Generate AI Summary”
+- save review
+
+### Executive Dashboard
+Show a premium dashboard with:
+- KPI summary cards
+- department performance chart
+- on-track vs below-target chart
+- overdue action summary
+- initiative progress summary
+- company-wide AI executive summary
+- filters for month, department, business unit
+
+### Department Scorecard
+Show:
+- department KPIs
+- current vs target
+- trend chart
+- actions overdue
+- initiatives in progress
+- department monthly review summary
+
+### Initiative Progress Page
+Show:
+- all initiatives
+- progress %
+- RAG status
+- by department
+- by business unit
+- at-risk initiatives
+- drill-down details
+
+### Risks & Issues Page
+Show:
+- below-target KPIs
+- delayed actions
+- at-risk initiatives
+- latest comments or issues
+
+====================================================
+11. AI FEATURES
+====================================================
+
+Create backend AI services for:
+
+### A. KPI Generator
+Input:
+- industry
+- department
+- business goals
+
+Output JSON fields:
+- kpi_name
+- description
+- formula
+- unit
+- frequency
+- target_value
+- green_threshold
+- amber_threshold
+- red_threshold
+- owner_name
+- data_source
+
+Must be realistic, practical, and suitable for SMEs and business users.
+
+### B. Monthly Review Generator
+Input:
+- month
+- KPI actuals
+- target data
+- commentary
+- action status
+- initiative status
+
+Output structured JSON:
+- executive_summary
+- wins
+- concerns
+- likely_causes
+- recommendations
+- meeting_discussion_points
+
+### C. Executive Summary Generator
+Generate concise leadership summary for CEO / GM dashboard:
+- overall performance
+- major strengths
+- major gaps
+- urgent areas
+- suggested leadership focus
+
+### D. Dashboard Planner
+Generate recommended dashboard structure and chart suggestions.
+
+Return structured JSON.
+
+====================================================
+12. DEFAULT DEMO DATA
+====================================================
+
+Seed demo data so the app is immediately usable.
+
+Create demo company:
+- Company Name: Al Noor Hospitality Group
+- Industry: Hospitality
+- Country: Qatar
+- Company Size: Mid-sized
+
+Departments:
+- Sales
+- Operations
+- HR
+- Finance
+
+Sample KPIs:
+Sales:
+- Occupancy Rate
+- ADR
+- RevPAR
+
+Operations:
+- Guest Complaint Rate
+- Room Turnaround Time
+
+HR:
+- Employee Turnover Rate
+- Training Completion Rate
+
+Finance:
+- GOP Margin
+- Budget Variance %
+
+Sample initiatives:
+- Improve direct bookings
+- Reduce guest complaints
+- Reduce employee turnover
+
+Sample actions:
+- Review OTA commission strategy
+- Launch service recovery training
+- Finalize workforce retention plan
+
+Create 3 demo users:
+1. superadmin@performo.ai / demo password
+2. admin@performo.ai / demo password
+3. ceo@performo.ai / demo password
+4. gm@performo.ai / demo password
+
+Assign GM to limited departments only.
+
+====================================================
+13. API ENDPOINTS
+====================================================
+
+Build REST APIs for:
+
+- auth
+- users
+- companies
+- departments
+- goals
+- kpis
+- kpi-actuals
+- meetings
+- action-items
+- initiatives
+- initiative-updates
+- monthly-reviews
+- dashboard-plans
+- executive-comments
+- ai/generate-kpis
+- ai/generate-monthly-review
+- ai/generate-executive-summary
+- ai/generate-dashboard-plan
+- upload/kpi-actuals
+- upload/actions if feasible
+
+====================================================
+14. FILE UPLOAD REQUIREMENTS
+====================================================
+
+Build upload support for:
+- CSV
+- Excel (.xlsx)
+
+At minimum support upload for:
+1. KPI actuals
+2. Action items
+
+Requirements:
+- validate required columns
+- show preview before final import
+- show row-level errors
+- skip invalid rows or allow correction
+- save valid rows to database
+
+====================================================
+15. CODE QUALITY REQUIREMENTS
+====================================================
+
+- Use TypeScript properly
+- Use clean folder structure
+- Separate routes, controllers, services, db models, middleware
+- Use reusable components
+- Handle loading states and empty states
+- Handle auth and permissions cleanly
+- Make sure all pages work
+- Avoid dead placeholder navigation
+- Use comments where necessary
+- Make the app runnable
+
+Environment variables:
+- DATABASE_URL
+- OPENAI_API_KEY
+- SESSION_SECRET
+
+====================================================
+16. UI COMPONENTS TO INCLUDE
+====================================================
+
+Build reusable components for:
+- sidebar
+- topbar
+- stat cards
+- KPI cards
+- upload dropzone
+- data tables
+- status badges
+- chart cards
+- review summary card
+- filters
+- permission guard
+- empty state
+- loading state
+
+====================================================
+17. README AND SETUP
+====================================================
+
+Create:
+- README.md
+- .env.example
+
+README should explain:
+- how to install
+- how to run the app
+- how to configure database
+- how to run migrations
+- how to seed demo data
+- how to add OpenAI API key
+- demo users available
+
+====================================================
+18. FINAL EXPECTATION
+====================================================
+
+Do not create only mock screens.
+
+Build a real MVP of Performo AI with:
+- authentication
+- role-based access
+- admin data entry workflows
+- executive dashboards
+- database schema
+- upload support
+- AI integration points
+- seeded demo data
+- clean premium UI
+
+The result should feel like a real business SaaS product where admins maintain data and CEO / GM users log in to monitor progress and dashboards.

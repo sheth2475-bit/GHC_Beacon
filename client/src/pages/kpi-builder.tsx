@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { Sparkles, Save, Loader2, Target, CheckCircle2 } from "lucide-react";
+import { Sparkles, Save, Loader2, Target, CheckCircle2, PenLine } from "lucide-react";
 import type { Department } from "@shared/schema";
 
 const INDUSTRIES = [
@@ -18,6 +19,8 @@ const INDUSTRIES = [
   "Trading companies", "Maintenance / field services", "Professional services",
   "Offshore Helicopter company"
 ];
+
+const FREQUENCIES = ["Weekly", "Monthly", "Quarterly", "Annually"];
 
 export default function KpiBuilderPage() {
   const { toast } = useToast();
@@ -29,6 +32,26 @@ export default function KpiBuilderPage() {
   const [goals, setGoals] = useState("");
   const [generatedKpis, setGeneratedKpis] = useState<any[]>([]);
   const [savedKpis, setSavedKpis] = useState<Set<number>>(new Set());
+
+  const [manualKpiName, setManualKpiName] = useState("");
+  const [manualDesc, setManualDesc] = useState("");
+  const [manualFormula, setManualFormula] = useState("");
+  const [manualUnit, setManualUnit] = useState("");
+  const [manualFreq, setManualFreq] = useState("Monthly");
+  const [manualTarget, setManualTarget] = useState("");
+  const [manualGreen, setManualGreen] = useState("");
+  const [manualAmber, setManualAmber] = useState("");
+  const [manualRed, setManualRed] = useState("");
+  const [manualOwner, setManualOwner] = useState("");
+  const [manualSource, setManualSource] = useState("");
+  const [manualDept, setManualDept] = useState("");
+
+  const resetManualForm = () => {
+    setManualKpiName(""); setManualDesc(""); setManualFormula("");
+    setManualUnit(""); setManualFreq("Monthly"); setManualTarget("");
+    setManualGreen(""); setManualAmber(""); setManualRed("");
+    setManualOwner(""); setManualSource(""); setManualDept("");
+  };
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -80,6 +103,36 @@ export default function KpiBuilderPage() {
     },
   });
 
+  const manualSaveMutation = useMutation({
+    mutationFn: async () => {
+      const deptObj = departments?.find(d => d.name === manualDept);
+      await apiRequest("POST", "/api/kpis", {
+        departmentId: deptObj?.id || null,
+        kpiName: manualKpiName,
+        description: manualDesc || null,
+        formula: manualFormula || null,
+        unit: manualUnit || null,
+        frequency: manualFreq,
+        targetValue: manualTarget || null,
+        greenThreshold: manualGreen || null,
+        amberThreshold: manualAmber || null,
+        redThreshold: manualRed || null,
+        ownerName: manualOwner || null,
+        dataSource: manualSource || null,
+        createdByAi: false,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+      resetManualForm();
+      toast({ title: "KPI created", description: `"${manualKpiName}" has been added to KPI Management` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const saveAll = () => {
     generatedKpis.forEach((kpi, index) => {
       if (!savedKpis.has(index)) {
@@ -92,124 +145,246 @@ export default function KpiBuilderPage() {
     <div className="p-6 space-y-6">
       <PageHeader
         title="KPI Builder"
-        description="Generate AI-powered KPIs tailored to your business"
-        icon={Sparkles}
+        description="Create KPIs manually or generate them with AI"
+        icon={Target}
         testId="text-kpi-builder-title"
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Generate KPIs
-          </CardTitle>
-          <CardDescription>Select your industry, department, and goals to generate relevant KPIs</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Industry</Label>
-              <Select value={industry || company?.industry || ""} onValueChange={setIndustry}>
-                <SelectTrigger data-testid="select-kpi-industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
-                <SelectContent>
-                  {INDUSTRIES.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Department</Label>
-              <Select value={department} onValueChange={setDepartment}>
-                <SelectTrigger data-testid="select-kpi-department"><SelectValue placeholder="Select department" /></SelectTrigger>
-                <SelectContent>
-                  {(departments || []).map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
-                  {["Sales", "Finance", "HR", "Operations", "Procurement", "Customer Service", "Marketing"]
-                    .filter(n => !(departments || []).some(d => d.name === n))
-                    .map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Business Priorities</Label>
-              <Input value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="e.g. Increase revenue, Reduce costs" data-testid="input-kpi-goals" />
-            </div>
-          </div>
-          <Button onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending || !department} data-testid="button-generate-kpis">
-            {generateMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating KPIs...</> : <><Sparkles className="h-4 w-4 mr-2" />Generate KPIs</>}
-          </Button>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="manual" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="manual" className="flex items-center gap-2" data-testid="tab-manual-kpi">
+            <PenLine className="h-3.5 w-3.5" />Manual KPI
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2" data-testid="tab-ai-kpi">
+            <Sparkles className="h-3.5 w-3.5" />AI Generate
+          </TabsTrigger>
+        </TabsList>
 
-      {generatedKpis.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold" data-testid="text-generated-count">Generated KPIs ({generatedKpis.length})</h2>
-            <Button variant="secondary" onClick={saveAll} disabled={savedKpis.size === generatedKpis.length} data-testid="button-save-all-kpis">
-              <Save className="h-4 w-4 mr-2" />Save All
-            </Button>
-          </div>
-          <div className="grid gap-4">
-            {generatedKpis.map((kpi, i) => (
-              <Card key={i} className={savedKpis.has(i) ? "border-emerald-200 dark:border-emerald-800 bg-emerald-500/5" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Target className="h-4 w-4 text-primary flex-shrink-0" />
-                        <h3 className="font-semibold text-sm" data-testid={`text-kpi-name-${i}`}>{kpi.kpi_name}</h3>
-                        <Badge variant="secondary" className="text-xs">{kpi.frequency}</Badge>
-                        <Badge variant="secondary" className="text-xs">{kpi.unit}</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{kpi.description}</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Formula</p>
-                          <p className="text-sm font-mono text-xs">{kpi.formula}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Target</p>
-                          <p className="text-sm font-medium">{kpi.target_value}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Owner</p>
-                          <p className="text-sm">{kpi.owner_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Data Source</p>
-                          <p className="text-sm">{kpi.data_source}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-1.5 flex-wrap pt-1">
-                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Green: {kpi.green_threshold}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Amber: {kpi.amber_threshold}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-700 dark:text-red-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />Red: {kpi.red_threshold}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={savedKpis.has(i) ? "ghost" : "default"}
-                      onClick={() => saveMutation.mutate({ kpi, index: i })}
-                      disabled={saveMutation.isPending || savedKpis.has(i)}
-                      data-testid={`button-save-kpi-${i}`}
-                    >
-                      {savedKpis.has(i) ? (
-                        <><CheckCircle2 className="h-4 w-4 mr-1 text-emerald-500" />Saved</>
-                      ) : (
-                        <><Save className="h-4 w-4 mr-1" />Save</>
-                      )}
-                    </Button>
+        <TabsContent value="manual" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <PenLine className="h-4 w-4 text-primary" />
+                Create KPI Manually
+              </CardTitle>
+              <CardDescription>Define your own KPI with custom metrics, thresholds, and targets</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>KPI Name *</Label>
+                  <Input value={manualKpiName} onChange={(e) => setManualKpiName(e.target.value)} placeholder="e.g. Customer Satisfaction Score" data-testid="input-manual-kpi-name" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Department *</Label>
+                  <Select value={manualDept} onValueChange={setManualDept}>
+                    <SelectTrigger data-testid="select-manual-dept"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {(departments || []).map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                      {["Sales", "Finance", "HR", "Operations", "Procurement", "Customer Service", "Marketing"]
+                        .filter(n => !(departments || []).some(d => d.name === n))
+                        .map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea value={manualDesc} onChange={(e) => setManualDesc(e.target.value)} placeholder="What does this KPI measure and why is it important?" rows={2} data-testid="input-manual-kpi-desc" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Formula</Label>
+                  <Input value={manualFormula} onChange={(e) => setManualFormula(e.target.value)} placeholder="e.g. (Revenue / Rooms Sold)" data-testid="input-manual-kpi-formula" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Unit</Label>
+                  <Input value={manualUnit} onChange={(e) => setManualUnit(e.target.value)} placeholder="e.g. %, AED, hours" data-testid="input-manual-kpi-unit" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Frequency</Label>
+                  <Select value={manualFreq} onValueChange={setManualFreq}>
+                    <SelectTrigger data-testid="select-manual-freq"><SelectValue /></SelectTrigger>
+                    <SelectContent>{FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Target Value</Label>
+                  <Input value={manualTarget} onChange={(e) => setManualTarget(e.target.value)} placeholder="e.g. 85" data-testid="input-manual-kpi-target" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Owner</Label>
+                  <Input value={manualOwner} onChange={(e) => setManualOwner(e.target.value)} placeholder="Person responsible" data-testid="input-manual-kpi-owner" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data Source</Label>
+                <Input value={manualSource} onChange={(e) => setManualSource(e.target.value)} placeholder="e.g. PMS System, ERP, Manual Log" data-testid="input-manual-kpi-source" />
+              </div>
+
+              <div className="border rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium">RAG Thresholds</p>
+                <p className="text-xs text-muted-foreground">Define the performance boundaries for Red, Amber, and Green status</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />Green (On Track)
+                    </Label>
+                    <Input value={manualGreen} onChange={(e) => setManualGreen(e.target.value)} placeholder="e.g. >= 85%" data-testid="input-manual-kpi-green" />
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />Amber (At Risk)
+                    </Label>
+                    <Input value={manualAmber} onChange={(e) => setManualAmber(e.target.value)} placeholder="e.g. 70% - 84%" data-testid="input-manual-kpi-amber" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500" />Red (Below Target)
+                    </Label>
+                    <Input value={manualRed} onChange={(e) => setManualRed(e.target.value)} placeholder="e.g. < 70%" data-testid="input-manual-kpi-red" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button onClick={() => manualSaveMutation.mutate()} disabled={manualSaveMutation.isPending || !manualKpiName || !manualDept} className="flex-1" data-testid="button-save-manual-kpi">
+                  {manualSaveMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+                  ) : (
+                    <><Save className="h-4 w-4 mr-2" />Save KPI</>
+                  )}
+                </Button>
+                <Button variant="secondary" onClick={resetManualForm} data-testid="button-reset-manual-kpi">
+                  Clear
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ai" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Generate KPIs with AI
+              </CardTitle>
+              <CardDescription>Select your industry, department, and goals to generate relevant KPIs</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Industry</Label>
+                  <Select value={industry || company?.industry || ""} onValueChange={setIndustry}>
+                    <SelectTrigger data-testid="select-kpi-industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                    <SelectContent>
+                      {INDUSTRIES.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select value={department} onValueChange={setDepartment}>
+                    <SelectTrigger data-testid="select-kpi-department"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {(departments || []).map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                      {["Sales", "Finance", "HR", "Operations", "Procurement", "Customer Service", "Marketing"]
+                        .filter(n => !(departments || []).some(d => d.name === n))
+                        .map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Business Priorities</Label>
+                  <Input value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="e.g. Increase revenue, Reduce costs" data-testid="input-kpi-goals" />
+                </div>
+              </div>
+              <Button onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending || !department} data-testid="button-generate-kpis">
+                {generateMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating KPIs...</> : <><Sparkles className="h-4 w-4 mr-2" />Generate KPIs</>}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {generatedKpis.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold" data-testid="text-generated-count">Generated KPIs ({generatedKpis.length})</h2>
+                <Button variant="secondary" onClick={saveAll} disabled={savedKpis.size === generatedKpis.length} data-testid="button-save-all-kpis">
+                  <Save className="h-4 w-4 mr-2" />Save All
+                </Button>
+              </div>
+              <div className="grid gap-4">
+                {generatedKpis.map((kpi, i) => (
+                  <Card key={i} className={savedKpis.has(i) ? "border-emerald-200 dark:border-emerald-800 bg-emerald-500/5" : ""}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Target className="h-4 w-4 text-primary flex-shrink-0" />
+                            <h3 className="font-semibold text-sm" data-testid={`text-kpi-name-${i}`}>{kpi.kpi_name}</h3>
+                            <Badge variant="secondary" className="text-xs">{kpi.frequency}</Badge>
+                            <Badge variant="secondary" className="text-xs">{kpi.unit}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{kpi.description}</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Formula</p>
+                              <p className="text-xs font-mono">{kpi.formula}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Target</p>
+                              <p className="text-sm font-medium">{kpi.target_value}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Owner</p>
+                              <p className="text-sm">{kpi.owner_name}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Data Source</p>
+                              <p className="text-sm">{kpi.data_source}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap pt-1">
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Green: {kpi.green_threshold}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Amber: {kpi.amber_threshold}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-700 dark:text-red-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />Red: {kpi.red_threshold}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={savedKpis.has(i) ? "ghost" : "default"}
+                          onClick={() => saveMutation.mutate({ kpi, index: i })}
+                          disabled={saveMutation.isPending || savedKpis.has(i)}
+                          data-testid={`button-save-kpi-${i}`}
+                        >
+                          {savedKpis.has(i) ? (
+                            <><CheckCircle2 className="h-4 w-4 mr-1 text-emerald-500" />Saved</>
+                          ) : (
+                            <><Save className="h-4 w-4 mr-1" />Save</>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

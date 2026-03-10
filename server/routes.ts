@@ -274,7 +274,10 @@ export async function registerRoutes(
       }
     }
 
-    const overdueActions = allActions.filter(a => a.dueDate && a.dueDate < today && a.status !== "Completed" && a.status !== "Cancelled").length;
+    const overdueActions = allActions.filter(a => {
+      const effectiveDue = a.revisedDueDate || a.dueDate;
+      return effectiveDue && effectiveDue < today && a.status !== "Completed" && a.status !== "Cancelled";
+    }).length;
     const completedActions = allActions.filter(a => a.status === "Completed").length;
 
     res.json({
@@ -306,9 +309,9 @@ export async function registerRoutes(
   app.get("/api/templates/actions", requireAuth, (_req: Request, res: Response) => {
     const wb = XLSX.utils.book_new();
     const data = [
-      ["Title", "Description", "Owner", "Due Date (YYYY-MM-DD)", "Priority (Low/Medium/High/Critical)", "Status (Not Started/In Progress/Completed/Delayed)", "Department"],
-      ["Implement feedback system", "Deploy guest feedback kiosks", "Sarah Johnson", "2026-03-15", "High", "In Progress", "Operations"],
-      ["Review pricing", "Analyze competitor pricing", "Michael Chen", "2026-03-20", "Medium", "Not Started", "Sales"],
+      ["Meeting Type", "Title", "Description", "Owner", "Due Date (YYYY-MM-DD)", "Revised Due Date (YYYY-MM-DD)", "Priority (Low/Medium/High/Critical)", "Status (Not Started/In Progress/Completed/Delayed)", "Department"],
+      ["PMO Steering Committee", "Implement feedback system", "Deploy guest feedback kiosks", "Sarah Johnson", "2026-03-15", "", "High", "In Progress", "Operations"],
+      ["CEO Meeting", "Review pricing", "Analyze competitor pricing", "Michael Chen", "2026-03-20", "2026-03-25", "Medium", "Not Started", "Sales"],
     ];
     const ws = XLSX.utils.aoa_to_sheet(data);
     ws["!cols"] = data[0].map(() => ({ wch: 28 }));
@@ -369,10 +372,12 @@ export async function registerRoutes(
         const item = await storage.createActionItem({
           companyId: company.id,
           departmentId: dept?.id || null,
+          meetingType: row.meetingType || row["Meeting Type"] || null,
           title: row.title || row["Title"] || "",
           description: row.description || row["Description"] || null,
           ownerName: row.ownerName || row["Owner"] || null,
           dueDate: row.dueDate || row["Due Date (YYYY-MM-DD)"] || null,
+          revisedDueDate: row.revisedDueDate || row["Revised Due Date (YYYY-MM-DD)"] || null,
           priority: row.priority || row["Priority (Low/Medium/High/Critical)"] || "Medium",
           status: row.status || row["Status (Not Started/In Progress/Completed/Delayed)"] || "Not Started",
         });
