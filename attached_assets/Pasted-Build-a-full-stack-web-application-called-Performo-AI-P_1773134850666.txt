@@ -1,0 +1,580 @@
+Build a full-stack web application called **Performo AI**.
+
+Performo AI is an AI-powered SME performance and execution management platform that combines:
+1. KPI Builder
+2. PMO / Action Tracker
+3. Monthly Review Copilot
+4. Dashboard Structure Generator
+
+The goal is to help business owners and managers define the right KPIs, assign actions, review progress, and generate management summaries.
+
+====================================================
+1. PRODUCT VISION
+====================================================
+
+Create a modern, clean, professional SaaS-style web app for SMEs.
+
+Core promise:
+“Performo AI helps SMEs define the right KPIs, track actions, and improve business performance through AI-powered management support.”
+
+Target users:
+- Business owners
+- General managers
+- Department heads
+- Operations managers
+- HR managers
+- Finance managers
+- SME leadership teams
+
+Industries supported initially:
+- Offshore Helicopter company
+- Hospitality
+- Restaurants
+- Retail
+- Real Estate
+- Healthcare clinics
+- Trading companies
+- Maintenance / field services
+- Professional services
+
+====================================================
+2. CORE FEATURES
+====================================================
+
+A. Business Profile Setup
+Allow the user to create a company profile with:
+- Company name
+- Industry
+- Company size
+- Country
+- Departments
+- Strategic priorities / goals
+
+B. KPI Generator
+User selects:
+- Industry
+- Department
+- Business priorities
+
+Generate KPI recommendations with:
+- KPI name
+- KPI description
+- Formula
+- Unit
+- Frequency
+- Suggested target
+- Thresholds: green / amber / red
+- KPI owner
+- Suggested data source
+
+Departments to support:
+- Sales
+- Finance
+- HR
+- Operations
+- Procurement
+- Customer Service
+- Marketing
+
+C. PMO Action Tracker
+Allow user to:
+- Create meetings
+- Add action items
+- Assign owner
+- Set due date
+- Set priority
+- Update status
+- Mark overdue items
+- Filter by department, owner, status, priority
+
+Statuses:
+- Not Started
+- In Progress
+- Completed
+- Delayed
+- Cancelled
+
+D. Monthly Review Copilot
+Allow user to enter monthly KPI actuals and notes.
+Then generate an AI-written monthly business review containing:
+- Overall performance summary
+- KPIs on track
+- KPIs below target
+- Possible reasons
+- Recommended next actions
+- Leadership discussion points
+
+E. Dashboard Structure Generator
+Generate recommended dashboard layout for the selected business and department.
+Include:
+- Recommended KPI cards
+- Trend charts
+- Department summary
+- Risk / issue section
+- Action tracker section
+- Executive summary page structure
+
+F. Basic Analytics Dashboard
+Create visual summary widgets for:
+- Total KPIs
+- KPIs on track
+- KPIs below target
+- Total actions
+- Overdue actions
+- Actions completed
+- Department performance summary
+
+====================================================
+3. TECH STACK
+====================================================
+
+Use the following stack:
+
+Frontend:
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui components
+- Recharts for charts
+- Lucide icons
+
+Backend:
+- Node.js
+- Express.js
+- TypeScript
+
+Database:
+- PostgreSQL
+
+ORM / DB access:
+- Drizzle ORM preferred
+If setup is easier with Prisma, Prisma is acceptable.
+
+Authentication:
+- Simple email/password auth
+- Session-based or token-based auth
+
+AI integration:
+- OpenAI API
+Create backend service methods for AI-generated:
+- KPI suggestions
+- Monthly review summaries
+- Dashboard structure recommendations
+
+====================================================
+4. UI / UX REQUIREMENTS
+====================================================
+
+Design style:
+- Clean
+- Executive / business SaaS look
+- Minimal but premium
+- Responsive
+- Easy to navigate
+
+Use a sidebar layout with the following navigation:
+- Dashboard
+- Business Profile
+- KPI Builder
+- Action Tracker
+- Monthly Reviews
+- Dashboard Planner
+- Settings
+
+Create a professional top bar with:
+- App name: Performo AI
+- Search placeholder
+- User profile dropdown
+
+Color direction:
+- Modern corporate palette
+- White / slate / blue tones
+- Do not overuse bright colors
+- Use subtle badges for status
+
+====================================================
+5. DATABASE SCHEMA
+====================================================
+
+Design and implement database models/tables for at least the following:
+
+users
+- id
+- name
+- email
+- password_hash
+- created_at
+
+companies
+- id
+- user_id
+- company_name
+- industry
+- company_size
+- country
+- created_at
+
+departments
+- id
+- company_id
+- name
+- created_at
+
+business_goals
+- id
+- company_id
+- goal_text
+- created_at
+
+kpis
+- id
+- company_id
+- department_id
+- kpi_name
+- description
+- formula
+- unit
+- frequency
+- target_value
+- green_threshold
+- amber_threshold
+- red_threshold
+- owner_name
+- data_source
+- created_by_ai
+- created_at
+
+kpi_actuals
+- id
+- kpi_id
+- review_month
+- actual_value
+- commentary
+- status
+- created_at
+
+meetings
+- id
+- company_id
+- title
+- meeting_date
+- department_id
+- summary
+- created_at
+
+action_items
+- id
+- company_id
+- meeting_id
+- department_id
+- title
+- description
+- owner_name
+- due_date
+- priority
+- status
+- created_at
+
+monthly_reviews
+- id
+- company_id
+- review_month
+- overall_summary
+- strengths
+- gaps
+- recommendations
+- ai_generated_text
+- created_at
+
+dashboard_plans
+- id
+- company_id
+- department_id
+- title
+- structure_json
+- ai_generated_text
+- created_at
+
+====================================================
+6. KEY PAGES TO BUILD
+====================================================
+
+1. Login / Signup page
+2. Main Dashboard page
+3. Business Profile Setup page
+4. KPI Builder page
+5. KPI List / Manage KPIs page
+6. Action Tracker page
+7. Meetings page
+8. Monthly Review page
+9. Dashboard Planner page
+10. Settings page
+
+====================================================
+7. PAGE DETAILS
+====================================================
+
+A. Dashboard Page
+Show summary cards:
+- Total KPIs
+- On-track KPIs
+- Below-target KPIs
+- Total actions
+- Overdue actions
+- Completed actions
+
+Also include:
+- KPI performance chart
+- Action status chart
+- Recent actions table
+- Recent monthly review summary preview
+
+B. Business Profile Setup Page
+Create forms to capture:
+- company name
+- industry
+- company size
+- country
+- departments
+- goals
+
+Allow multi-select for departments and multiple business goals.
+
+C. KPI Builder Page
+Create a form where user selects:
+- industry
+- department
+- business priority
+
+Then call backend AI endpoint to generate KPIs.
+
+Display generated KPIs in a structured card/table format with:
+- KPI name
+- formula
+- target
+- frequency
+- owner
+- save button
+
+Allow user to edit before saving.
+
+D. KPI Management Page
+Display all KPIs in a table with filters by:
+- department
+- frequency
+- status
+
+Allow:
+- edit
+- delete
+- add actual value
+- view history
+
+E. Action Tracker Page
+Display action items in a table with:
+- title
+- owner
+- department
+- due date
+- priority
+- status
+
+Include filters and sorting.
+Highlight overdue items clearly.
+
+F. Meetings Page
+Allow user to:
+- create meeting
+- select department
+- add notes / summary
+- view linked action items
+
+G. Monthly Review Page
+Allow user to:
+- choose review month
+- select department or all departments
+- pull KPI results
+- enter commentary
+- generate AI monthly review
+
+Display generated review in a polished section with:
+- summary
+- wins
+- concerns
+- recommendations
+- export/copy button
+
+H. Dashboard Planner Page
+Allow user to choose:
+- industry
+- department
+- management level (executive / department)
+
+Generate recommended dashboard structure:
+- pages
+- visuals
+- KPI cards
+- trend charts
+- action tracker section
+- risk section
+
+Show output in readable layout cards.
+
+====================================================
+8. AI PROMPT LOGIC
+====================================================
+
+Create backend AI helper functions with well-structured prompts.
+
+A. KPI Generator Prompt
+The AI should generate practical KPIs for SMEs based on:
+- industry
+- department
+- goals
+
+It must return JSON array with fields:
+- kpi_name
+- description
+- formula
+- unit
+- frequency
+- target_value
+- green_threshold
+- amber_threshold
+- red_threshold
+- owner_name
+- data_source
+
+KPIs must be realistic and business-friendly, not generic fluff.
+
+B. Monthly Review Prompt
+The AI should analyze monthly KPI inputs and generate:
+- executive summary
+- top performing areas
+- underperforming areas
+- likely causes
+- recommended actions
+- discussion points for next management meeting
+
+Return structured JSON.
+
+C. Dashboard Planner Prompt
+The AI should recommend:
+- dashboard pages
+- visuals to use
+- KPIs to display
+- chart types
+- why each section matters
+
+Return structured JSON.
+
+====================================================
+9. SAMPLE DEFAULT DATA
+====================================================
+
+Seed sample data so the app looks usable immediately.
+
+Create one demo company:
+- Company Name: Al Noor Hospitality Group
+- Industry: Hospitality
+- Departments: Sales, Operations, HR, Finance
+
+Create sample KPIs such as:
+Sales:
+- Occupancy Rate
+- ADR
+- RevPAR
+
+Operations:
+- Guest Complaint Rate
+- Room Turnaround Time
+
+HR:
+- Employee Turnover Rate
+- Training Completion Rate
+
+Finance:
+- GOP Margin
+- Budget Variance %
+
+Create sample action items and one monthly review.
+
+====================================================
+10. API ENDPOINTS
+====================================================
+
+Build clean REST APIs for:
+- auth
+- companies
+- departments
+- goals
+- kpis
+- kpi actuals
+- meetings
+- action items
+- monthly reviews
+- dashboard plans
+- ai/generate-kpis
+- ai/generate-monthly-review
+- ai/generate-dashboard-plan
+
+Use clear folder structure for routes, controllers, services, and db models.
+
+====================================================
+11. CODE QUALITY REQUIREMENTS
+====================================================
+
+- Use TypeScript properly
+- Use reusable components
+- Use clean architecture
+- Add comments where helpful
+- Handle loading states and errors
+- Validate forms
+- Do not leave placeholder broken pages
+- Ensure app is runnable
+- Include environment variable support for:
+  - DATABASE_URL
+  - OPENAI_API_KEY
+  - SESSION_SECRET
+
+====================================================
+12. EXTRA FEATURES IF POSSIBLE
+====================================================
+
+If time permits, also add:
+- Export monthly review as PDF
+- Export KPI list to CSV
+- Dark mode toggle
+- Notification badge for overdue actions
+- Role field for users
+- Status badges with good UI
+
+====================================================
+13. IMPORTANT OUTPUT REQUIREMENT
+====================================================
+
+Generate the full working application codebase.
+Set up both frontend and backend in the same Replit project if practical.
+Make sure the app can run with a normal npm install / npm run dev flow.
+
+Also:
+- create a README.md
+- explain setup steps
+- explain how to add OpenAI API key
+- explain how to run database migrations
+- include sample .env.example
+
+====================================================
+14. FINAL EXPECTATION
+====================================================
+
+Do not just create mock UI.
+Create a real, structured, working MVP of Performo AI with:
+- database schema
+- API routes
+- frontend pages
+- reusable components
+- AI integration stubs or live integration points
+- sample seeded data
+
+The result should feel like a professional SaaS MVP for SME performance management.
