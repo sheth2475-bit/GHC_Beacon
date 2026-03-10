@@ -12,15 +12,15 @@ AI-powered SME performance and execution management platform.
 
 ## Key Features
 
-1. **Dashboard** - Executive stat cards, KPI health donut chart, action progress bar chart, recent actions list, latest review summary
-2. **Business Profile** - Company setup with industry, departments, strategic goals
-3. **KPI Builder** - AI-generated KPIs based on industry/department/goals with save all and individual save
+1. **Dashboard** - Welcome banner with company name/date/summary, 6 stat cards with percentage indicators, KPI health donut chart, action progress bar chart, recent actions with meeting type badges, department summary (KPI/action/overdue counts per dept), latest review
+2. **Business Profile** - Company setup with industry, dynamic departments (from DB), strategic goals, custom department input
+3. **KPI Builder** - Two tabs: "Manual KPI" (full form with RAG thresholds) and "AI Generate" (AI-generated KPIs)
 4. **KPI Management** - Table view with search, department/frequency filters, add actuals dialog, Excel import
-5. **Action Tracker** - Table with inline status updates, search/filter, priority badges, overdue highlighting, Excel import
+5. **Action Tracker** - Table with Meeting Type (first column, badge), Title, Owner, Due Date, Revised Due Date (amber/red coloring), Priority, Status; meeting type filter dropdown; uses dynamic meeting types from API
 6. **Meetings** - Card-based meeting list with linked action items, create dialog
 7. **Monthly Reviews** - AI-generated business performance reviews with strengths/gaps/recommendations
 8. **Dashboard Planner** - AI-recommended dashboard structure for Power BI/web dashboards
-9. **Settings** - Account info, company summary, app version
+9. **Settings** - Account info, Departments CRUD (add/delete), Meeting Types CRUD (add/delete), Application info
 
 ## Reusable Components
 
@@ -34,12 +34,18 @@ AI-powered SME performance and execution management platform.
 ## Excel Upload
 
 - KPI import: POST /api/upload/kpis, template: GET /api/templates/kpis
-- Action import: POST /api/upload/actions, template: GET /api/templates/actions
+- Action import: POST /api/upload/actions (includes Meeting Type, Revised Due Date), template: GET /api/templates/actions
 - Uses xlsx package for template generation and client-side parsing
 
 ## Database Schema
 
-Tables: users, companies, departments, business_goals, kpis, kpi_actuals, meetings, action_items, monthly_reviews, dashboard_plans
+Tables: users, companies, departments, business_goals, kpis, kpi_actuals, meetings, action_items, monthly_reviews, meeting_types, dashboard_plans
+
+## API Endpoints (CRUD)
+
+- Departments: GET /api/departments, POST /api/departments, DELETE /api/departments/:id (FK-safe with 409 error)
+- Meeting Types: GET /api/meeting-types, POST /api/meeting-types, DELETE /api/meeting-types/:id
+- Both POST endpoints validate that name is non-empty
 
 ## File Structure
 
@@ -50,7 +56,7 @@ server/storage.ts         - Storage layer (IStorage interface + DatabaseStorage)
 server/auth.ts            - Authentication setup (passport + sessions)
 server/ai.ts              - AI service (gpt-4o, KPI generation, reviews, dashboard plans)
 server/routes.ts          - All API routes including Excel upload/template endpoints
-server/seed.ts            - Seed data (Al Noor Hospitality Group, 9 KPIs, actions, meetings)
+server/seed.ts            - Seed data (Al Noor Hospitality Group, 12 KPIs, 10 actions, 4 meetings, 9 meeting types)
 client/src/App.tsx         - Main app with routing and sidebar layout
 client/src/lib/auth.tsx    - Auth context provider
 client/src/components/     - Reusable components (app-sidebar, page-header, status-badge, etc.)

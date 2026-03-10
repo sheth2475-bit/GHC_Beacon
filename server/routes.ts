@@ -87,6 +87,59 @@ export async function registerRoutes(
     res.json(await storage.getDepartments(company.id));
   });
 
+  app.get("/api/meeting-types", requireAuth, async (req: Request, res: Response) => {
+    const company = await storage.getCompanyByUserId(req.user!.id);
+    if (!company) return res.json([]);
+    res.json(await storage.getMeetingTypes(company.id));
+  });
+
+  app.post("/api/meeting-types", requireAuth, async (req: Request, res: Response) => {
+    const name = (req.body.name || "").trim();
+    if (!name) return res.status(400).json({ message: "Name is required" });
+    const company = await storage.getCompanyByUserId(req.user!.id);
+    if (!company) return res.status(400).json({ message: "No company profile" });
+    const mt = await storage.createMeetingType({ companyId: company.id, name });
+    res.status(201).json(mt);
+  });
+
+  app.delete("/api/meeting-types/:id", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await storage.getCompanyByUserId(req.user!.id);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const allTypes = await storage.getMeetingTypes(company.id);
+    const mt = allTypes.find(t => t.id === id);
+    if (!mt) return res.status(404).json({ message: "Not found" });
+    await storage.deleteMeetingType(mt.id);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/departments", requireAuth, async (req: Request, res: Response) => {
+    const name = (req.body.name || "").trim();
+    if (!name) return res.status(400).json({ message: "Name is required" });
+    const company = await storage.getCompanyByUserId(req.user!.id);
+    if (!company) return res.status(400).json({ message: "No company profile" });
+    const dept = await storage.createDepartment({ companyId: company.id, name });
+    res.status(201).json(dept);
+  });
+
+  app.delete("/api/departments/:id", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await storage.getCompanyByUserId(req.user!.id);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const allDepts = await storage.getDepartments(company.id);
+    const dept = allDepts.find(d => d.id === id);
+    if (!dept) return res.status(404).json({ message: "Not found" });
+    try {
+      await storage.deleteDepartment(dept.id);
+      res.json({ ok: true });
+    } catch (err: any) {
+      if (err.message?.includes("violates foreign key")) {
+        return res.status(409).json({ message: "Cannot delete department — it is currently in use by KPIs, actions, or meetings. Remove those references first." });
+      }
+      throw err;
+    }
+  });
+
   app.get("/api/kpis", requireAuth, async (req: Request, res: Response) => {
     const company = await storage.getCompanyByUserId(req.user!.id);
     if (!company) return res.json([]);

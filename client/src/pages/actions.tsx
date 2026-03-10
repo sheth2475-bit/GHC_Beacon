@@ -18,26 +18,16 @@ import { ErrorState } from "@/components/error-state";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
 import { Plus, Trash2, ListChecks, AlertTriangle, Search } from "lucide-react";
-import type { ActionItem, Department } from "@shared/schema";
+import type { ActionItem, Department, MeetingType } from "@shared/schema";
 
 const STATUSES = ["Not Started", "In Progress", "Completed", "Delayed", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
-const MEETING_TYPES = [
-  "PMO Steering Committee",
-  "CEO Meeting",
-  "Monthly Operations Review",
-  "Department Review",
-  "Finance Committee",
-  "Board Meeting",
-  "Weekly Standup",
-  "Strategy Meeting",
-  "Other",
-];
 
 export default function ActionsPage() {
   const { toast } = useToast();
   const { data: actions, isLoading, error, refetch } = useQuery<ActionItem[]>({ queryKey: ["/api/action-items"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
+  const { data: meetingTypes } = useQuery<MeetingType[]>({ queryKey: ["/api/meeting-types"] });
   const [showDialog, setShowDialog] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
@@ -118,7 +108,9 @@ export default function ActionsPage() {
 
   const getDeptName = (deptId: number | null) => departments?.find(d => d.id === deptId)?.name || "-";
 
-  const uniqueMeetingTypes = [...new Set((actions || []).map(a => a.meetingType).filter(Boolean))] as string[];
+  const meetingTypeNames = (meetingTypes || []).map(mt => mt.name);
+  const actionMeetingTypes = Array.from(new Set((actions || []).map(a => a.meetingType).filter((x): x is string => !!x)));
+  const uniqueMeetingTypes = Array.from(new Set([...meetingTypeNames, ...actionMeetingTypes]));
 
   const actionColumnMap: Record<string, string> = {
     "Meeting Type": "meetingType", "Title": "title", "Description": "description",
@@ -289,7 +281,7 @@ export default function ActionsPage() {
               <Label>Meeting Type</Label>
               <Select value={meetingType} onValueChange={setMeetingType}>
                 <SelectTrigger data-testid="select-action-meeting-type"><SelectValue placeholder="Select meeting type" /></SelectTrigger>
-                <SelectContent>{MEETING_TYPES.map(mt => <SelectItem key={mt} value={mt}>{mt}</SelectItem>)}</SelectContent>
+                <SelectContent>{uniqueMeetingTypes.length > 0 ? uniqueMeetingTypes.map(mt => <SelectItem key={mt} value={mt}>{mt}</SelectItem>) : <SelectItem value="Other">Other</SelectItem>}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">

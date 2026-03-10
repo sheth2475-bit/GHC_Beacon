@@ -102,6 +102,13 @@ export const monthlyReviews = pgTable("monthly_reviews", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+export const meetingTypes = pgTable("meeting_types", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const dashboardPlans = pgTable("dashboard_plans", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),
@@ -121,6 +128,7 @@ export const insertKpiActualSchema = createInsertSchema(kpiActuals).omit({ id: t
 export const insertMeetingSchema = createInsertSchema(meetings).omit({ id: true, createdAt: true });
 export const insertActionItemSchema = createInsertSchema(actionItems).omit({ id: true, createdAt: true });
 export const insertMonthlyReviewSchema = createInsertSchema(monthlyReviews).omit({ id: true, createdAt: true });
+export const insertMeetingTypeSchema = createInsertSchema(meetingTypes).omit({ id: true, createdAt: true });
 export const insertDashboardPlanSchema = createInsertSchema(dashboardPlans).omit({ id: true, createdAt: true });
 
 export type User = typeof users.$inferSelect;
@@ -141,5 +149,7 @@ export type ActionItem = typeof actionItems.$inferSelect;
 export type InsertActionItem = z.infer<typeof insertActionItemSchema>;
 export type MonthlyReview = typeof monthlyReviews.$inferSelect;
 export type InsertMonthlyReview = z.infer<typeof insertMonthlyReviewSchema>;
+export type MeetingType = typeof meetingTypes.$inferSelect;
+export type InsertMeetingType = z.infer<typeof insertMeetingTypeSchema>;
 export type DashboardPlan = typeof dashboardPlans.$inferSelect;
 export type InsertDashboardPlan = z.infer<typeof insertDashboardPlanSchema>;

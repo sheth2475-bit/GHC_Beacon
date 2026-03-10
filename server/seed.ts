@@ -32,6 +32,15 @@ export async function seedDatabase() {
     depts[name] = d.id;
   }
 
+  const meetingTypeNames = [
+    "PMO Steering Committee", "CEO Meeting", "Monthly Operations Review",
+    "Department Review", "Finance Committee", "Board Meeting",
+    "Weekly Standup", "Strategy Meeting", "Other"
+  ];
+  for (const name of meetingTypeNames) {
+    await storage.createMeetingType({ companyId: company.id, name });
+  }
+
   const goals = [
     "Increase total revenue by 15% year-over-year through improved occupancy and ADR",
     "Achieve guest satisfaction score of 4.5+ on all major OTA platforms",

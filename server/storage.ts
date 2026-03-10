@@ -2,12 +2,13 @@ import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import {
   users, companies, departments, businessGoals, kpis, kpiActuals,
-  meetings, actionItems, monthlyReviews, dashboardPlans,
+  meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
   type InsertMeeting, type Meeting, type InsertActionItem, type ActionItem,
-  type InsertMonthlyReview, type MonthlyReview, type InsertDashboardPlan, type DashboardPlan,
+  type InsertMonthlyReview, type MonthlyReview, type InsertMeetingType, type MeetingType,
+  type InsertDashboardPlan, type DashboardPlan,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -53,6 +54,10 @@ export interface IStorage {
   getMonthlyReviews(companyId: number): Promise<MonthlyReview[]>;
   getMonthlyReview(id: number): Promise<MonthlyReview | undefined>;
   createMonthlyReview(review: InsertMonthlyReview): Promise<MonthlyReview>;
+
+  getMeetingTypes(companyId: number): Promise<MeetingType[]>;
+  createMeetingType(mt: InsertMeetingType): Promise<MeetingType>;
+  deleteMeetingType(id: number): Promise<void>;
 
   getDashboardPlans(companyId: number): Promise<DashboardPlan[]>;
   createDashboardPlan(plan: InsertDashboardPlan): Promise<DashboardPlan>;
@@ -200,6 +205,17 @@ export class DatabaseStorage implements IStorage {
   async createMonthlyReview(review: InsertMonthlyReview) {
     const [created] = await db.insert(monthlyReviews).values(review).returning();
     return created;
+  }
+
+  async getMeetingTypes(companyId: number) {
+    return db.select().from(meetingTypes).where(eq(meetingTypes.companyId, companyId));
+  }
+  async createMeetingType(mt: InsertMeetingType) {
+    const [created] = await db.insert(meetingTypes).values(mt).returning();
+    return created;
+  }
+  async deleteMeetingType(id: number) {
+    await db.delete(meetingTypes).where(eq(meetingTypes.id, id));
   }
 
   async getDashboardPlans(companyId: number) {

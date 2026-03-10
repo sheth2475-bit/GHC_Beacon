@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/page-header";
 import { LoadingPage } from "@/components/loading-state";
 import { Building2, Plus, X, Save } from "lucide-react";
+import type { Department } from "@shared/schema";
 
 const INDUSTRIES = [
   "Hospitality", "Restaurants", "Retail", "Real Estate", "Healthcare clinics",
@@ -20,11 +21,10 @@ const INDUSTRIES = [
 
 const SIZES = ["1-10", "11-50", "51-200", "201-500", "500+"];
 
-const DEFAULT_DEPARTMENTS = ["Sales", "Finance", "HR", "Operations", "Procurement", "Customer Service", "Marketing"];
-
 export default function ProfilePage() {
   const { toast } = useToast();
   const { data: company, isLoading } = useQuery<any>({ queryKey: ["/api/company"] });
+  const { data: dbDepartments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
 
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -33,6 +33,7 @@ export default function ProfilePage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [goals, setGoals] = useState<string[]>([]);
   const [newGoal, setNewGoal] = useState("");
+  const [newDepartment, setNewDepartment] = useState("");
 
   useEffect(() => {
     if (company) {
@@ -72,6 +73,24 @@ export default function ProfilePage() {
       setNewGoal("");
     }
   };
+
+  const addCustomDepartment = () => {
+    const name = newDepartment.trim();
+    if (name && !availableDepartments.some(d => d.toLowerCase() === name.toLowerCase())) {
+      setDepartments(prev => [...prev, name]);
+      setNewDepartment("");
+    } else if (name && !departments.includes(name)) {
+      setDepartments(prev => [...prev, name]);
+      setNewDepartment("");
+    } else {
+      setNewDepartment("");
+    }
+  };
+
+  const availableDepartments = Array.from(new Set([
+    ...(dbDepartments?.map(d => d.name) || []),
+    ...departments,
+  ]));
 
   if (isLoading) return <LoadingPage />;
 
@@ -128,16 +147,16 @@ export default function ProfilePage() {
           <CardTitle className="text-base">Departments</CardTitle>
           <CardDescription>Select the departments in your organization</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            {DEFAULT_DEPARTMENTS.map(dept => (
+            {availableDepartments.map(dept => (
               <button
                 key={dept}
                 type="button"
                 className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => toggleDepartment(dept)}
                 aria-pressed={departments.includes(dept)}
-                data-testid={`badge-dept-${dept.toLowerCase()}`}
+                data-testid={`badge-dept-${dept.toLowerCase().replace(/\s+/g, '-')}`}
                 style={{
                   background: departments.includes(dept) ? 'hsl(var(--primary))' : 'hsl(var(--secondary))',
                   color: departments.includes(dept) ? 'hsl(var(--primary-foreground))' : 'hsl(var(--secondary-foreground))',
@@ -147,6 +166,18 @@ export default function ProfilePage() {
                 {departments.includes(dept) && <X className="ml-1 h-3 w-3" />}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              value={newDepartment}
+              onChange={(e) => setNewDepartment(e.target.value)}
+              placeholder="Add a custom department..."
+              onKeyDown={(e) => e.key === "Enter" && addCustomDepartment()}
+              data-testid="input-new-department"
+            />
+            <Button size="icon" variant="secondary" onClick={addCustomDepartment} data-testid="button-add-department">
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>

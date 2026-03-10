@@ -1,95 +1,238 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { Target, ListChecks, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, ArrowUpRight, BarChart3, Activity, LayoutDashboard } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import type { ActionItem, MonthlyReview } from "@shared/schema";
+import { useAuth } from "@/lib/auth";
+import {
+  Target,
+  ListChecks,
+  AlertTriangle,
+  CheckCircle2,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  BarChart3,
+  Activity,
+  LayoutDashboard,
+  CalendarDays,
+  Building2,
+} from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+import type { ActionItem, MonthlyReview, Department, Kpi, Company } from "@shared/schema";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+
+  const { data: companyData } = useQuery<Company & { departments: Department[] } | null>({
+    queryKey: ["/api/company"],
+  });
+
   const { data: stats, isLoading: statsLoading } = useQuery<{
-    totalKpis: number; onTrack: number; belowTarget: number;
-    totalActions: number; overdueActions: number; completedActions: number;
+    totalKpis: number;
+    onTrack: number;
+    belowTarget: number;
+    totalActions: number;
+    overdueActions: number;
+    completedActions: number;
   }>({ queryKey: ["/api/dashboard-stats"] });
 
   const { data: actions } = useQuery<ActionItem[]>({ queryKey: ["/api/action-items"] });
   const { data: reviews } = useQuery<MonthlyReview[]>({ queryKey: ["/api/monthly-reviews"] });
   const { data: kpis } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
+  const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
 
-  const kpiStatusData = stats ? [
-    { name: "On Track", value: stats.onTrack, fill: "#10b981" },
-    { name: "At Risk", value: Math.max(0, stats.totalKpis - stats.onTrack - stats.belowTarget), fill: "#f59e0b" },
-    { name: "Below Target", value: stats.belowTarget, fill: "#ef4444" },
-  ].filter(d => d.value > 0) : [];
+  const kpiStatusData = stats
+    ? [
+        { name: "On Track", value: stats.onTrack, fill: "#10b981" },
+        {
+          name: "At Risk",
+          value: Math.max(0, stats.totalKpis - stats.onTrack - stats.belowTarget),
+          fill: "#f59e0b",
+        },
+        { name: "Below Target", value: stats.belowTarget, fill: "#ef4444" },
+      ].filter((d) => d.value > 0)
+    : [];
 
-  const actionChartData = stats ? [
-    { name: "Completed", count: stats.completedActions, fill: "#10b981" },
-    { name: "Active", count: Math.max(0, stats.totalActions - stats.completedActions - stats.overdueActions), fill: "#3b82f6" },
-    { name: "Overdue", count: stats.overdueActions, fill: "#ef4444" },
-  ].filter(d => d.count > 0) : [];
+  const actionChartData = stats
+    ? [
+        { name: "Completed", count: stats.completedActions, fill: "#10b981" },
+        {
+          name: "Active",
+          count: Math.max(0, stats.totalActions - stats.completedActions - stats.overdueActions),
+          fill: "#3b82f6",
+        },
+        { name: "Overdue", count: stats.overdueActions, fill: "#ef4444" },
+      ].filter((d) => d.count > 0)
+    : [];
 
   const today = new Date().toISOString().split("T")[0];
-  const recentActions = (actions || []).slice(0, 6);
+  const recentActions = (actions || []).slice(0, 5);
   const latestReview = reviews?.[0];
-  const overdueCount = (actions || []).filter(a => a.dueDate && a.dueDate < today && a.status !== "Completed" && a.status !== "Cancelled").length;
+
+  const companyName = companyData?.companyName || "Your Company";
+  const formattedDate = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const deptSummary = (departments || []).map((dept) => {
+    const deptKpis = (kpis || []).filter((k) => k.departmentId === dept.id);
+    const deptActions = (actions || []).filter((a) => a.departmentId === dept.id);
+    const overdueActions = deptActions.filter((a) => {
+      const effectiveDate = a.revisedDueDate || a.dueDate;
+      return effectiveDate && effectiveDate < today && a.status !== "Completed" && a.status !== "Cancelled";
+    });
+    return {
+      id: dept.id,
+      name: dept.name,
+      kpiCount: deptKpis.length,
+      actionCount: deptActions.length,
+      overdueCount: overdueActions.length,
+    };
+  });
+
+  const summaryParts: string[] = [];
+  if (stats) {
+    if (stats.totalKpis > 0) {
+      const pct = stats.totalKpis > 0 ? Math.round((stats.onTrack / stats.totalKpis) * 100) : 0;
+      summaryParts.push(`${pct}% of KPIs are on track`);
+    }
+    if (stats.overdueActions > 0) {
+      summaryParts.push(`${stats.overdueActions} action${stats.overdueActions !== 1 ? "s" : ""} overdue`);
+    }
+    if (stats.completedActions > 0) {
+      summaryParts.push(`${stats.completedActions} action${stats.completedActions !== 1 ? "s" : ""} completed`);
+    }
+  }
+  const summaryText = summaryParts.length > 0 ? summaryParts.join(" \u00B7 ") : "Get started by setting up your KPIs and action items.";
 
   if (statsLoading) {
     return (
       <div className="p-6 space-y-6">
-        <Skeleton className="h-8 w-56 mb-1" />
-        <Skeleton className="h-4 w-80" />
+        <Card>
+          <CardContent className="p-6">
+            <Skeleton className="h-6 w-64 mb-2" />
+            <Skeleton className="h-4 w-48 mb-1" />
+            <Skeleton className="h-4 w-80" />
+          </CardContent>
+        </Card>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {[...Array(6)].map((_, i) => (
-            <Card key={i}><CardContent className="p-5"><Skeleton className="h-4 w-20 mb-3" /><Skeleton className="h-8 w-14" /></CardContent></Card>
+            <Card key={i}>
+              <CardContent className="p-5">
+                <Skeleton className="h-4 w-20 mb-3" />
+                <Skeleton className="h-8 w-14" />
+              </CardContent>
+            </Card>
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card><CardContent className="p-6"><Skeleton className="h-[240px]" /></CardContent></Card>
-          <Card><CardContent className="p-6"><Skeleton className="h-[240px]" /></CardContent></Card>
+          <Card>
+            <CardContent className="p-6">
+              <Skeleton className="h-[240px]" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <Skeleton className="h-[240px]" />
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
+  const pctOnTrack = stats && stats.totalKpis > 0 ? Math.round((stats.onTrack / stats.totalKpis) * 100) : null;
+  const pctBelowTarget = stats && stats.totalKpis > 0 ? Math.round((stats.belowTarget / stats.totalKpis) * 100) : null;
+  const pctCompleted = stats && stats.totalActions > 0 ? Math.round((stats.completedActions / stats.totalActions) * 100) : null;
+  const pctOverdue = stats && stats.totalActions > 0 ? Math.round((stats.overdueActions / stats.totalActions) * 100) : null;
+
   const statCards = [
-    { title: "Total KPIs", value: stats?.totalKpis || 0, icon: Target, color: "text-primary", bg: "bg-primary/10" },
-    { title: "On Track", value: stats?.onTrack || 0, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
-    { title: "Below Target", value: stats?.belowTarget || 0, icon: TrendingDown, color: "text-red-500", bg: "bg-red-500/10" },
-    { title: "Total Actions", value: stats?.totalActions || 0, icon: ListChecks, color: "text-blue-600", bg: "bg-blue-500/10" },
-    { title: "Overdue", value: overdueCount, icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10" },
-    { title: "Completed", value: stats?.completedActions || 0, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+    { title: "Total KPIs", value: stats?.totalKpis || 0, icon: Target, color: "text-primary", bg: "bg-primary/10", pct: null as number | null },
+    { title: "On Track", value: stats?.onTrack || 0, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10", pct: pctOnTrack },
+    { title: "Below Target", value: stats?.belowTarget || 0, icon: TrendingDown, color: "text-red-500", bg: "bg-red-500/10", pct: pctBelowTarget },
+    { title: "Total Actions", value: stats?.totalActions || 0, icon: ListChecks, color: "text-blue-600", bg: "bg-blue-500/10", pct: null },
+    { title: "Overdue", value: stats?.overdueActions || 0, icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10", pct: pctOverdue },
+    { title: "Completed", value: stats?.completedActions || 0, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-500/10", pct: pctCompleted },
   ];
 
   return (
     <div className="p-6 space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description="Business performance overview"
-        icon={LayoutDashboard}
-        testId="text-dashboard-title"
-      />
+      <Card data-testid="card-welcome-banner">
+        <CardContent className="p-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-welcome-title">
+                Welcome back, {user?.name || "there"}
+              </h1>
+              <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                <CalendarDays className="h-3.5 w-3.5" />
+                <span data-testid="text-today-date">{formattedDate}</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2" data-testid="text-summary">
+                {summaryText}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium" data-testid="text-company-name">{companyName}</p>
+                <p className="text-xs text-muted-foreground">{companyData?.industry || "Business"}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4" data-testid="grid-stat-cards">
         {statCards.map((stat) => (
           <Card key={stat.title} className="hover-elevate">
             <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.title}</span>
+              <div className="flex items-center justify-between gap-1 mb-3">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  {stat.title}
+                </span>
                 <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.bg}`}>
                   <stat.icon className={`h-4 w-4 ${stat.color}`} />
                 </div>
               </div>
-              <p className="text-3xl font-bold tabular-nums" data-testid={`text-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                {stat.value}
-              </p>
+              <div className="flex items-end gap-2">
+                <p
+                  className="text-3xl font-bold tabular-nums"
+                  data-testid={`text-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {stat.value}
+                </p>
+                {stat.pct !== null && (
+                  <span className="text-xs text-muted-foreground mb-1" data-testid={`text-pct-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                    {stat.pct}%
+                  </span>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card data-testid="card-kpi-health">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" />
@@ -100,24 +243,49 @@ export default function DashboardPage() {
             {kpiStatusData.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={kpiStatusData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} paddingAngle={3} dataKey="value" stroke="none">
+                  <Pie
+                    data={kpiStatusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={95}
+                    paddingAngle={3}
+                    dataKey="value"
+                    stroke="none"
+                  >
                     {kpiStatusData.map((entry, index) => (
                       <Cell key={index} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={8} formatter={(value: string) => <span className="text-xs text-foreground">{value}</span>} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--card))",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value: number, name: string) => [`${value} KPIs`, name]}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(value: string) => (
+                      <span className="text-xs text-foreground">{value}</span>
+                    )}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-[240px] flex items-center justify-center text-muted-foreground text-sm">
-                No KPI data yet — use KPI Builder to get started
+                No KPI data yet
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card data-testid="card-action-progress">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-primary" />
@@ -131,7 +299,15 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--card))",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value: number, name: string) => [`${value} actions`, name]}
+                  />
                   <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                     {actionChartData.map((entry, index) => (
                       <Cell key={index} fill={entry.fill} />
@@ -148,8 +324,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card data-testid="card-recent-actions">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <ListChecks className="h-4 w-4 text-primary" />
@@ -158,24 +334,55 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {recentActions.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {recentActions.map((action) => {
-                  const isOverdue = action.dueDate && action.dueDate < today && action.status !== "Completed" && action.status !== "Cancelled";
+                  const effectiveDate = action.revisedDueDate || action.dueDate;
+                  const isOverdue =
+                    effectiveDate &&
+                    effectiveDate < today &&
+                    action.status !== "Completed" &&
+                    action.status !== "Cancelled";
                   return (
-                    <div key={action.id} className={`flex items-center justify-between gap-3 p-2.5 rounded-lg ${isOverdue ? "bg-red-500/5" : "bg-muted/30"}`}>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate" data-testid={`text-action-title-${action.id}`}>{action.title}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          <span>{action.ownerName}</span>
-                          {action.dueDate && (
-                            <>
-                              <span className="text-border">|</span>
-                              <span className={isOverdue ? "text-red-500 font-medium" : ""}>{action.dueDate}</span>
-                            </>
-                          )}
-                        </div>
+                    <div
+                      key={action.id}
+                      className={`p-2.5 rounded-lg ${isOverdue ? "bg-red-500/5" : "bg-muted/30"}`}
+                      data-testid={`card-action-${action.id}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className="text-sm font-medium truncate flex-1"
+                          data-testid={`text-action-title-${action.id}`}
+                        >
+                          {action.title}
+                        </p>
+                        <StatusBadge
+                          status={action.status}
+                          testId={`badge-action-status-${action.id}`}
+                        />
                       </div>
-                      <StatusBadge status={action.status} testId={`badge-action-status-${action.id}`} />
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
+                        {action.ownerName && <span>{action.ownerName}</span>}
+                        {effectiveDate && (
+                          <>
+                            <span className="text-border">|</span>
+                            <span className={isOverdue ? "text-red-500 font-medium" : ""}>
+                              {effectiveDate}
+                            </span>
+                          </>
+                        )}
+                        {action.meetingType && (
+                          <>
+                            <span className="text-border">|</span>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0"
+                              data-testid={`badge-meeting-type-${action.id}`}
+                            >
+                              {action.meetingType}
+                            </Badge>
+                          </>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -186,9 +393,48 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card data-testid="card-department-summary">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              Department Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {deptSummary.length > 0 ? (
+              <div className="space-y-2">
+                {deptSummary.map((dept) => (
+                  <div
+                    key={dept.id}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/30"
+                    data-testid={`row-department-${dept.id}`}
+                  >
+                    <p className="text-sm font-medium truncate" data-testid={`text-dept-name-${dept.id}`}>
+                      {dept.name}
+                    </p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                      <span data-testid={`text-dept-kpis-${dept.id}`}>{dept.kpiCount} KPIs</span>
+                      <span data-testid={`text-dept-actions-${dept.id}`}>{dept.actionCount} actions</span>
+                      {dept.overdueCount > 0 && (
+                        <span className="text-red-500 font-medium" data-testid={`text-dept-overdue-${dept.id}`}>
+                          {dept.overdueCount} overdue
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                No departments yet
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-latest-review">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <ArrowUpRight className="h-4 w-4 text-primary" />
                 Latest Review
@@ -201,24 +447,43 @@ export default function DashboardPage() {
           <CardContent>
             {latestReview ? (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4" data-testid="text-review-summary">
+                <p
+                  className="text-sm text-muted-foreground leading-relaxed line-clamp-4"
+                  data-testid="text-review-summary"
+                >
                   {latestReview.overallSummary?.split("\n")[0]}
                 </p>
                 {latestReview.strengths && (
                   <div>
-                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Key Strengths</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{latestReview.strengths?.split("\n").slice(0, 2).join("; ").replace(/^- /gm, "")}</p>
+                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
+                      Key Strengths
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {latestReview.strengths
+                        ?.split("\n")
+                        .slice(0, 2)
+                        .join("; ")
+                        .replace(/^- /gm, "")}
+                    </p>
                   </div>
                 )}
                 {latestReview.gaps && (
                   <div>
                     <p className="text-xs font-semibold text-red-500 mb-1">Key Gaps</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{latestReview.gaps?.split("\n").slice(0, 2).join("; ").replace(/^- /gm, "")}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {latestReview.gaps
+                        ?.split("\n")
+                        .slice(0, 2)
+                        .join("; ")
+                        .replace(/^- /gm, "")}
+                    </p>
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground py-8 text-center">No reviews yet — generate one from Monthly Reviews</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                No reviews yet
+              </p>
             )}
           </CardContent>
         </Card>
