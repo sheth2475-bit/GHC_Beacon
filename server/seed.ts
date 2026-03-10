@@ -15,7 +15,7 @@ export async function seedDatabase() {
   if (existing) return;
 
   const passwordHash = await hashPassword("demo123");
-  const user = await storage.createUser({ name: "Ahmed Al Noor", email: "demo@performo.ai", passwordHash });
+  const user = await storage.createUser({ name: "Dharmesh Sheth", email: "demo@performo.ai", passwordHash });
 
   const company = await storage.createCompany({
     userId: user.id,
