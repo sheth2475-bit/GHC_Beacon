@@ -14,7 +14,10 @@ import {
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUsersByCompany(companyId: number): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, data: Partial<InsertUser>): Promise<User>;
+  deleteUser(id: number): Promise<void>;
 
   getCompany(id: number): Promise<Company | undefined>;
   getCompanyByUserId(userId: number): Promise<Company | undefined>;
@@ -72,9 +75,19 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
+  async getUsersByCompany(companyId: number) {
+    return db.select().from(users).where(eq(users.companyId, companyId));
+  }
   async createUser(user: InsertUser) {
     const [created] = await db.insert(users).values(user).returning();
     return created;
+  }
+  async updateUser(id: number, data: Partial<InsertUser>) {
+    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return updated;
+  }
+  async deleteUser(id: number) {
+    await db.delete(users).where(eq(users.id, id));
   }
 
   async getCompany(id: number) {

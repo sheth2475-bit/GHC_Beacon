@@ -29,6 +29,8 @@ declare global {
       name: string;
       email: string;
       passwordHash: string;
+      companyId: number | null;
+      role: string;
       createdAt: Date;
     }
   }
@@ -85,7 +87,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already registered" });
       }
       const passwordHash = await hashPassword(password);
-      const user = await storage.createUser({ name, email, passwordHash });
+      const user = await storage.createUser({ name, email, passwordHash, role: "admin", companyId: null });
 
       req.login(user, (err) => {
         if (err) return next(err);
@@ -124,5 +126,11 @@ export function setupAuth(app: Express) {
 
 export function requireAuth(req: Request, res: any, next: any) {
   if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+  next();
+}
+
+export function requireAdmin(req: Request, res: any, next: any) {
+  if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+  if (req.user!.role !== "admin") return res.status(403).json({ message: "Admin access required" });
   next();
 }

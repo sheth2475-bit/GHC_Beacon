@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks, Calendar,
-  FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles
+  FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users, Shield
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -9,27 +9,37 @@ import {
   SidebarHeader, SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 
 const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
 ];
 
-const performanceNav = [
+const adminPerformanceNav = [
   { title: "KPI Builder", url: "/kpi-builder", icon: Sparkles },
   { title: "KPI Management", url: "/kpis", icon: Target },
   { title: "Action Tracker", url: "/actions", icon: ListChecks },
   { title: "Meetings", url: "/meetings", icon: Calendar },
 ];
 
-const insightsNav = [
+const executivePerformanceNav = [
+  { title: "KPI Management", url: "/kpis", icon: Target },
+  { title: "Action Tracker", url: "/actions", icon: ListChecks },
+];
+
+const adminInsightsNav = [
   { title: "Monthly Reviews", url: "/reviews", icon: FileText },
   { title: "Dashboard Planner", url: "/planner", icon: LayoutTemplate },
 ];
 
+const executiveInsightsNav = [
+  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isExecutive } = useAuth();
 
   const renderGroup = (label: string, items: typeof mainNav) => (
     <SidebarGroup>
@@ -51,6 +61,9 @@ export function AppSidebar() {
     </SidebarGroup>
   );
 
+  const performanceNav = isAdmin ? adminPerformanceNav : executivePerformanceNav;
+  const insightsNav = isAdmin ? adminInsightsNav : executiveInsightsNav;
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 pb-2">
@@ -68,19 +81,34 @@ export function AppSidebar() {
         {renderGroup("Overview", mainNav)}
         {renderGroup("Performance", performanceNav)}
         {renderGroup("AI Insights", insightsNav)}
-        {renderGroup("System", [{ title: "Settings", url: "/settings", icon: Settings }])}
+        {isAdmin && (
+          <>
+            {renderGroup("Admin", [
+              { title: "User Management", url: "/users", icon: Users },
+              { title: "Settings", url: "/settings", icon: Settings },
+            ])}
+          </>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-3 border-t border-sidebar-border">
         {user && (
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary shrink-0">
               {user.name.split(" ").map(n => n[0]).join("")}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate" data-testid="text-user-name">{user.name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+              <div className="flex items-center gap-1">
+                <Badge
+                  variant="outline"
+                  className={`text-[9px] px-1 py-0 h-3.5 ${isAdmin ? "border-blue-400 text-blue-600 dark:text-blue-400" : "border-amber-400 text-amber-600 dark:text-amber-400"}`}
+                  data-testid="badge-user-role"
+                >
+                  {isAdmin ? "Admin" : "Executive"}
+                </Badge>
+              </div>
             </div>
-            <Button size="icon" variant="ghost" onClick={logout} className="h-8 w-8" data-testid="button-logout">
+            <Button size="icon" variant="ghost" onClick={logout} className="h-8 w-8 shrink-0" data-testid="button-logout">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>

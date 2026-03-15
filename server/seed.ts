@@ -12,10 +12,35 @@ async function hashPassword(password: string): Promise<string> {
 
 export async function seedDatabase() {
   const existing = await storage.getUserByEmail("demo@performo.ai");
-  if (existing) return;
+
+  if (existing) {
+    let companyId = existing.companyId;
+    if (!companyId) {
+      const company = await storage.getCompanyByUserId(existing.id);
+      if (company) {
+        await storage.updateUser(existing.id, { companyId: company.id, role: "admin" });
+        companyId = company.id;
+      }
+    } else {
+      await storage.updateUser(existing.id, { role: "admin" });
+    }
+    const execExists = await storage.getUserByEmail("exec@performo.ai");
+    if (!execExists && companyId) {
+      const execHash = await hashPassword("exec123");
+      await storage.createUser({
+        name: "Ravi Mehta",
+        email: "exec@performo.ai",
+        passwordHash: execHash,
+        companyId,
+        role: "executive",
+      });
+      console.log("Seed: created executive demo user exec@performo.ai");
+    }
+    return;
+  }
 
   const passwordHash = await hashPassword("demo123");
-  const user = await storage.createUser({ name: "Dharmesh Sheth", email: "demo@performo.ai", passwordHash });
+  const user = await storage.createUser({ name: "Dharmesh Sheth", email: "demo@performo.ai", passwordHash, role: "admin", companyId: null });
 
   const company = await storage.createCompany({
     userId: user.id,
@@ -24,6 +49,8 @@ export async function seedDatabase() {
     companySize: "51-200",
     country: "UAE",
   });
+
+  await storage.updateUser(user.id, { companyId: company.id });
 
   const deptNames = ["Sales & Revenue", "Operations", "HR & Admin", "Finance"];
   const depts: Record<string, number> = {};
@@ -234,5 +261,14 @@ export async function seedDatabase() {
     aiGeneratedText: null,
   });
 
-  console.log("Seed data created: 12 KPIs with 3 months of actuals, 4 meetings, 10 action items");
+  const execHash = await hashPassword("exec123");
+  await storage.createUser({
+    name: "Ravi Mehta",
+    email: "exec@performo.ai",
+    passwordHash: execHash,
+    companyId: company.id,
+    role: "executive",
+  });
+
+  console.log("Seed data created: 12 KPIs with 3 months of actuals, 4 meetings, 10 action items, admin + executive users");
 }

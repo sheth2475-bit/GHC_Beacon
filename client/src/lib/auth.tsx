@@ -2,15 +2,19 @@ import { createContext, useContext, ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "./queryClient";
 
-interface AuthUser {
+export interface AuthUser {
   id: number;
   name: string;
   email: string;
+  companyId: number | null;
+  role: string;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
+  isAdmin: boolean;
+  isExecutive: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -62,11 +66,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const resolvedUser = user ?? null;
+  const isAdmin = resolvedUser?.role === "admin";
+  const isExecutive = resolvedUser?.role === "executive";
+
   return (
     <AuthContext.Provider
       value={{
-        user: user ?? null,
+        user: resolvedUser,
         isLoading,
+        isAdmin,
+        isExecutive,
         login: async (email, password) => { await loginMutation.mutateAsync({ email, password }); },
         register: async (name, email, password) => { await registerMutation.mutateAsync({ name, email, password }); },
         logout: async () => { await logoutMutation.mutateAsync(); },

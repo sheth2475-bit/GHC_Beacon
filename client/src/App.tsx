@@ -17,20 +17,22 @@ import MeetingsPage from "@/pages/meetings";
 import ReviewsPage from "@/pages/reviews";
 import PlannerPage from "@/pages/planner";
 import SettingsPage from "@/pages/settings";
+import UserManagementPage from "@/pages/user-management";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function Router() {
+  const { isAdmin } = useAuth();
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
-
-      <Route path="/kpi-builder" component={KpiBuilderPage} />
       <Route path="/kpis" component={KpiManagementPage} />
       <Route path="/actions" component={ActionsPage} />
-      <Route path="/meetings" component={MeetingsPage} />
       <Route path="/reviews" component={ReviewsPage} />
-      <Route path="/planner" component={PlannerPage} />
-      <Route path="/settings" component={SettingsPage} />
+      {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}
+      {isAdmin && <Route path="/meetings" component={MeetingsPage} />}
+      {isAdmin && <Route path="/planner" component={PlannerPage} />}
+      {isAdmin && <Route path="/settings" component={SettingsPage} />}
+      {isAdmin && <Route path="/users" component={UserManagementPage} />}
       <Route component={NotFound} />
     </Switch>
   );
