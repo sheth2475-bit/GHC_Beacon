@@ -85,6 +85,123 @@ async function seedProjectData(companyId: number) {
   }
 }
 
+async function seedKpiData(companyId: number, depts: Record<string, number>) {
+  const kpiData = [
+    { dept: "Sales & Revenue", name: "Occupancy Rate", desc: "Percentage of available rooms sold in the period.", formula: "(Rooms Sold / Total Available Room Nights) × 100", unit: "%", freq: "Monthly", target: "85", green: ">= 85%", amber: "75% - 84%", red: "< 75%", owner: "Revenue Manager", source: "PMS (Opera / Cloudbeds)" },
+    { dept: "Sales & Revenue", name: "Average Daily Rate (ADR)", desc: "Average revenue earned per occupied room.", formula: "Total Room Revenue / Number of Rooms Sold", unit: "AED", freq: "Monthly", target: "680", green: ">= AED 680", amber: "AED 580 - 679", red: "< AED 580", owner: "Revenue Manager", source: "PMS - Revenue Report" },
+    { dept: "Sales & Revenue", name: "RevPAR", desc: "Revenue per available room.", formula: "Total Room Revenue / Total Available Room Nights", unit: "AED", freq: "Monthly", target: "578", green: ">= AED 578", amber: "AED 450 - 577", red: "< AED 450", owner: "Director of Sales", source: "PMS - Revenue Report" },
+    { dept: "Sales & Revenue", name: "Repeat Guest Rate", desc: "Percentage of bookings from returning guests.", formula: "(Return Guest Bookings / Total Bookings) × 100", unit: "%", freq: "Monthly", target: "25", green: ">= 25%", amber: "18% - 24%", red: "< 18%", owner: "Guest Relations Manager", source: "CRM / PMS Guest History" },
+    { dept: "Operations", name: "Guest Satisfaction Score (GSS)", desc: "Average review rating across Booking.com, Google, and TripAdvisor.", formula: "Sum of All Ratings / Number of Reviews", unit: "/ 5.0", freq: "Monthly", target: "4.5", green: ">= 4.5", amber: "4.0 - 4.4", red: "< 4.0", owner: "Guest Relations Manager", source: "ReviewPro / OTA Extranet" },
+    { dept: "Operations", name: "Room Turnaround Time", desc: "Average minutes to clean and release a room.", formula: "Total Cleaning + Inspection Time / Rooms Cleaned", unit: "min", freq: "Weekly", target: "28", green: "<= 28 min", amber: "29 - 40 min", red: "> 40 min", owner: "Housekeeping Supervisor", source: "Housekeeping App / Manual Log" },
+    { dept: "Operations", name: "F&B Revenue per Cover", desc: "Average revenue per restaurant/bar guest.", formula: "Total F&B Revenue / Number of Covers Served", unit: "AED", freq: "Monthly", target: "145", green: ">= AED 145", amber: "AED 110 - 144", red: "< AED 110", owner: "F&B Manager", source: "POS System (Micros / Toast)" },
+    { dept: "HR & Admin", name: "Employee Turnover Rate", desc: "Percentage of employees leaving within the period.", formula: "(Number of Separations / Average Headcount) × 100", unit: "%", freq: "Monthly", target: "18", green: "<= 18%", amber: "19% - 25%", red: "> 25%", owner: "HR Manager", source: "HRMS (BambooHR / Workday)" },
+    { dept: "HR & Admin", name: "Training Hours per Employee", desc: "Average training hours completed per employee.", formula: "Total Training Hours Delivered / Total Headcount", unit: "hrs", freq: "Monthly", target: "8", green: ">= 8 hrs", amber: "5 - 7 hrs", red: "< 5 hrs", owner: "L&D Coordinator", source: "LMS / Training Records" },
+    { dept: "Finance", name: "GOP Margin", desc: "Gross Operating Profit as a percentage of total revenue.", formula: "(Total Revenue - Operating Expenses) / Total Revenue × 100", unit: "%", freq: "Monthly", target: "35", green: ">= 35%", amber: "28% - 34%", red: "< 28%", owner: "Financial Controller", source: "PMS + Accounting (Sun / QuickBooks)" },
+    { dept: "Finance", name: "Cost per Occupied Room (CPOR)", desc: "Total operating cost divided by rooms sold.", formula: "Total Operating Expenses / Rooms Sold", unit: "AED", freq: "Monthly", target: "220", green: "<= AED 220", amber: "AED 221 - 280", red: "> AED 280", owner: "Financial Controller", source: "Accounting System" },
+    { dept: "Finance", name: "Revenue vs Budget Variance", desc: "Percentage deviation of actual revenue from budgeted revenue.", formula: "((Actual Revenue - Budget) / Budget) × 100", unit: "%", freq: "Monthly", target: "0", green: ">= -3% (within 3%)", amber: "-3.1% to -8%", red: "< -8%", owner: "Financial Controller", source: "ERP / Budget Tracker" },
+  ];
+  const createdKpis: Record<string, number> = {};
+  for (const k of kpiData) {
+    const deptId = depts[k.dept] || Object.values(depts)[0];
+    const kpi = await storage.createKpi({ companyId, departmentId: deptId, kpiName: k.name, description: k.desc, formula: k.formula, unit: k.unit, frequency: k.freq, targetValue: k.target, greenThreshold: k.green, amberThreshold: k.amber, redThreshold: k.red, ownerName: k.owner, dataSource: k.source, createdByAi: false });
+    createdKpis[k.name] = kpi.id;
+  }
+  const monthlyActuals = [
+    { month: "2025-12", data: [
+      { kpi: "Occupancy Rate", actual: "92", status: "On Track", comment: "Peak holiday season" },
+      { kpi: "Average Daily Rate (ADR)", actual: "740", status: "On Track", comment: "Premium pricing during festive period" },
+      { kpi: "RevPAR", actual: "681", status: "On Track", comment: "Best RevPAR month of the year" },
+      { kpi: "Repeat Guest Rate", actual: "22", status: "Amber", comment: "Mostly new leisure tourists" },
+      { kpi: "Guest Satisfaction Score (GSS)", actual: "4.4", status: "Amber", comment: "Slight dip due to high occupancy" },
+      { kpi: "Room Turnaround Time", actual: "32", status: "Amber", comment: "Higher due to full house operations" },
+      { kpi: "F&B Revenue per Cover", actual: "158", status: "On Track", comment: "Festive menus drove higher averages" },
+      { kpi: "Employee Turnover Rate", actual: "16", status: "On Track", comment: "Year-end bonuses helped retention" },
+      { kpi: "Training Hours per Employee", actual: "6", status: "Amber", comment: "Reduced due to peak operations" },
+      { kpi: "GOP Margin", actual: "38", status: "On Track", comment: "Strong profitability from high occupancy" },
+      { kpi: "Cost per Occupied Room (CPOR)", actual: "205", status: "On Track", comment: "Economies of scale at high occupancy" },
+      { kpi: "Revenue vs Budget Variance", actual: "4.2", status: "On Track", comment: "Revenue exceeded budget by 4.2%" },
+    ]},
+    { month: "2026-01", data: [
+      { kpi: "Occupancy Rate", actual: "88", status: "On Track", comment: "Strong January with winter tourism" },
+      { kpi: "Average Daily Rate (ADR)", actual: "710", status: "On Track", comment: "Maintained strong rates" },
+      { kpi: "RevPAR", actual: "625", status: "On Track", comment: "Solid performance above annual target" },
+      { kpi: "Repeat Guest Rate", actual: "24", status: "Amber", comment: "Loyalty program gaining traction" },
+      { kpi: "Guest Satisfaction Score (GSS)", actual: "4.5", status: "On Track", comment: "Recovered after Dec dip" },
+      { kpi: "Room Turnaround Time", actual: "27", status: "On Track", comment: "New cleaning schedule effective" },
+      { kpi: "F&B Revenue per Cover", actual: "142", status: "Amber", comment: "Normal pricing after festive season" },
+      { kpi: "Employee Turnover Rate", actual: "19", status: "Amber", comment: "Some post-bonus departures" },
+      { kpi: "Training Hours per Employee", actual: "9", status: "On Track", comment: "Annual training plan started" },
+      { kpi: "GOP Margin", actual: "36", status: "On Track", comment: "Healthy margins maintained" },
+      { kpi: "Cost per Occupied Room (CPOR)", actual: "215", status: "On Track", comment: "Controlled expenses" },
+      { kpi: "Revenue vs Budget Variance", actual: "2.1", status: "On Track", comment: "2.1% above budget" },
+    ]},
+    { month: "2026-02", data: [
+      { kpi: "Occupancy Rate", actual: "79", status: "Amber", comment: "Seasonal dip as winter tourism winds down" },
+      { kpi: "Average Daily Rate (ADR)", actual: "660", status: "Amber", comment: "Competitive pricing pressure" },
+      { kpi: "RevPAR", actual: "521", status: "Amber", comment: "Below target due to occupancy and rate decline" },
+      { kpi: "Repeat Guest Rate", actual: "27", status: "On Track", comment: "Loyalty emails driving repeat bookings" },
+      { kpi: "Guest Satisfaction Score (GSS)", actual: "4.6", status: "On Track", comment: "Lower occupancy = better service per guest" },
+      { kpi: "Room Turnaround Time", actual: "25", status: "On Track", comment: "Best month, lighter load" },
+      { kpi: "F&B Revenue per Cover", actual: "128", status: "Below Target", comment: "Business traveler guest mix shift" },
+      { kpi: "Employee Turnover Rate", actual: "23", status: "Amber", comment: "3 housekeepers left for competitor" },
+      { kpi: "Training Hours per Employee", actual: "10", status: "On Track", comment: "Used quiet period for intensive training" },
+      { kpi: "GOP Margin", actual: "31", status: "Amber", comment: "Revenue shortfall hit margin" },
+      { kpi: "Cost per Occupied Room (CPOR)", actual: "245", status: "Amber", comment: "Fixed costs on fewer rooms" },
+      { kpi: "Revenue vs Budget Variance", actual: "-5.8", status: "Amber", comment: "5.8% below budget for February" },
+    ]},
+  ];
+  for (const monthData of monthlyActuals) {
+    for (const a of monthData.data) {
+      if (createdKpis[a.kpi]) {
+        await storage.createKpiActual({ kpiId: createdKpis[a.kpi], reviewMonth: monthData.month, actualValue: a.actual, commentary: a.comment, status: a.status });
+      }
+    }
+  }
+}
+
+async function seedMeetingsAndActions(companyId: number, depts: Record<string, number>) {
+  const meetings = [
+    { title: "February Monthly Operations Review", date: "2026-02-28", dept: "Operations", summary: "Reviewed February performance. Occupancy dropped to 79%. Guest satisfaction improved to 4.6. F&B revenue per cover fell below target at AED 128. Housekeeping excellent at 25 min turnaround." },
+    { title: "Q1 Revenue Strategy Meeting", date: "2026-02-15", dept: "Sales & Revenue", summary: "Discussed March-April booking pipeline. Corporate RFP responses due March 10. Proposed weekend staycation packages. Loyalty program showing 27% repeat rate." },
+    { title: "HR Monthly Review - February", date: "2026-02-25", dept: "HR & Admin", summary: "Turnover at 23% — 3 housekeepers joined competitor. Exit interviews indicate salary concerns. Training excellent at 10 hrs/employee. Retention bonus structure discussed." },
+    { title: "Finance Committee - February Closeout", date: "2026-02-27", dept: "Finance", summary: "GOP margin at 31%, below 35% target. Revenue shortfall of 5.8%. CPOR rose to AED 245. Recommendation: defer non-essential capex to Q2. F&B food cost ratio at 34%." },
+  ];
+  const createdMeetings: Record<string, number> = {};
+  for (const m of meetings) {
+    const deptId = depts[m.dept] || Object.values(depts)[0];
+    const meeting = await storage.createMeeting({ companyId, title: m.title, meetingDate: m.date, departmentId: deptId, summary: m.summary });
+    createdMeetings[m.title] = meeting.id;
+  }
+  const actions = [
+    { title: "Launch business traveler lunch promotion", desc: "Design AED 75 fixed-price lunch menu to increase midweek F&B covers.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-10", revisedDue: "2026-03-15", priority: "High", status: "In Progress", dept: "Operations", meeting: "February Monthly Operations Review", meetingType: "Monthly Operations Review" },
+    { title: "Review and update menu pricing for Q2", desc: "Benchmark competitor pricing. Propose 8-12% adjustments on underperforming items.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-15", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Operations", meeting: "February Monthly Operations Review", meetingType: "Monthly Operations Review" },
+    { title: "Submit corporate RFP responses", desc: "Complete RFP responses for Emirates NBD, ADNOC, Etisalat.", owner: "Sarah Al Maktoum (Sales Manager)", due: "2026-03-10", revisedDue: null, priority: "Critical", status: "In Progress", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "PMO Steering Committee" },
+    { title: "Design weekend staycation packages", desc: "Create 2-night stay packages with F&B credit for local market.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-12", revisedDue: "2026-03-18", priority: "High", status: "In Progress", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "PMO Steering Committee" },
+    { title: "Present dynamic pricing model to GM", desc: "Build shoulder season pricing grid with weekday/weekend rate differentials.", owner: "Priya Sharma (Revenue Manager)", due: "2026-03-18", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "CEO Meeting" },
+    { title: "Implement housekeeping retention bonuses", desc: "AED 500/month retention bonus for housekeeping staff with >1yr tenure.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-08", revisedDue: null, priority: "High", status: "Completed", dept: "HR & Admin", meeting: "HR Monthly Review - February", meetingType: "Department Review" },
+    { title: "Conduct exit interviews for departed staff", desc: "Structured exit interviews for 3 departed housekeepers.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-05", revisedDue: null, priority: "Medium", status: "Completed", dept: "HR & Admin", meeting: "HR Monthly Review - February", meetingType: "Department Review" },
+    { title: "Defer Q1 capex: lobby renovation", desc: "Postpone lobby furniture replacement (AED 180K) to Q2.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-01", revisedDue: null, priority: "High", status: "Completed", dept: "Finance", meeting: "Finance Committee - February Closeout", meetingType: "Finance Committee" },
+    { title: "Analyze F&B food cost ratio", desc: "Food cost at 34% vs 30% target. Investigate wastage and portion control.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-20", revisedDue: "2026-03-25", priority: "High", status: "In Progress", dept: "Finance", meeting: "Finance Committee - February Closeout", meetingType: "Finance Committee" },
+    { title: "Loyalty program email campaign - March", desc: "Send email to 2,400 loyalty members with exclusive March rates and F&B voucher.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-05", revisedDue: "2026-03-12", priority: "Medium", status: "Delayed", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "CEO Meeting" },
+  ];
+  for (const a of actions) {
+    const deptId = depts[a.dept] || Object.values(depts)[0];
+    await storage.createActionItem({ companyId, meetingId: createdMeetings[a.meeting] || null, departmentId: deptId, meetingType: a.meetingType, title: a.title, description: a.desc, ownerName: a.owner, dueDate: a.due, revisedDueDate: a.revisedDue, priority: a.priority, status: a.status });
+  }
+}
+
+async function seedMonthlyReview(companyId: number) {
+  await storage.createMonthlyReview({
+    companyId,
+    reviewMonth: "2026-02",
+    overallSummary: "February marked the beginning of the seasonal transition for OYO Hospitality. As winter tourism volumes subsided, occupancy declined to 79% against an 85% target, with ADR softening to AED 660. RevPAR fell to AED 521, placing the hotel 9.9% below its annual benchmark. The revenue shortfall of 5.8% versus budget was the primary driver behind a compressed GOP margin of 31%.\n\nOn the positive side, guest satisfaction improved to 4.6/5.0 — the highest score in three months — benefiting from reduced operational pressure. The loyalty program continued its upward trajectory with a repeat guest rate of 27%, exceeding the 25% target for the first time.",
+    strengths: "- Guest satisfaction score reached 4.6/5.0, highest since property reopened\n- Repeat guest rate exceeded 25% target at 27%, validating loyalty program investment\n- Training hours per employee hit 10 hours, leveraging quieter period effectively\n- Room turnaround time at 25 minutes, best performance to date",
+    gaps: "- Occupancy at 79% vs 85% target — seasonal decline steeper than forecasted\n- F&B revenue per cover at AED 128 vs AED 145 target — guest mix shift impact\n- Employee turnover at 23% vs 18% target — competitive poaching of trained staff\n- GOP margin at 31% vs 35% target — revenue shortfall amplified fixed cost impact\n- Revenue 5.8% below budget — shoulder season impact underestimated",
+    recommendations: "- Launch business traveler lunch promotion (AED 75 fixed-price) by March 10\n- Implement housekeeping retention bonuses (AED 500/month for >1yr tenure) immediately\n- Fast-track corporate RFP responses for Emirates NBD, ADNOC, and Etisalat\n- Design weekend staycation packages for local market to offset midweek softness\n- Defer non-essential capex (lobby renovation AED 180K) to Q2 pending revenue recovery",
+    aiGeneratedText: null,
+  });
+}
+
 export async function seedDatabase() {
   const existing = await storage.getUserByEmail("demo@performo.ai");
 
@@ -99,26 +216,57 @@ export async function seedDatabase() {
     } else {
       await storage.updateUser(existing.id, { role: "admin" });
     }
+
+    if (!companyId) return;
+
+    // ── Ensure executive demo user ──────────────────────────────
     const execExists = await storage.getUserByEmail("exec@performo.ai");
-    if (!execExists && companyId) {
+    if (!execExists) {
       const execHash = await hashPassword("exec123");
-      await storage.createUser({
-        name: "Ravi Mehta",
-        email: "exec@performo.ai",
-        passwordHash: execHash,
-        companyId,
-        role: "executive",
-      });
+      await storage.createUser({ name: "Ravi Mehta", email: "exec@performo.ai", passwordHash: execHash, companyId, role: "executive" });
       console.log("Seed: created executive demo user exec@performo.ai");
     }
-    // Seed projects if not present
-    if (companyId) {
-      const existingProjects = await storage.getProjects(companyId);
-      if (existingProjects.length === 0) {
-        await seedProjectData(companyId);
-        console.log("Seed: created demo execution data (projects, tasks, milestones)");
+
+    // ── Ensure departments ──────────────────────────────────────
+    let deptList = await storage.getDepartments(companyId);
+    if (deptList.length === 0) {
+      for (const name of ["Sales & Revenue", "Operations", "HR & Admin", "Finance"]) {
+        await storage.createDepartment({ companyId, name });
       }
+      deptList = await storage.getDepartments(companyId);
+      console.log("Seed: restored departments");
     }
+    const depts: Record<string, number> = {};
+    for (const d of deptList) depts[d.name] = d.id;
+
+    // ── Ensure KPIs ─────────────────────────────────────────────
+    const existingKpis = await storage.getKpis(companyId);
+    if (existingKpis.length < 10) {
+      await seedKpiData(companyId, depts);
+      console.log("Seed: restored KPI data (12 KPIs with actuals)");
+    }
+
+    // ── Ensure meetings & action items ──────────────────────────
+    const existingActions = await storage.getActionItems(companyId);
+    if (existingActions.length === 0) {
+      await seedMeetingsAndActions(companyId, depts);
+      console.log("Seed: restored meetings and action items");
+    }
+
+    // ── Ensure monthly review ───────────────────────────────────
+    const existingReviews = await storage.getMonthlyReviews(companyId);
+    if (existingReviews.length === 0) {
+      await seedMonthlyReview(companyId);
+      console.log("Seed: restored monthly review");
+    }
+
+    // ── Ensure projects, tasks, milestones ──────────────────────
+    const existingProjects = await storage.getProjects(companyId);
+    if (existingProjects.length === 0) {
+      await seedProjectData(companyId);
+      console.log("Seed: restored projects, tasks, milestones");
+    }
+
     return;
   }
 
