@@ -19,7 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Calendar, Users, Target, AlertTriangle, CheckCircle2, Edit3,
   Plus, Trash2, MessageSquare, Send, Flag, ChevronDown, ChevronRight,
-  Milestone as MilestoneIcon, LayoutList, LayoutGrid, Circle, Clock,
+  LayoutList, LayoutGrid, Circle, CalendarDays,
 } from "lucide-react";
 import type { Project, Task, Subtask, Milestone, ProjectComment } from "@shared/schema";
 
@@ -56,6 +56,13 @@ function priorityColor(p: string) {
 const TASK_STATUSES = ["Not Started", "In Progress", "At Risk", "Completed"];
 const MILESTONE_STATUSES = ["Upcoming", "In Progress", "Completed", "Overdue"];
 
+function priorityBorderColor(p: string) {
+  if (p === "Critical") return "border-l-red-500";
+  if (p === "High") return "border-l-orange-500";
+  if (p === "Medium") return "border-l-blue-500";
+  return "border-l-gray-300 dark:border-l-gray-600";
+}
+
 function TaskCard({
   task, isAdmin, onStatusChange, onDelete
 }: {
@@ -65,7 +72,6 @@ function TaskCard({
   onDelete: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { toast } = useToast();
 
   const toggleSubtask = useMutation({
     mutationFn: ({ id, completed }: { id: number; completed: boolean }) =>
@@ -75,23 +81,27 @@ function TaskCard({
 
   const doneCount = task.subtasks?.filter(s => s.completed).length || 0;
   const totalSubs = task.subtasks?.length || 0;
+  const today = new Date().toISOString().split("T")[0];
+  const isOverdue = task.dueDate && task.dueDate < today && task.status !== "Completed";
 
   return (
-    <Card className="border hover:border-primary/20 transition-colors" data-testid={`card-task-${task.id}`}>
+    <Card className={`border-l-4 ${priorityBorderColor(task.priority)} hover:shadow-sm transition-all`} data-testid={`card-task-${task.id}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm" data-testid={`text-task-title-${task.id}`}>{task.title}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${priorityColor(task.priority)}`}>{task.priority}</span>
+            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+              <span className="font-semibold text-sm" data-testid={`text-task-title-${task.id}`}>{task.title}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${priorityColor(task.priority)}`}>{task.priority}</span>
+              {isOverdue && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-0.5">
+                  <AlertTriangle className="h-2.5 w-2.5" /> Overdue
+                </span>
+              )}
             </div>
-            {task.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.description}</p>}
-            <div className="flex items-center gap-3 mt-2 flex-wrap">
+            {task.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{task.description}</p>}
+            <div className="flex items-center gap-3 flex-wrap">
               {isAdmin ? (
-                <Select
-                  value={task.status}
-                  onValueChange={v => onStatusChange(task.id, v)}
-                >
+                <Select value={task.status} onValueChange={v => onStatusChange(task.id, v)}>
                   <SelectTrigger className="h-6 text-[11px] w-auto px-2 py-0" data-testid={`select-task-status-${task.id}`}>
                     <SelectValue />
                   </SelectTrigger>
@@ -108,13 +118,13 @@ function TaskCard({
                 </span>
               )}
               {task.dueDate && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <span className={`text-xs flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                   <Calendar className="h-3 w-3" /> {task.dueDate}
                 </span>
               )}
               {totalSubs > 0 && (
                 <button
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors ml-auto"
                   onClick={() => setExpanded(!expanded)}
                   data-testid={`button-expand-subtasks-${task.id}`}
                 >
@@ -126,7 +136,7 @@ function TaskCard({
 
             {/* Subtasks */}
             {expanded && totalSubs > 0 && (
-              <div className="mt-3 space-y-1.5 pl-2 border-l border-border">
+              <div className="mt-3 space-y-1.5 pl-3 border-l-2 border-border">
                 {task.subtasks.map(sub => (
                   <div key={sub.id} className="flex items-center gap-2" data-testid={`row-subtask-${sub.id}`}>
                     <Checkbox
@@ -135,7 +145,9 @@ function TaskCard({
                       onCheckedChange={v => toggleSubtask.mutate({ id: sub.id, completed: !!v })}
                       data-testid={`checkbox-subtask-${sub.id}`}
                     />
-                    <span className={`text-xs ${sub.completed ? "line-through text-muted-foreground" : ""}`}>{sub.title}</span>
+                    <span className={`text-xs ${sub.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {sub.title}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -145,7 +157,7 @@ function TaskCard({
           {isAdmin && (
             <button
               onClick={() => onDelete(task.id)}
-              className="text-muted-foreground hover:text-red-500 transition-colors"
+              className="text-muted-foreground hover:text-red-500 transition-colors shrink-0"
               data-testid={`button-delete-task-${task.id}`}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -157,6 +169,72 @@ function TaskCard({
   );
 }
 
+function MilestoneCalendar({ milestones }: { milestones: Milestone[] }) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const currentMonth = today.getMonth();
+
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(year, currentMonth + i, 1);
+    return {
+      label: d.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+    };
+  });
+
+  const grouped: Record<string, Milestone[]> = {};
+  for (const m of milestones) {
+    if (!m.dueDate) continue;
+    const key = m.dueDate.substring(0, 7);
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(m);
+  }
+
+  const msBorderColor = (s: string) => {
+    if (s === "Completed") return "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20";
+    if (s === "Overdue") return "border-red-400 bg-red-50 dark:bg-red-900/20";
+    if (s === "In Progress") return "border-violet-400 bg-violet-50 dark:bg-violet-900/20";
+    return "border-primary/40 bg-primary/5";
+  };
+
+  return (
+    <div className="space-y-3">
+      {months.map(m => {
+        const msList = grouped[m.key] || [];
+        return (
+          <div key={m.key} className={msList.length === 0 ? "opacity-50" : ""}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider w-20 shrink-0">{m.label}</span>
+              <div className="flex-1 h-px bg-border" />
+              {msList.length > 0 && <span className="text-[10px] text-muted-foreground">{msList.length} milestone{msList.length !== 1 ? "s" : ""}</span>}
+            </div>
+            {msList.length > 0 ? (
+              <div className="space-y-1.5 pl-4">
+                {msList.map(ms => (
+                  <div key={ms.id} className={`border-l-2 pl-3 py-1.5 rounded-r-lg ${msBorderColor(ms.status)}`} data-testid={`calendar-milestone-${ms.id}`}>
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="text-xs font-medium">{ms.title}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{ms.dueDate}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${statusPill(ms.status)}`}>{ms.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="pl-4">
+                <p className="text-xs text-muted-foreground italic">No milestones this month</p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ProjectDetailPage() {
   const [, params] = useRoute("/projects/:id");
   const projectId = parseInt(params?.id ?? "0");
@@ -165,6 +243,7 @@ export default function ProjectDetailPage() {
 
   const [activeTab, setActiveTab] = useState("overview");
   const [boardView, setBoardView] = useState(false);
+  const [milestoneView, setMilestoneView] = useState<"list" | "calendar">("list");
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
@@ -462,7 +541,18 @@ export default function ProjectDetailPage() {
             /* List view */
             <div className="space-y-2">
               {tasks.length === 0 ? (
-                <Card><CardContent className="flex items-center justify-center py-12 text-sm text-muted-foreground">No tasks yet{isAdmin ? " — add one above" : ""}.</CardContent></Card>
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                      <Target className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">No tasks yet</p>
+                      <p className="text-sm text-muted-foreground">{isAdmin ? "Add tasks to start tracking project progress." : "No tasks have been added yet."}</p>
+                    </div>
+                    {isAdmin && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Task</Button>}
+                  </CardContent>
+                </Card>
               ) : tasks.map(t => (
                 <TaskCard
                   key={t.id}
@@ -499,15 +589,52 @@ export default function ProjectDetailPage() {
 
         {/* ─ Milestones ─ */}
         <TabsContent value="milestones" className="mt-4 space-y-4">
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1 border rounded-md p-1">
+              <Button
+                variant={milestoneView === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5"
+                onClick={() => setMilestoneView("list")}
+                data-testid="button-milestone-list-view"
+              >
+                <LayoutList className="h-3.5 w-3.5 mr-1" /> List
+              </Button>
+              <Button
+                variant={milestoneView === "calendar" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5"
+                onClick={() => setMilestoneView("calendar")}
+                data-testid="button-milestone-calendar-view"
+              >
+                <CalendarDays className="h-3.5 w-3.5 mr-1" /> Calendar
+              </Button>
+            </div>
             {isAdmin && (
               <Button size="sm" onClick={() => setShowMilestoneForm(true)} data-testid="button-add-milestone">
                 <Plus className="h-4 w-4 mr-1" /> Add Milestone
               </Button>
             )}
           </div>
+
           {milestones.length === 0 ? (
-            <Card><CardContent className="flex items-center justify-center py-12 text-sm text-muted-foreground">No milestones yet{isAdmin ? " — add one above" : ""}.</CardContent></Card>
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <Flag className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">No milestones yet</p>
+                  <p className="text-sm text-muted-foreground">{isAdmin ? "Add milestones to track key project checkpoints." : "No milestones have been added."}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : milestoneView === "calendar" ? (
+            <Card>
+              <CardContent className="p-5">
+                <MilestoneCalendar milestones={milestones} />
+              </CardContent>
+            </Card>
           ) : (
             <div className="space-y-3">
               {milestones.map(m => (

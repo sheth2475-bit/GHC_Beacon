@@ -249,10 +249,10 @@ export default function DashboardPage() {
 
       {/* ─ Execution Stats ─────────────────────────────────────────────────── */}
       {portfolioStats && (portfolioStats.total > 0 || projects.length > 0) && (
-        <div className="space-y-3" data-testid="section-execution">
+        <div className="space-y-4" data-testid="section-execution">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">
-              <FolderOpen className="h-4 w-4" /> Execution
+              <FolderOpen className="h-4 w-4" /> Execution Overview
             </h2>
             <Link href="/portfolio">
               <span className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1" data-testid="link-view-portfolio">
@@ -260,41 +260,43 @@ export default function DashboardPage() {
               </span>
             </Link>
           </div>
+
+          {/* Exec stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card data-testid="stat-exec-active">
+            <Card data-testid="stat-exec-active" className="border-l-4 border-l-violet-500">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <Briefcase className="h-3.5 w-3.5 text-violet-500" />
                   <p className="text-xs text-muted-foreground font-medium">Active Projects</p>
-                  <Briefcase className="h-4 w-4 text-violet-500" />
                 </div>
-                <p className="text-2xl font-bold" data-testid="text-exec-active">{portfolioStats.active}</p>
+                <p className="text-2xl font-bold tabular-nums" data-testid="text-exec-active">{portfolioStats.active}</p>
               </CardContent>
             </Card>
-            <Card data-testid="stat-exec-atrisk">
+            <Card data-testid="stat-exec-atrisk" className="border-l-4 border-l-red-500">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
                   <p className="text-xs text-muted-foreground font-medium">At Risk</p>
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
                 </div>
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400" data-testid="text-exec-atrisk">{portfolioStats.atRisk}</p>
+                <p className="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400" data-testid="text-exec-atrisk">{portfolioStats.atRisk}</p>
               </CardContent>
             </Card>
-            <Card data-testid="stat-exec-overdue-tasks">
+            <Card data-testid="stat-exec-overdue-tasks" className="border-l-4 border-l-orange-500">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
                   <p className="text-xs text-muted-foreground font-medium">Overdue Tasks</p>
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
                 </div>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400" data-testid="text-exec-overdue-tasks">{portfolioStats.overdueTasks}</p>
+                <p className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400" data-testid="text-exec-overdue-tasks">{portfolioStats.overdueTasks}</p>
               </CardContent>
             </Card>
-            <Card data-testid="stat-exec-milestones">
+            <Card data-testid="stat-exec-milestones" className="border-l-4 border-l-primary">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <Flag className="h-3.5 w-3.5 text-primary" />
                   <p className="text-xs text-muted-foreground font-medium">Upcoming Milestones</p>
-                  <Flag className="h-4 w-4 text-primary" />
                 </div>
-                <p className="text-2xl font-bold" data-testid="text-exec-milestones">{portfolioStats.upcomingMilestones}</p>
+                <p className="text-2xl font-bold tabular-nums" data-testid="text-exec-milestones">{portfolioStats.upcomingMilestones}</p>
               </CardContent>
             </Card>
           </div>
@@ -304,14 +306,30 @@ export default function DashboardPage() {
             <div className="grid md:grid-cols-2 gap-3">
               {projects.filter(p => p.status !== "Completed").slice(0, 4).map(p => (
                 <Link key={p.id} href={`/projects/${p.id}`} data-testid={`dashboard-project-${p.id}`}>
-                  <Card className="hover:shadow-sm transition-shadow cursor-pointer border hover:border-primary/20">
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-2">
+                  <Card className="hover:shadow-md transition-all cursor-pointer border hover:border-primary/25 group overflow-hidden">
+                    <div className={`h-0.5 w-full ${p.health === "Red" ? "bg-red-500" : p.health === "Amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                    <CardContent className="p-3.5">
+                      <div className="flex items-center gap-2.5 mb-2">
                         <div className={`w-2 h-2 rounded-full shrink-0 ${p.health === "Red" ? "bg-red-500" : p.health === "Amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
-                        <span className="text-sm font-medium flex-1 truncate">{p.name}</span>
-                        <span className="text-xs text-muted-foreground shrink-0">{p.progress ?? 0}%</span>
+                        <span className="text-sm font-semibold flex-1 truncate group-hover:text-primary transition-colors">{p.name}</span>
+                        <div className="flex items-center gap-2 shrink-0 text-xs">
+                          {p.health === "Red" && (
+                            <span className="text-red-500 flex items-center gap-1 font-medium">
+                              <AlertTriangle className="h-3 w-3" /> At Risk
+                            </span>
+                          )}
+                          <span className="text-muted-foreground font-medium">{p.progress ?? 0}%</span>
+                        </div>
                       </div>
-                      <Progress value={p.progress ?? 0} className="h-1 mt-1.5" />
+                      <Progress value={p.progress ?? 0} className="h-1.5" />
+                      <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
+                        {p.status && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          p.status === "At Risk" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                          p.status === "In Progress" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" :
+                          "bg-muted text-muted-foreground"
+                        }`}>{p.status}</span>}
+                        <span className="ml-auto">{p.completedTaskCount}/{p.taskCount} tasks</span>
+                      </div>
                     </CardContent>
                   </Card>
                 </Link>
