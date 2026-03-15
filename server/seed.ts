@@ -10,6 +10,81 @@ async function hashPassword(password: string): Promise<string> {
   return `${buf.toString("hex")}.${salt}`;
 }
 
+async function seedProjectData(companyId: number) {
+  const deptList = await storage.getDepartments(companyId);
+  const depts: Record<string, number> = {};
+  for (const d of deptList) depts[d.name] = d.id;
+
+  const projectData = [
+    { name: "Loyalty Program Launch", description: "Design and launch a digital loyalty program to drive repeat bookings and increase guest retention across all OYO properties.", owner: "Noura Bin Rashid", dept: "Sales & Revenue", businessUnit: "Marketing", startDate: "2026-01-15", dueDate: "2026-04-30", status: "In Progress", priority: "High", progress: 55 },
+    { name: "F&B Menu Overhaul", description: "Revamp the restaurant and bar menus to increase F&B revenue per cover from AED 128 to AED 145+. Includes new pricing strategy, supplier renegotiation, and seasonal menu items.", owner: "Khalid Mansoor", dept: "Operations", businessUnit: "F&B", startDate: "2026-02-01", dueDate: "2026-03-31", status: "In Progress", priority: "High", progress: 40 },
+    { name: "Staff Retention Initiative", description: "Reduce employee turnover below 18% through structured retention bonuses, career development programs, and improved working conditions for housekeeping and F&B staff.", owner: "Fatima Al Rashid", dept: "HR & Admin", businessUnit: "People & Culture", startDate: "2026-02-15", dueDate: "2026-06-30", status: "In Progress", priority: "Critical", progress: 30 },
+    { name: "Q2 Revenue Recovery Plan", description: "Develop and execute a comprehensive revenue plan for Q2 to recover from February's 5.8% budget shortfall. Includes corporate RFPs, weekend packages, and OTA rate optimization.", owner: "Priya Sharma", dept: "Sales & Revenue", businessUnit: "Revenue", startDate: "2026-03-01", dueDate: "2026-06-30", status: "Not Started", priority: "Critical", progress: 0 },
+  ];
+
+  const createdProjects: Record<string, number> = {};
+  for (const p of projectData) {
+    const proj = await storage.createProject({
+      companyId,
+      name: p.name,
+      description: p.description,
+      owner: p.owner,
+      departmentId: depts[p.dept] || null,
+      businessUnit: p.businessUnit,
+      startDate: p.startDate,
+      dueDate: p.dueDate,
+      status: p.status,
+      priority: p.priority,
+      progress: p.progress,
+      tags: null,
+      linkedKpiId: null,
+    });
+    createdProjects[p.name] = proj.id;
+  }
+
+  const taskData = [
+    { project: "Loyalty Program Launch", title: "Define loyalty tiers and rewards structure", assignee: "Noura Bin Rashid", status: "Completed", priority: "High", dueDate: "2026-02-15", progress: 100 },
+    { project: "Loyalty Program Launch", title: "Select loyalty platform vendor", assignee: "Noura Bin Rashid", status: "Completed", priority: "High", dueDate: "2026-02-28", progress: 100 },
+    { project: "Loyalty Program Launch", title: "Develop member email communication plan", assignee: "Noura Bin Rashid", status: "In Progress", priority: "Medium", dueDate: "2026-03-20", progress: 60 },
+    { project: "Loyalty Program Launch", title: "Integrate loyalty program with PMS", assignee: "IT Team", status: "In Progress", priority: "Critical", dueDate: "2026-04-01", progress: 35 },
+    { project: "Loyalty Program Launch", title: "Launch pilot with 500 existing guests", assignee: "Guest Relations Manager", status: "Not Started", priority: "High", dueDate: "2026-04-20", progress: 0 },
+    { project: "F&B Menu Overhaul", title: "Benchmark competitor restaurant pricing", assignee: "Khalid Mansoor", status: "Completed", priority: "High", dueDate: "2026-02-20", progress: 100 },
+    { project: "F&B Menu Overhaul", title: "Renegotiate supplier contracts for Q2", assignee: "Khalid Mansoor", status: "In Progress", priority: "Critical", dueDate: "2026-03-15", progress: 50 },
+    { project: "F&B Menu Overhaul", title: "Design new seasonal menu items", assignee: "Head Chef", status: "In Progress", priority: "Medium", dueDate: "2026-03-10", progress: 70 },
+    { project: "F&B Menu Overhaul", title: "Print and deploy updated menus", assignee: "Khalid Mansoor", status: "Not Started", priority: "Medium", dueDate: "2026-03-28", progress: 0 },
+    { project: "Staff Retention Initiative", title: "Conduct exit interviews for Q1 departures", assignee: "Fatima Al Rashid", status: "Completed", priority: "High", dueDate: "2026-03-05", progress: 100 },
+    { project: "Staff Retention Initiative", title: "Design retention bonus structure", assignee: "Fatima Al Rashid", status: "In Progress", priority: "Critical", dueDate: "2026-03-15", progress: 80 },
+    { project: "Staff Retention Initiative", title: "Launch career development framework", assignee: "L&D Coordinator", status: "Not Started", priority: "Medium", dueDate: "2026-04-30", progress: 0 },
+    { project: "Staff Retention Initiative", title: "Introduce flexible shift scheduling", assignee: "Operations Manager", status: "Not Started", priority: "Medium", dueDate: "2026-05-31", progress: 0 },
+    { project: "Q2 Revenue Recovery Plan", title: "Submit corporate RFP responses (Emirates NBD, ADNOC)", assignee: "Sarah Al Maktoum", status: "In Progress", priority: "Critical", dueDate: "2026-03-10", progress: 70 },
+    { project: "Q2 Revenue Recovery Plan", title: "Launch weekend staycation packages", assignee: "Noura Bin Rashid", status: "Not Started", priority: "High", dueDate: "2026-03-18", progress: 0 },
+    { project: "Q2 Revenue Recovery Plan", title: "Present dynamic pricing model to GM", assignee: "Priya Sharma", status: "Not Started", priority: "High", dueDate: "2026-03-25", progress: 0 },
+    { project: "Q2 Revenue Recovery Plan", title: "OTA rate optimization for April–June", assignee: "Priya Sharma", status: "Not Started", priority: "Medium", dueDate: "2026-04-01", progress: 0 },
+  ];
+
+  for (const t of taskData) {
+    const projectId = createdProjects[t.project];
+    if (!projectId) continue;
+    await storage.createTask({ companyId, projectId, title: t.title, description: null, assignee: t.assignee, status: t.status, priority: t.priority, startDate: null, dueDate: t.dueDate, progress: t.progress, tags: null });
+  }
+
+  const milestoneData = [
+    { project: "Loyalty Program Launch", title: "Loyalty Platform Vendor Selected", dueDate: "2026-02-28", status: "Completed", progress: 100 },
+    { project: "Loyalty Program Launch", title: "PMS Integration Live", dueDate: "2026-04-01", status: "Upcoming", progress: 35 },
+    { project: "Loyalty Program Launch", title: "Loyalty Program Public Launch", dueDate: "2026-04-30", status: "Upcoming", progress: 0 },
+    { project: "F&B Menu Overhaul", title: "New Menus Approved & Printed", dueDate: "2026-03-28", status: "Upcoming", progress: 40 },
+    { project: "Staff Retention Initiative", title: "Retention Bonuses Approved by Finance", dueDate: "2026-03-20", status: "Upcoming", progress: 80 },
+    { project: "Q2 Revenue Recovery Plan", title: "Corporate RFPs Submitted", dueDate: "2026-03-10", status: "Upcoming", progress: 70 },
+    { project: "Q2 Revenue Recovery Plan", title: "Staycation Packages Live on OTAs", dueDate: "2026-03-25", status: "Upcoming", progress: 0 },
+  ];
+
+  for (const m of milestoneData) {
+    const projectId = createdProjects[m.project];
+    if (!projectId) continue;
+    await storage.createMilestone({ companyId, projectId, title: m.title, dueDate: m.dueDate, status: m.status, progress: m.progress });
+  }
+}
+
 export async function seedDatabase() {
   const existing = await storage.getUserByEmail("demo@performo.ai");
 
@@ -35,6 +110,14 @@ export async function seedDatabase() {
         role: "executive",
       });
       console.log("Seed: created executive demo user exec@performo.ai");
+    }
+    // Seed projects if not present
+    if (companyId) {
+      const existingProjects = await storage.getProjects(companyId);
+      if (existingProjects.length === 0) {
+        await seedProjectData(companyId);
+        console.log("Seed: created demo execution data (projects, tasks, milestones)");
+      }
     }
     return;
   }
@@ -261,6 +344,9 @@ export async function seedDatabase() {
     aiGeneratedText: null,
   });
 
+  // ─── Demo Projects, Tasks, Milestones ────────────────────────────────────
+  await seedProjectData(company.id);
+
   const execHash = await hashPassword("exec123");
   await storage.createUser({
     name: "Ravi Mehta",
@@ -270,5 +356,5 @@ export async function seedDatabase() {
     role: "executive",
   });
 
-  console.log("Seed data created: 12 KPIs with 3 months of actuals, 4 meetings, 10 action items, admin + executive users");
+  console.log("Seed data created: 12 KPIs, 4 meetings, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive users");
 }

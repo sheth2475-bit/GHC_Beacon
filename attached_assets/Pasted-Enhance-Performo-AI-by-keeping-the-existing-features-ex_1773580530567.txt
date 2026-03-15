@@ -1,0 +1,206 @@
+Enhance Performo AI by keeping the existing features exactly as they are and adding advanced execution and project management capabilities on top of them. double check what we could implement and add the features...
+
+Existing features already available in the app:
+1. AI-Powered KPI Generation
+2. KPI Tracking & Management
+3. Action Tracker
+4. AI Monthly Reviews
+5. Dashboard Planner
+6. Real-Time Dashboard
+
+Do not remove, rename, or weaken any of the above features.
+Build all new features around them so the application becomes a complete business performance and execution platform.
+
+Add the following new features:
+
+1. Workspaces
+- Create workspace areas by function or department such as PMO, HR, Finance, Operations, Sales, IT
+- Each workspace should contain projects, initiatives, and tasks
+
+2. Projects / Workstreams
+- Allow users to create projects under each workspace
+- Each project should include:
+  - project name
+  - description
+  - owner
+  - department
+  - business unit
+  - start date
+  - due date
+  - status
+  - priority
+  - progress percentage
+  - tags
+  - linked KPI or strategic goal if applicable
+
+3. Task Management
+- Add full task management under each project
+- Each task should include:
+  - title
+  - description
+  - assignee
+  - status
+  - priority
+  - start date
+  - due date
+  - progress %
+  - tags
+  - linked project
+  - linked meeting or initiative if applicable
+
+4. Subtasks and Checklists
+- Allow subtasks under tasks
+- Allow checklist items inside tasks
+
+5. Multiple Views
+Add the following views for tasks and projects:
+- List View
+- Board View
+- Calendar View
+- Timeline View
+
+6. Milestones
+- Add milestone tracking for projects and initiatives
+- Fields:
+  - title
+  - due date
+  - status
+  - linked project
+  - linked initiative
+  - progress %
+
+7. Portfolio View
+- Add a high-level portfolio page showing all projects and initiatives across departments
+- Show:
+  - on track
+  - delayed
+  - at risk
+  - completed
+  - by department
+  - by owner
+  - by business unit
+
+8. Workload View
+- Show tasks by owner
+- Show overdue tasks by owner
+- Show high-priority tasks by owner
+- Show workload balance
+
+9. Comments and Review Notes
+- Allow comments on:
+  - KPIs
+  - projects
+  - tasks
+  - initiatives
+  - monthly reviews
+- Executives should be able to leave remarks
+- Admins should be able to respond
+
+10. Notifications and Alerts
+- Add alerts for:
+  - overdue tasks
+  - due soon tasks
+  - below-target KPIs
+  - delayed initiatives
+  - comments added
+  - milestones due
+
+11. Custom Fields
+- Support custom fields for projects, tasks, initiatives, and KPIs
+- Examples:
+  - risk level
+  - business impact
+  - strategic pillar
+  - approval status
+  - budget
+  - cost saving potential
+
+12. Approvals Workflow
+- Add approval flow for:
+  - KPI targets
+  - monthly reviews
+  - initiative updates
+  - project closure
+- Statuses can include:
+  - Draft
+  - Submitted
+  - Approved
+  - Revision Required
+
+13. Record Linking
+Allow linking between:
+- KPI ↔ initiative
+- initiative ↔ project
+- project ↔ tasks
+- meeting ↔ action items
+- risk ↔ project or initiative
+
+14. Templates
+- Add project templates
+- Add task templates
+- Add recurring templates for:
+  - monthly review cycle
+  - KPI submission cycle
+  - board meeting preparation
+  - PMO updates
+
+15. Saved Views and Filters
+- Allow users to save filtered views such as:
+  - overdue actions
+  - high-priority tasks
+  - finance projects
+  - executive review items
+  - this month milestones
+
+16. Global Search
+- Add search across:
+  - KPIs
+  - projects
+  - tasks
+  - initiatives
+  - meetings
+  - comments
+  - reviews
+
+17. Activity Log / Audit Trail
+- Track:
+  - who created records
+  - who updated status
+  - who changed progress
+  - who added comments
+  - who approved reviews
+  - when changes happened
+
+18. Health Scoring
+- Add automatic health scoring for initiatives and projects based on:
+  - overdue tasks
+  - missed milestones
+  - delayed status
+  - unresolved risks
+  - low progress %
+
+19. Executive Execution Dashboard
+Add a new dashboard showing:
+- total projects
+- active projects
+- overdue tasks
+- delayed initiatives
+- milestones due
+- workload by owner
+- project health summary
+- execution risk summary
+- executive comments
+
+20. Role-based access for these new features
+- Super Admin: full access
+- Admin / Data Owner: create and update projects, tasks, milestones, comments, approvals, uploads
+- CEO / GM: mostly read-only view with ability to comment, review, and monitor progress
+- GM should only see assigned departments or business units
+
+Important rules:
+- Keep the app branded only as Performo AI
+- Do not mention any third-party project management tool name anywhere in the application
+- Keep all current modules working
+- Integrate the new execution management features with the existing KPI, Action Tracker, Monthly Review, and Dashboard modules
+- Make the UI clean, premium, executive-friendly, and practical
+- Ensure the new modules are not mockups; they must be functional and connected to the database

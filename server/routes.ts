@@ -7,6 +7,25 @@ import * as XLSX from "xlsx";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 
+function computeProjectHealth(
+  project: { status: string; progress: number; dueDate: string | null | undefined },
+  projectTasks: { status: string; dueDate: string | null | undefined }[],
+  projectMilestones: { status: string }[]
+): "Green" | "Amber" | "Red" | "Completed" {
+  if (project.status === "Completed") return "Completed";
+  if (project.status === "At Risk" || project.status === "Delayed") return "Red";
+  const today = new Date().toISOString().split("T")[0];
+  const overdueTasks = projectTasks.filter(t =>
+    t.dueDate && t.dueDate < today && t.status !== "Completed"
+  ).length;
+  const totalTasks = projectTasks.length;
+  const overdueRatio = totalTasks > 0 ? overdueTasks / totalTasks : 0;
+  const overdueMilestones = projectMilestones.filter(m => m.status === "Overdue").length;
+  if (overdueRatio > 0.3 || overdueMilestones > 0 || (project.dueDate && project.dueDate < today)) return "Red";
+  if (overdueRatio > 0.1 || project.progress < 30) return "Amber";
+  return "Green";
+}
+
 const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string): Promise<string> {
@@ -521,6 +540,256 @@ export async function registerRoutes(
     }
     await storage.deleteUser(id);
     res.json({ ok: true });
+  });
+
+  // ─── Projects ──────────────────────────────────────────────────────────────
+  app.get("/api/projects", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const allProjects = await storage.getProjects(company.id);
+    const allTasks = await storage.getTasks(company.id);
+    const allMilestones = await storage.getMilestones(company.id);
+    const projectsWithHealth = allProjects.map(p => {
+      const pt = allTasks.filter(t => t.projectId === p.id);
+      const pm = allMilestones.filter(m => m.projectId === p.id);
+      const health = computeProjectHealth(p, pt, pm);
+      return { ...p, health, taskCount: pt.length, completedTaskCount: pt.filter(t => t.status === "Completed").length };
+    });
+    res.json(projectsWithHealth);
+  });
+
+  app.get("/api/projects/:id", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const project = await storage.getProject(id);
+    if (!project || project.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+    const [pt, pm] = await Promise.all([storage.getTasksByProject(id), storage.getMilestonesByProject(id)]);
+    const health = computeProjectHealth(project, pt, pm);
+    res.json({ ...project, health, tasks: pt, milestones: pm });
+  });
+
+  app.post("/api/projects", requireAdmin, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const project = await storage.createProject({ ...req.body, companyId: company.id });
+    res.json(project);
+  });
+
+  app.patch("/api/projects/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const existing = await storage.getProject(id);
+    if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+    const updated = await storage.updateProject(id, req.body);
+    res.json(updated);
+  });
+
+  app.delete("/api/projects/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const existing = await storage.getProject(id);
+    if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+    await storage.deleteProject(id);
+    res.json({ ok: true });
+  });
+
+  // ─── Tasks ─────────────────────────────────────────────────────────────────
+  app.get("/api/tasks", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const allTasks = await storage.getTasks(company.id);
+    res.json(allTasks);
+  });
+
+  app.get("/api/projects/:id/tasks", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const project = await storage.getProject(id);
+    if (!project || project.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+    const projectTasks = await storage.getTasksByProject(id);
+    const tasksWithSubtasks = await Promise.all(projectTasks.map(async t => {
+      const subs = await storage.getSubtasks(t.id);
+      return { ...t, subtasks: subs };
+    }));
+    res.json(tasksWithSubtasks);
+  });
+
+  app.post("/api/tasks", requireAdmin, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const task = await storage.createTask({ ...req.body, companyId: company.id });
+    res.json(task);
+  });
+
+  app.patch("/api/tasks/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const existing = await storage.getTask(id);
+    if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+    const updated = await storage.updateTask(id, req.body);
+    res.json(updated);
+  });
+
+  app.delete("/api/tasks/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const existing = await storage.getTask(id);
+    if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+    await storage.deleteTask(id);
+    res.json({ ok: true });
+  });
+
+  // ─── Subtasks ──────────────────────────────────────────────────────────────
+  app.get("/api/tasks/:id/subtasks", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const subs = await storage.getSubtasks(id);
+    res.json(subs);
+  });
+
+  app.post("/api/tasks/:id/subtasks", requireAdmin, async (req: Request, res: Response) => {
+    const taskId = parseInt(req.params.id as string);
+    const sub = await storage.createSubtask({ taskId, title: req.body.title, completed: false });
+    res.json(sub);
+  });
+
+  app.patch("/api/subtasks/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const updated = await storage.updateSubtask(id, req.body);
+    res.json(updated);
+  });
+
+  app.delete("/api/subtasks/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    await storage.deleteSubtask(id);
+    res.json({ ok: true });
+  });
+
+  // ─── Milestones ────────────────────────────────────────────────────────────
+  app.get("/api/milestones", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const all = await storage.getMilestones(company.id);
+    res.json(all);
+  });
+
+  app.get("/api/projects/:id/milestones", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const all = await storage.getMilestonesByProject(id);
+    res.json(all);
+  });
+
+  app.post("/api/milestones", requireAdmin, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const ms = await storage.createMilestone({ ...req.body, companyId: company.id });
+    res.json(ms);
+  });
+
+  app.patch("/api/milestones/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const updated = await storage.updateMilestone(id, req.body);
+    res.json(updated);
+  });
+
+  app.delete("/api/milestones/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    await storage.deleteMilestone(id);
+    res.json({ ok: true });
+  });
+
+  // ─── Comments ──────────────────────────────────────────────────────────────
+  app.get("/api/comments/:entityType/:entityId", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const { entityType, entityId } = req.params;
+    const comments = await storage.getComments(company.id, entityType, parseInt(entityId as string));
+    res.json(comments);
+  });
+
+  app.post("/api/comments/:entityType/:entityId", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const { entityType, entityId } = req.params;
+    const user = req.user!;
+    const comment = await storage.createComment({
+      companyId: company.id,
+      entityType,
+      entityId: parseInt(entityId as string),
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      content: req.body.content,
+    });
+    res.json(comment);
+  });
+
+  app.delete("/api/comments/:id", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    await storage.deleteComment(id);
+    res.json({ ok: true });
+  });
+
+  // ─── Portfolio Stats ───────────────────────────────────────────────────────
+  app.get("/api/portfolio/stats", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const [allProjects, allTasks, allMilestones] = await Promise.all([
+      storage.getProjects(company.id),
+      storage.getTasks(company.id),
+      storage.getMilestones(company.id),
+    ]);
+    const today = new Date().toISOString().split("T")[0];
+    const projectsWithHealth = allProjects.map(p => {
+      const pt = allTasks.filter(t => t.projectId === p.id);
+      const pm = allMilestones.filter(m => m.projectId === p.id);
+      return computeProjectHealth(p, pt, pm);
+    });
+    const stats = {
+      total: allProjects.length,
+      active: allProjects.filter(p => p.status === "In Progress" || p.status === "Not Started").length,
+      completed: allProjects.filter(p => p.status === "Completed").length,
+      atRisk: projectsWithHealth.filter(h => h === "Red").length,
+      overdueTasks: allTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== "Completed").length,
+      upcomingMilestones: allMilestones.filter(m => m.status === "Upcoming" && m.dueDate && m.dueDate >= today).length,
+    };
+    res.json(stats);
+  });
+
+  // ─── Workload ──────────────────────────────────────────────────────────────
+  app.get("/api/workload", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const allTasks = await storage.getTasks(company.id);
+    const today = new Date().toISOString().split("T")[0];
+    const byAssignee: Record<string, { name: string; total: number; notStarted: number; inProgress: number; completed: number; overdue: number; tasks: typeof allTasks }> = {};
+    for (const task of allTasks) {
+      const name = task.assignee || "Unassigned";
+      if (!byAssignee[name]) byAssignee[name] = { name, total: 0, notStarted: 0, inProgress: 0, completed: 0, overdue: 0, tasks: [] };
+      const a = byAssignee[name];
+      a.total++;
+      a.tasks.push(task);
+      if (task.status === "Completed") a.completed++;
+      else if (task.status === "In Progress") a.inProgress++;
+      else a.notStarted++;
+      if (task.dueDate && task.dueDate < today && task.status !== "Completed") a.overdue++;
+    }
+    res.json(Object.values(byAssignee).sort((a, b) => b.total - a.total));
+  });
+
+  // ─── Global Search ─────────────────────────────────────────────────────────
+  app.get("/api/search", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const q = (req.query.q as string || "").trim();
+    if (!q || q.length < 2) return res.json({ projects: [], tasks: [], kpis: [], meetings: [], actionItems: [] });
+    const results = await storage.searchAll(company.id, q);
+    res.json(results);
   });
 
   return httpServer;

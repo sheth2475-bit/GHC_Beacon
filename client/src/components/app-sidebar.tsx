@@ -1,7 +1,8 @@
 import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks, Calendar,
-  FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users, Shield
+  FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
+  FolderOpen, Users2, CheckSquare,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -37,6 +38,11 @@ const executiveInsightsNav = [
   { title: "Monthly Reviews", url: "/reviews", icon: FileText },
 ];
 
+const executionNav = [
+  { title: "Portfolio", url: "/portfolio", icon: FolderOpen },
+  { title: "Workload", url: "/workload", icon: Users2 },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, isAdmin, isExecutive } = useAuth();
@@ -48,7 +54,7 @@ export function AppSidebar() {
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild data-active={location === item.url}>
+              <SidebarMenuButton asChild data-active={location === item.url || location.startsWith(item.url + "/")}>
                 <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
                   <item.icon className="h-4 w-4" />
                   <span>{item.title}</span>
@@ -80,6 +86,7 @@ export function AppSidebar() {
       <SidebarContent className="pt-1">
         {renderGroup("Overview", mainNav)}
         {renderGroup("Performance", performanceNav)}
+        {renderGroup("Execution", executionNav)}
         {renderGroup("AI Insights", insightsNav)}
         {isAdmin && (
           <>

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { GlobalSearch } from "@/components/global-search";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
@@ -18,6 +19,9 @@ import ReviewsPage from "@/pages/reviews";
 import PlannerPage from "@/pages/planner";
 import SettingsPage from "@/pages/settings";
 import UserManagementPage from "@/pages/user-management";
+import PortfolioPage from "@/pages/portfolio";
+import ProjectDetailPage from "@/pages/project-detail";
+import WorkloadPage from "@/pages/workload";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function Router() {
@@ -28,6 +32,9 @@ function Router() {
       <Route path="/kpis" component={KpiManagementPage} />
       <Route path="/actions" component={ActionsPage} />
       <Route path="/reviews" component={ReviewsPage} />
+      <Route path="/portfolio" component={PortfolioPage} />
+      <Route path="/projects/:id" component={ProjectDetailPage} />
+      <Route path="/workload" component={WorkloadPage} />
       {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}
       {isAdmin && <Route path="/meetings" component={MeetingsPage} />}
       {isAdmin && <Route path="/planner" component={PlannerPage} />}
@@ -69,7 +76,7 @@ function AppLayout() {
           <header className="flex items-center gap-2 p-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex-1" />
-            <span className="text-xs text-muted-foreground hidden sm:block">Performo AI</span>
+            <GlobalSearch />
           </header>
           <main className="flex-1 overflow-auto">
             <Router />

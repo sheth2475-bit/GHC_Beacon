@@ -1,14 +1,18 @@
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, ilike, or } from "drizzle-orm";
 import {
   users, companies, departments, businessGoals, kpis, kpiActuals,
   meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
+  projects, tasks, subtasks, milestones, projectComments,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
   type InsertMeeting, type Meeting, type InsertActionItem, type ActionItem,
   type InsertMonthlyReview, type MonthlyReview, type InsertMeetingType, type MeetingType,
   type InsertDashboardPlan, type DashboardPlan,
+  type InsertProject, type Project, type InsertTask, type Task,
+  type InsertSubtask, type Subtask, type InsertMilestone, type Milestone,
+  type InsertProjectComment, type ProjectComment,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -64,6 +68,49 @@ export interface IStorage {
 
   getDashboardPlans(companyId: number): Promise<DashboardPlan[]>;
   createDashboardPlan(plan: InsertDashboardPlan): Promise<DashboardPlan>;
+
+  // Projects
+  getProjects(companyId: number): Promise<Project[]>;
+  getProject(id: number): Promise<Project | undefined>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: number, data: Partial<InsertProject>): Promise<Project>;
+  deleteProject(id: number): Promise<void>;
+
+  // Tasks
+  getTasks(companyId: number): Promise<Task[]>;
+  getTasksByProject(projectId: number): Promise<Task[]>;
+  getTask(id: number): Promise<Task | undefined>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: number, data: Partial<InsertTask>): Promise<Task>;
+  deleteTask(id: number): Promise<void>;
+
+  // Subtasks
+  getSubtasks(taskId: number): Promise<Subtask[]>;
+  createSubtask(subtask: InsertSubtask): Promise<Subtask>;
+  updateSubtask(id: number, data: Partial<InsertSubtask>): Promise<Subtask>;
+  deleteSubtask(id: number): Promise<void>;
+
+  // Milestones
+  getMilestones(companyId: number): Promise<Milestone[]>;
+  getMilestonesByProject(projectId: number): Promise<Milestone[]>;
+  getMilestone(id: number): Promise<Milestone | undefined>;
+  createMilestone(milestone: InsertMilestone): Promise<Milestone>;
+  updateMilestone(id: number, data: Partial<InsertMilestone>): Promise<Milestone>;
+  deleteMilestone(id: number): Promise<void>;
+
+  // Comments
+  getComments(companyId: number, entityType: string, entityId: number): Promise<ProjectComment[]>;
+  createComment(comment: InsertProjectComment): Promise<ProjectComment>;
+  deleteComment(id: number): Promise<void>;
+
+  // Search
+  searchAll(companyId: number, q: string): Promise<{
+    projects: Project[];
+    tasks: Task[];
+    kpis: Kpi[];
+    meetings: Meeting[];
+    actionItems: ActionItem[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -158,9 +205,7 @@ export class DatabaseStorage implements IStorage {
     for (const kpi of companyKpis) {
       const [actual] = await db.select().from(kpiActuals)
         .where(and(eq(kpiActuals.kpiId, kpi.id), eq(kpiActuals.reviewMonth, month)));
-      if (actual) {
-        results.push({ ...actual, kpi });
-      }
+      if (actual) results.push({ ...actual, kpi });
     }
     return results;
   }
@@ -237,6 +282,127 @@ export class DatabaseStorage implements IStorage {
   async createDashboardPlan(plan: InsertDashboardPlan) {
     const [created] = await db.insert(dashboardPlans).values(plan).returning();
     return created;
+  }
+
+  // ─── Projects ─────────────────────────────────────────────────────────────
+  async getProjects(companyId: number) {
+    return db.select().from(projects).where(eq(projects.companyId, companyId)).orderBy(desc(projects.createdAt));
+  }
+  async getProject(id: number) {
+    const [project] = await db.select().from(projects).where(eq(projects.id, id));
+    return project;
+  }
+  async createProject(project: InsertProject) {
+    const [created] = await db.insert(projects).values(project).returning();
+    return created;
+  }
+  async updateProject(id: number, data: Partial<InsertProject>) {
+    const [updated] = await db.update(projects).set(data).where(eq(projects.id, id)).returning();
+    return updated;
+  }
+  async deleteProject(id: number) {
+    const projectTasks = await this.getTasksByProject(id);
+    for (const task of projectTasks) {
+      await db.delete(subtasks).where(eq(subtasks.taskId, task.id));
+    }
+    await db.delete(tasks).where(eq(tasks.projectId, id));
+    await db.delete(milestones).where(eq(milestones.projectId, id));
+    await db.delete(projectComments).where(and(eq(projectComments.entityType, "project"), eq(projectComments.entityId, id)));
+    await db.delete(projects).where(eq(projects.id, id));
+  }
+
+  // ─── Tasks ────────────────────────────────────────────────────────────────
+  async getTasks(companyId: number) {
+    return db.select().from(tasks).where(eq(tasks.companyId, companyId)).orderBy(desc(tasks.createdAt));
+  }
+  async getTasksByProject(projectId: number) {
+    return db.select().from(tasks).where(eq(tasks.projectId, projectId)).orderBy(desc(tasks.createdAt));
+  }
+  async getTask(id: number) {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task;
+  }
+  async createTask(task: InsertTask) {
+    const [created] = await db.insert(tasks).values(task).returning();
+    return created;
+  }
+  async updateTask(id: number, data: Partial<InsertTask>) {
+    const [updated] = await db.update(tasks).set(data).where(eq(tasks.id, id)).returning();
+    return updated;
+  }
+  async deleteTask(id: number) {
+    await db.delete(subtasks).where(eq(subtasks.taskId, id));
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  // ─── Subtasks ─────────────────────────────────────────────────────────────
+  async getSubtasks(taskId: number) {
+    return db.select().from(subtasks).where(eq(subtasks.taskId, taskId)).orderBy(subtasks.createdAt);
+  }
+  async createSubtask(subtask: InsertSubtask) {
+    const [created] = await db.insert(subtasks).values(subtask).returning();
+    return created;
+  }
+  async updateSubtask(id: number, data: Partial<InsertSubtask>) {
+    const [updated] = await db.update(subtasks).set(data).where(eq(subtasks.id, id)).returning();
+    return updated;
+  }
+  async deleteSubtask(id: number) {
+    await db.delete(subtasks).where(eq(subtasks.id, id));
+  }
+
+  // ─── Milestones ───────────────────────────────────────────────────────────
+  async getMilestones(companyId: number) {
+    return db.select().from(milestones).where(eq(milestones.companyId, companyId)).orderBy(milestones.dueDate);
+  }
+  async getMilestonesByProject(projectId: number) {
+    return db.select().from(milestones).where(eq(milestones.projectId, projectId)).orderBy(milestones.dueDate);
+  }
+  async getMilestone(id: number) {
+    const [milestone] = await db.select().from(milestones).where(eq(milestones.id, id));
+    return milestone;
+  }
+  async createMilestone(milestone: InsertMilestone) {
+    const [created] = await db.insert(milestones).values(milestone).returning();
+    return created;
+  }
+  async updateMilestone(id: number, data: Partial<InsertMilestone>) {
+    const [updated] = await db.update(milestones).set(data).where(eq(milestones.id, id)).returning();
+    return updated;
+  }
+  async deleteMilestone(id: number) {
+    await db.delete(milestones).where(eq(milestones.id, id));
+  }
+
+  // ─── Comments ─────────────────────────────────────────────────────────────
+  async getComments(companyId: number, entityType: string, entityId: number) {
+    return db.select().from(projectComments)
+      .where(and(
+        eq(projectComments.companyId, companyId),
+        eq(projectComments.entityType, entityType),
+        eq(projectComments.entityId, entityId),
+      ))
+      .orderBy(projectComments.createdAt);
+  }
+  async createComment(comment: InsertProjectComment) {
+    const [created] = await db.insert(projectComments).values(comment).returning();
+    return created;
+  }
+  async deleteComment(id: number) {
+    await db.delete(projectComments).where(eq(projectComments.id, id));
+  }
+
+  // ─── Search ───────────────────────────────────────────────────────────────
+  async searchAll(companyId: number, q: string) {
+    const term = `%${q}%`;
+    const [searchProjects, searchTasks, searchKpis, searchMeetings, searchActions] = await Promise.all([
+      db.select().from(projects).where(and(eq(projects.companyId, companyId), or(ilike(projects.name, term), ilike(projects.description, term)))).limit(10),
+      db.select().from(tasks).where(and(eq(tasks.companyId, companyId), or(ilike(tasks.title, term), ilike(tasks.description, term)))).limit(10),
+      db.select().from(kpis).where(and(eq(kpis.companyId, companyId), or(ilike(kpis.kpiName, term), ilike(kpis.description, term)))).limit(10),
+      db.select().from(meetings).where(and(eq(meetings.companyId, companyId), or(ilike(meetings.title, term), ilike(meetings.summary, term)))).limit(10),
+      db.select().from(actionItems).where(and(eq(actionItems.companyId, companyId), or(ilike(actionItems.title, term), ilike(actionItems.description, term)))).limit(10),
+    ]);
+    return { projects: searchProjects, tasks: searchTasks, kpis: searchKpis, meetings: searchMeetings, actionItems: searchActions };
   }
 }
 

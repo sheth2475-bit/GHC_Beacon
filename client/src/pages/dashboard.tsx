@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/status-badge";
 import { useAuth } from "@/lib/auth";
+import { Link } from "wouter";
 import {
   Target,
   ListChecks,
@@ -17,6 +19,10 @@ import {
   LayoutDashboard,
   CalendarDays,
   Building2,
+  FolderOpen,
+  Briefcase,
+  Flag,
+  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -31,7 +37,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import type { ActionItem, MonthlyReview, Department, Kpi, Company } from "@shared/schema";
+import type { ActionItem, MonthlyReview, Department, Kpi, Company, Milestone, Project } from "@shared/schema";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -53,6 +59,16 @@ export default function DashboardPage() {
   const { data: reviews } = useQuery<MonthlyReview[]>({ queryKey: ["/api/monthly-reviews"] });
   const { data: kpis } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
+
+  const { data: portfolioStats } = useQuery<{
+    total: number; active: number; completed: number; atRisk: number; overdueTasks: number; upcomingMilestones: number;
+  }>({ queryKey: ["/api/portfolio/stats"] });
+
+  const { data: projects = [] } = useQuery<(Project & { health: string; taskCount: number; completedTaskCount: number })[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  const { data: milestones = [] } = useQuery<Milestone[]>({ queryKey: ["/api/milestones"] });
 
   const kpiStatusData = stats
     ? [
@@ -230,6 +246,80 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* ─ Execution Stats ─────────────────────────────────────────────────── */}
+      {portfolioStats && (portfolioStats.total > 0 || projects.length > 0) && (
+        <div className="space-y-3" data-testid="section-execution">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wider">
+              <FolderOpen className="h-4 w-4" /> Execution
+            </h2>
+            <Link href="/portfolio">
+              <span className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1" data-testid="link-view-portfolio">
+                View Portfolio <ChevronRight className="h-3 w-3" />
+              </span>
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card data-testid="stat-exec-active">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground font-medium">Active Projects</p>
+                  <Briefcase className="h-4 w-4 text-violet-500" />
+                </div>
+                <p className="text-2xl font-bold" data-testid="text-exec-active">{portfolioStats.active}</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="stat-exec-atrisk">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground font-medium">At Risk</p>
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                </div>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400" data-testid="text-exec-atrisk">{portfolioStats.atRisk}</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="stat-exec-overdue-tasks">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground font-medium">Overdue Tasks</p>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                </div>
+                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400" data-testid="text-exec-overdue-tasks">{portfolioStats.overdueTasks}</p>
+              </CardContent>
+            </Card>
+            <Card data-testid="stat-exec-milestones">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground font-medium">Upcoming Milestones</p>
+                  <Flag className="h-4 w-4 text-primary" />
+                </div>
+                <p className="text-2xl font-bold" data-testid="text-exec-milestones">{portfolioStats.upcomingMilestones}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Active Projects mini-list */}
+          {projects.filter(p => p.status !== "Completed").length > 0 && (
+            <div className="grid md:grid-cols-2 gap-3">
+              {projects.filter(p => p.status !== "Completed").slice(0, 4).map(p => (
+                <Link key={p.id} href={`/projects/${p.id}`} data-testid={`dashboard-project-${p.id}`}>
+                  <Card className="hover:shadow-sm transition-shadow cursor-pointer border hover:border-primary/20">
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${p.health === "Red" ? "bg-red-500" : p.health === "Amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                        <span className="text-sm font-medium flex-1 truncate">{p.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">{p.progress ?? 0}%</span>
+                      </div>
+                      <Progress value={p.progress ?? 0} className="h-1 mt-1.5" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-testid="card-kpi-health">
