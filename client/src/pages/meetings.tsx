@@ -60,19 +60,22 @@ export default function MeetingsPage() {
   if (error) return <div className="p-6"><ErrorState message="Failed to load meetings" onRetry={() => refetch()} /></div>;
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title="Meetings"
-        description="Manage meetings and linked action items"
-        icon={Calendar}
-        testId="text-meetings-title"
-        actions={
-          <Button onClick={() => setShowDialog(true)} data-testid="button-new-meeting">
-            <Plus className="h-4 w-4 mr-2" />New Meeting
-          </Button>
-        }
-      />
+    <div className="flex flex-col h-full">
+      <div className="flex-none px-6 pt-5 pb-0">
+        <PageHeader
+          title="Meetings"
+          description="Manage meetings and linked action items"
+          icon={Calendar}
+          testId="text-meetings-title"
+          actions={
+            <Button onClick={() => setShowDialog(true)} data-testid="button-new-meeting">
+              <Plus className="h-4 w-4 mr-2" />New Meeting
+            </Button>
+          }
+        />
+      </div>
 
+      <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
       {isLoading ? (
         <LoadingCards count={3} />
       ) : (meetings || []).length === 0 ? (
@@ -123,6 +126,7 @@ export default function MeetingsPage() {
           })}
         </div>
       )}
+      </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>

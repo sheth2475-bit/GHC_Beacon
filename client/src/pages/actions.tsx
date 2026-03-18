@@ -148,29 +148,31 @@ export default function ActionsPage() {
   if (error) return <div className="p-6"><ErrorState message="Failed to load action items" onRetry={() => refetch()} /></div>;
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title="Action Tracker"
-        description="Track and manage action items across departments"
-        icon={ListChecks}
-        testId="text-actions-title"
-        actions={
-          <div className="flex items-center gap-2">
-            <ExcelUpload
-              templateUrl="/api/templates/actions"
-              uploadUrl="/api/upload/actions"
-              entityName="Actions"
-              columnMap={actionColumnMap}
-              onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/action-items"] })}
-            />
-            <Button onClick={() => setShowDialog(true)} data-testid="button-new-action">
-              <Plus className="h-4 w-4 mr-2" />New Action
-            </Button>
-          </div>
-        }
-      />
+    <div className="flex flex-col h-full">
+      <div className="flex-none px-6 pt-5 pb-0">
+        <PageHeader
+          title="Action Tracker"
+          description="Track and manage action items across departments"
+          icon={ListChecks}
+          testId="text-actions-title"
+          actions={
+            <div className="flex items-center gap-2">
+              <ExcelUpload
+                templateUrl="/api/templates/actions"
+                uploadUrl="/api/upload/actions"
+                entityName="Actions"
+                columnMap={actionColumnMap}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/action-items"] })}
+              />
+              <Button onClick={() => setShowDialog(true)} data-testid="button-new-action">
+                <Plus className="h-4 w-4 mr-2" />New Action
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
-      <div className="flex gap-3 flex-wrap items-center">
+      <div className="flex-none px-6 py-3 border-b flex gap-3 flex-wrap items-center bg-background">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search actions or owners..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" data-testid="input-search-actions" />
@@ -203,6 +205,7 @@ export default function ActionsPage() {
         )}
       </div>
 
+      <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
       {isLoading ? (
         <LoadingTable rows={6} cols={7} />
       ) : filtered.length === 0 ? (
@@ -341,6 +344,7 @@ export default function ActionsPage() {
           </CardContent>
         </Card>
       )}
+      </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-lg">

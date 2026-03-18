@@ -301,6 +301,8 @@
 }
 
 /* ── Print / PDF export ─────────────────────────────────────── */
+.print-only { display: none; }
+
 @media print {
   @page { margin: 20mm; }
 
@@ -316,7 +318,8 @@
     display: none !important;
   }
 
-  /* Review print mode: show only the review area */
-  body.printing-review > * { display: none !important; }
-  body.printing-review #print-review-area { display: block !important; }
+  /* Review print mode: use visibility trick so nested element stays reachable */
+  body.printing-review * { visibility: hidden; }
+  body.printing-review #print-review-area { display: block !important; visibility: visible; position: absolute; top: 0; left: 0; width: 100%; background: white; }
+  body.printing-review #print-review-area * { visibility: visible; }
 }

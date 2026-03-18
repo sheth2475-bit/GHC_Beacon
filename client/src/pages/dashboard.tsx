@@ -227,9 +227,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       <Card data-testid="card-welcome-banner">
-        <CardContent className="p-6">
+        <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-welcome-title">
@@ -386,8 +386,8 @@ export default function DashboardPage() {
         {statCards.map((stat) => (
           <Link key={stat.title} href={stat.link} data-testid={`link-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
             <Card className="hover-elevate cursor-pointer hover:border-primary/25 hover:shadow-sm transition-all group">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between gap-1 mb-3">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-1 mb-2">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider group-hover:text-foreground transition-colors">
                     {stat.title}
                   </span>
@@ -397,7 +397,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-end gap-2">
                   <p
-                    className="text-3xl font-bold tabular-nums"
+                    className="text-2xl font-bold tabular-nums"
                     data-testid={`text-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}
                   >
                     {stat.value}
@@ -516,7 +516,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {kpiStatusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
+              <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie
                     data={kpiStatusData}
@@ -569,7 +569,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {actionChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
+              <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={actionChartData} barSize={40}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />

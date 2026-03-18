@@ -164,7 +164,7 @@ export default function ReviewsPage() {
 
       {displayReview && (
         <>
-        <div className="print-only" id="print-review-area" style={{ display: "none" }}>
+        <div className="print-only" id="print-review-area">
           <div style={{ fontFamily: "Georgia, serif", maxWidth: 720, margin: "0 auto", padding: 40, color: "#111" }}>
             <div style={{ borderBottom: "2px solid #3b82f6", paddingBottom: 12, marginBottom: 24 }}>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#6b7280", marginBottom: 4 }}>Performo AI — Monthly Performance Review</div>
