@@ -451,86 +451,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══ PRODUCT DEMO ══════════════════════════════════════════════════════ */}
-      <section id="demo" className="py-20 bg-gradient-to-b from-white to-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">See it in action</h2>
-            <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
-              One 2-minute walkthrough. Everything from KPI setup to AI-generated performance review.
-            </p>
-          </div>
-
-          {/* Video placeholder / mock screen */}
-          <div className="relative max-w-5xl mx-auto rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-900">
-            {/* Browser chrome */}
-            <div className="flex items-center gap-1.5 px-4 py-3 bg-gray-800 border-b border-gray-700">
-              <div className="w-3 h-3 rounded-full bg-red-500/70" />
-              <div className="w-3 h-3 rounded-full bg-amber-500/70" />
-              <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
-              <div className="flex-1 mx-4 bg-gray-700 rounded px-3 py-0.5 text-[11px] text-gray-400">app.performo.ai/dashboard</div>
-            </div>
-
-            {/* Dashboard preview */}
-            <div className="relative bg-[#0f172a] p-4 min-h-[400px] flex items-center justify-center">
-              {/* Mock dashboard grid */}
-              <div className="absolute inset-4 opacity-60 grid grid-cols-4 grid-rows-3 gap-2 pointer-events-none">
-                <div className="col-span-4 bg-white/5 rounded-lg border border-white/10 flex items-center px-4 gap-4">
-                  <div className="h-4 w-32 bg-white/20 rounded" />
-                  <div className="flex gap-2 ml-auto">
-                    <div className="h-6 w-20 bg-emerald-500/30 rounded-full" />
-                    <div className="h-6 w-20 bg-red-500/30 rounded-full" />
-                    <div className="h-6 w-24 bg-blue-500/30 rounded-full" />
-                  </div>
-                </div>
-                {["bg-blue-500/20", "bg-emerald-500/20", "bg-red-500/20", "bg-orange-500/20", "bg-violet-500/20", "bg-teal-500/20"].map((c, i) => (
-                  <div key={i} className={`${c} rounded-lg border border-white/10 flex flex-col justify-center px-3`}>
-                    <div className="h-2.5 w-12 bg-white/20 rounded mb-1.5" />
-                    <div className="h-6 w-8 bg-white/30 rounded" />
-                  </div>
-                ))}
-                <div className="col-span-2 row-span-2 bg-white/5 rounded-lg border border-white/10 p-3">
-                  <div className="h-2 w-20 bg-white/20 rounded mb-3" />
-                  <div className="space-y-2">
-                    {[1,2,3,4].map(i => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                        <div className="h-2 flex-1 bg-white/10 rounded" />
-                        <div className="h-2 w-10 bg-red-400/40 rounded" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="col-span-2 row-span-2 bg-white/5 rounded-lg border border-white/10 p-3">
-                  <div className="h-2 w-16 bg-white/20 rounded mb-2" />
-                  <div className="flex items-end gap-2 h-16">
-                    {[40,70,50,90,60,80].map((h, i) => (
-                      <div key={i} className="flex-1 rounded-t" style={{ height: `${h}%`, background: i === 1 || i === 3 || i === 5 ? "rgba(59,130,246,0.5)" : i === 4 ? "rgba(239,68,68,0.5)" : "rgba(16,185,129,0.5)" }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Play button overlay */}
-              <button
-                onClick={() => setVideoModalOpen(true)}
-                className="relative z-10 flex flex-col items-center gap-3 group"
-                data-testid="button-play-demo"
-              >
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-2xl group-hover:scale-110 transition-transform">
-                  <Play className="h-8 w-8 text-blue-600 fill-blue-600 ml-1" />
-                </div>
-                <span className="text-white font-semibold text-sm">Watch product demo</span>
-              </button>
-            </div>
-          </div>
-
-          <p className="text-center text-sm text-gray-500 mt-4">
-            Or <button onClick={goToLogin} className="text-blue-600 font-semibold hover:underline">try the live demo →</button> with real data, no signup required
-          </p>
-        </div>
-      </section>
-
       {/* ══ FEATURES ══════════════════════════════════════════════════════════ */}
       <section id="features" className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -557,6 +477,53 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ══ PRODUCT DEMO ══════════════════════════════════════════════════════ */}
+      <section id="demo" className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">See it in action</h2>
+            <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
+              One 2-minute walkthrough. Everything from KPI setup to AI-generated performance review.
+            </p>
+          </div>
+
+          {/* Video placeholder / mock screen */}
+          <div className="relative max-w-5xl mx-auto rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-gray-900">
+            {/* Browser chrome */}
+            <div className="flex items-center gap-1.5 px-4 py-3 bg-gray-800 border-b border-gray-700">
+              <div className="w-3 h-3 rounded-full bg-red-500/70" />
+              <div className="w-3 h-3 rounded-full bg-amber-500/70" />
+              <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
+              <div className="flex-1 mx-4 bg-gray-700 rounded px-3 py-0.5 text-[11px] text-gray-400">app.performo.ai/dashboard</div>
+            </div>
+
+            {/* Dashboard preview — real screenshot */}
+            <div className="relative bg-[#0f172a] min-h-[400px] flex items-center justify-center overflow-hidden">
+              <img
+                src="/guide/dashboard.jpeg"
+                alt="Performo AI dashboard preview"
+                className="absolute inset-0 w-full h-full object-cover object-top opacity-40"
+              />
+              {/* Play button overlay */}
+              <button
+                onClick={() => setVideoModalOpen(true)}
+                className="relative z-10 flex flex-col items-center gap-3 group"
+                data-testid="button-play-demo"
+              >
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-2xl group-hover:scale-110 transition-transform">
+                  <Play className="h-8 w-8 text-blue-600 fill-blue-600 ml-1" />
+                </div>
+                <span className="text-white font-semibold text-sm">Watch product demo</span>
+              </button>
+            </div>
+          </div>
+
+          <p className="text-center text-sm text-gray-500 mt-4">
+            Or <button onClick={goToLogin} className="text-blue-600 font-semibold hover:underline">try the live demo →</button> with real data, no signup required
+          </p>
         </div>
       </section>
 
