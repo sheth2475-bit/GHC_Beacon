@@ -39,13 +39,22 @@ declare global {
 export function setupAuth(app: Express) {
   const PgStore = connectPg(session);
 
+  const isProduction = process.env.NODE_ENV === "production";
+  if (isProduction) {
+    app.set("trust proxy", 1);
+  }
+
   app.use(
     session({
       store: new PgStore({ pool, createTableIfMissing: true }),
       secret: process.env.SESSION_SECRET!,
       resave: false,
       saveUninitialized: false,
-      cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 },
+      cookie: {
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
+      },
     })
   );
 
