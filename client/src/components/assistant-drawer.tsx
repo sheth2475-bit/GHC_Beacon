@@ -200,8 +200,10 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
   }, [open, messages.length, scrollToBottom]);
 
   const chatMutation = useMutation({
-    mutationFn: async (payload: { messages: ChatMessage[]; confirmedAction?: PendingAction }) =>
-      apiRequest("POST", "/api/assistant/chat", payload) as Promise<AssistantResponse>,
+    mutationFn: async (payload: { messages: ChatMessage[]; confirmedAction?: PendingAction }) => {
+      const res = await apiRequest("POST", "/api/assistant/chat", payload);
+      return res.json() as Promise<AssistantResponse>;
+    },
   });
 
   const addLoadingMsg = useCallback((): string => {
