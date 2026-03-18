@@ -22,15 +22,40 @@ export interface ResponseLink {
   url: string;
 }
 
+export interface QuickAction {
+  label: string;
+  pendingAction: PendingAction;
+}
+
 export interface AssistantResponse {
   type: "answer" | "question" | "confirmation" | "success" | "error";
   message: string;
   links?: ResponseLink[];
+  quickActions?: QuickAction[];
   pendingAction?: PendingAction | null;
 }
 
 function cleanJson(s: string) {
   return s.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+}
+
+function daysDiff(dateStr: string, today: string): number {
+  return Math.floor(
+    (new Date(today).getTime() - new Date(dateStr).getTime()) / 86400000
+  );
+}
+
+function daysUntil(dateStr: string, today: string): number {
+  return Math.floor(
+    (new Date(dateStr).getTime() - new Date(today).getTime()) / 86400000
+  );
+}
+
+function variance(actual: number, target: number): string {
+  const abs = actual - target;
+  const pct = target !== 0 ? ((abs / target) * 100).toFixed(1) : "N/A";
+  const sign = abs >= 0 ? "+" : "";
+  return `${sign}${abs.toFixed(abs % 1 === 0 ? 0 : 1)} (${sign}${pct}%)`;
 }
 
 async function buildContext(companyId: number): Promise<string> {
@@ -60,7 +85,7 @@ async function buildContext(companyId: number): Promise<string> {
   const projectMap: Record<number, string> = {};
   for (const p of projects) projectMap[p.id] = p.name;
 
-  // KPI actuals — fetch last 3 months per KPI for trend analysis
+  // KPI actuals — last 3 months with pre-computed variance
   const kpiActualsMap: Record<number, { actual: string; status: string; month: string; commentary: string | null }[]> = {};
   for (const kpi of kpiList) {
     const actuals = await storage.getKpiActuals(kpi.id);
@@ -70,198 +95,234 @@ async function buildContext(companyId: number): Promise<string> {
       .map(a => ({ actual: a.actualValue || "", status: a.status || "", month: a.reviewMonth, commentary: a.commentary }));
   }
 
-  // Determine KPI status (on track vs below)
+  // KPI block with pre-computed variance
   const kpiSummary = kpiList.map(k => {
     const recents = kpiActualsMap[k.id] || [];
     const latest = recents[0];
+    let varStr = "";
+    if (latest && latest.actual) {
+      const a = parseFloat(latest.actual);
+      const t = parseFloat(k.targetValue || "0");
+      if (!isNaN(a) && !isNaN(t) && t !== 0) varStr = ` | Variance:${variance(a, t)}`;
+    }
     const trend = recents.length >= 2
-      ? recents.map(r => `${r.month}:${r.actual}[${r.status}]`).join(" → ")
-      : latest ? `${latest.month}:${latest.actual}[${latest.status}]` : "No data";
-    return `  KPI[${k.id}] "${k.kpiName}" | Target:${k.targetValue}${k.unit} | Owner:${k.ownerName} | Dept:${deptMap[k.departmentId!] || "N/A"} | ${latest ? `Status:${latest.status} | Latest:${latest.actual}${k.unit}(${latest.month})` : "No actuals"} | Trend:${trend}`;
+      ? recents.map(r => `${r.month}:${r.actual}${k.unit}[${r.status}]`).join("→")
+      : latest ? `Only one data point: ${latest.actual}${k.unit}[${latest.status}]` : "No actuals";
+    return `  KPI[${k.id}] "${k.kpiName}" | Dept:${deptMap[k.departmentId!] || "N/A"} | Target:${k.targetValue}${k.unit} | Owner:${k.ownerName}${latest ? ` | Latest(${latest.month}):${latest.actual}${k.unit} Status:${latest.status}${varStr}` : " | NO ACTUALS"} | 3mo-Trend:${trend}`;
   }).join("\n");
 
-  // Projects with derived health
+  // Projects block with derived health and days calc
   const projectSummary = projects.map(p => {
     const projectTasks = tasks.filter(t => t.projectId === p.id);
-    const overdueTasks = projectTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== "Completed").length;
-    const totalTasks = projectTasks.length;
+    const overdueTasks = projectTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== "Completed");
     const completedTasks = projectTasks.filter(t => t.status === "Completed").length;
+    const totalTasks = projectTasks.length;
     const projectMilestones = milestones.filter(m => m.projectId === p.id);
-    const upcomingMilestones = projectMilestones.filter(m => m.status !== "Completed").map(m => `"${m.title}"(Due:${m.dueDate},${m.status},${m.progress}%)`).join(", ");
-    return `  Project[${p.id}] "${p.name}" | Status:${p.status} | Progress:${p.progress}% | Owner:${p.owner || "Unassigned"} | Due:${p.dueDate || "N/A"} | Priority:${p.priority} | Dept:${deptMap[p.departmentId!] || "N/A"} | Tasks:${completedTasks}/${totalTasks} done | OverdueTasks:${overdueTasks} | Milestones:${upcomingMilestones || "None"}`;
+    const upcomingMs = projectMilestones.filter(m => m.status !== "Completed");
+    const nextMilestone = upcomingMs.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))[0];
+    const daysLeft = p.dueDate ? daysUntil(p.dueDate, today) : null;
+    const dueSummary = daysLeft !== null ? (daysLeft < 0 ? `OVERDUE by ${Math.abs(daysLeft)}d` : `${daysLeft}d remaining`) : "No due date";
+    return `  Project[${p.id}] "${p.name}" | Owner:${p.owner || "Unassigned"} | Status:${p.status} | Priority:${p.priority} | Progress:${p.progress}% | Due:${p.dueDate || "N/A"}(${dueSummary}) | Dept:${deptMap[p.departmentId!] || "N/A"} | Tasks:${completedTasks}/${totalTasks} done | OverdueTasks:${overdueTasks.length}${overdueTasks.length > 0 ? `(${overdueTasks.map(t => `"${t.title}"`).join(",")})` : ""} | NextMilestone:${nextMilestone ? `"${nextMilestone.title}"(Due:${nextMilestone.dueDate},${nextMilestone.progress}%progress)` : "None"}`;
   }).join("\n");
 
-  // All action items
+  // Action items with overdue days
   const actionSummary = actionItems.map(a => {
     const effectiveDue = a.revisedDueDate || a.dueDate || "";
     const isOverdue = effectiveDue && effectiveDue < today && a.status !== "Completed";
-    return `  Action[${a.id}] "${a.title}" | Owner:${a.ownerName} | Due:${effectiveDue || "N/A"}${a.revisedDueDate ? "(revised)" : ""} | Status:${a.status} | Priority:${a.priority} | MeetingType:${a.meetingType || "N/A"}${isOverdue ? " ⚠️OVERDUE" : ""}`;
+    const overdueStr = isOverdue ? ` | OVERDUE by ${daysDiff(effectiveDue, today)}d` : "";
+    return `  Action[${a.id}] "${a.title}" | Owner:${a.ownerName} | Due:${effectiveDue || "N/A"}${a.revisedDueDate ? "(revised)" : ""} | Status:${a.status} | Priority:${a.priority} | Type:${a.meetingType || "N/A"}${overdueStr}`;
   }).join("\n");
 
-  // Tasks with project names
+  // Tasks with project names and overdue days
   const taskSummary = tasks.slice(0, 40).map(t => {
     const isOverdue = t.dueDate && t.dueDate < today && t.status !== "Completed";
-    return `  Task[${t.id}] "${t.title}" | Project:${projectMap[t.projectId!] || "N/A"}(ID:${t.projectId}) | Assignee:${t.assignee || "Unassigned"} | Status:${t.status} | Priority:${t.priority || "N/A"} | Due:${t.dueDate || "N/A"}${isOverdue ? " ⚠️OVERDUE" : ""}`;
+    const overdueStr = isOverdue ? ` | OVERDUE by ${daysDiff(t.dueDate!, today)}d` : "";
+    const daysLeft = t.dueDate && t.status !== "Completed" ? daysUntil(t.dueDate, today) : null;
+    const dueStr = daysLeft !== null && daysLeft >= 0 ? `${daysLeft}d remaining` : "";
+    return `  Task[${t.id}] "${t.title}" | Project:"${projectMap[t.projectId!] || "N/A"}"[ID:${t.projectId}] | Assignee:${t.assignee || "Unassigned"} | Status:${t.status} | Priority:${t.priority || "N/A"} | Due:${t.dueDate || "N/A"}${dueStr}${overdueStr}`;
   }).join("\n");
 
-  // Milestones with project names
+  // Milestones with days calc
   const milestoneSummary = milestones.map(m => {
     const isOverdue = m.dueDate && m.dueDate < today && m.status !== "Completed";
-    return `  Milestone[${m.id}] "${m.title}" | Project:${projectMap[m.projectId!] || "N/A"}(ID:${m.projectId}) | Status:${m.status} | Progress:${m.progress}% | Due:${m.dueDate || "N/A"}${isOverdue ? " ⚠️OVERDUE" : ""}`;
+    const daysLeft = m.dueDate ? daysUntil(m.dueDate, today) : null;
+    const dueStr = daysLeft !== null ? (daysLeft < 0 ? `OVERDUE by ${Math.abs(daysLeft)}d` : `${daysLeft}d remaining`) : "";
+    return `  Milestone[${m.id}] "${m.title}" | Project:"${projectMap[m.projectId!] || "N/A"}"[ID:${m.projectId}] | Status:${m.status} | Progress:${m.progress}% | Due:${m.dueDate || "N/A"}(${dueStr})`;
   }).join("\n");
 
-  // Meetings
   const meetingSummary = meetings.slice(0, 8).map(m =>
     `  Meeting[${m.id}] "${m.title}" | Date:${m.meetingDate} | Dept:${deptMap[m.departmentId!] || "N/A"} | Type:${m.meetingType || "N/A"}`
   ).join("\n");
 
-  // Reviews
   const reviewsSummary = reviews
     .sort((a, b) => b.reviewMonth.localeCompare(a.reviewMonth))
     .slice(0, 2)
-    .map(r => `  Review[${r.id}] Month:${r.reviewMonth}\n    Summary:${r.overallSummary?.slice(0, 400)}\n    Strengths:${r.strengths?.slice(0, 200)}\n    Gaps:${r.gaps?.slice(0, 200)}\n    Recommendations:${r.recommendations?.slice(0, 200)}`)
+    .map(r => `  Review[${r.id}] Month:${r.reviewMonth}
+    Summary:${r.overallSummary?.slice(0, 500)}
+    Strengths:${r.strengths?.slice(0, 300)}
+    Gaps:${r.gaps?.slice(0, 300)}
+    Recommendations:${r.recommendations?.slice(0, 300)}`)
     .join("\n");
 
-  const userSummary = users.map(u => `${u.name}(${u.role})`).join(", ");
-
+  const userSummary = users.map(u => `${u.name}(${u.role},email:${u.email})`).join(", ");
   const goalsSummary = goals.map(g => `"${g.goalText}"`).join("; ");
 
-  // Derived stats
+  // Pre-compute headline stats
   const overdueActions = actionItems.filter(a => a.status !== "Completed" && a.dueDate && (a.revisedDueDate || a.dueDate) < today);
+  const openActions = actionItems.filter(a => a.status !== "Completed");
   const overdueTasks = tasks.filter(t => t.status !== "Completed" && t.dueDate && t.dueDate < today);
-  const atRiskProjects = projects.filter(p => p.status === "At Risk" || p.status === "Delayed");
   const belowTargetKpis = kpiList.filter(k => {
-    const latest = (kpiActualsMap[k.id] || [])[0];
-    return latest && (latest.status === "Below Target" || latest.status === "At Risk" || latest.status === "Red");
+    const s = (kpiActualsMap[k.id] || [])[0]?.status || "";
+    return s === "Below Target" || s === "At Risk" || s === "Red";
   });
+  const onTrackKpis = kpiList.filter(k => (kpiActualsMap[k.id] || [])[0]?.status === "On Track");
+  const redProjects = projects.filter(p => p.status === "At Risk" || p.status === "Delayed");
 
   return `TODAY: ${today}
-COMPANY: ${company?.companyName || "N/A"} | Industry: ${company?.industry || "N/A"}
+COMPANY: ${company?.companyName || "N/A"} | Industry: ${company?.industry || "N/A"} | Size: ${company?.companySize || "N/A"}
 STRATEGIC GOALS: ${goalsSummary || "None set"}
-TEAM: ${userSummary}
+TEAM MEMBERS: ${userSummary}
 DEPARTMENTS: ${departments.map(d => `${d.name}[ID:${d.id}]`).join(", ")}
 
-KEY STATS: ${overdueActions.length} overdue actions | ${overdueTasks.length} overdue tasks | ${atRiskProjects.length} at-risk/delayed projects | ${belowTargetKpis.length} KPIs below target
+HEADLINE STATS (pre-computed):
+- KPIs: ${belowTargetKpis.length} below target | ${onTrackKpis.length} on track | ${kpiList.filter(k => !(kpiActualsMap[k.id] || [])[0]).length} no data
+- Actions: ${overdueActions.length} overdue | ${openActions.length} open total
+- Tasks: ${overdueTasks.length} overdue
+- Projects: ${redProjects.length} at risk/delayed | ${projects.filter(p => p.status === "In Progress").length} in progress
 
-KPIs (${kpiList.length} total — includes 3-month trend):
+KPIs (${kpiList.length} total | with variance and 3-month trend):
 ${kpiSummary || "  None"}
 
-PROJECTS (${projects.length} total):
+PROJECTS (${projects.length} total | with task breakdown, milestones, days remaining):
 ${projectSummary || "  None"}
 
-ALL ACTION ITEMS (${actionItems.length} total):
+ALL ACTION ITEMS (${actionItems.length} total | with overdue days):
 ${actionSummary || "  None"}
 
-TASKS (${tasks.length} total, showing up to 40):
+TASKS (${tasks.length} total | showing up to 40 | with project name and overdue days):
 ${taskSummary || "  None"}
 
-MILESTONES (${milestones.length} total):
+MILESTONES (${milestones.length} total | with days remaining):
 ${milestoneSummary || "  None"}
 
-RECENT MEETINGS:
+RECENT MEETINGS (last 8):
 ${meetingSummary || "  None"}
 
 MONTHLY REVIEWS (last 2):
 ${reviewsSummary || "  None"}`;
 }
 
-const SYSTEM_PROMPT = (context: string, userName: string, userRole: string, canWrite: boolean) => `You are Performo Assistant — a highly intelligent AI business performance and operations copilot embedded inside Performo AI. You serve as a smart PMO, KPI analyst, and executive reporting assistant for ${userName} (role: ${userRole}).
+const SYSTEM_PROMPT = (context: string, userName: string, userRole: string, canWrite: boolean) => `You are Performo Assistant — a premium AI copilot for business performance management. You operate like a senior PMO, strategy analyst, and operations director embedded inside Performo AI.
 
-CURRENT COMPANY DATA (real-time):
+You serve ${userName} (role: ${userRole}). You have real-time access to all company data below.
+
+COMPANY DATA:
 ${context}
 
-IN-APP NAVIGATION ROUTES (include relevant ones in the "links" field):
-- Dashboard (overview, stats, health): /
-- KPI Management (all KPIs, actuals, add actuals): /kpis
-- KPI Builder (create new KPIs): /kpi-builder
-- Action Tracker (all action items, filter by status): /actions
-- Meetings (meeting list, schedule): /meetings
-- Monthly Reviews (performance reviews): /reviews
-- Dashboard Planner: /planner
-- Project Portfolio (all projects): /portfolio
-- Project Detail (specific project, tasks, milestones): /projects/{projectId}
-- Workload (team workload view): /workload
-- Settings: /settings
-- User Management: /users
+IN-APP ROUTES (use in "links"):
+/ = Dashboard | /kpis = KPI Management | /kpi-builder = KPI Builder | /actions = Action Tracker | /meetings = Meetings | /reviews = Monthly Reviews | /planner = Dashboard Planner | /portfolio = Project Portfolio | /projects/{id} = Project Detail | /workload = Team Workload | /settings = Settings | /users = User Management
 
-YOUR CAPABILITIES:
-READ: KPI status, trends, comparisons to target; project health, progress, overdue items; action items by owner/status/priority; milestone tracking; team workload; monthly review summaries; strategic goal alignment; cross-module insights.
-${canWrite ? `WRITE (confirm before executing): Create/update projects, tasks, action items, milestones. Update KPI actuals. Update progress/status/due dates/owners. Close/complete items.` : `WRITE: Read-only mode (executive role). Politely decline all modification requests.`}
+${canWrite ? `WRITE PERMISSIONS: Full (Admin) — can create/update/close any record` : `WRITE PERMISSIONS: None (Executive) — read-only. Politely decline all modification requests.`}
 
-RESPONSE BEHAVIOR RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VOICE & TONE — STRICTLY FOLLOW THESE RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Lead with the key finding. Never open with "Sure," "Of course," "Great question," or "I'd be happy to."
+2. Use direct business language. "3 KPIs are below target" not "There appear to be some KPIs that may be below target."
+3. Every number must show context: value + variance from target + direction. e.g. "33% vs 35% target (−2pp)" not just "33%."
+4. Always use status symbols for scan-ability: 🟢 On Track  🟡 Amber/At Risk  🔴 Below Target/Critical  ⚠️ Overdue
+5. Overdue = state DAYS overdue, not just "overdue." e.g. "⚠️ Overdue by 26 days"
+6. Name specific entities — people, project names, KPI names. Never say "a project" when you have the name.
+7. Cross-connect modules. If a KPI is below target, name the project addressing it and its status. If an action item is overdue, name the owner.
+8. End every analytical answer with a "**Recommended Actions**" section listing 2-4 specific, data-driven next steps.
+9. Be concise. If the answer is 1 sentence, write 1 sentence. No padding.
+10. Never fabricate data. Use only what is in the context above.
 
-**For KPI queries:**
-- State current value vs target, variance (absolute + %), and trend direction
-- Call out Green/Amber/Red status explicitly
-- For "below target" queries: list ALL below-target KPIs with owner and dept
-- Include /kpis link always
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESPONSE PATTERNS BY QUERY TYPE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**For project queries:**
-- Include progress %, status, owner, due date, health signal
-- List overdue tasks and upcoming milestones per project
-- For "at risk" queries: explain why (overdue ratio, delayed status, etc.)
-- Always link to /projects/{id} for specific projects; /portfolio for all projects
+**KPI queries (below target / status / trend):**
+- Open with: "X of Y KPIs tracked | Z below target" summary line
+- List each KPI with: 🔴/🟢/🟡 Name — actual vs target (variance) | Owner | Dept
+- Show 3-month trend direction: ↑ Improving / ↓ Declining / → Stable
+- Cross-reference: mention the project/initiative addressing each gap KPI, and its current progress
+- Recommended Actions: specific owner + action
 
-**For action item queries:**
-- Include owner, due date, priority, and overdue flag
-- For overdue items: calculate days overdue
-- Link to /actions
+**Project queries (at risk / status / progress):**
+- For each project: status icon + name + progress % + days remaining/overdue + owner
+- Show: X/Y tasks done | N overdue tasks | Next milestone + due date
+- Highlight: what specifically makes it at risk (overdue tasks, no progress, past due)
+- Recommended Actions: who should act, on what, by when
 
-**For review/performance summary queries:**
-- Pull from the latest monthly review
-- Include strengths, gaps, and recommendations
+**Action item queries (overdue / by owner / priority):**
+- Group by owner if "by owner" query; sort by overdue days descending
+- For each: ⚠️ Title | Owner | Days overdue | Status | Priority
+- Cross-reference: which project or meeting this action belongs to
+
+**Team/workload queries:**
+- Group open tasks + actions by person
+- Show: Name — X open tasks (Y overdue), X open actions (Y overdue)
+- Identify who is most overloaded
+
+**Performance summary / review queries:**
+- Pull from latest monthly review
+- Structure: Wins | Gaps | Risks | Recommendations
 - Link to /reviews
 
-**For workload/team queries:**
-- Group tasks and actions by assignee/owner
-- Show count and overdue count per person
-- Link to /workload
+**Strategic goal alignment queries:**
+- Map each goal to the KPIs and projects tracking it
+- Show current gap vs target for each
 
-**For trend analysis:**
-- Use the 3-month trend data in the KPI context
-- State direction: improving / declining / stable
+**Disambiguation rules:**
+- If user mentions a name that fuzzy-matches multiple records, list all matches and ask which one
+- If user says "the loyalty program" → match Project[1] "Loyalty Program Launch"
+- If user asks about "turnover" → match both KPI[6] "Employee Turnover Rate" and Project[3] if relevant
 
-**For write operations:**
-a. If all required fields are known → set type="confirmation" with pendingAction
-b. If fields are missing → set type="question", ask for ONLY the missing fields
-c. NEVER skip confirmation — always show pendingAction first
+**Write operation rules:**
+${canWrite ? `
+- If all required fields are present → type="confirmation" with complete pendingAction
+- If missing fields → type="question", ask for ONLY the missing specific fields (not a generic "give me more details")
+- Include quickActions for related operations (e.g., after showing overdue actions, offer "Mark [X] Complete" buttons)
+- NEVER execute writes without confirmation
+` : `- type="error" for all write requests with a clear explanation`}
 
-**Formatting rules:**
-- Use **bold** for numbers, statuses, and key names
-- Use numbered lists (1. 2. 3.) for ordered items
-- Use bullet lists (- item) for unordered items  
-- Use ### for section headers if response has multiple sections
-- Be concise but complete — include all relevant records
-- Always reference record IDs (e.g., "Project[3]") in confirmation data
-
-RESPONSE JSON SCHEMA (always return valid JSON):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESPONSE JSON SCHEMA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
   "type": "answer" | "question" | "confirmation" | "error",
-  "message": "Your markdown-formatted response",
+  "message": "Direct, markdown-formatted business response following the voice rules above",
   "links": [
-    { "label": "Button label (short, action-oriented)", "url": "/app-route" }
+    { "label": "Short action label", "url": "/route" }
   ],
-  "pendingAction": null | {
-    "type": "create_project" | "create_task" | "create_action_item" | "create_milestone" | "update_project" | "update_task" | "update_action_item" | "update_milestone" | "update_kpi_actual" | "close_task" | "close_action",
-    "label": "Human-readable description of what will be done",
-    "data": { ...all fields needed for the operation... }
-  }
+  "quickActions": [
+    {
+      "label": "Button text (e.g. Mark Complete, Reschedule, Update Status)",
+      "pendingAction": {
+        "type": "action_type",
+        "label": "Human-readable description",
+        "data": { ...exact fields... }
+      }
+    }
+  ],
+  "pendingAction": null | { "type": "...", "label": "...", "data": { ... } }
 }
 
-FIELD REQUIREMENTS:
-- create_project: { name, description?, owner?, status("Not Started"|"In Progress"|"Completed"|"At Risk"|"Delayed"), priority("Low"|"Medium"|"High"|"Critical"), dueDate?(YYYY-MM-DD), departmentId?, businessUnit? }
-- create_task: { title, projectId, assignee?, status, priority, dueDate?(YYYY-MM-DD), description? }
-- create_action_item: { title, ownerName, dueDate(YYYY-MM-DD), priority, status("Not Started"|"In Progress"|"Delayed"|"Completed"), departmentId?, meetingType?, description? }
-- create_milestone: { title, projectId, dueDate(YYYY-MM-DD), status("Upcoming"|"Completed"), progress(0-100) }
-- update_project: { id, ...fields }
-- update_task: { id, ...fields }
-- update_action_item: { id, ...fields }
-- update_milestone: { id, ...fields }
-- update_kpi_actual: { kpiId, reviewMonth(YYYY-MM), actualValue, status("On Track"|"Below Target"|"At Risk"), commentary? }
+OPERATION TYPES AND REQUIRED FIELDS:
+- create_project: { name, description?, owner?, status, priority, dueDate?, departmentId?, businessUnit? }
+- create_task: { title, projectId, assignee?, status, priority, dueDate?, description? }
+- create_action_item: { title, ownerName, dueDate(YYYY-MM-DD), priority, status, departmentId?, meetingType?, description? }
+- create_milestone: { title, projectId, dueDate(YYYY-MM-DD), status, progress }
+- update_project: { id, ...fields to change }
+- update_task: { id, ...fields to change }
+- update_action_item: { id, ...fields to change }
+- update_milestone: { id, ...fields to change }
+- update_kpi_actual: { kpiId, reviewMonth(YYYY-MM), actualValue(string), status("On Track"|"Below Target"|"At Risk"), commentary? }
 - close_task: { id }
 - close_action: { id }
 
-Always include IDs when referring to existing records. Dates in YYYY-MM-DD format. Numbers as strings for KPI values.`;
+Important: All IDs must be integers. Dates in YYYY-MM-DD. KPI actualValue as string (e.g., "33" not 33).`;
 
 export async function processAssistantMessage(
   messages: ChatMessage[],
@@ -300,10 +361,11 @@ export async function processAssistantMessage(
       type: parsed.type || "answer",
       message: parsed.message || "I couldn't process that request.",
       links: Array.isArray(parsed.links) ? parsed.links : [],
+      quickActions: Array.isArray(parsed.quickActions) ? parsed.quickActions : [],
       pendingAction: parsed.pendingAction || null,
     };
   } catch {
-    return { type: "error", message: "Sorry, I encountered an issue processing your request. Please try again.", links: [] };
+    return { type: "error", message: "Sorry, I encountered an issue parsing the response. Please try again.", links: [], quickActions: [] };
   }
 }
 
@@ -315,7 +377,7 @@ async function executeAction(
   userRole: string
 ): Promise<AssistantResponse> {
   if (userRole !== "admin") {
-    return { type: "error", message: "You don't have permission to make changes.", links: [] };
+    return { type: "error", message: "You don't have permission to make changes.", links: [], quickActions: [] };
   }
 
   try {
@@ -337,13 +399,13 @@ async function executeAction(
           dueDate: action.data.dueDate || null,
           status: action.data.status || "Not Started",
           priority: action.data.priority || "Medium",
-          progress: action.data.progress || 0,
+          progress: 0,
           tags: null,
           linkedKpiId: null,
         });
         entityType = "project";
         entityId = proj.id;
-        resultMessage = `**Project created:** "${proj.name}" has been added to your portfolio.`;
+        resultMessage = `🟢 **Project created:** "${proj.name}" added to portfolio.\n\nPriority: **${proj.priority}** | Owner: **${proj.owner || "Unassigned"}** | Due: **${proj.dueDate || "Not set"}**`;
         resultLinks.push({ label: "Open Project", url: `/projects/${proj.id}` });
         resultLinks.push({ label: "View Portfolio", url: "/portfolio" });
         break;
@@ -364,7 +426,7 @@ async function executeAction(
         });
         entityType = "task";
         entityId = task.id;
-        resultMessage = `**Task created:** "${task.title}" has been added.`;
+        resultMessage = `🟢 **Task created:** "${task.title}"\n\nAssignee: **${task.assignee || "Unassigned"}** | Due: **${task.dueDate || "Not set"}** | Priority: **${task.priority}**`;
         if (task.projectId) resultLinks.push({ label: "Open Project", url: `/projects/${task.projectId}` });
         break;
       }
@@ -384,7 +446,7 @@ async function executeAction(
         });
         entityType = "action_item";
         entityId = item.id;
-        resultMessage = `**Action item created:** "${item.title}" assigned to ${item.ownerName || "TBD"}, due ${item.dueDate || "TBD"}.`;
+        resultMessage = `🟢 **Action item created:** "${item.title}"\n\nOwner: **${item.ownerName || "Unassigned"}** | Due: **${item.dueDate || "Not set"}** | Priority: **${item.priority}**`;
         resultLinks.push({ label: "View Action Tracker", url: "/actions" });
         break;
       }
@@ -399,7 +461,7 @@ async function executeAction(
         });
         entityType = "milestone";
         entityId = ms.id;
-        resultMessage = `**Milestone created:** "${ms.title}" added to the project.`;
+        resultMessage = `🟢 **Milestone created:** "${ms.title}"\n\nDue: **${ms.dueDate || "Not set"}** | Status: **${ms.status}**`;
         if (ms.projectId) resultLinks.push({ label: "Open Project", url: `/projects/${ms.projectId}` });
         break;
       }
@@ -408,8 +470,8 @@ async function executeAction(
         await storage.updateProject(id, updates);
         entityType = "project";
         entityId = id;
-        const fieldList = Object.entries(updates).map(([k, v]) => `${k}: **${v}**`).join(", ");
-        resultMessage = `**Project updated:** ${fieldList}.`;
+        const changes = Object.entries(updates).map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").trim()}: **${v}**`).join(" | ");
+        resultMessage = `🟢 **Project updated:** ${changes}`;
         resultLinks.push({ label: "Open Project", url: `/projects/${id}` });
         break;
       }
@@ -418,8 +480,8 @@ async function executeAction(
         await storage.updateTask(id, updates);
         entityType = "task";
         entityId = id;
-        const fieldList = Object.entries(updates).map(([k, v]) => `${k}: **${v}**`).join(", ");
-        resultMessage = `**Task updated:** ${fieldList}.`;
+        const changes = Object.entries(updates).map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").trim()}: **${v}**`).join(" | ");
+        resultMessage = `🟢 **Task updated:** ${changes}`;
         break;
       }
       case "update_action_item": {
@@ -427,8 +489,8 @@ async function executeAction(
         await storage.updateActionItem(id, updates);
         entityType = "action_item";
         entityId = id;
-        const fieldList = Object.entries(updates).map(([k, v]) => `${k}: **${v}**`).join(", ");
-        resultMessage = `**Action item updated:** ${fieldList}.`;
+        const changes = Object.entries(updates).map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").trim()}: **${v}**`).join(" | ");
+        resultMessage = `🟢 **Action item updated:** ${changes}`;
         resultLinks.push({ label: "View Action Tracker", url: "/actions" });
         break;
       }
@@ -437,22 +499,22 @@ async function executeAction(
         await storage.updateMilestone(id, updates);
         entityType = "milestone";
         entityId = id;
-        const fieldList = Object.entries(updates).map(([k, v]) => `${k}: **${v}**`).join(", ");
-        resultMessage = `**Milestone updated:** ${fieldList}.`;
+        const changes = Object.entries(updates).map(([k, v]) => `${k.replace(/([A-Z])/g, " $1").trim()}: **${v}**`).join(" | ");
+        resultMessage = `🟢 **Milestone updated:** ${changes}`;
         break;
       }
       case "close_task": {
         await storage.updateTask(action.data.id, { status: "Completed", progress: 100 });
         entityType = "task";
         entityId = action.data.id;
-        resultMessage = `**Task closed:** Marked as Completed with 100% progress.`;
+        resultMessage = `✅ **Task closed** — marked Completed at 100% progress.`;
         break;
       }
       case "close_action": {
         await storage.updateActionItem(action.data.id, { status: "Completed" });
         entityType = "action_item";
         entityId = action.data.id;
-        resultMessage = `**Action item closed:** Marked as Completed.`;
+        resultMessage = `✅ **Action item closed** — marked Completed.`;
         resultLinks.push({ label: "View Action Tracker", url: "/actions" });
         break;
       }
@@ -466,12 +528,12 @@ async function executeAction(
         });
         entityType = "kpi";
         entityId = action.data.kpiId;
-        resultMessage = `**KPI actual recorded:** ${action.data.reviewMonth} value **${action.data.actualValue}** saved with status **${action.data.status}**.`;
+        resultMessage = `🟢 **KPI actual recorded:**\nMonth: **${action.data.reviewMonth}** | Value: **${action.data.actualValue}** | Status: **${action.data.status}**`;
         resultLinks.push({ label: "View KPIs", url: "/kpis" });
         break;
       }
       default:
-        return { type: "error", message: "Unknown action type. No changes were made.", links: [] };
+        return { type: "error", message: "Unknown action type. No changes were made.", links: [], quickActions: [] };
     }
 
     await storage.createAssistantLog({
@@ -484,9 +546,9 @@ async function executeAction(
       summary: action.label,
     });
 
-    return { type: "success", message: resultMessage, links: resultLinks };
+    return { type: "success", message: resultMessage, links: resultLinks, quickActions: [] };
   } catch (err: any) {
     console.error("Assistant action error:", err);
-    return { type: "error", message: `Failed to complete the action: ${err.message}`, links: [] };
+    return { type: "error", message: `Action failed: ${err.message}`, links: [], quickActions: [] };
   }
 }

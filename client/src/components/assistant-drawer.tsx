@@ -33,10 +33,16 @@ interface ResponseLink {
   url: string;
 }
 
+interface QuickAction {
+  label: string;
+  pendingAction: PendingAction;
+}
+
 interface AssistantResponse {
   type: "answer" | "question" | "confirmation" | "success" | "error";
   message: string;
   links?: ResponseLink[];
+  quickActions?: QuickAction[];
   pendingAction?: PendingAction | null;
 }
 
@@ -46,6 +52,7 @@ interface DisplayMessage {
   content: string;
   type?: AssistantResponse["type"];
   links?: ResponseLink[];
+  quickActions?: QuickAction[];
   pendingAction?: PendingAction | null;
   isLoading?: boolean;
 }
@@ -95,12 +102,25 @@ function LinkButton({ link, onNavigate }: { link: ResponseLink; onNavigate: (url
   );
 }
 
-function MessageBubble({ msg, onConfirm, onCancel, isConfirming, onNavigate }: {
+function QuickActionButton({ qa, onQuickAction }: { qa: QuickAction; onQuickAction: (a: PendingAction) => void }) {
+  return (
+    <button
+      onClick={() => onQuickAction(qa.pendingAction)}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-accent hover:border-border/80 text-xs text-foreground/75 hover:text-foreground font-medium transition-all"
+    >
+      <Zap className="h-3 w-3 text-amber-500" />
+      {qa.label}
+    </button>
+  );
+}
+
+function MessageBubble({ msg, onConfirm, onCancel, isConfirming, onNavigate, onQuickAction }: {
   msg: DisplayMessage;
   onConfirm?: () => void;
   onCancel?: () => void;
   isConfirming?: boolean;
   onNavigate: (url: string) => void;
+  onQuickAction: (action: PendingAction) => void;
 }) {
   if (msg.isLoading) {
     return (
@@ -166,6 +186,15 @@ function MessageBubble({ msg, onConfirm, onCancel, isConfirming, onNavigate }: {
           <div className="flex flex-wrap gap-1.5 pl-0.5">
             {msg.links.map((link, i) => (
               <LinkButton key={i} link={link} onNavigate={onNavigate} />
+            ))}
+          </div>
+        )}
+
+        {/* Quick action buttons */}
+        {msg.quickActions && msg.quickActions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pl-0.5">
+            {msg.quickActions.map((qa, i) => (
+              <QuickActionButton key={i} qa={qa} onQuickAction={onQuickAction} />
             ))}
           </div>
         )}
@@ -280,6 +309,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
             content: response.message,
             type: response.type,
             links: response.links || [],
+            quickActions: response.quickActions || [],
             pendingAction: response.pendingAction,
           }
         : m
@@ -343,10 +373,25 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
     }
   }, [pendingConfirmation, chatMutation, apiMessages, addLoadingMsg, replaceLoadingMsg]);
 
+  const handleQuickAction = useCallback((action: PendingAction) => {
+    const msgId = nextId();
+    setMessages(prev => [...prev, {
+      id: msgId,
+      role: "assistant",
+      content: action.label,
+      type: "confirmation",
+      links: [],
+      quickActions: [],
+      pendingAction: action,
+    }]);
+    setPendingConfirmation({ msgId, action });
+    scrollToBottom();
+  }, [nextId, scrollToBottom]);
+
   const handleCancel = useCallback(() => {
     setPendingConfirmation(null);
     setMessages(prev => [...prev, {
-      id: nextId(), role: "assistant", content: "Cancelled. No changes were made.", type: "answer", links: []
+      id: nextId(), role: "assistant", content: "Cancelled. No changes were made.", type: "answer", links: [], quickActions: []
     }]);
     scrollToBottom();
   }, [scrollToBottom, nextId]);
@@ -471,6 +516,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
                   onCancel={pendingConfirmation?.msgId === msg.id ? handleCancel : undefined}
                   isConfirming={isConfirming}
                   onNavigate={handleNavigate}
+                  onQuickAction={handleQuickAction}
                 />
               ))}
               <div ref={bottomRef} />
