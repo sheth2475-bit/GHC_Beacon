@@ -596,9 +596,9 @@ export default function LandingPage() {
                     <Play className="h-9 w-9 text-blue-400 fill-blue-400 ml-1" />
                   </div>
                   <div className="text-center">
-                    <p className="text-white font-semibold text-lg mb-2">Demo recording coming shortly</p>
+                    <p className="text-white font-semibold text-lg mb-2">Your browser can't play this video</p>
                     <p className="text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
-                      Drop your screen recording at <code className="text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded text-xs">client/public/demos/performo-demo.mp4</code> to display it here.
+                      Try the live demo instead — explore every feature hands-on with our sample data.
                     </p>
                   </div>
                   <button
