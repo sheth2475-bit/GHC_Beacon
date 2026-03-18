@@ -153,9 +153,12 @@ export default function LandingPage() {
   const [, navigate] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+
+  const closeVideoModal = () => { setVideoModalOpen(false); setVideoError(false); };
 
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setVideoModalOpen(false); };
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") closeVideoModal(); };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
@@ -548,7 +551,7 @@ export default function LandingPage() {
       {videoModalOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setVideoModalOpen(false)}
+          onClick={closeVideoModal}
         >
           <div
             className="relative bg-gray-950 rounded-2xl overflow-hidden w-full shadow-2xl"
@@ -564,7 +567,8 @@ export default function LandingPage() {
                 <span className="text-white font-semibold text-sm">Performo AI — Product Demo</span>
               </div>
               <button
-                onClick={() => setVideoModalOpen(false)}
+                onClick={closeVideoModal}
+                aria-label="Close demo video"
                 className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-white/10"
               >
                 <X className="h-5 w-5" />
@@ -572,43 +576,40 @@ export default function LandingPage() {
             </div>
             {/* Native video player */}
             <div className="bg-black">
-              <video
-                className="w-full"
-                style={{ maxHeight: "70vh" }}
-                controls
-                autoPlay
-                playsInline
-                src="/demos/performo-demo.mp4"
-                onError={e => {
-                  (e.currentTarget as HTMLVideoElement).style.display = "none";
-                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (fallback) fallback.style.display = "flex";
-                }}
-              >
-                Your browser does not support the video tag.
-              </video>
-              {/* Fallback — shown if video file not yet uploaded */}
-              <div
-                className="aspect-video bg-gray-900 flex-col items-center justify-center gap-5 p-10 hidden"
-                style={{ display: "none" }}
-              >
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-600/15 border-2 border-blue-500/30">
-                  <Play className="h-9 w-9 text-blue-400 fill-blue-400 ml-1" />
-                </div>
-                <div className="text-center">
-                  <p className="text-white font-semibold text-lg mb-2">Demo recording coming shortly</p>
-                  <p className="text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
-                    Upload your screen recording as <code className="text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded text-xs">client/public/demos/performo-demo.mp4</code> to display it here.
-                  </p>
-                </div>
-                <button
-                  onClick={() => { setVideoModalOpen(false); goToLogin(); }}
-                  className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+              {!videoError ? (
+                <video
+                  key={videoModalOpen ? "open" : "closed"}
+                  className="w-full"
+                  style={{ maxHeight: "70vh" }}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  onError={() => setVideoError(true)}
                 >
-                  Try the live demo instead
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
+                  <source src="/demos/performo-demo.webm" type="video/webm" />
+                  <source src="/demos/performo-demo.mp4" type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <div className="aspect-video bg-gray-900 flex flex-col items-center justify-center gap-5 p-10">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-600/15 border-2 border-blue-500/30">
+                    <Play className="h-9 w-9 text-blue-400 fill-blue-400 ml-1" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-white font-semibold text-lg mb-2">Demo recording coming shortly</p>
+                    <p className="text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
+                      Drop your screen recording at <code className="text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded text-xs">client/public/demos/performo-demo.mp4</code> to display it here.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { closeVideoModal(); goToLogin(); }}
+                    className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Try the live demo instead
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
