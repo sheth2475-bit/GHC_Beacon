@@ -23,6 +23,9 @@ import {
   Briefcase,
   Flag,
   ChevronRight,
+  Zap,
+  Clock,
+  Info,
 } from "lucide-react";
 import {
   BarChart,
@@ -37,7 +40,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import type { ActionItem, MonthlyReview, Department, Kpi, Company, Milestone, Project } from "@shared/schema";
+import type { ActionItem, MonthlyReview, Department, Kpi, Company, Milestone, Project, KpiActual } from "@shared/schema";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -69,6 +72,9 @@ export default function DashboardPage() {
   });
 
   const { data: milestones = [] } = useQuery<Milestone[]>({ queryKey: ["/api/milestones"] });
+  const { data: allActuals = [] } = useQuery<(KpiActual & { kpiName: string })[]>({
+    queryKey: ["/api/kpi-actuals/company"],
+  });
 
   const kpiStatusData = stats
     ? [
@@ -97,6 +103,32 @@ export default function DashboardPage() {
   const today = new Date().toISOString().split("T")[0];
   const recentActions = (actions || []).slice(0, 5);
   const latestReview = reviews?.[0];
+
+  // ── Today's Focus ────────────────────────────────────────────────────────
+  const overdueActions = (actions || []).filter(a => {
+    const eff = a.revisedDueDate || a.dueDate;
+    return eff && eff < today && a.status !== "Completed" && a.status !== "Cancelled";
+  }).sort((a, b) => {
+    const da = a.revisedDueDate || a.dueDate || "";
+    const db2 = b.revisedDueDate || b.dueDate || "";
+    return da.localeCompare(db2);
+  });
+
+  const latestActualByKpi: Record<number, KpiActual & { kpiName: string }> = {};
+  for (const a of allActuals) {
+    const existing = latestActualByKpi[a.kpiId];
+    if (!existing || a.reviewMonth > existing.reviewMonth) latestActualByKpi[a.kpiId] = a;
+  }
+  const atRiskKpis = Object.values(latestActualByKpi).filter(a =>
+    a.status === "Amber" || a.status === "Below Target"
+  );
+
+  const in7Days = new Date();
+  in7Days.setDate(in7Days.getDate() + 7);
+  const in7DaysStr = in7Days.toISOString().split("T")[0];
+  const upcomingMilestones = milestones.filter(m =>
+    m.status !== "Completed" && m.dueDate && m.dueDate >= today && m.dueDate <= in7DaysStr
+  ).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
 
   const companyName = companyData?.companyName || "Your Company";
   const formattedDate = new Date().toLocaleDateString("en-US", {
@@ -216,6 +248,113 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ─ Today's Focus ────────────────────────────────────────────────── */}
+      {(overdueActions.length > 0 || atRiskKpis.length > 0 || upcomingMilestones.length > 0) && (
+        <div data-testid="section-todays-focus">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="h-4 w-4 text-amber-500" />
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Today's Focus</h2>
+            <span className="text-xs text-muted-foreground">— needs your attention right now</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Overdue Actions */}
+            <Card className="border-l-4 border-l-red-500" data-testid="focus-overdue-actions">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-red-500 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Overdue Actions ({overdueActions.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {overdueActions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> All actions are on time</p>
+                ) : (
+                  <div className="space-y-2">
+                    {overdueActions.slice(0, 4).map(a => {
+                      const eff = a.revisedDueDate || a.dueDate || "";
+                      const daysOver = eff ? Math.floor((Date.now() - new Date(eff).getTime()) / 86400000) : 0;
+                      return (
+                        <div key={a.id} className="flex items-start justify-between gap-2" data-testid={`focus-action-${a.id}`}>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">{a.title}</p>
+                            <p className="text-[10px] text-muted-foreground">{a.ownerName}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-red-500 shrink-0 whitespace-nowrap">{daysOver}d late</span>
+                        </div>
+                      );
+                    })}
+                    {overdueActions.length > 4 && (
+                      <Link href="/actions">
+                        <span className="text-[10px] text-primary hover:underline cursor-pointer">+{overdueActions.length - 4} more →</span>
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* At-Risk KPIs */}
+            <Card className="border-l-4 border-l-amber-500" data-testid="focus-at-risk-kpis">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
+                  <Target className="h-3.5 w-3.5" /> KPIs Needing Attention ({atRiskKpis.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {atRiskKpis.length === 0 ? (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> All KPIs are on track</p>
+                ) : (
+                  <div className="space-y-2">
+                    {atRiskKpis.slice(0, 4).map(a => (
+                      <div key={a.kpiId} className="flex items-center justify-between gap-2" data-testid={`focus-kpi-${a.kpiId}`}>
+                        <p className="text-xs font-medium truncate flex-1">{a.kpiName}</p>
+                        <span className={`text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded ${
+                          a.status === "Below Target"
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                        }`}>{a.actualValue} ({a.status})</span>
+                      </div>
+                    ))}
+                    {atRiskKpis.length > 4 && (
+                      <Link href="/kpis">
+                        <span className="text-[10px] text-primary hover:underline cursor-pointer">+{atRiskKpis.length - 4} more →</span>
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Upcoming Milestones this week */}
+            <Card className="border-l-4 border-l-violet-500" data-testid="focus-upcoming-milestones">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-violet-500 flex items-center gap-1.5">
+                  <Flag className="h-3.5 w-3.5" /> Milestones This Week ({upcomingMilestones.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {upcomingMilestones.length === 0 ? (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-muted-foreground" /> No milestones due this week</p>
+                ) : (
+                  <div className="space-y-2">
+                    {upcomingMilestones.slice(0, 4).map(m => {
+                      const daysLeft = m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - Date.now()) / 86400000) : 0;
+                      return (
+                        <div key={m.id} className="flex items-center justify-between gap-2" data-testid={`focus-milestone-${m.id}`}>
+                          <p className="text-xs font-medium truncate flex-1">{m.title}</p>
+                          <span className={`text-[10px] font-semibold shrink-0 ${daysLeft <= 2 ? "text-red-500" : daysLeft <= 4 ? "text-amber-500" : "text-muted-foreground"}`}>
+                            {daysLeft <= 0 ? "today" : `${daysLeft}d`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4" data-testid="grid-stat-cards">
         {statCards.map((stat) => (

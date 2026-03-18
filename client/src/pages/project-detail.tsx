@@ -399,12 +399,16 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      {/* Back nav */}
-      <Link href="/portfolio">
-        <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-back-portfolio">
-          <ArrowLeft className="h-4 w-4" /> Portfolio
-        </button>
-      </Link>
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-1.5 text-sm text-muted-foreground" aria-label="Breadcrumb" data-testid="breadcrumb-project">
+        <Link href="/portfolio">
+          <span className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-1">
+            <ArrowLeft className="h-3.5 w-3.5" /> Portfolio
+          </span>
+        </Link>
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+        <span className="text-foreground font-medium truncate max-w-[300px]" data-testid="breadcrumb-project-name">{project.name}</span>
+      </nav>
 
       {/* Project Header */}
       <div className="flex items-start justify-between gap-4">

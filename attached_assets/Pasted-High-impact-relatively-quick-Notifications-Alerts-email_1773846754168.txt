@@ -1,0 +1,40 @@
+High impact, relatively quick:
+
+Notifications & Alerts — email or in-app alerts when a KPI drops below threshold, an action becomes overdue, or a milestone is missed. Right now nothing actively warns you.
+Comments & @mentions on KPIs — you can comment on projects, but KPIs have no discussion thread. Teams debate KPI numbers constantly.
+Recurring meeting templates — schedule a "Monthly Review" that auto-generates agenda items and pulls in the latest KPI data.
+Export to PDF/Excel — board-ready reports from the Dashboard, Reviews, or Portfolio pages with one click.
+KPI data entry UI — currently actuals are seeded. Users need a way to enter monthly actuals directly in the app (a simple form per KPI per month).
+
+Mobile-responsive layout — the current design works on desktop but collapses poorly on phone screens.
+
+Weekly digest email — Performo Assistant auto-generates a Monday morning briefing: what's slipping, what needs attention, what to prioritise.
+Predictive alerts — if a KPI trend shows 3 consecutive months declining, the assistant proactively flags it before it hits red.
+
+
+Navigation & orientation:
+
+Breadcrumbs on deep pages (e.g., Portfolio → Project → Task) — users lose their place
+Active state on sidebar is subtle — a stronger left-border accent or filled background would make it clearer where you are
+Collapsed sidebar option — for smaller screens or power users who want more content space
+
+Data density & readability:
+
+KPI cards could show a mini sparkline (3-month trend bar) instead of just a static number — immediately shows direction without clicking in
+Status badges need more visual weight — the current pill badges are small; colour-coded left-border rows in tables are easier to scan
+Empty states on pages like Workload or Planner could be more helpful — a guided prompt to add first item rather than a blank space
+Interaction polish:
+
+Inline editing — clicking a KPI value or action status to edit it directly, without opening a full modal
+Drag-to-reorder on action items and tasks — priority ordering feels manual right now
+Keyboard shortcuts — power users want K to open search, N for new item, Esc to close modals
+
+Onboarding:
+
+First-time users land on an empty dashboard with no guidance. A setup wizard (3–4 steps: add departments → create KPIs → add first project) would dramatically reduce time-to-value
+Demo mode exists but isn't prominently signposted — new users should see a "Take a tour" option
+Daily workflow:
+
+The Dashboard should be the true home — right now it shows stats but doesn't tell you what to do next. A "Today's Focus" panel (overdue items + today's meetings + KPIs needing attention) would make it genuinely useful each morning
+Cross-linking — clicking a KPI that's in the red should suggest related action items and projects. Right now these modules feel siloed even though the data connects
+Meeting → Action flow is good but one-way. Completing an action item should optionally prompt "Add to next meeting agenda?"

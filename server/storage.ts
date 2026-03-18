@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, desc, and, ilike, or } from "drizzle-orm";
+import { eq, desc, and, ilike, or, inArray } from "drizzle-orm";
 import {
   users, companies, departments, businessGoals, kpis, kpiActuals,
   meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
@@ -45,6 +45,7 @@ export interface IStorage {
 
   getKpiActuals(kpiId: number): Promise<KpiActual[]>;
   getKpiActualsByMonth(companyId: number, month: string): Promise<(KpiActual & { kpi: Kpi })[]>;
+  getAllKpiActuals(companyId: number): Promise<(KpiActual & { kpiName: string })[]>;
   createKpiActual(actual: InsertKpiActual): Promise<KpiActual>;
 
   getMeetings(companyId: number): Promise<Meeting[]>;
@@ -203,6 +204,17 @@ export class DatabaseStorage implements IStorage {
 
   async getKpiActuals(kpiId: number) {
     return db.select().from(kpiActuals).where(eq(kpiActuals.kpiId, kpiId)).orderBy(desc(kpiActuals.createdAt));
+  }
+  async getAllKpiActuals(companyId: number) {
+    const companyKpis = await db.select().from(kpis).where(eq(kpis.companyId, companyId));
+    const kpiIds = companyKpis.map(k => k.id);
+    if (kpiIds.length === 0) return [];
+    const actuals = await db.select().from(kpiActuals)
+      .where(inArray(kpiActuals.kpiId, kpiIds))
+      .orderBy(kpiActuals.reviewMonth);
+    const kpiNameMap: Record<number, string> = {};
+    for (const k of companyKpis) kpiNameMap[k.id] = k.kpiName;
+    return actuals.map(a => ({ ...a, kpiName: kpiNameMap[a.kpiId] || "" }));
   }
   async getKpiActualsByMonth(companyId: number, month: string) {
     const companyKpis = await this.getKpis(companyId);

@@ -18,12 +18,55 @@ import { ErrorState } from "@/components/error-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
 import { Trash2, Plus, Target, Search } from "lucide-react";
-import type { Kpi, Department } from "@shared/schema";
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
+import type { Kpi, Department, KpiActual } from "@shared/schema";
+
+function KpiSparkline({ kpiId, actuals }: { kpiId: number; actuals: (KpiActual & { kpiName: string })[] }) {
+  const kpiActuals = actuals
+    .filter(a => a.kpiId === kpiId)
+    .sort((a, b) => a.reviewMonth.localeCompare(b.reviewMonth))
+    .slice(-3)
+    .map(a => ({ month: a.reviewMonth.slice(5), value: parseFloat(a.actualValue || "0"), status: a.status }));
+
+  if (kpiActuals.length === 0) {
+    return <span className="text-xs text-muted-foreground/50 italic">no data</span>;
+  }
+
+  const lastStatus = kpiActuals[kpiActuals.length - 1]?.status;
+  const color = lastStatus === "On Track" ? "#10b981" : lastStatus === "Below Target" ? "#ef4444" : "#f59e0b";
+
+  return (
+    <div className="flex items-center gap-2">
+      <ResponsiveContainer width={60} height={28}>
+        <AreaChart data={kpiActuals} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+          <defs>
+            <linearGradient id={`spark-${kpiId}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} fill={`url(#spark-${kpiId})`} dot={false} />
+          <Tooltip
+            contentStyle={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+            formatter={(v: number) => [v, kpiActuals[0]?.month]}
+            labelFormatter={() => ""}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+      <span className={`text-xs font-semibold tabular-nums ${lastStatus === "On Track" ? "text-emerald-600 dark:text-emerald-400" : lastStatus === "Below Target" ? "text-red-500" : "text-amber-500"}`}>
+        {kpiActuals[kpiActuals.length - 1]?.value}
+      </span>
+    </div>
+  );
+}
 
 export default function KpiManagementPage() {
   const { toast } = useToast();
   const { data: kpis, isLoading, error, refetch } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
+  const { data: allActuals = [] } = useQuery<(KpiActual & { kpiName: string })[]>({
+    queryKey: ["/api/kpi-actuals/company"],
+  });
   const [filterDept, setFilterDept] = useState("all");
   const [filterFreq, setFilterFreq] = useState("all");
   const [search, setSearch] = useState("");
@@ -160,9 +203,10 @@ export default function KpiManagementPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[250px]">KPI Name</TableHead>
+                    <TableHead className="w-[220px]">KPI Name</TableHead>
                     <TableHead>Department</TableHead>
                     <TableHead>Target</TableHead>
+                    <TableHead>Trend (Latest)</TableHead>
                     <TableHead>Frequency</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Thresholds</TableHead>
@@ -182,6 +226,9 @@ export default function KpiManagementPage() {
                         <Badge variant="secondary" className="font-normal">{getDeptName(kpi.departmentId)}</Badge>
                       </TableCell>
                       <TableCell className="text-sm font-medium tabular-nums">{kpi.targetValue} {kpi.unit}</TableCell>
+                      <TableCell>
+                        <KpiSparkline kpiId={kpi.id} actuals={allActuals} />
+                      </TableCell>
                       <TableCell className="text-sm">{kpi.frequency}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{kpi.ownerName}</TableCell>
                       <TableCell>

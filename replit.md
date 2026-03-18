@@ -36,9 +36,9 @@ AI-powered SME performance and execution management platform.
 - Backend: `server/assistant.ts` — builds full company context, calls GPT-4o, returns structured JSON response
 
 ### Performance Management
-1. **Dashboard** - Welcome banner, 6 KPI/action stat cards, KPI health donut, action bar chart, execution section (active projects, at-risk, overdue tasks, milestones), dept summary, latest review
+1. **Dashboard** - Welcome banner, **"Today's Focus" panel** (overdue actions + at-risk KPIs + milestones this week), 6 KPI/action stat cards, KPI health donut, action bar chart, execution section (active projects, at-risk, overdue tasks, milestones), dept summary, latest review
 2. **KPI Builder** (admin only) - Manual KPI form + AI-generated KPIs
-3. **KPI Management** - Table with search, dept/frequency filters, add actuals dialog, Excel import
+3. **KPI Management** - Table with search, dept/frequency filters, **sparkline trend charts** (3-month AreaChart per KPI), add actuals dialog, Excel import
 4. **Action Tracker** - Meeting-type badge, due/revised dates, priority/status; meeting type filter
 5. **Meetings** (admin only) - Card-based meeting list with linked action items
 6. **Monthly Reviews** - AI-generated reviews with strengths/gaps/recommendations
@@ -46,7 +46,7 @@ AI-powered SME performance and execution management platform.
 
 ### Execution Management (New)
 8. **Portfolio** (/portfolio) - Project grid with health scores (Green/Amber/Red), stat cards, search/filter by status/priority/health, create project dialog (admin only)
-9. **Project Detail** (/projects/:id) - Header with health/status/priority, progress stats, 4 tabs:
+9. **Project Detail** (/projects/:id) - **Breadcrumb navigation** (Portfolio → Project Name), header with health/status/priority, progress stats, 4 tabs:
    - Overview: task breakdown + upcoming milestones
    - Tasks: List view + Board (Kanban) view, add/delete tasks, inline status change, subtask checkboxes
    - Milestones: list with status change, add/delete

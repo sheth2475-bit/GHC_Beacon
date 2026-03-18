@@ -203,6 +203,12 @@ export async function registerRoutes(
     res.json(await storage.getKpiActuals(id));
   });
 
+  app.get("/api/kpi-actuals/company", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    res.json(await storage.getAllKpiActuals(company.id));
+  });
+
   app.post("/api/kpi-actuals", requireAdmin, async (req: Request, res: Response) => {
     if (!(await verifyKpiOwnership(req, req.body.kpiId))) return res.status(404).json({ message: "Not found" });
     const actual = await storage.createKpiActual(req.body);
