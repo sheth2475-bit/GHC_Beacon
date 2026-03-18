@@ -22,6 +22,19 @@ AI-powered SME performance and execution management platform.
 
 ## Key Features
 
+### Performo Assistant (AI Chat)
+- Slide-in drawer from the right, opened via "Assistant" button in the header
+- **Read queries**: KPI status, overdue actions, at-risk projects, monthly review summaries, milestone status
+- **Write operations**: Create projects/tasks/action items, update progress/status/owner/due dates, update KPI actuals, close tasks/actions
+- **Confirmation flow**: All write actions show a confirmation card before executing — never updates without user approval
+- **Guided flow**: Asks follow-up questions for missing fields (owner, due date, priority, etc.)
+- **Audit log**: All write operations logged to `assistant_logs` table (user, timestamp, action, entity, summary)
+- **Suggested prompts**: 6 pre-built prompts shown when conversation is empty
+- **Permissions**: Admin users get full read/write; Executive users get read-only mode
+- Conversation history maintained within a session; reset button starts new conversation
+- API: POST /api/assistant/chat — takes messages array + optional confirmedAction
+- Backend: `server/assistant.ts` — builds full company context, calls GPT-4o, returns structured JSON response
+
 ### Performance Management
 1. **Dashboard** - Welcome banner, 6 KPI/action stat cards, KPI health donut, action bar chart, execution section (active projects, at-risk, overdue tasks, milestones), dept summary, latest review
 2. **KPI Builder** (admin only) - Manual KPI form + AI-generated KPIs

@@ -1,0 +1,117 @@
+Add a conversational AI assistant to Performo AI.
+
+The assistant should allow users to both:
+1. ask questions about business performance, KPI status, projects, initiatives, tasks, actions, and reviews
+2. create or update records directly through chat
+
+Name the feature:
+- Performo Assistant
+
+Do not use any third-party product names anywhere in the UI.
+
+Requirements:
+
+1. Read / Query Capabilities
+The assistant should answer questions such as:
+- What KPIs are below target this month?
+- Show overdue actions for Operations
+- What projects are at risk?
+- Summarize Finance performance
+- What milestones are due this week?
+- What did the CEO comment on recently?
+- Show initiative progress by department
+
+2. Write / Update Capabilities
+The assistant should allow users to:
+- create projects
+- create tasks
+- create initiatives
+- create action items
+- add comments
+- update progress %
+- update status
+- change due dates
+- change owners
+- update KPI actuals
+- close tasks or actions
+
+3. Guided Chat Flow
+If the user request is incomplete, the assistant must ask follow-up questions to collect the missing details before saving.
+
+Examples of follow-up questions:
+- Which department?
+- Who is the owner?
+- What is the due date?
+- What priority should I set?
+- Which record do you want to update?
+
+4. Confirmation Before Save
+Before any create or update action, the assistant must show a confirmation summary and require user confirmation before writing to the database.
+
+5. Permissions
+- Super Admin: full read/write
+- Admin / Data Owner: read/write within allowed departments
+- CEO / GM: read access and comment capability, with write access only if explicitly permitted
+- GM should only access assigned departments
+
+6. Audit Trail
+Log all assistant-driven updates with:
+- user name
+- timestamp
+- action type
+- related record
+- summary of change
+
+7. Suggested Prompts UI
+Add suggested prompts such as:
+- Show overdue actions
+- What is below target?
+- Summarize this month
+- Update project progress
+- Create a task
+- Show at-risk initiatives
+
+8. UI
+Create a chat panel or assistant drawer inside the app.
+The design should be premium, clean, and business-friendly.
+Support:
+- user message bubbles
+- assistant responses
+- confirmation cards
+- quick actions
+- recent conversation history
+
+9. Backend Logic
+Build assistant services that:
+- detect intent
+- identify entity type
+- locate target records
+- ask follow-up questions
+- validate permissions
+- confirm action
+- execute read or write operations
+- return structured responses
+
+10. Data Integration
+Connect the assistant with:
+- KPIs
+- KPI actuals
+- projects
+- tasks
+- subtasks
+- initiatives
+- milestones
+- meetings
+- action items
+- comments
+- monthly reviews
+- executive summaries
+
+11. Safety and UX
+- never update data without confirmation
+- show clear error messages if record is not found
+- ask disambiguation questions if multiple matching records exist
+- keep responses concise, clear, and useful
+
+12. Final expectation
+The assistant must be functional and connected to real app data, not just a mock chatbot.

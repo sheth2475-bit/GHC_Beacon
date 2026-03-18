@@ -3,7 +3,7 @@ import { eq, desc, and, ilike, or } from "drizzle-orm";
 import {
   users, companies, departments, businessGoals, kpis, kpiActuals,
   meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
-  projects, tasks, subtasks, milestones, projectComments,
+  projects, tasks, subtasks, milestones, projectComments, assistantLogs,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -13,6 +13,7 @@ import {
   type InsertProject, type Project, type InsertTask, type Task,
   type InsertSubtask, type Subtask, type InsertMilestone, type Milestone,
   type InsertProjectComment, type ProjectComment,
+  type InsertAssistantLog, type AssistantLog,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -111,6 +112,10 @@ export interface IStorage {
     meetings: Meeting[];
     actionItems: ActionItem[];
   }>;
+
+  // Assistant logs
+  createAssistantLog(log: InsertAssistantLog): Promise<AssistantLog>;
+  getAssistantLogs(companyId: number, limit?: number): Promise<AssistantLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -403,6 +408,18 @@ export class DatabaseStorage implements IStorage {
       db.select().from(actionItems).where(and(eq(actionItems.companyId, companyId), or(ilike(actionItems.title, term), ilike(actionItems.description, term)))).limit(10),
     ]);
     return { projects: searchProjects, tasks: searchTasks, kpis: searchKpis, meetings: searchMeetings, actionItems: searchActions };
+  }
+
+  // ─── Assistant Logs ───────────────────────────────────────────────────────
+  async createAssistantLog(log: InsertAssistantLog) {
+    const [created] = await db.insert(assistantLogs).values(log).returning();
+    return created;
+  }
+  async getAssistantLogs(companyId: number, limit = 50) {
+    return db.select().from(assistantLogs)
+      .where(eq(assistantLogs.companyId, companyId))
+      .orderBy(desc(assistantLogs.createdAt))
+      .limit(limit);
   }
 }
 

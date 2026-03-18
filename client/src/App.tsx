@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,10 +7,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { GlobalSearch } from "@/components/global-search";
+import { AssistantDrawer } from "@/components/assistant-drawer";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import DashboardPage from "@/pages/dashboard";
+import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
 
 import KpiBuilderPage from "@/pages/kpi-builder";
 import KpiManagementPage from "@/pages/kpi-management";
@@ -47,6 +51,7 @@ function Router() {
 
 function AppLayout() {
   const { user, isLoading } = useAuth();
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -77,12 +82,23 @@ function AppLayout() {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex-1" />
             <GlobalSearch />
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 h-8 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
+              onClick={() => setAssistantOpen(true)}
+              data-testid="button-open-assistant"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Assistant</span>
+            </Button>
           </header>
           <main className="flex-1 overflow-auto">
             <Router />
           </main>
         </div>
       </div>
+      <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </SidebarProvider>
   );
 }

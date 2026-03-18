@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, requireAuth, requireAdmin } from "./auth";
 import { generateKpis, generateMonthlyReview, generateDashboardPlan } from "./ai";
+import { processAssistantMessage } from "./assistant";
 import * as XLSX from "xlsx";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
@@ -790,6 +791,36 @@ export async function registerRoutes(
     if (!q || q.length < 2) return res.json({ projects: [], tasks: [], kpis: [], meetings: [], actionItems: [] });
     const results = await storage.searchAll(company.id, q);
     res.json(results);
+  });
+
+  // ─── Performo Assistant ───────────────────────────────────────────────────
+  app.post("/api/assistant/chat", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const user = req.user!;
+    const { messages, confirmedAction } = req.body;
+    if (!Array.isArray(messages)) return res.status(400).json({ message: "messages array required" });
+    try {
+      const result = await processAssistantMessage(
+        messages,
+        company.id,
+        user.id,
+        user.name,
+        user.role,
+        confirmedAction || undefined
+      );
+      res.json(result);
+    } catch (err: any) {
+      console.error("Assistant error:", err);
+      res.status(500).json({ type: "error", message: "Assistant is temporarily unavailable." });
+    }
+  });
+
+  app.get("/api/assistant/logs", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Company not found" });
+    const logs = await storage.getAssistantLogs(company.id, 50);
+    res.json(logs);
   });
 
   return httpServer;

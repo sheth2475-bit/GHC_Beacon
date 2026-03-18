@@ -176,6 +176,18 @@ export const milestones = pgTable("milestones", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+export const assistantLogs = pgTable("assistant_logs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  userId: integer("user_id").notNull(),
+  userName: text("user_name").notNull(),
+  actionType: text("action_type").notNull(),
+  entityType: text("entity_type"),
+  entityId: integer("entity_id"),
+  summary: text("summary").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const projectComments = pgTable("project_comments", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),
@@ -206,6 +218,7 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, creat
 export const insertSubtaskSchema = createInsertSchema(subtasks).omit({ id: true, createdAt: true });
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true, createdAt: true });
 export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true });
+export const insertAssistantLogSchema = createInsertSchema(assistantLogs).omit({ id: true, createdAt: true });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -241,3 +254,5 @@ export type Milestone = typeof milestones.$inferSelect;
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 export type ProjectComment = typeof projectComments.$inferSelect;
 export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
+export type AssistantLog = typeof assistantLogs.$inferSelect;
+export type InsertAssistantLog = z.infer<typeof insertAssistantLogSchema>;
