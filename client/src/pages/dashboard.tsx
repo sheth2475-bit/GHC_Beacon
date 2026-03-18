@@ -26,6 +26,7 @@ import {
   Zap,
   Clock,
   Info,
+  Printer,
 } from "lucide-react";
 import {
   BarChart,
@@ -211,13 +212,19 @@ export default function DashboardPage() {
   const pctOverdue = stats && stats.totalActions > 0 ? Math.round((stats.overdueActions / stats.totalActions) * 100) : null;
 
   const statCards = [
-    { title: "Total KPIs", value: stats?.totalKpis || 0, icon: Target, color: "text-primary", bg: "bg-primary/10", pct: null as number | null },
-    { title: "On Track", value: stats?.onTrack || 0, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10", pct: pctOnTrack },
-    { title: "Below Target", value: stats?.belowTarget || 0, icon: TrendingDown, color: "text-red-500", bg: "bg-red-500/10", pct: pctBelowTarget },
-    { title: "Total Actions", value: stats?.totalActions || 0, icon: ListChecks, color: "text-blue-600", bg: "bg-blue-500/10", pct: null },
-    { title: "Overdue", value: stats?.overdueActions || 0, icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10", pct: pctOverdue },
-    { title: "Completed", value: stats?.completedActions || 0, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-500/10", pct: pctCompleted },
+    { title: "Total KPIs", value: stats?.totalKpis || 0, icon: Target, color: "text-primary", bg: "bg-primary/10", pct: null as number | null, link: "/kpis" },
+    { title: "On Track", value: stats?.onTrack || 0, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10", pct: pctOnTrack, link: "/kpis" },
+    { title: "Below Target", value: stats?.belowTarget || 0, icon: TrendingDown, color: "text-red-500", bg: "bg-red-500/10", pct: pctBelowTarget, link: "/kpis" },
+    { title: "Total Actions", value: stats?.totalActions || 0, icon: ListChecks, color: "text-blue-600", bg: "bg-blue-500/10", pct: null, link: "/actions" },
+    { title: "Overdue", value: stats?.overdueActions || 0, icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10", pct: pctOverdue, link: "/actions" },
+    { title: "Completed", value: stats?.completedActions || 0, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-500/10", pct: pctCompleted, link: "/actions" },
   ];
+
+  const handleDashboardPrint = () => {
+    document.body.classList.add("printing-dashboard");
+    window.print();
+    setTimeout(() => document.body.classList.remove("printing-dashboard"), 1000);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -236,13 +243,23 @@ export default function DashboardPage() {
                 {summaryText}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <Building2 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium" data-testid="text-company-name">{companyName}</p>
-                <p className="text-xs text-muted-foreground">{companyData?.industry || "Business"}</p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDashboardPrint}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border rounded-md px-2.5 py-1.5 hover:bg-muted/50 transition-colors"
+                data-testid="button-export-dashboard"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium" data-testid="text-company-name">{companyName}</p>
+                  <p className="text-xs text-muted-foreground">{companyData?.industry || "Business"}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -261,26 +278,29 @@ export default function DashboardPage() {
             {/* Overdue Actions */}
             <Card className="border-l-4 border-l-red-500" data-testid="focus-overdue-actions">
               <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-red-500 flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5" /> Overdue Actions ({overdueActions.length})
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-red-500 flex items-center justify-between gap-1.5">
+                  <span className="flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Overdue Actions ({overdueActions.length})</span>
+                  <Link href="/actions"><span className="text-[10px] font-normal text-primary hover:underline normal-case tracking-normal">View all →</span></Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 {overdueActions.length === 0 ? (
                   <p className="text-xs text-muted-foreground flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> All actions are on time</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {overdueActions.slice(0, 4).map(a => {
                       const eff = a.revisedDueDate || a.dueDate || "";
                       const daysOver = eff ? Math.floor((Date.now() - new Date(eff).getTime()) / 86400000) : 0;
                       return (
-                        <div key={a.id} className="flex items-start justify-between gap-2" data-testid={`focus-action-${a.id}`}>
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">{a.title}</p>
-                            <p className="text-[10px] text-muted-foreground">{a.ownerName}</p>
+                        <Link key={a.id} href="/actions">
+                          <div className="flex items-start justify-between gap-2 rounded px-1 py-1 -mx-1 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors cursor-pointer" data-testid={`focus-action-${a.id}`}>
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium truncate">{a.title}</p>
+                              <p className="text-[10px] text-muted-foreground">{a.ownerName}</p>
+                            </div>
+                            <span className="text-[10px] font-semibold text-red-500 shrink-0 whitespace-nowrap">{daysOver}d late</span>
                           </div>
-                          <span className="text-[10px] font-semibold text-red-500 shrink-0 whitespace-nowrap">{daysOver}d late</span>
-                        </div>
+                        </Link>
                       );
                     })}
                     {overdueActions.length > 4 && (
@@ -296,24 +316,27 @@ export default function DashboardPage() {
             {/* At-Risk KPIs */}
             <Card className="border-l-4 border-l-amber-500" data-testid="focus-at-risk-kpis">
               <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
-                  <Target className="h-3.5 w-3.5" /> KPIs Needing Attention ({atRiskKpis.length})
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-amber-500 flex items-center justify-between gap-1.5">
+                  <span className="flex items-center gap-1.5"><Target className="h-3.5 w-3.5" /> KPIs Needing Attention ({atRiskKpis.length})</span>
+                  <Link href="/kpis"><span className="text-[10px] font-normal text-primary hover:underline normal-case tracking-normal">View all →</span></Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 {atRiskKpis.length === 0 ? (
                   <p className="text-xs text-muted-foreground flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> All KPIs are on track</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {atRiskKpis.slice(0, 4).map(a => (
-                      <div key={a.kpiId} className="flex items-center justify-between gap-2" data-testid={`focus-kpi-${a.kpiId}`}>
-                        <p className="text-xs font-medium truncate flex-1">{a.kpiName}</p>
-                        <span className={`text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded ${
-                          a.status === "Below Target"
-                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                        }`}>{a.actualValue} ({a.status})</span>
-                      </div>
+                      <Link key={a.kpiId} href="/kpis">
+                        <div className="flex items-center justify-between gap-2 rounded px-1 py-1 -mx-1 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors cursor-pointer" data-testid={`focus-kpi-${a.kpiId}`}>
+                          <p className="text-xs font-medium truncate flex-1">{a.kpiName}</p>
+                          <span className={`text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded ${
+                            a.status === "Below Target"
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                          }`}>{a.actualValue} ({a.status})</span>
+                        </div>
+                      </Link>
                     ))}
                     {atRiskKpis.length > 4 && (
                       <Link href="/kpis">
@@ -328,24 +351,27 @@ export default function DashboardPage() {
             {/* Upcoming Milestones this week */}
             <Card className="border-l-4 border-l-violet-500" data-testid="focus-upcoming-milestones">
               <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-violet-500 flex items-center gap-1.5">
-                  <Flag className="h-3.5 w-3.5" /> Milestones This Week ({upcomingMilestones.length})
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-violet-500 flex items-center justify-between gap-1.5">
+                  <span className="flex items-center gap-1.5"><Flag className="h-3.5 w-3.5" /> Milestones This Week ({upcomingMilestones.length})</span>
+                  <Link href="/portfolio"><span className="text-[10px] font-normal text-primary hover:underline normal-case tracking-normal">View all →</span></Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 {upcomingMilestones.length === 0 ? (
                   <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-muted-foreground" /> No milestones due this week</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {upcomingMilestones.slice(0, 4).map(m => {
                       const daysLeft = m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - Date.now()) / 86400000) : 0;
                       return (
-                        <div key={m.id} className="flex items-center justify-between gap-2" data-testid={`focus-milestone-${m.id}`}>
-                          <p className="text-xs font-medium truncate flex-1">{m.title}</p>
-                          <span className={`text-[10px] font-semibold shrink-0 ${daysLeft <= 2 ? "text-red-500" : daysLeft <= 4 ? "text-amber-500" : "text-muted-foreground"}`}>
-                            {daysLeft <= 0 ? "today" : `${daysLeft}d`}
-                          </span>
-                        </div>
+                        <Link key={m.id} href="/portfolio">
+                          <div className="flex items-center justify-between gap-2 rounded px-1 py-1 -mx-1 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors cursor-pointer" data-testid={`focus-milestone-${m.id}`}>
+                            <p className="text-xs font-medium truncate flex-1">{m.title}</p>
+                            <span className={`text-[10px] font-semibold shrink-0 ${daysLeft <= 2 ? "text-red-500" : daysLeft <= 4 ? "text-amber-500" : "text-muted-foreground"}`}>
+                              {daysLeft <= 0 ? "today" : `${daysLeft}d`}
+                            </span>
+                          </div>
+                        </Link>
                       );
                     })}
                   </div>
@@ -358,31 +384,33 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4" data-testid="grid-stat-cards">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="hover-elevate">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between gap-1 mb-3">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  {stat.title}
-                </span>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.bg}`}>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-              </div>
-              <div className="flex items-end gap-2">
-                <p
-                  className="text-3xl font-bold tabular-nums"
-                  data-testid={`text-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}
-                >
-                  {stat.value}
-                </p>
-                {stat.pct !== null && (
-                  <span className="text-xs text-muted-foreground mb-1" data-testid={`text-pct-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                    {stat.pct}%
+          <Link key={stat.title} href={stat.link} data-testid={`link-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
+            <Card className="hover-elevate cursor-pointer hover:border-primary/25 hover:shadow-sm transition-all group">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between gap-1 mb-3">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider group-hover:text-foreground transition-colors">
+                    {stat.title}
                   </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.bg}`}>
+                    <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                  </div>
+                </div>
+                <div className="flex items-end gap-2">
+                  <p
+                    className="text-3xl font-bold tabular-nums"
+                    data-testid={`text-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    {stat.value}
+                  </p>
+                  {stat.pct !== null && (
+                    <span className="text-xs text-muted-foreground mb-1" data-testid={`text-pct-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                      {stat.pct}%
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
@@ -481,9 +509,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card data-testid="card-kpi-health">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
-              KPI Health
+            <CardTitle className="text-sm font-semibold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary" />KPI Health</span>
+              <Link href="/kpis"><span className="text-xs font-normal text-primary hover:underline">View KPIs →</span></Link>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -534,9 +562,9 @@ export default function DashboardPage() {
 
         <Card data-testid="card-action-progress">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              Action Progress
+            <CardTitle className="text-sm font-semibold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-primary" />Action Progress</span>
+              <Link href="/actions"><span className="text-xs font-normal text-primary hover:underline">View Actions →</span></Link>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -590,9 +618,9 @@ export default function DashboardPage() {
                     action.status !== "Completed" &&
                     action.status !== "Cancelled";
                   return (
+                    <Link key={action.id} href="/actions">
                     <div
-                      key={action.id}
-                      className={`p-2.5 rounded-lg ${isOverdue ? "bg-red-500/5" : "bg-muted/30"}`}
+                      className={`p-2.5 rounded-lg cursor-pointer hover:shadow-sm transition-all ${isOverdue ? "bg-red-500/5 hover:bg-red-500/10" : "bg-muted/30 hover:bg-muted/60"}`}
                       data-testid={`card-action-${action.id}`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -631,6 +659,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                     </div>
+                    </Link>
                   );
                 })}
               </div>

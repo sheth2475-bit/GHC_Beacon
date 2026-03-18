@@ -17,7 +17,7 @@ import { LoadingTable } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
-import { Plus, Trash2, ListChecks, AlertTriangle, Search } from "lucide-react";
+import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X } from "lucide-react";
 import type { ActionItem, Department, MeetingType } from "@shared/schema";
 
 const STATUSES = ["Not Started", "In Progress", "Completed", "Delayed", "Cancelled"];
@@ -43,6 +43,31 @@ export default function ActionsPage() {
   const [priority, setPriority] = useState("Medium");
   const [status, setStatus] = useState("Not Started");
   const [deptId, setDeptId] = useState("");
+
+  // ── Inline editing ────────────────────────────────────────────────────────
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editOwner, setEditOwner] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editRevisedDue, setEditRevisedDue] = useState("");
+  const [editPriority, setEditPriority] = useState("Medium");
+
+  const startEdit = (item: ActionItem) => {
+    setEditingId(item.id);
+    setEditTitle(item.title);
+    setEditOwner(item.ownerName || "");
+    setEditDueDate(item.dueDate || "");
+    setEditRevisedDue(item.revisedDueDate || "");
+    setEditPriority(item.priority || "Medium");
+  };
+
+  const saveEdit = () => {
+    if (!editingId) return;
+    updateMutation.mutate(
+      { id: editingId, data: { title: editTitle, ownerName: editOwner, dueDate: editDueDate, revisedDueDate: editRevisedDue || null, priority: editPriority } },
+      { onSuccess: () => { setEditingId(null); toast({ title: "Action updated" }); } }
+    );
+  };
 
   const resetForm = () => {
     setMeetingType(""); setTitle(""); setDescription(""); setOwnerName("");
@@ -214,8 +239,9 @@ export default function ActionsPage() {
                   {filtered.map(item => {
                     const effectiveDue = item.revisedDueDate || item.dueDate;
                     const overdue = isOverdue(item);
+                    const isEditing = editingId === item.id;
                     return (
-                      <TableRow key={item.id} className={overdue ? "bg-red-500/5" : ""}>
+                      <TableRow key={item.id} className={overdue && !isEditing ? "bg-red-500/5" : isEditing ? "bg-primary/5 ring-1 ring-primary/20" : ""}>
                         <TableCell>
                           {item.meetingType ? (
                             <Badge variant="secondary" className="font-normal text-xs whitespace-nowrap" data-testid={`badge-meeting-type-${item.id}`}>
@@ -226,18 +252,36 @@ export default function ActionsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-start gap-2">
-                            {overdue && <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />}
-                            <div>
-                              <p className="font-medium text-sm" data-testid={`text-action-${item.id}`}>{item.title}</p>
-                              {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 max-w-[220px]">{item.description}</p>}
+                          {isEditing ? (
+                            <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-8 text-sm min-w-[180px]" data-testid={`input-edit-title-${item.id}`} autoFocus />
+                          ) : (
+                            <div className="flex items-start gap-2">
+                              {overdue && <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />}
+                              <div>
+                                <p className="font-medium text-sm" data-testid={`text-action-${item.id}`}>{item.title}</p>
+                                {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 max-w-[220px]">{item.description}</p>}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{item.ownerName || "-"}</TableCell>
-                        <TableCell className="text-sm tabular-nums">{item.dueDate || "-"}</TableCell>
                         <TableCell>
-                          {item.revisedDueDate ? (
+                          {isEditing ? (
+                            <Input value={editOwner} onChange={e => setEditOwner(e.target.value)} className="h-8 text-sm w-[120px]" data-testid={`input-edit-owner-${item.id}`} />
+                          ) : (
+                            <span className="text-sm text-muted-foreground">{item.ownerName || "-"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} className="h-8 text-sm w-[140px]" data-testid={`input-edit-due-${item.id}`} />
+                          ) : (
+                            <span className="text-sm tabular-nums">{item.dueDate || "-"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input type="date" value={editRevisedDue} onChange={e => setEditRevisedDue(e.target.value)} className="h-8 text-sm w-[140px]" data-testid={`input-edit-revised-due-${item.id}`} />
+                          ) : item.revisedDueDate ? (
                             <span className={`text-sm tabular-nums ${overdue ? "text-red-500 font-medium" : "text-amber-600 dark:text-amber-400 font-medium"}`} data-testid={`text-revised-due-${item.id}`}>
                               {item.revisedDueDate}
                             </span>
@@ -245,7 +289,16 @@ export default function ActionsPage() {
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell><PriorityBadge status={item.priority} /></TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Select value={editPriority} onValueChange={setEditPriority}>
+                              <SelectTrigger className="w-[110px] h-8 text-xs" data-testid={`select-edit-priority-${item.id}`}><SelectValue /></SelectTrigger>
+                              <SelectContent>{PRIORITIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                            </Select>
+                          ) : (
+                            <PriorityBadge status={item.priority} />
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Select value={item.status || "Not Started"} onValueChange={(v) => updateMutation.mutate({ id: item.id, data: { status: v } })}>
                             <SelectTrigger className="w-[130px] h-8 text-xs" data-testid={`select-status-${item.id}`}>
@@ -257,9 +310,27 @@ export default function ActionsPage() {
                           </Select>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteMutation.mutate(item.id)} data-testid={`button-delete-action-${item.id}`}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            {isEditing ? (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={saveEdit} disabled={updateMutation.isPending} data-testid={`button-save-edit-${item.id}`}>
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => setEditingId(null)} data-testid={`button-cancel-edit-${item.id}`}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => startEdit(item)} data-testid={`button-edit-action-${item.id}`}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteMutation.mutate(item.id)} data-testid={`button-delete-action-${item.id}`}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

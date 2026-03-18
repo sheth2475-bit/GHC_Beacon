@@ -62,7 +62,9 @@ export default function ReviewsPage() {
   const displayReview = generatedReview || reviews?.[0] || null;
 
   const handlePrint = () => {
+    document.body.classList.add("printing-review");
     window.print();
+    setTimeout(() => document.body.classList.remove("printing-review"), 1000);
   };
 
   if (kpiError || reviewError) {

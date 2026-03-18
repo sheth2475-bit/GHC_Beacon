@@ -302,11 +302,21 @@
 
 /* ── Print / PDF export ─────────────────────────────────────── */
 @media print {
-  /* Hide everything by default */
-  body > * { display: none !important; }
-  /* Show only the print area */
-  #print-review-area { display: block !important; }
-  /* Reset page chrome */
-  header, nav, aside, footer { display: none !important; }
   @page { margin: 20mm; }
+
+  /* Dashboard print: hide nav, show content cleanly */
+  header,
+  [data-sidebar="sidebar"],
+  [data-sidebar="rail"],
+  [data-testid="button-sidebar-toggle"],
+  [data-testid="button-notification-bell"],
+  [data-testid="button-open-assistant"],
+  [data-testid="button-export-dashboard"],
+  [data-testid="button-export-pdf"] {
+    display: none !important;
+  }
+
+  /* Review print mode: show only the review area */
+  body.printing-review > * { display: none !important; }
+  body.printing-review #print-review-area { display: block !important; }
 }
