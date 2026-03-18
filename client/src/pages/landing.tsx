@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Target, ListChecks, CalendarDays, BarChart3, Briefcase, Sparkles,
-  ChevronRight, CheckCircle2, ArrowRight, Play, Users, TrendingUp,
-  Zap, Shield, Globe, Star, Menu, X, Activity, Building2, Clock,
-  AlertTriangle, Brain, LayoutDashboard, FileText,
+  CheckCircle2, ArrowRight, Play, TrendingUp,
+  Zap, Shield, Globe, Menu, X, Activity, Building2,
+  Brain, LayoutDashboard, FileText,
 } from "lucide-react";
 
 const NAV_LINKS = [
@@ -153,6 +153,12 @@ export default function LandingPage() {
   const [, navigate] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setVideoModalOpen(false); };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
 
   const goToLogin = () => navigate("/login");
 
@@ -489,35 +495,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══ TESTIMONIALS ══════════════════════════════════════════════════════ */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900">Trusted by operational leaders</h2>
-            <p className="text-gray-600 mt-2">From CEOs to operations managers, Performo changes how teams work.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map(t => (
-              <div key={t.name} className="bg-gray-50 rounded-2xl border border-gray-100 p-6 hover:shadow-md transition-shadow">
-                <div className="flex gap-0.5 mb-4">
-                  {[...Array(t.stars)].map((_, i) => <Star key={i} className="h-4 w-4 text-amber-400 fill-amber-400" />)}
-                </div>
-                <p className="text-gray-700 text-sm leading-relaxed mb-5 italic">"{t.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-sm shrink-0">
-                    {t.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{t.name}</p>
-                    <p className="text-xs text-gray-500">{t.title}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ══ CTA FOOTER ════════════════════════════════════════════════════════ */}
       <section className="bg-gradient-to-r from-blue-600 to-violet-600 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
@@ -567,37 +544,71 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* ══ VIDEO MODAL ═══════════════════════════════════════════════════════ */}
+      {/* ══ VIDEO MODAL — native HTML5 player ════════════════════════════════ */}
       {videoModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setVideoModalOpen(false)}
         >
-          <div className="relative bg-gray-900 rounded-2xl overflow-hidden max-w-3xl w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-              <span className="text-white font-semibold">Performo AI — Product Demo</span>
-              <button onClick={() => setVideoModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
+          <div
+            className="relative bg-gray-950 rounded-2xl overflow-hidden w-full shadow-2xl"
+            style={{ maxWidth: "900px" }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded bg-blue-600">
+                  <TrendingUp className="h-3.5 w-3.5 text-white" />
+                </div>
+                <span className="text-white font-semibold text-sm">Performo AI — Product Demo</span>
+              </div>
+              <button
+                onClick={() => setVideoModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-white/10"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            {/* Video embed placeholder — replace src with real Loom/YouTube URL */}
-            <div className="aspect-video bg-gray-800 flex flex-col items-center justify-center gap-4 p-8">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-600/20 border border-blue-500/30">
-                <Play className="h-7 w-7 text-blue-400 fill-blue-400 ml-0.5" />
-              </div>
-              <div className="text-center">
-                <p className="text-white font-semibold mb-1">Demo video coming soon</p>
-                <p className="text-gray-400 text-sm max-w-xs">
-                  Record a 2-minute Loom walkthrough of the full app and paste the embed URL here.
-                </p>
-              </div>
-              <button
-                onClick={() => { setVideoModalOpen(false); goToLogin(); }}
-                className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors mt-2"
+            {/* Native video player */}
+            <div className="bg-black">
+              <video
+                className="w-full"
+                style={{ maxHeight: "70vh" }}
+                controls
+                autoPlay
+                playsInline
+                src="/demos/performo-demo.mp4"
+                onError={e => {
+                  (e.currentTarget as HTMLVideoElement).style.display = "none";
+                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = "flex";
+                }}
               >
-                Try the live demo instead
-                <ArrowRight className="h-4 w-4" />
-              </button>
+                Your browser does not support the video tag.
+              </video>
+              {/* Fallback — shown if video file not yet uploaded */}
+              <div
+                className="aspect-video bg-gray-900 flex-col items-center justify-center gap-5 p-10 hidden"
+                style={{ display: "none" }}
+              >
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-600/15 border-2 border-blue-500/30">
+                  <Play className="h-9 w-9 text-blue-400 fill-blue-400 ml-1" />
+                </div>
+                <div className="text-center">
+                  <p className="text-white font-semibold text-lg mb-2">Demo recording coming shortly</p>
+                  <p className="text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
+                    Upload your screen recording as <code className="text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded text-xs">client/public/demos/performo-demo.mp4</code> to display it here.
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setVideoModalOpen(false); goToLogin(); }}
+                  className="flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Try the live demo instead
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

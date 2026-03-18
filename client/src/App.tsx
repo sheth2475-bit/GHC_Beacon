@@ -36,6 +36,7 @@ function AppRouter() {
     <Switch>
       <Route path="/" component={DashboardPage} />
       <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/login" component={DashboardPage} />
       <Route path="/kpis" component={KpiManagementPage} />
       <Route path="/actions" component={ActionsPage} />
       <Route path="/reviews" component={ReviewsPage} />
@@ -47,7 +48,7 @@ function AppRouter() {
       {isAdmin && <Route path="/planner" component={PlannerPage} />}
       {isAdmin && <Route path="/settings" component={SettingsPage} />}
       {isAdmin && <Route path="/users" component={UserManagementPage} />}
-      <Route component={NotFound} />
+      <Route component={DashboardPage} />
     </Switch>
   );
 }
