@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1280,144 +1281,97 @@ function AuthDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: b
   );
 }
 
-/* ─────────── LANDING PAGE ─────────── */
+/* ─────────── LOGIN PAGE ─────────── */
 export default function AuthPage() {
-  const [authOpen, setAuthOpen] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [loading, setLoading] = useState(false);
+  const { login, register } = useAuth(); const { toast } = useToast();
+  const [, navigate] = useLocation();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true);
+    try { if (isLogin) await login(email, password); else await register(name, email, password); }
+    catch (err: any) { toast({ title: "Error", description: err.message || "Something went wrong", variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm"><BarChart3 className="h-[18px] w-[18px] text-primary-foreground" /></div>
-            <span className="text-lg font-bold tracking-tight" data-testid="text-landing-logo">Performo AI</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/60 via-white to-white flex flex-col">
+      {/* Nav */}
+      <nav className="flex items-center justify-between px-6 h-16 border-b bg-white/80 backdrop-blur">
+        <button onClick={() => navigate("/")} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+            <BarChart3 className="h-4 w-4 text-white" />
           </div>
-          <div className="hidden md:flex items-center gap-8">
-            {["Live Demos","Features","How It Works","Why Performo"].map(l => <a key={l} href={`#${l.toLowerCase().replace(/ /g,"-")}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l}</a>)}
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} data-testid="button-nav-login">Sign In</Button>
-            <Button size="sm" onClick={() => setAuthOpen(true)} data-testid="button-nav-get-started">Get Started <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
-          </div>
-        </div>
+          <span className="text-base font-bold tracking-tight">Performo <span className="text-blue-600">AI</span></span>
+        </button>
+        <button onClick={() => navigate("/")} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
+          ← Back to home
+        </button>
       </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/3" />
-        <div className="relative max-w-7xl mx-auto px-6 pt-20 pb-24 md:pt-28 md:pb-32">
-          <div className="max-w-3xl mx-auto text-center">
-            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-xs font-medium"><Sparkles className="h-3 w-3 mr-1.5" /> Powered by GPT-4o</Badge>
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.1] mb-6" data-testid="text-hero-title">Performance &amp; Execution<span className="block text-primary">Management for SMEs</span></h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed" data-testid="text-hero-subtitle">AI-powered KPIs, project tracking, workload visibility, and monthly reviews — all in one platform.</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="text-base px-8 h-12 shadow-md" onClick={() => setAuthOpen(true)} data-testid="button-hero-get-started">Start Free <ArrowRight className="ml-2 h-4 w-4" /></Button>
-              <Button size="lg" variant="outline" className="text-base px-8 h-12" onClick={() => document.getElementById("live-demos")?.scrollIntoView({ behavior: "smooth" })} data-testid="button-hero-watch-demos"><Play className="h-4 w-4 mr-2" fill="currentColor" /> Watch Demos</Button>
+      {/* Login form */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg mx-auto mb-4">
+              <BarChart3 className="h-7 w-7 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900" data-testid="text-auth-title">
+              {isLogin ? "Welcome back" : "Create your account"}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isLogin ? "Sign in to your Performo AI workspace" : "Start your free Performo AI account"}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isLogin && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
+                  <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" required={!isLogin} data-testid="input-name" className="h-10" />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" required data-testid="input-email" className="h-10" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" required data-testid="input-password" className="h-10" />
+              </div>
+              <Button type="submit" className="w-full h-10 font-semibold bg-blue-600 hover:bg-blue-700" disabled={loading} data-testid="button-login">
+                {loading ? "Please wait…" : isLogin ? "Sign In" : "Create Account"}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setIsLogin(!isLogin)}
+                data-testid="button-toggle-auth"
+              >
+                {isLogin ? "Don't have an account? " : "Already have an account? "}
+                <span className="text-blue-600 font-medium">{isLogin ? "Sign up" : "Sign in"}</span>
+              </button>
             </div>
           </div>
-          <div className="mt-20 max-w-5xl mx-auto">
-            <div className="rounded-2xl border bg-card/80 shadow-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
-                <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400/70"/><div className="w-3 h-3 rounded-full bg-yellow-400/70"/><div className="w-3 h-3 rounded-full bg-green-400/70"/></div>
-                <span className="text-xs text-muted-foreground ml-2">Performo AI — OYO Hospitality</span>
-              </div>
-              <div className="p-6 md:p-8">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  {[{label:"Total KPIs",value:"10",change:"+2 need attention",color:"text-primary"},{label:"On Track",value:"2",change:"20% of total",color:"text-emerald-600"},{label:"Active Projects",value:"3",change:"4 projects total",color:"text-violet-600"},{label:"Actions Due",value:"6",change:"1 overdue",color:"text-amber-600"}].map((stat,i)=>(<div key={i} className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground mb-1">{stat.label}</p><p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p><p className="text-[11px] text-muted-foreground mt-1">{stat.change}</p></div>))}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="md:col-span-2 rounded-xl border bg-background p-4"><p className="text-xs font-medium mb-3">KPI Performance Trend</p><div className="flex items-end gap-1 h-24">{[40,55,45,65,60,75,70,85,80,90,85,92].map((h,i)=>(<div key={i} className="flex-1 rounded-t" style={{height:`${h}%`,background:h>=70?"hsl(var(--primary))":"hsl(var(--muted))"}}/>))}</div><div className="flex justify-between mt-2"><span className="text-[10px] text-muted-foreground">Jan</span><span className="text-[10px] text-muted-foreground">Dec</span></div></div>
-                  <div className="rounded-xl border bg-background p-4"><p className="text-xs font-medium mb-3">Project Health</p><div className="space-y-2.5">{[{label:"Loyalty Launch",dot:"bg-emerald-500",pct:55},{label:"Menu Overhaul",dot:"bg-amber-500",pct:40},{label:"Staff Retention",dot:"bg-emerald-500",pct:30}].map((item,i)=>(<div key={i}><div className="flex items-center gap-2 text-[11px] mb-1"><div className={`w-2 h-2 rounded-full ${item.dot}`}/><span className="text-muted-foreground flex-1 truncate">{item.label}</span><span className="font-medium">{item.pct}%</span></div><div className="h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary/60" style={{width:`${item.pct}%`}}/></div></div>))}</div></div>
-                </div>
+
+          {/* Demo credentials */}
+          {isLogin && (
+            <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-4">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">Try the demo</p>
+              <div className="space-y-1 text-xs text-amber-900">
+                <div className="flex items-center justify-between"><span className="font-medium">Admin</span><span className="font-mono">demo@performo.ai / demo123</span></div>
+                <div className="flex items-center justify-between"><span className="font-medium">Executive</span><span className="font-mono">exec@performo.ai / exec123</span></div>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      </section>
-
-      {/* Stats */}
-      <section className="border-y bg-muted/30">
-        <div className="max-w-7xl mx-auto px-6 py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[{value:"12",label:"Core Features",sub:"Performance + Execution"},{value:"GPT-4o",label:"AI Engine",sub:"Latest OpenAI model"},{value:"2",label:"User Roles",sub:"Admin & Executive"},{value:"100%",label:"Data Privacy",sub:"Your data, your platform"}].map((s,i)=>(<div key={i} className="text-center"><p className="text-3xl md:text-4xl font-bold text-primary mb-1">{s.value}</p><p className="text-sm font-medium">{s.label}</p><p className="text-xs text-muted-foreground mt-0.5">{s.sub}</p></div>))}
-          </div>
-        </div>
-      </section>
-
-      {/* DEMO VIDEOS */}
-      <section id="live-demos" className="py-20 md:py-28 bg-muted/20 border-y">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs"><Play className="h-3 w-3 mr-1.5" fill="currentColor" /> Feature Demo Videos</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4" data-testid="text-demos-title">Watch every feature <span className="text-primary">in action</span></h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">Click any card to watch a guided demo — each scene highlights a specific feature with callout annotations. Auto-plays with scrubber and scene controls.</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {FEATURES.map((f, i) => <FeatureCard key={i} feature={f} index={i} />)}
-          </div>
-        </div>
-      </section>
-
-      {/* Features list */}
-      <section id="features" className="py-20 md:py-28">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs">Features</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4" data-testid="text-features-title">Everything you need to <span className="text-primary">manage performance &amp; execution</span></h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {[{heading:"Performance Management",items:FEATURES.slice(0,6)},{heading:"Execution Management",items:FEATURES.slice(6,12)}].map(({heading,items})=>(<div key={heading}><div className="flex items-center gap-2 mb-6"><div className="h-px flex-1 bg-border"/><span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{heading}</span><div className="h-px flex-1 bg-border"/></div><div className="space-y-3">{items.map((f,i)=>(<div key={i} className="flex items-start gap-3 p-4 rounded-xl border bg-card hover:border-primary/20 transition-colors"><div className={`flex h-9 w-9 items-center justify-center rounded-lg ${f.bg} shrink-0`}><f.icon className={`h-4 w-4 ${f.color}`}/></div><div><h3 className="text-sm font-semibold mb-1">{f.title}</h3><p className="text-xs text-muted-foreground leading-relaxed">{f.description}</p></div></div>))}</div></div>))}
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="how-it-works" className="py-20 md:py-28 bg-muted/20 border-y">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs">How It Works</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4" data-testid="text-how-title">Up and running in <span className="text-primary">minutes</span></h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 max-w-5xl mx-auto">
-            {[{step:"01",title:"Set Up Profile",desc:"Enter company, industry, and departments."},{step:"02",title:"Generate KPIs",desc:"GPT-4o creates industry KPIs with targets."},{step:"03",title:"Run Meetings",desc:"Log actions with owners and due dates."},{step:"04",title:"Track Projects",desc:"Create projects, tasks, and milestones."},{step:"05",title:"Get AI Reviews",desc:"Monthly AI reviews from real data."}].map((s,i)=>(<div key={i} className="relative text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-lg font-bold mx-auto mb-4 shadow-md">{s.step}</div>{i<4&&<div className="hidden md:block absolute top-7 left-[calc(50%+2rem)] w-[calc(100%-4rem)] h-px bg-border"/>}<h3 className="text-sm font-semibold mb-2">{s.title}</h3><p className="text-xs text-muted-foreground leading-relaxed">{s.desc}</p></div>))}
-          </div>
-        </div>
-      </section>
-
-      {/* Why Performo */}
-      <section id="why-performo" className="py-20 md:py-28">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 px-3 py-1 text-xs">Why Performo</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4" data-testid="text-why-title">Built for growing businesses</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {[{icon:Zap,title:"No BI Tool Required",desc:"Executive-level insights without Power BI or data analysts.",color:"text-amber-600",bg:"bg-amber-100 dark:bg-amber-900/30"},{icon:Shield,title:"Industry-Specific AI",desc:"AI tuned for hospitality, retail, healthcare, F&B, and more.",color:"text-indigo-600",bg:"bg-indigo-100 dark:bg-indigo-900/30"},{icon:TrendingUp,title:"Performance + Execution",desc:"The only platform connecting KPI tracking with project execution.",color:"text-emerald-600",bg:"bg-emerald-100 dark:bg-emerald-900/30"},{icon:Activity,title:"Live Health Scoring",desc:"Automated RAG scoring for KPIs and projects — always know what needs attention.",color:"text-red-600",bg:"bg-red-100 dark:bg-red-900/30"},{icon:Users,title:"Team Accountability",desc:"Every action has an owner. Every project has milestones.",color:"text-violet-600",bg:"bg-violet-100 dark:bg-violet-900/30"},{icon:CheckCircle2,title:"Meeting-to-Action Bridge",desc:"Turn every meeting into accountable actions tracked to completion.",color:"text-teal-600",bg:"bg-teal-100 dark:bg-teal-900/30"}].map((item,i)=>(<div key={i} className="flex flex-col items-start p-6 rounded-2xl border bg-card hover:border-primary/20 transition-colors"><div className={`flex h-11 w-11 items-center justify-center rounded-xl ${item.bg} mb-4`}><item.icon className={`h-5 w-5 ${item.color}`}/></div><h3 className="text-sm font-semibold mb-2">{item.title}</h3><p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p></div>))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-20 md:py-28 bg-primary text-primary-foreground">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4" data-testid="text-cta-title">Ready to transform your performance management?</h2>
-          <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">Join SMEs using Performo AI to track KPIs, manage projects, and get AI-powered insights.</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" variant="secondary" className="text-base px-8 h-12 shadow-md" onClick={() => setAuthOpen(true)} data-testid="button-cta-start">Get Started Free <ArrowRight className="ml-2 h-4 w-4" /></Button>
-            <p className="text-sm opacity-70">No credit card required</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t bg-muted/20">
-        <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary"><BarChart3 className="h-4 w-4 text-primary-foreground" /></div><span className="text-sm font-semibold">Performo AI</span></div>
-          <div className="flex items-center gap-6 text-xs text-muted-foreground">{["Live Demos","Features","How It Works","Why Performo"].map(l=>(<a key={l} href="#" className="hover:text-foreground transition-colors">{l}</a>))}</div>
-          <p className="text-xs text-muted-foreground">AI-powered performance management for SMEs</p>
-        </div>
-      </footer>
-
-      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+      </div>
     </div>
   );
 }
