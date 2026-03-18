@@ -4,14 +4,166 @@ import {
   Target, ListChecks, CalendarDays, BarChart3, Briefcase, Sparkles,
   CheckCircle2, ArrowRight, Play, TrendingUp,
   Zap, Shield, Globe, Menu, X, Activity, Building2,
-  Brain, LayoutDashboard, FileText,
+  Brain, LayoutDashboard, FileText, Check, BookOpen,
+  Users, Bot, Star, ChevronRight,
 } from "lucide-react";
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
   { label: "How It Works", href: "#how-it-works" },
-  { label: "Why Performo", href: "#why-performo" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "Guide", href: "#guide" },
   { label: "Demo", href: "#demo" },
+];
+
+const PLANS = [
+  {
+    name: "Trial",
+    price: "Free",
+    period: "",
+    desc: "Explore every feature with your team",
+    color: "border-gray-200",
+    badge: null,
+    highlight: false,
+    features: [
+      "All features included",
+      "Up to 5 users",
+      "15 AI requests per day",
+      "30-day trial period",
+      "Email support",
+      "1 company workspace",
+    ],
+    cta: "Start free trial",
+  },
+  {
+    name: "Starter",
+    price: "$49",
+    period: "/month",
+    desc: "For small teams tracking performance",
+    color: "border-blue-200",
+    badge: null,
+    highlight: false,
+    features: [
+      "All features included",
+      "Up to 20 users",
+      "20 AI requests per day",
+      "Unlimited KPIs & actions",
+      "Monthly review exports (PDF)",
+      "Priority email support",
+    ],
+    cta: "Get started",
+  },
+  {
+    name: "Growth",
+    price: "$149",
+    period: "/month",
+    desc: "For scaling businesses running hard",
+    color: "border-blue-600",
+    badge: "Most Popular",
+    highlight: true,
+    features: [
+      "All features included",
+      "Up to 50 users",
+      "75 AI requests per day",
+      "Custom KPI templates",
+      "Onboarding session included",
+      "Priority support + SLA",
+    ],
+    cta: "Start with Growth",
+  },
+  {
+    name: "Enterprise",
+    price: "Custom",
+    period: "",
+    desc: "For larger organisations with complex needs",
+    color: "border-violet-200",
+    badge: null,
+    highlight: false,
+    features: [
+      "All features included",
+      "Up to 500 users",
+      "Unlimited AI requests",
+      "Dedicated account manager",
+      "Custom integrations",
+      "SLA guarantee",
+    ],
+    cta: "Contact us",
+  },
+];
+
+const GUIDE_STEPS = [
+  {
+    step: "01",
+    icon: Building2,
+    color: "text-blue-500",
+    bg: "bg-blue-500/10",
+    title: "Set up your company profile",
+    desc: "Enter your company name, industry, and departments. Performo pre-populates common department structures for your sector.",
+    example: {
+      label: "Example from demo",
+      content: "OYO Hospitality Group set up 4 departments: Sales & Revenue, Operations, HR & Admin, and Finance — in under 3 minutes.",
+    },
+  },
+  {
+    step: "02",
+    icon: Target,
+    color: "text-emerald-500",
+    bg: "bg-emerald-500/10",
+    title: "Build your KPI library",
+    desc: "Use AI to generate a full KPI library tailored to your industry, or add your own manually. Set targets, tracking frequency, and owners.",
+    example: {
+      label: "Example from demo",
+      content: "The AI generated 12 KPIs for OYO including Monthly Revenue (Target: AED 4.8M), Occupancy Rate (Target: 82%), NPS Score (Target: 72), and Cost Per Available Room (Target: AED 185).",
+    },
+  },
+  {
+    step: "03",
+    icon: CalendarDays,
+    color: "text-violet-500",
+    bg: "bg-violet-500/10",
+    title: "Run meetings and log actions",
+    desc: "After each meeting, log what was discussed and assign action items with owners, due dates, and priorities. Everything becomes trackable.",
+    example: {
+      label: "Example from demo",
+      content: "After the Monthly CEO Review, Dharmesh Sheth logged 4 actions: finalise loyalty programme vendor (High, Ravi Mehta), submit F&B menu redesign by 15th, and update occupancy forecast.",
+    },
+  },
+  {
+    step: "04",
+    icon: Briefcase,
+    color: "text-pink-500",
+    bg: "bg-pink-500/10",
+    title: "Track strategic projects",
+    desc: "Create projects, break them into tasks and milestones, and monitor health scores (Green / Amber / Red) across your portfolio.",
+    example: {
+      label: "Example from demo",
+      content: "OYO is running 4 projects: Loyalty Program Launch (55% complete, Green), F&B Menu Overhaul (40%, Amber), Staff Retention Initiative (30%, Red — behind schedule), and Q2 Revenue Recovery Plan.",
+    },
+  },
+  {
+    step: "05",
+    icon: FileText,
+    color: "text-teal-500",
+    bg: "bg-teal-500/10",
+    title: "Generate monthly performance reviews",
+    desc: "At month-end, hit 'Generate Review' and Performo AI writes a structured performance narrative — strengths, gaps, and recommendations — ready to share with your board.",
+    example: {
+      label: "Example from demo",
+      content: "Performo generated OYO's March review in 8 seconds: highlighted +12% revenue vs target, flagged Occupancy Rate at 74% (below 82% target), and recommended focusing F&B cost reduction.",
+    },
+  },
+  {
+    step: "06",
+    icon: Bot,
+    color: "text-amber-500",
+    bg: "bg-amber-500/10",
+    title: "Ask the AI assistant anything",
+    desc: "Open the AI assistant and ask natural-language questions about your data. It reads your KPIs, actions, projects, and reviews to give grounded answers.",
+    example: {
+      label: "Example from demo",
+      content: "Dharmesh asked: \"Which KPIs are below target this month?\" — Performo replied: \"3 KPIs are off-target: Occupancy Rate (74% vs 82%), NPS (64 vs 72), and Cost Per Room (AED 210 vs AED 185).\"",
+    },
+  },
 ];
 
 const FEATURES = [
@@ -493,6 +645,157 @@ export default function LandingPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══ PRICING ═══════════════════════════════════════════════════════════ */}
+      <section id="pricing" className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 text-blue-600 text-sm font-semibold uppercase tracking-wider mb-3">
+              <span className="h-px w-8 bg-blue-300" /> Simple, honest pricing <span className="h-px w-8 bg-blue-300" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Plans for every stage of growth</h2>
+            <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
+              Start free, scale as you grow. All plans include every feature — no feature-gating.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">
+            {PLANS.map(plan => (
+              <div
+                key={plan.name}
+                className={`relative flex flex-col bg-white rounded-2xl border-2 ${plan.color} p-6 ${plan.highlight ? "shadow-xl shadow-blue-500/10 ring-1 ring-blue-600/20" : "shadow-sm"} transition-all hover:-translate-y-0.5 hover:shadow-lg`}
+              >
+                {plan.badge && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                    <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+                      {plan.badge}
+                    </span>
+                  </div>
+                )}
+
+                <div className="mb-5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">{plan.name}</p>
+                  <div className="flex items-end gap-0.5 mb-1">
+                    <span className={`text-4xl font-extrabold ${plan.highlight ? "text-blue-600" : "text-gray-900"}`}>{plan.price}</span>
+                    {plan.period && <span className="text-gray-400 text-sm mb-1.5">{plan.period}</span>}
+                  </div>
+                  <p className="text-sm text-gray-500">{plan.desc}</p>
+                </div>
+
+                <ul className="space-y-2.5 mb-7 flex-1">
+                  {plan.features.map(f => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-gray-700">
+                      <Check className={`h-4 w-4 mt-0.5 shrink-0 ${plan.highlight ? "text-blue-500" : "text-emerald-500"}`} />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  onClick={goToLogin}
+                  className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    plan.highlight
+                      ? "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20"
+                      : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                  }`}
+                  data-testid={`button-plan-${plan.name.toLowerCase()}`}
+                >
+                  {plan.cta}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 text-center">
+            <p className="text-sm text-gray-500">
+              All plans include a 30-day money-back guarantee · No credit card required for Trial
+            </p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-400">
+              {["All features on every plan", "Unlimited KPIs & projects", "AI assistant included", "PDF exports included", "Cancel anytime"].map(f => (
+                <span key={f} className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  {f}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══ USER GUIDE ════════════════════════════════════════════════════════ */}
+      <section id="guide" className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 text-violet-600 text-sm font-semibold uppercase tracking-wider mb-3">
+              <span className="h-px w-8 bg-violet-300" /> Step-by-step guide <span className="h-px w-8 bg-violet-300" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">How to get the most from Performo</h2>
+            <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto">
+              A practical walkthrough using OYO Hospitality Group — one of our demo companies. Real flows, real examples, real results.
+            </p>
+            <div className="inline-flex items-center gap-2 mt-4 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium px-3.5 py-1.5 rounded-full">
+              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+              Try it yourself with the live demo — demo@performo.ai / demo123
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {GUIDE_STEPS.map((s, i) => (
+              <div
+                key={s.step}
+                className="group flex flex-col md:flex-row gap-5 bg-gray-50 rounded-2xl border border-gray-100 p-6 hover:border-gray-200 hover:shadow-md transition-all"
+              >
+                {/* Step number + icon */}
+                <div className="flex items-start gap-4 md:w-64 shrink-0">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${s.bg} shrink-0`}>
+                    <s.icon className={`h-5.5 w-5.5 ${s.color}`} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">Step {s.step}</p>
+                    <h3 className="text-base font-bold text-gray-900 leading-tight">{s.title}</h3>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 leading-relaxed mb-3">{s.desc}</p>
+                  <div className="bg-white rounded-xl border border-gray-200 p-4">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      {s.example.label}
+                    </p>
+                    <p className="text-sm text-gray-700 leading-relaxed italic">"{s.example.content}"</p>
+                  </div>
+                </div>
+
+                <div className="hidden md:flex items-center text-gray-200 group-hover:text-gray-300 transition-colors shrink-0 self-center">
+                  <ChevronRight className="h-5 w-5" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Try it CTA */}
+          <div className="mt-10 bg-gradient-to-r from-blue-50 to-violet-50 border border-blue-100 rounded-2xl p-8 text-center">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-gray-900">See it all live — right now</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Log in as <span className="font-mono bg-white border border-gray-200 px-1.5 py-0.5 rounded text-xs">demo@performo.ai</span> with password <span className="font-mono bg-white border border-gray-200 px-1.5 py-0.5 rounded text-xs">demo123</span> to explore OYO Hospitality Group's full data — KPIs, projects, actions, AI assistant, and reviews.
+                </p>
+              </div>
+              <button
+                onClick={goToLogin}
+                className="flex-shrink-0 flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-6 py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/25"
+                data-testid="button-guide-try-demo"
+              >
+                Open live demo
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>
