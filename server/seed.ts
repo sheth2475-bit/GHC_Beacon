@@ -1,6 +1,8 @@
 import { storage } from "./storage";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
+import { db } from "./db";
+import { platformOwners } from "@shared/schema";
 
 const scryptAsync = promisify(scrypt);
 
@@ -267,6 +269,22 @@ export async function seedDatabase() {
       console.log("Seed: restored projects, tasks, milestones");
     }
 
+    // ── Ensure subscription ──────────────────────────────────────
+    const existingSub = await storage.getSubscription(companyId);
+    if (!existingSub) {
+      await storage.upsertSubscription(companyId, {
+        planName: "Growth",
+        status: "Active",
+        maxUsers: 50,
+        dailyAiLimit: 75,
+        startDate: new Date(),
+      });
+      console.log("Seed: created Growth subscription for demo company");
+    }
+
+    // ── Ensure platform owner ───────────────────────────────────
+    await seedPlatformOwner();
+
     return;
   }
 
@@ -504,5 +522,23 @@ export async function seedDatabase() {
     role: "executive",
   });
 
-  console.log("Seed data created: 12 KPIs, 4 meetings, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive users");
+  await storage.upsertSubscription(company.id, {
+    planName: "Growth",
+    status: "Active",
+    maxUsers: 50,
+    dailyAiLimit: 75,
+    startDate: new Date(),
+  });
+
+  await seedPlatformOwner();
+
+  console.log("Seed data created: 12 KPIs, 4 meetings, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive users + platform owner");
+}
+
+async function seedPlatformOwner() {
+  const existing = await storage.getPlatformOwnerByEmail("owner@performo.ai");
+  if (existing) return;
+  const passwordHash = await hashPassword("owner123");
+  await storage.createPlatformOwner({ name: "Platform Owner", email: "owner@performo.ai", passwordHash, isActive: true });
+  console.log("Seed: created platform owner → owner@performo.ai / owner123");
 }

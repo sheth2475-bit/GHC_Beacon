@@ -10,6 +10,7 @@ import { GlobalSearch } from "@/components/global-search";
 import { AssistantDrawer } from "@/components/assistant-drawer";
 import { NotificationBell } from "@/components/notification-bell";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { OwnerAuthProvider, useOwnerAuth } from "@/lib/owner-auth";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import LandingPage from "@/pages/landing";
@@ -29,6 +30,14 @@ import PortfolioPage from "@/pages/portfolio";
 import ProjectDetailPage from "@/pages/project-detail";
 import WorkloadPage from "@/pages/workload";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import OwnerLogin from "@/pages/owner-login";
+import OwnerDashboard from "@/pages/owner-dashboard";
+import OwnerCompanies from "@/pages/owner-companies";
+import OwnerKeys from "@/pages/owner-keys";
+import OwnerActivity from "@/pages/owner-activity";
+import OwnerAiUsage from "@/pages/owner-ai-usage";
+import OwnerAudit from "@/pages/owner-audit";
 
 function AppRouter() {
   const { isAdmin } = useAuth();
@@ -118,13 +127,68 @@ function AppLayout() {
   );
 }
 
+function OwnerArea() {
+  const { owner, isLoading } = useOwnerAuth();
+  const [location, navigate] = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-950">
+        <Loader />
+      </div>
+    );
+  }
+
+  if (location === "/owner/login" || !owner) {
+    return <OwnerLogin />;
+  }
+
+  return (
+    <Switch>
+      <Route path="/owner/dashboard" component={OwnerDashboard} />
+      <Route path="/owner/companies" component={OwnerCompanies} />
+      <Route path="/owner/keys" component={OwnerKeys} />
+      <Route path="/owner/activity" component={OwnerActivity} />
+      <Route path="/owner/ai-usage" component={OwnerAiUsage} />
+      <Route path="/owner/audit" component={OwnerAudit} />
+      <Route component={OwnerDashboard} />
+    </Switch>
+  );
+}
+
+function Loader() {
+  return (
+    <div className="flex items-center gap-2 text-gray-400 text-sm">
+      <div className="h-4 w-4 border-2 border-gray-600 border-t-gray-400 rounded-full animate-spin" />
+      Loading...
+    </div>
+  );
+}
+
+function RootRouter() {
+  const [location] = useLocation();
+  const isOwnerRoute = location.startsWith("/owner");
+
+  if (isOwnerRoute) {
+    return (
+      <OwnerAuthProvider>
+        <OwnerArea />
+      </OwnerAuthProvider>
+    );
+  }
+
+  return (
+    <AuthProvider>
+      <AppLayout />
+    </AuthProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthProvider>
-          <AppLayout />
-        </AuthProvider>
+        <RootRouter />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

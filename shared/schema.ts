@@ -200,6 +200,69 @@ export const projectComments = pgTable("project_comments", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ─── Platform Owner System ───────────────────────────────────────────────────
+
+export const platformOwners = pgTable("platform_owners", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id).unique(),
+  planName: text("plan_name").notNull().default("Trial"),
+  status: text("status").notNull().default("Trial Active"),
+  maxUsers: integer("max_users").default(5).notNull(),
+  dailyAiLimit: integer("daily_ai_limit").default(15).notNull(),
+  trialStartDate: timestamp("trial_start_date").default(sql`CURRENT_TIMESTAMP`),
+  trialEndDate: timestamp("trial_end_date"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  activatedBy: integer("activated_by").references(() => platformOwners.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const activationKeys = pgTable("activation_keys", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id),
+  keyValue: text("key_value").notNull().unique(),
+  planName: text("plan_name").notNull().default("Starter"),
+  status: text("status").notNull().default("Pending"),
+  maxUsers: integer("max_users").default(20).notNull(),
+  dailyAiLimit: integer("daily_ai_limit").default(20).notNull(),
+  issuedBy: integer("issued_by").references(() => platformOwners.id),
+  issuedAt: timestamp("issued_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  expiresAt: timestamp("expires_at"),
+  activatedAt: timestamp("activated_at"),
+  revokedAt: timestamp("revoked_at"),
+});
+
+export const userActivityLogs = pgTable("user_activity_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  companyId: integer("company_id").references(() => companies.id),
+  activityType: text("activity_type").notNull(),
+  moduleName: text("module_name"),
+  details: text("details"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const ownerAuditLogs = pgTable("owner_audit_logs", {
+  id: serial("id").primaryKey(),
+  ownerId: integer("owner_id").references(() => platformOwners.id),
+  action: text("action").notNull(),
+  targetType: text("target_type"),
+  targetId: integer("target_id"),
+  details: text("details"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ─── Insert Schemas ──────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -219,6 +282,11 @@ export const insertSubtaskSchema = createInsertSchema(subtasks).omit({ id: true,
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true, createdAt: true });
 export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true });
 export const insertAssistantLogSchema = createInsertSchema(assistantLogs).omit({ id: true, createdAt: true });
+export const insertPlatformOwnerSchema = createInsertSchema(platformOwners).omit({ id: true, createdAt: true });
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertActivationKeySchema = createInsertSchema(activationKeys).omit({ id: true, issuedAt: true });
+export const insertUserActivityLogSchema = createInsertSchema(userActivityLogs).omit({ id: true, createdAt: true });
+export const insertOwnerAuditLogSchema = createInsertSchema(ownerAuditLogs).omit({ id: true, createdAt: true });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -256,3 +324,13 @@ export type ProjectComment = typeof projectComments.$inferSelect;
 export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
 export type AssistantLog = typeof assistantLogs.$inferSelect;
 export type InsertAssistantLog = z.infer<typeof insertAssistantLogSchema>;
+export type PlatformOwner = typeof platformOwners.$inferSelect;
+export type InsertPlatformOwner = z.infer<typeof insertPlatformOwnerSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type ActivationKey = typeof activationKeys.$inferSelect;
+export type InsertActivationKey = z.infer<typeof insertActivationKeySchema>;
+export type UserActivityLog = typeof userActivityLogs.$inferSelect;
+export type InsertUserActivityLog = z.infer<typeof insertUserActivityLogSchema>;
+export type OwnerAuditLog = typeof ownerAuditLogs.$inferSelect;
+export type InsertOwnerAuditLog = z.infer<typeof insertOwnerAuditLogSchema>;

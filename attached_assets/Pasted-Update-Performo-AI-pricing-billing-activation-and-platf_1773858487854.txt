@@ -1,0 +1,421 @@
+Update Performo AI pricing, billing, activation, and platform owner controls.
+
+Performo AI must support a platform-level owner role who controls company activation, license keys, subscriptions, and system-wide usage analytics.
+
+====================================================
+1. PLATFORM OWNER ROLE
+====================================================
+
+Add a top-level role called:
+- Platform Owner
+
+This role is above all company users and should have full control over the entire application platform.
+
+Platform Owner should be able to:
+- create and manage company accounts
+- approve or reject activation requests
+- generate activation keys / license keys
+- assign plans to companies
+- activate or deactivate company accounts
+- extend trial periods if needed
+- suspend accounts
+- view all companies
+- view overall user activity and usage statistics
+- view AI usage statistics
+- view login activity
+- view company-level subscription and billing status
+- monitor which users are actively using the application
+- see feature usage trends
+- see plan utilization and user limits
+
+====================================================
+2. ACTIVATION / LICENSE KEY SYSTEM
+====================================================
+
+Add an activation system for companies.
+
+Requirements:
+1. Each company should require activation before full use
+2. Platform Owner can generate a unique activation key / license key
+3. Platform Owner can send or assign the key to the company
+4. Company Super Admin can enter the activation key to activate the application
+5. Activation key should be linked to:
+   - company
+   - plan
+   - status
+   - expiry date if needed
+   - max users
+   - AI usage limit
+6. Platform Owner must be able to:
+   - create activation key
+   - regenerate key
+   - revoke key
+   - extend key validity
+   - mark company as activated manually if needed
+
+Activation statuses:
+- Pending Activation
+- Active
+- Trial Active
+- Expired
+- Suspended
+- Deactivated
+
+====================================================
+3. SUBSCRIPTION AND PLAN STRUCTURE
+====================================================
+
+Pricing model:
+
+1. Free Trial
+- 30-day free trial for new company accounts
+- Trial should begin when company account is created or activated
+- Trial AI limit: 15 AI requests per day per company
+
+2. Starter Plan
+- $20/month
+- 1 to 20 users
+- 20 AI requests per day per company
+
+3. Growth Plan
+- $50/month
+- 21 to 50 users
+- 75 AI requests per day per company
+
+4. Enterprise Plan
+- custom pricing
+- above 50 users
+- custom per-user pricing
+- custom AI usage limit
+
+Requirements:
+- enforce user limits by plan
+- enforce AI request limits by plan
+- show upgrade prompt when limits are reached
+- allow only Platform Owner to manually override limits
+
+====================================================
+4. OWNER APPROVAL FLOW
+====================================================
+
+Add an owner approval flow.
+
+Flow example:
+1. Company signs up
+2. Status becomes Pending Approval or Trial Pending
+3. Platform Owner reviews the company
+4. Platform Owner can:
+   - approve trial
+   - assign plan
+   - generate activation key
+   - activate account
+   - reject application
+   - suspend account later if required
+
+Optional:
+- Platform Owner can activate companies directly without requiring manual key entry
+- or require key entry for activation
+
+====================================================
+5. PLATFORM OWNER DASHBOARD
+====================================================
+
+Create a dedicated Platform Owner dashboard showing:
+
+A. Company Stats
+- total companies
+- active companies
+- trial companies
+- suspended companies
+- expired companies
+- companies by plan
+
+B. User Stats
+- total users across platform
+- active users today
+- active users this week
+- active users this month
+- users by company
+- users by role
+
+C. Usage Stats
+- total logins
+- recent logins
+- most active companies
+- most active users
+- feature usage counts
+- KPI module usage
+- project/task module usage
+- assistant usage
+- dashboard usage
+
+D. AI Usage Stats
+- AI requests today
+- AI requests by company
+- AI requests by user
+- AI requests by plan
+- average AI usage per company
+- companies hitting daily AI limits
+
+E. Subscription Stats
+- companies by plan
+- trials nearing expiry
+- plan upgrades
+- user limit breaches
+- AI limit breaches
+- renewal tracking placeholders if needed
+
+F. Activity Monitoring
+- recent platform activity feed
+- recent company activations
+- recent key generation
+- recent suspensions
+- recent user additions
+- recent failed activations
+
+====================================================
+6. USER ACTIVITY TRACKING
+====================================================
+
+Track detailed user activity.
+
+Platform Owner should be able to see:
+- who logged in
+- when they logged in
+- which company they belong to
+- which pages they visited
+- which features they used
+- what records they updated
+- how many assistant requests they made
+- how many tasks/projects/KPIs they created or edited
+- last active time
+- most active users
+- inactive users
+
+Also support company-level activity tracking for company super admins if permitted.
+
+====================================================
+7. DATABASE UPDATES
+====================================================
+
+Add new tables/models for:
+
+### platform_owners
+- id
+- name
+- email
+- password_hash
+- is_active
+- created_at
+
+### activation_keys
+- id
+- company_id
+- key_value
+- plan_name
+- status
+- max_users
+- daily_ai_limit
+- issued_by
+- issued_at
+- expires_at
+- activated_at
+- revoked_at
+
+### subscriptions
+- id
+- company_id
+- plan_name
+- billing_cycle
+- status
+- max_users
+- daily_ai_limit
+- start_date
+- end_date
+- trial_start_date
+- trial_end_date
+- activated_by
+- created_at
+
+### company_usage_stats
+- id
+- company_id
+- stat_date
+- total_logins
+- active_users
+- ai_requests
+- records_created
+- records_updated
+- dashboard_views
+- assistant_sessions
+- created_at
+
+### user_activity_logs
+- id
+- user_id
+- company_id
+- activity_type
+- module_name
+- page_name
+- related_type
+- related_id
+- details_json
+- created_at
+
+### feature_usage_logs
+- id
+- company_id
+- user_id
+- feature_name
+- usage_count
+- usage_date
+- created_at
+
+====================================================
+8. NEW PAGES TO BUILD
+====================================================
+
+Add new Platform Owner pages:
+
+- Platform Owner Login
+- Platform Owner Dashboard
+- Company Management
+- Activation Keys
+- Plans & Subscriptions
+- User Activity Analytics
+- AI Usage Analytics
+- Company Usage Reports
+- Platform Settings
+
+====================================================
+9. PAGE DETAILS
+====================================================
+
+### Company Management Page
+Platform Owner can:
+- view all companies
+- filter by plan/status
+- approve/reject companies
+- activate/deactivate accounts
+- assign or change plan
+- view active users count
+- see AI usage summary
+- see last login
+- open company detail page
+
+### Activation Keys Page
+Platform Owner can:
+- generate activation key
+- assign key to company
+- set plan and limits
+- revoke key
+- regenerate key
+- see key status
+- see activation history
+
+### User Activity Analytics Page
+Show:
+- active users by company
+- login trends
+- top active users
+- inactive users
+- module usage
+- recent actions performed
+
+### AI Usage Analytics Page
+Show:
+- AI requests by company
+- AI requests by user
+- plan-wise AI usage
+- daily/weekly/monthly trends
+- companies near or over AI limits
+
+====================================================
+10. COMPANY ACTIVATION EXPERIENCE
+====================================================
+
+For company Super Admin:
+
+- after signup, show activation / trial status
+- if activation key is required, provide a field to enter the key
+- show current plan, max users, and AI usage limits
+- show account status:
+  - pending
+  - trial active
+  - active
+  - suspended
+  - expired
+
+If not activated, restrict access appropriately and show a clear activation message.
+
+====================================================
+11. AI USAGE LIMITS
+====================================================
+
+Apply these plan limits:
+
+- Trial: 15 AI requests/day/company
+- Starter: 20 AI requests/day/company
+- Growth: 75 AI requests/day/company
+- Enterprise: custom
+
+Requirements:
+- track daily AI requests per company
+- reset daily
+- show usage remaining
+- prevent AI access when limit reached
+- allow Platform Owner override if needed
+
+====================================================
+12. AUDIT AND SECURITY
+====================================================
+
+Track all important owner actions such as:
+- company approved
+- activation key generated
+- activation key revoked
+- plan changed
+- company suspended
+- trial extended
+- subscription activated
+
+Platform Owner actions should be logged in audit trail.
+
+====================================================
+13. UI / UX REQUIREMENTS
+====================================================
+
+Keep all screens premium, clean, and SaaS-style.
+
+Platform Owner area should feel like a master control center for the entire platform.
+
+Use clear cards, tables, charts, filters, and activity feeds.
+
+Do not mention any third-party product names anywhere in the application.
+
+====================================================
+14. IMPORTANT RULES
+====================================================
+
+- Platform Owner is not the same as company Super Admin
+- Platform Owner manages the entire platform
+- Company Super Admin manages only their own company
+- Activation key and approval logic must be functional, not mock-only
+- User activity analytics must use real logs from application usage
+- Keep branding only as Performo AI
+
+====================================================
+15. FINAL EXPECTATION
+====================================================
+
+Enhance Performo AI to support:
+- Platform Owner approval
+- activation key system
+- subscription and plan assignment
+- company activation control
+- full platform-wide activity monitoring
+- user usage analytics
+- AI usage analytics
+- plan and limit enforcement
+
+This must be implemented as real system logic with database support, admin screens, and analytics dashboards.

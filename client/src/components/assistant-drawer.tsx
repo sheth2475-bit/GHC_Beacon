@@ -289,8 +289,18 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
 
   const chatMutation = useMutation({
     mutationFn: async (payload: { messages: ChatMessage[]; confirmedAction?: PendingAction }) => {
-      const res = await apiRequest("POST", "/api/assistant/chat", payload);
-      return res.json() as Promise<AssistantResponse>;
+      const res = await fetch("/api/assistant/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.status === 429 && data.type === "limit_reached") {
+        return { type: "error", message: data.message, links: [{ label: "Go to Settings", url: "/settings" }] } as AssistantResponse;
+      }
+      if (!res.ok) throw new Error(data.message || "Request failed");
+      return data as AssistantResponse;
     },
   });
 

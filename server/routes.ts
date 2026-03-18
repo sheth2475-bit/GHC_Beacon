@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, requireAuth, requireAdmin } from "./auth";
 import { generateKpis, generateMonthlyReview, generateDashboardPlan } from "./ai";
 import { processAssistantMessage } from "./assistant";
+import { registerOwnerRoutes, logActivity } from "./owner-routes";
 import * as XLSX from "xlsx";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
@@ -57,6 +58,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   setupAuth(app);
+  registerOwnerRoutes(app);
 
   app.get("/api/company", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
@@ -799,6 +801,42 @@ export async function registerRoutes(
     res.json(results);
   });
 
+  // ─── Subscription / Plan ─────────────────────────────────────────────────
+  app.get("/api/subscription", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.json(null);
+    const sub = await storage.getSubscription(company.id);
+    const dailyUsed = await storage.getDailyAiCount(company.id);
+    res.json({ ...sub, dailyUsed });
+  });
+
+  app.post("/api/activate-key", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { keyValue } = req.body as { keyValue: string };
+      if (!keyValue) return res.status(400).json({ message: "Activation key required" });
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const key = await storage.getActivationKeyByValue(keyValue.trim().toUpperCase());
+      if (!key) return res.status(404).json({ message: "Invalid activation key" });
+      if (key.status === "Revoked") return res.status(400).json({ message: "This key has been revoked" });
+      if (key.status === "Active") return res.status(400).json({ message: "This key has already been used" });
+      if (key.expiresAt && new Date(key.expiresAt) < new Date()) return res.status(400).json({ message: "This key has expired" });
+      if (key.companyId && key.companyId !== company.id) return res.status(400).json({ message: "This key is not assigned to your company" });
+      await storage.updateActivationKey(key.id, { status: "Active", activatedAt: new Date(), companyId: company.id });
+      const sub = await storage.upsertSubscription(company.id, {
+        planName: key.planName,
+        status: "Active",
+        maxUsers: key.maxUsers,
+        dailyAiLimit: key.dailyAiLimit,
+        startDate: new Date(),
+      });
+      await logActivity(req.user!.id, company.id, "key_activation", "settings", `Activated key ${keyValue} (${key.planName})`);
+      res.json({ message: "Activation successful", subscription: sub });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ─── Performo Assistant ───────────────────────────────────────────────────
   app.post("/api/assistant/chat", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
@@ -807,6 +845,18 @@ export async function registerRoutes(
     const { messages, confirmedAction } = req.body;
     if (!Array.isArray(messages)) return res.status(400).json({ message: "messages array required" });
     try {
+      const sub = await storage.getSubscription(company.id);
+      const dailyLimit = sub?.dailyAiLimit ?? 15;
+      const dailyUsed = await storage.getDailyAiCount(company.id);
+      if (dailyUsed >= dailyLimit) {
+        return res.status(429).json({
+          type: "limit_reached",
+          message: `Daily AI limit of ${dailyLimit} requests reached for your plan. Please upgrade or contact your platform administrator.`,
+          dailyUsed,
+          dailyLimit,
+        });
+      }
+      await logActivity(user.id, company.id, "ai_request", "assistant", messages[messages.length - 1]?.content?.slice(0, 100));
       const result = await processAssistantMessage(
         messages,
         company.id,

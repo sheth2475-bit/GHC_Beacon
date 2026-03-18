@@ -1,9 +1,10 @@
 import { db } from "./db";
-import { eq, desc, and, ilike, or, inArray } from "drizzle-orm";
+import { eq, desc, and, ilike, or, inArray, gte, sql as sqlExpr } from "drizzle-orm";
 import {
   users, companies, departments, businessGoals, kpis, kpiActuals,
   meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
   projects, tasks, subtasks, milestones, projectComments, assistantLogs,
+  platformOwners, subscriptions, activationKeys, userActivityLogs, ownerAuditLogs,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -14,6 +15,11 @@ import {
   type InsertSubtask, type Subtask, type InsertMilestone, type Milestone,
   type InsertProjectComment, type ProjectComment,
   type InsertAssistantLog, type AssistantLog,
+  type PlatformOwner, type InsertPlatformOwner,
+  type Subscription, type InsertSubscription,
+  type ActivationKey, type InsertActivationKey,
+  type UserActivityLog, type InsertUserActivityLog,
+  type OwnerAuditLog, type InsertOwnerAuditLog,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -117,6 +123,38 @@ export interface IStorage {
   // Assistant logs
   createAssistantLog(log: InsertAssistantLog): Promise<AssistantLog>;
   getAssistantLogs(companyId: number, limit?: number): Promise<AssistantLog[]>;
+
+  // Platform Owners
+  getPlatformOwner(id: number): Promise<PlatformOwner | undefined>;
+  getPlatformOwnerByEmail(email: string): Promise<PlatformOwner | undefined>;
+  createPlatformOwner(owner: InsertPlatformOwner): Promise<PlatformOwner>;
+
+  // Subscriptions
+  getSubscription(companyId: number): Promise<Subscription | undefined>;
+  upsertSubscription(companyId: number, data: Partial<InsertSubscription>): Promise<Subscription>;
+  getAllSubscriptions(): Promise<(Subscription & { company: Company })[]>;
+
+  // Activation Keys
+  getActivationKey(id: number): Promise<ActivationKey | undefined>;
+  getActivationKeyByValue(keyValue: string): Promise<ActivationKey | undefined>;
+  getActivationKeysByCompany(companyId: number): Promise<ActivationKey[]>;
+  getAllActivationKeys(): Promise<(ActivationKey & { company: Company | null })[]>;
+  createActivationKey(key: InsertActivationKey): Promise<ActivationKey>;
+  updateActivationKey(id: number, data: Partial<InsertActivationKey>): Promise<ActivationKey>;
+
+  // Activity Logs
+  createActivityLog(log: InsertUserActivityLog): Promise<UserActivityLog>;
+  getActivityLogs(companyId: number, limit?: number): Promise<UserActivityLog[]>;
+  getAllActivityLogs(limit?: number): Promise<UserActivityLog[]>;
+  getDailyAiCount(companyId: number): Promise<number>;
+
+  // Owner Audit Logs
+  createOwnerAuditLog(log: InsertOwnerAuditLog): Promise<OwnerAuditLog>;
+  getOwnerAuditLogs(limit?: number): Promise<OwnerAuditLog[]>;
+
+  // Platform analytics
+  getAllCompanies(): Promise<Company[]>;
+  getAllUsers(): Promise<User[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -432,6 +470,125 @@ export class DatabaseStorage implements IStorage {
       .where(eq(assistantLogs.companyId, companyId))
       .orderBy(desc(assistantLogs.createdAt))
       .limit(limit);
+  }
+
+  // ─── Platform Owners ──────────────────────────────────────────────────────
+  async getPlatformOwner(id: number) {
+    const [owner] = await db.select().from(platformOwners).where(eq(platformOwners.id, id));
+    return owner;
+  }
+  async getPlatformOwnerByEmail(email: string) {
+    const [owner] = await db.select().from(platformOwners).where(eq(platformOwners.email, email));
+    return owner;
+  }
+  async createPlatformOwner(owner: InsertPlatformOwner) {
+    const [created] = await db.insert(platformOwners).values(owner).returning();
+    return created;
+  }
+
+  // ─── Subscriptions ────────────────────────────────────────────────────────
+  async getSubscription(companyId: number) {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.companyId, companyId));
+    return sub;
+  }
+  async upsertSubscription(companyId: number, data: Partial<InsertSubscription>) {
+    const existing = await this.getSubscription(companyId);
+    if (existing) {
+      const [updated] = await db.update(subscriptions)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(subscriptions.companyId, companyId))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(subscriptions)
+        .values({ companyId, planName: "Trial", status: "Trial Active", maxUsers: 5, dailyAiLimit: 15, ...data })
+        .returning();
+      return created;
+    }
+  }
+  async getAllSubscriptions() {
+    const subs = await db.select().from(subscriptions);
+    const result: (Subscription & { company: Company })[] = [];
+    for (const sub of subs) {
+      const company = await this.getCompany(sub.companyId);
+      if (company) result.push({ ...sub, company });
+    }
+    return result;
+  }
+
+  // ─── Activation Keys ──────────────────────────────────────────────────────
+  async getActivationKey(id: number) {
+    const [key] = await db.select().from(activationKeys).where(eq(activationKeys.id, id));
+    return key;
+  }
+  async getActivationKeyByValue(keyValue: string) {
+    const [key] = await db.select().from(activationKeys).where(eq(activationKeys.keyValue, keyValue));
+    return key;
+  }
+  async getActivationKeysByCompany(companyId: number) {
+    return db.select().from(activationKeys).where(eq(activationKeys.companyId, companyId)).orderBy(desc(activationKeys.issuedAt));
+  }
+  async getAllActivationKeys() {
+    const keys = await db.select().from(activationKeys).orderBy(desc(activationKeys.issuedAt));
+    const result: (ActivationKey & { company: Company | null })[] = [];
+    for (const key of keys) {
+      const company = key.companyId ? await this.getCompany(key.companyId) : null;
+      result.push({ ...key, company: company || null });
+    }
+    return result;
+  }
+  async createActivationKey(key: InsertActivationKey) {
+    const [created] = await db.insert(activationKeys).values(key).returning();
+    return created;
+  }
+  async updateActivationKey(id: number, data: Partial<InsertActivationKey>) {
+    const [updated] = await db.update(activationKeys).set(data).where(eq(activationKeys.id, id)).returning();
+    return updated;
+  }
+
+  // ─── Activity Logs ────────────────────────────────────────────────────────
+  async createActivityLog(log: InsertUserActivityLog) {
+    const [created] = await db.insert(userActivityLogs).values(log).returning();
+    return created;
+  }
+  async getActivityLogs(companyId: number, limit = 100) {
+    return db.select().from(userActivityLogs)
+      .where(eq(userActivityLogs.companyId, companyId))
+      .orderBy(desc(userActivityLogs.createdAt))
+      .limit(limit);
+  }
+  async getAllActivityLogs(limit = 200) {
+    return db.select().from(userActivityLogs)
+      .orderBy(desc(userActivityLogs.createdAt))
+      .limit(limit);
+  }
+  async getDailyAiCount(companyId: number) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const rows = await db.select().from(userActivityLogs)
+      .where(and(
+        eq(userActivityLogs.companyId, companyId),
+        eq(userActivityLogs.activityType, "ai_request"),
+        gte(userActivityLogs.createdAt, today),
+      ));
+    return rows.length;
+  }
+
+  // ─── Owner Audit Logs ─────────────────────────────────────────────────────
+  async createOwnerAuditLog(log: InsertOwnerAuditLog) {
+    const [created] = await db.insert(ownerAuditLogs).values(log).returning();
+    return created;
+  }
+  async getOwnerAuditLogs(limit = 100) {
+    return db.select().from(ownerAuditLogs).orderBy(desc(ownerAuditLogs.createdAt)).limit(limit);
+  }
+
+  // ─── Platform Analytics ───────────────────────────────────────────────────
+  async getAllCompanies() {
+    return db.select().from(companies).orderBy(desc(companies.createdAt));
+  }
+  async getAllUsers() {
+    return db.select().from(users).orderBy(desc(users.createdAt));
   }
 }
 

@@ -11,7 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/page-header";
 import { LoadingPage } from "@/components/loading-state";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, User, Building2, Database, Trash2, Plus, LayoutList, Save, X, Target } from "lucide-react";
+import { Settings, User, Building2, Database, Trash2, Plus, LayoutList, Save, X, Target, ShieldCheck, Key, Loader2, Bot } from "lucide-react";
 import type { Department, MeetingType } from "@shared/schema";
 
 const INDUSTRIES = [
@@ -339,6 +339,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <SubscriptionCard />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -352,5 +354,113 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+const planColors: Record<string, string> = {
+  Trial: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
+  Starter: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  Growth: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  Enterprise: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+};
+
+function SubscriptionCard() {
+  const { toast } = useToast();
+  const [keyValue, setKeyValue] = useState("");
+  const [activating, setActivating] = useState(false);
+
+  const { data: sub, isLoading } = useQuery<any>({
+    queryKey: ["/api/subscription"],
+  });
+
+  const handleActivate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!keyValue.trim()) return;
+    setActivating(true);
+    try {
+      await apiRequest("POST", "/api/activate-key", { keyValue: keyValue.trim() });
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+      toast({ title: "Plan activated!", description: `Your plan has been upgraded.` });
+      setKeyValue("");
+    } catch (err: any) {
+      toast({ title: "Activation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const planName = sub?.planName || "Trial";
+  const dailyLimit = sub?.dailyAiLimit ?? 15;
+  const dailyUsed = sub?.dailyUsed ?? 0;
+  const pct = Math.min(100, (dailyUsed / dailyLimit) * 100);
+  const status = sub?.status || "Active";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4" />Subscription & Plan
+        </CardTitle>
+        <CardDescription>Your current plan and AI usage</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />Loading...
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <span className={`text-sm px-2.5 py-1 rounded-full font-semibold ${planColors[planName] || planColors.Trial}`} data-testid="text-plan-name">
+                {planName} Plan
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status === "Active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`} data-testid="text-plan-status">
+                {status}
+              </span>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Bot className="h-3.5 w-3.5" />
+                  Daily AI Usage
+                </div>
+                <span className="text-sm font-medium" data-testid="text-ai-usage">{dailyUsed} / {dailyLimit}</span>
+              </div>
+              <div className="bg-muted rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-primary"}`}
+                  style={{ width: `${pct}%` }}
+                  data-testid="progress-ai-usage"
+                />
+              </div>
+              {pct >= 100 && (
+                <p className="text-xs text-red-500 mt-1">Daily limit reached. Resets at midnight.</p>
+              )}
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                Activate with key
+              </p>
+              <form onSubmit={handleActivate} className="flex gap-2">
+                <Input
+                  value={keyValue}
+                  onChange={e => setKeyValue(e.target.value.toUpperCase())}
+                  placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX"
+                  className="font-mono text-sm flex-1"
+                  data-testid="input-activation-key"
+                />
+                <Button type="submit" disabled={activating || !keyValue.trim()} className="flex-shrink-0" data-testid="button-activate-key">
+                  {activating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Activate"}
+                </Button>
+              </form>
+              <p className="text-xs text-muted-foreground mt-1.5">Enter a key provided by your platform administrator</p>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

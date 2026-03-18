@@ -55,8 +55,21 @@ AI-powered SME performance and execution management platform.
 11. **Global Search** - Header search button opens modal, searches across projects/tasks/KPIs/meetings/actions with category groupings
 
 ### Admin/Settings
-12. **Settings** (admin only) - Business profile, strategic goals, departments, meeting types
+12. **Settings** (admin only) - Business profile, strategic goals, departments, meeting types; **Subscription & Plan card** showing current plan, daily AI usage bar, and activation key input
 13. **User Management** (admin only) - Add/change role/delete company users
+
+### Platform Owner System (new)
+- Separate auth area at `/owner/*` with its own session (platformOwnerId) independent of company auth
+- **Platform Owner Login** (/owner/login) — credentials: owner@performo.ai / owner123
+- **Owner Dashboard** (/owner/dashboard) — stat cards (total companies, active today, total users, AI requests today), recent companies + recent activity + AI usage by company
+- **Company Management** (/owner/companies) — list all companies with plan/status badges, activate/suspend companies
+- **Activation Keys** (/owner/keys) — generate plan-specific keys (Trial/Starter/Growth/Enterprise), view status (Pending/Active/Revoked), copy/revoke keys
+- **User Activity** (/owner/activity) — filterable feed of logins, AI requests, key activations across all companies
+- **AI Usage** (/owner/ai-usage) — per-company AI consumption with daily/weekly/total, 7-day trend bar chart, limit indicators
+- **Audit Log** (/owner/audit) — all platform owner actions logged
+- **Plan Enforcement**: AI requests are blocked with 429 when daily limit reached; assistant shows upgrade prompt with Settings link
+- **Company-side**: Plan badge visible in app sidebar (badge-plan-name), Subscription & Plan card in Settings with key activation form
+- **Activity Tracking**: AI requests and key activations logged to userActivityLogs
 
 ## Reusable Components
 
@@ -78,6 +91,8 @@ AI-powered SME performance and execution management platform.
 Performance: users (role + companyId), companies, departments, business_goals, kpis, kpi_actuals, meetings, action_items, monthly_reviews, meeting_types, dashboard_plans
 
 Execution: projects, tasks, subtasks, milestones, project_comments
+
+Platform Owner: platform_owners, subscriptions, activation_keys, user_activity_logs, owner_audit_logs
 
 ## API Endpoints
 
@@ -117,6 +132,7 @@ client/src/pages/user-management.tsx    - Admin user management
 
 - **Admin**: demo@performo.ai / demo123 (Dharmesh Sheth, OYO Hospitality)
 - **Executive**: exec@performo.ai / exec123 (Ravi Mehta, OYO Hospitality)
+- **Platform Owner**: owner@performo.ai / owner123 → /owner/login
 
 ## Demo Execution Data
 

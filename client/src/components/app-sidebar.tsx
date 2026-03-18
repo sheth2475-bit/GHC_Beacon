@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
+import { useQuery } from "@tanstack/react-query";
 
 const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -43,9 +44,22 @@ const executionNav = [
   { title: "Workload", url: "/workload", icon: Users2 },
 ];
 
+const planBadgeClass: Record<string, string> = {
+  Trial: "border-gray-400 text-gray-500 dark:text-gray-400",
+  Starter: "border-blue-400 text-blue-600 dark:text-blue-400",
+  Growth: "border-emerald-400 text-emerald-600 dark:text-emerald-400",
+  Enterprise: "border-purple-400 text-purple-600 dark:text-purple-400",
+};
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, isAdmin, isExecutive } = useAuth();
+
+  const { data: sub } = useQuery<any>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+  const planName: string = sub?.planName || "Trial";
 
   const renderGroup = (label: string, items: typeof mainNav) => (
     <SidebarGroup>
@@ -112,6 +126,13 @@ export function AppSidebar() {
                   data-testid="badge-user-role"
                 >
                   {isAdmin ? "Admin" : "Executive"}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={`text-[9px] px-1 py-0 h-3.5 ${planBadgeClass[planName] || planBadgeClass.Trial}`}
+                  data-testid="badge-plan-name"
+                >
+                  {planName}
                 </Badge>
               </div>
             </div>
