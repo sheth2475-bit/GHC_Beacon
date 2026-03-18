@@ -17,7 +17,8 @@ import { LoadingTable } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
-import { Trash2, Plus, Target, Search } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Trash2, Plus, Target, Search, Zap } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import type { Kpi, Department, KpiActual } from "@shared/schema";
 
@@ -57,6 +58,103 @@ function KpiSparkline({ kpiId, actuals }: { kpiId: number; actuals: (KpiActual &
         {kpiActuals[kpiActuals.length - 1]?.value}
       </span>
     </div>
+  );
+}
+
+function QuickActualPopover({ kpi }: { kpi: Kpi }) {
+  const { toast } = useToast();
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [month, setMonth] = useState(currentMonth);
+  const [status, setStatus] = useState("On Track");
+
+  const addActualMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/kpi-actuals`, {
+        kpiId: kpi.id,
+        actualValue: value,
+        reviewMonth: month,
+        status,
+        commentary: "",
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Actual recorded", description: `${kpi.kpiName} — ${month}` });
+      queryClient.invalidateQueries({ queryKey: ["/api/kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kpi-actuals/company"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kpi-actuals", kpi.id] });
+      setValue("");
+      setMonth(currentMonth);
+      setStatus("On Track");
+      setOpen(false);
+    },
+    onError: () => toast({ title: "Failed to record", variant: "destructive" }),
+  });
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className="group flex items-center gap-1.5 rounded px-1 -mx-1 hover:bg-muted/70 transition-colors"
+          title="Click to log a quick actual"
+          data-testid={`button-quick-entry-${kpi.id}`}
+        >
+          <Zap className="h-2.5 w-2.5 text-muted-foreground/30 group-hover:text-primary transition-colors shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-3 space-y-3" data-testid={`popover-quick-entry-${kpi.id}`}>
+        <div>
+          <p className="text-xs font-semibold">{kpi.kpiName}</p>
+          <p className="text-[10px] text-muted-foreground">Target: {kpi.targetValue} {kpi.unit}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Month</label>
+            <Input
+              type="month"
+              value={month}
+              onChange={e => setMonth(e.target.value)}
+              className="h-7 text-xs"
+              data-testid={`input-quick-month-${kpi.id}`}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Actual</label>
+            <Input
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              placeholder={kpi.targetValue || "value"}
+              className="h-7 text-xs"
+              data-testid={`input-quick-value-${kpi.id}`}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Status</label>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="h-7 text-xs" data-testid={`select-quick-status-${kpi.id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="On Track">On Track</SelectItem>
+              <SelectItem value="Amber">At Risk</SelectItem>
+              <SelectItem value="Below Target">Below Target</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          size="sm"
+          className="w-full h-7 text-xs"
+          onClick={() => addActualMutation.mutate()}
+          disabled={addActualMutation.isPending || !value || !month}
+          data-testid={`button-quick-save-${kpi.id}`}
+        >
+          {addActualMutation.isPending ? "Saving…" : "Save Actual"}
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -227,7 +325,10 @@ export default function KpiManagementPage() {
                       </TableCell>
                       <TableCell className="text-sm font-medium tabular-nums">{kpi.targetValue} {kpi.unit}</TableCell>
                       <TableCell>
-                        <KpiSparkline kpiId={kpi.id} actuals={allActuals} />
+                        <div className="flex items-center gap-2">
+                          <KpiSparkline kpiId={kpi.id} actuals={allActuals} />
+                          <QuickActualPopover kpi={kpi} />
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm">{kpi.frequency}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{kpi.ownerName}</TableCell>

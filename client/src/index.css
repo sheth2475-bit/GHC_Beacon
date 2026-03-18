@@ -299,3 +299,14 @@
     color: hsl(var(--primary)) !important;
   }
 }
+
+/* ── Print / PDF export ─────────────────────────────────────── */
+@media print {
+  /* Hide everything by default */
+  body > * { display: none !important; }
+  /* Show only the print area */
+  #print-review-area { display: block !important; }
+  /* Reset page chrome */
+  header, nav, aside, footer { display: none !important; }
+  @page { margin: 20mm; }
+}

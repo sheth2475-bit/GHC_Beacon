@@ -8,6 +8,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { GlobalSearch } from "@/components/global-search";
 import { AssistantDrawer } from "@/components/assistant-drawer";
+import { NotificationBell } from "@/components/notification-bell";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
@@ -82,6 +83,7 @@ function AppLayout() {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex-1" />
             <GlobalSearch />
+            <NotificationBell />
             <Button
               variant="outline"
               size="sm"

@@ -38,10 +38,10 @@ AI-powered SME performance and execution management platform.
 ### Performance Management
 1. **Dashboard** - Welcome banner, **"Today's Focus" panel** (overdue actions + at-risk KPIs + milestones this week), 6 KPI/action stat cards, KPI health donut, action bar chart, execution section (active projects, at-risk, overdue tasks, milestones), dept summary, latest review
 2. **KPI Builder** (admin only) - Manual KPI form + AI-generated KPIs
-3. **KPI Management** - Table with search, dept/frequency filters, **sparkline trend charts** (3-month AreaChart per KPI), add actuals dialog, Excel import
+3. **KPI Management** - Table with search, dept/frequency filters, **sparkline trend charts** (3-month AreaChart per KPI), **quick-entry popover** (⚡ icon per row for instant actual logging), add actuals dialog, Excel import
 4. **Action Tracker** - Meeting-type badge, due/revised dates, priority/status; meeting type filter
 5. **Meetings** (admin only) - Card-based meeting list with linked action items
-6. **Monthly Reviews** - AI-generated reviews with strengths/gaps/recommendations
+6. **Monthly Reviews** - AI-generated reviews with strengths/gaps/recommendations; **Export PDF** button uses browser print with a formatted print-only layout
 7. **Dashboard Planner** (admin only) - AI-recommended dashboard structure
 
 ### Execution Management (New)
@@ -102,9 +102,10 @@ shared/schema.ts                        - All table definitions + types
 server/storage.ts                       - IStorage + DatabaseStorage (all CRUD + search)
 server/routes.ts                        - All API routes + computeProjectHealth helper
 server/seed.ts                          - seedDatabase() + seedProjectData() — idempotent
-client/src/App.tsx                      - Routing + GlobalSearch in header
+client/src/App.tsx                      - Routing + GlobalSearch + NotificationBell in header
 client/src/components/app-sidebar.tsx   - Role-based nav with Execution section
 client/src/components/global-search.tsx - Search modal component
+client/src/components/notification-bell.tsx - Bell with badge + popover (overdue actions, at-risk KPIs, urgent milestones)
 client/src/pages/portfolio.tsx          - Project portfolio grid
 client/src/pages/project-detail.tsx     - Project detail (Tasks/Milestones/Comments tabs)
 client/src/pages/workload.tsx           - Workload by assignee
