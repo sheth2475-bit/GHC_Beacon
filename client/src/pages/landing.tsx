@@ -825,6 +825,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-4 text-xs">
             <a href="#" className="hover:text-gray-300 transition-colors">Privacy</a>
             <a href="#" className="hover:text-gray-300 transition-colors">Terms</a>
+            <a href="/owner/login" className="hover:text-gray-400 transition-colors" data-testid="link-footer-owner-login">Platform Owner</a>
             <button onClick={goToLogin} className="text-blue-400 hover:text-blue-300 font-medium transition-colors">Log in →</button>
           </div>
         </div>

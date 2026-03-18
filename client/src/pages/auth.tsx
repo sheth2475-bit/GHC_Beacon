@@ -1276,6 +1276,7 @@ function AuthDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: b
         </form>
         <div className="text-center mt-2"><Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setIsLogin(!isLogin)} data-testid="button-toggle-auth">{isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}</Button></div>
         {isLogin && <div className="text-center space-y-1 pb-2"><p className="text-xs text-muted-foreground">Admin: demo@performo.ai / demo123</p><p className="text-xs text-muted-foreground">Executive: exec@performo.ai / exec123</p></div>}
+        <div className="text-center pb-3"><a href="/owner/login" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors" data-testid="link-dialog-owner-login"><Shield className="h-3 w-3" />Platform Owner login</a></div>
       </DialogContent>
     </Dialog>
   );
@@ -1370,6 +1371,17 @@ export default function AuthPage() {
               </div>
             </div>
           )}
+
+          <div className="mt-6 text-center">
+            <a
+              href="/owner/login"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="link-owner-login"
+            >
+              <Shield className="h-3 w-3" />
+              Platform Owner login
+            </a>
+          </div>
         </div>
       </div>
     </div>
