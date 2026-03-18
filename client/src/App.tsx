@@ -31,6 +31,7 @@ import ProjectDetailPage from "@/pages/project-detail";
 import WorkloadPage from "@/pages/workload";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import GuidePage from "@/pages/guide";
 import OwnerLogin from "@/pages/owner-login";
 import OwnerDashboard from "@/pages/owner-dashboard";
 import OwnerCompanies from "@/pages/owner-companies";
@@ -43,6 +44,7 @@ function AppRouter() {
   const { isAdmin } = useAuth();
   return (
     <Switch>
+      <Route path="/guide" component={GuidePage} />
       <Route path="/" component={DashboardPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/login" component={DashboardPage} />
@@ -85,9 +87,8 @@ function AppLayout() {
   }
 
   if (!user) {
-    if (location === "/login") {
-      return <AuthPage />;
-    }
+    if (location === "/login") return <AuthPage />;
+    if (location === "/guide") return <GuidePage />;
     return <LandingPage />;
   }
 
