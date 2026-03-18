@@ -264,6 +264,12 @@ export default function Guide() {
   const module = MODULES.find(m => m.id === activeId)!;
   const colors = COLOR_MAP[module.color] ?? COLOR_MAP.blue;
 
+  function switchModule(id: string) {
+    setActiveId(id);
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
@@ -303,7 +309,7 @@ export default function Guide() {
                 return (
                   <button
                     key={m.id}
-                    onClick={() => setActiveId(m.id)}
+                    onClick={() => switchModule(m.id)}
                     data-testid={`guide-tab-${m.id}`}
                     className={`w-full flex items-center gap-2.5 text-left px-3 py-2 rounded-lg text-sm transition-all ${
                       activeId === m.id
@@ -340,7 +346,7 @@ export default function Guide() {
                 {MODULES.map(m => (
                   <button
                     key={m.id}
-                    onClick={() => { setActiveId(m.id); setMobileMenuOpen(false); }}
+                    onClick={() => switchModule(m.id)}
                     className={`w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm ${activeId === m.id ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-700 hover:bg-gray-50"}`}
                   >
                     <m.icon className="h-4 w-4 shrink-0" />
@@ -441,7 +447,7 @@ export default function Guide() {
           <div className="mt-10 flex items-center justify-between border-t border-gray-100 pt-6">
             {MODULES.indexOf(module) > 0 ? (
               <button
-                onClick={() => setActiveId(MODULES[MODULES.indexOf(module) - 1].id)}
+                onClick={() => switchModule(MODULES[MODULES.indexOf(module) - 1].id)}
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -451,7 +457,7 @@ export default function Guide() {
 
             {MODULES.indexOf(module) < MODULES.length - 1 ? (
               <button
-                onClick={() => setActiveId(MODULES[MODULES.indexOf(module) + 1].id)}
+                onClick={() => switchModule(MODULES[MODULES.indexOf(module) + 1].id)}
                 className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
               >
                 {MODULES[MODULES.indexOf(module) + 1].label}
@@ -485,7 +491,7 @@ export default function Guide() {
               {MODULES.map(m => (
                 <button
                   key={m.id}
-                  onClick={() => setActiveId(m.id)}
+                  onClick={() => switchModule(m.id)}
                   className={`w-full text-left text-xs px-2 py-1 rounded-md transition-colors ${
                     activeId === m.id ? "text-blue-600 font-semibold bg-blue-50" : "text-gray-500 hover:text-gray-800"
                   }`}

@@ -45,6 +45,7 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/guide" component={GuidePage} />
+      <Route path="/guide/" component={GuidePage} />
       <Route path="/" component={DashboardPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/login" component={DashboardPage} />
@@ -87,8 +88,9 @@ function AppLayout() {
   }
 
   if (!user) {
-    if (location === "/login") return <AuthPage />;
-    if (location === "/guide") return <GuidePage />;
+    const path = location.replace(/\/+$/, "");
+    if (path === "/login") return <AuthPage />;
+    if (path === "/guide") return <GuidePage />;
     return <LandingPage />;
   }
 
