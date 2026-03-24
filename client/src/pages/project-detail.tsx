@@ -20,7 +20,7 @@ import {
   Plus, Trash2, MessageSquare, Send, Flag, ChevronDown, ChevronRight,
   LayoutList, LayoutGrid, Circle, CalendarDays,
 } from "lucide-react";
-import type { Project, Task, Subtask, Milestone, ProjectComment } from "@shared/schema";
+import type { Project, Task, Subtask, Milestone, ProjectComment, Department, TeamMember } from "@shared/schema";
 import { formatDate } from "@/lib/utils";
 
 type ProjectDetail = Project & {
@@ -213,12 +213,22 @@ function TaskCard({
                         data-testid={`input-subtask-title-${task.id}`}
                       />
                       <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          value={subForm.owner}
-                          onChange={e => setSubForm(f => ({ ...f, owner: e.target.value }))}
-                          placeholder="Owner"
-                          className="h-7 text-xs"
-                        />
+                        {teamMembers.length > 0 ? (
+                          <Select value={subForm.owner || "none"} onValueChange={v => setSubForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Owner" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No owner</SelectItem>
+                              {teamMembers.map(m => <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={subForm.owner}
+                            onChange={e => setSubForm(f => ({ ...f, owner: e.target.value }))}
+                            placeholder="Owner"
+                            className="h-7 text-xs"
+                          />
+                        )}
                         <Input
                           type="date"
                           value={subForm.dueDate}
@@ -367,6 +377,9 @@ export default function ProjectDetailPage() {
     title: "", dueDate: "", status: "Upcoming", progress: 0,
   });
   const [editForm, setEditForm] = useState<Partial<Project & { strategicGoal?: string; riskNotes?: string }>>({});
+
+  const { data: departments = [] } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({ queryKey: ["/api/team-members"] });
 
   const { data: project, isLoading } = useQuery<ProjectDetail>({
     queryKey: ["/api/projects", projectId],
@@ -893,8 +906,18 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Owner</Label>
-                <Input value={taskForm.owner} onChange={e => setTaskForm(f => ({ ...f, owner: e.target.value }))}
-                  placeholder="Name" data-testid="input-task-owner" />
+                {teamMembers.length > 0 ? (
+                  <Select value={taskForm.owner || "none"} onValueChange={v => setTaskForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                    <SelectTrigger data-testid="select-task-owner"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No owner</SelectItem>
+                      {teamMembers.map(m => <SelectItem key={m.id} value={m.name}>{m.name}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={taskForm.owner} onChange={e => setTaskForm(f => ({ ...f, owner: e.target.value }))}
+                    placeholder="Name" data-testid="input-task-owner" />
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Due Date</Label>
@@ -980,11 +1003,27 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Owner</Label>
-                <Input value={editForm.owner ?? ""} onChange={e => setEditForm(f => ({ ...f, owner: e.target.value }))} data-testid="input-edit-owner" />
+                {teamMembers.length > 0 ? (
+                  <Select value={editForm.owner || "none"} onValueChange={v => setEditForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                    <SelectTrigger data-testid="select-edit-project-owner"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No owner</SelectItem>
+                      {teamMembers.map(m => <SelectItem key={m.id} value={m.name}>{m.name}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={editForm.owner ?? ""} onChange={e => setEditForm(f => ({ ...f, owner: e.target.value }))} data-testid="input-edit-owner" />
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label>Business Unit</Label>
-                <Input value={editForm.businessUnit ?? ""} onChange={e => setEditForm(f => ({ ...f, businessUnit: e.target.value }))} />
+                <Label>Business Unit / Dept</Label>
+                <Select value={editForm.businessUnit || "none"} onValueChange={v => setEditForm(f => ({ ...f, businessUnit: v === "none" ? "" : v }))}>
+                  <SelectTrigger data-testid="select-edit-project-bu"><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

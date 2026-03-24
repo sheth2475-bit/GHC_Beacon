@@ -21,7 +21,7 @@ import {
   Activity, Target, ChevronRight, Users, Calendar, Briefcase,
   LayoutGrid, List, Trash2, TrendingUp, FileSpreadsheet,
 } from "lucide-react";
-import type { Project } from "@shared/schema";
+import type { Project, Department, TeamMember } from "@shared/schema";
 
 const projectColumnMap: Record<string, string> = {
   "Name *": "name",
@@ -220,6 +220,8 @@ export default function PortfolioPage() {
   });
 
   const { data: projects = [], isLoading } = useQuery<ProjectWithHealth[]>({ queryKey: ["/api/projects"] });
+  const { data: departments = [] } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({ queryKey: ["/api/team-members"] });
 
   const { data: stats } = useQuery<{
     total: number; active: number; completed: number; atRisk: number; overdueTasks: number; upcomingMilestones: number;
@@ -454,13 +456,28 @@ export default function PortfolioPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Owner</Label>
-                <Input value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))}
-                  placeholder="Name" data-testid="input-project-owner" />
+                {teamMembers.length > 0 ? (
+                  <Select value={form.owner || "none"} onValueChange={v => setForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                    <SelectTrigger data-testid="select-project-owner"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No owner</SelectItem>
+                      {teamMembers.map(m => <SelectItem key={m.id} value={m.name}>{m.name}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))}
+                    placeholder="Name" data-testid="input-project-owner" />
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label>Business Unit</Label>
-                <Input value={form.businessUnit} onChange={e => setForm(f => ({ ...f, businessUnit: e.target.value }))}
-                  placeholder="e.g. Marketing" data-testid="input-project-bu" />
+                <Label>Business Unit / Dept</Label>
+                <Select value={form.businessUnit || "none"} onValueChange={v => setForm(f => ({ ...f, businessUnit: v === "none" ? "" : v }))}>
+                  <SelectTrigger data-testid="select-project-bu"><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import type { TeamMember } from "@shared/schema";
+import type { TeamMember, Department } from "@shared/schema";
 
 interface CompanyUser {
   id: number;
@@ -62,6 +62,7 @@ export default function UserManagementPage() {
 
   const { data: users = [], isLoading: usersLoading } = useQuery<CompanyUser[]>({ queryKey: ["/api/users"] });
   const { data: members = [], isLoading: membersLoading } = useQuery<TeamMember[]>({ queryKey: ["/api/team-members"] });
+  const { data: departments = [] } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
 
   const userForm = useForm<CreateUserForm>({ defaultValues: { name: "", email: "", password: "", role: "executive" } });
   const memberForm = useForm<TeamMemberForm>({ defaultValues: { name: "", email: "", department: "", jobTitle: "" } });
@@ -348,7 +349,21 @@ export default function UserManagementPage() {
                 <FormField control={memberForm.control} name="jobTitle"
                   render={({ field }) => (<FormItem><FormLabel>Job Title</FormLabel><FormControl><Input placeholder="e.g. HR Manager" {...field} data-testid="input-member-title" /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={memberForm.control} name="department"
-                  render={({ field }) => (<FormItem><FormLabel>Department</FormLabel><FormControl><Input placeholder="e.g. HR" {...field} data-testid="input-member-dept" /></FormControl><FormMessage /></FormItem>)} />
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Department</FormLabel>
+                      <Select value={field.value || "none"} onValueChange={v => field.onChange(v === "none" ? "" : v)}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-member-dept"><SelectValue placeholder="Select department" /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No department</SelectItem>
+                          {departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
               </div>
               <div className="flex gap-2 pt-2">
                 <Button type="submit" disabled={saveMemberMutation.isPending} className="flex-1" data-testid="button-save-member">
