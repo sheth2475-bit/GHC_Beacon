@@ -40,7 +40,7 @@ const executiveInsightsNav = [
 ];
 
 const executionNav = [
-  { title: "Initiatives", url: "/initiatives", icon: FolderOpen },
+  { title: "Projects", url: "/initiatives", icon: FolderOpen },
   { title: "Workload", url: "/workload", icon: Users2 },
 ];
 
@@ -100,7 +100,7 @@ export function AppSidebar() {
       <SidebarContent className="pt-1">
         {renderGroup("Overview", mainNav)}
         {renderGroup("Performance", performanceNav)}
-        {renderGroup("Execution", executionNav)}
+        {renderGroup("Project Management", executionNav)}
         {renderGroup("AI Insights", insightsNav)}
         {isAdmin && (
           <>
