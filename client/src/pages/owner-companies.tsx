@@ -97,7 +97,7 @@ export default function OwnerCompanies() {
                       {c.name?.[0]?.toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-white truncate">{c.name}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${planColors[c.planName] || planColors.Trial}`}>
                           {c.planName || "Trial"}
@@ -106,7 +106,12 @@ export default function OwnerCompanies() {
                           {c.status || "Active"}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 truncate">{c.email}</p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {c.email && <span>{c.email}</span>}
+                        {c.industry && <span className="text-gray-600"> · {c.industry}</span>}
+                        {c.country && <span className="text-gray-600"> · {c.country}</span>}
+                        {c.companySize && <span className="text-gray-600"> · {c.companySize}</span>}
+                      </p>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span className="flex items-center gap-1">

@@ -78,11 +78,12 @@ export default function OwnerDashboard() {
                 <div className="divide-y divide-white/5">
                   {stats.recentCompanies.slice(0, 6).map((c: any) => (
                     <div key={c.id} className="flex items-center justify-between px-5 py-2.5">
-                      <div>
-                        <p className="text-sm text-white font-medium">{c.name}</p>
-                        <p className="text-xs text-gray-500">{c.userCount} users</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white font-medium truncate">{c.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{c.email || `${c.userCount} user${c.userCount !== 1 ? "s" : ""}`}{c.industry ? ` · ${c.industry}` : ""}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                        <span className="text-xs text-gray-500">{c.userCount}u</span>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${planColors[c.planName] || planColors.Trial}`}>
                           {c.planName || "Trial"}
                         </span>

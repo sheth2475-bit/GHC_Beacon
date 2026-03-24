@@ -97,10 +97,14 @@ export function registerOwnerRoutes(app: Express) {
 
       const recentCompanies = [...allCompanies].reverse().slice(0, 6).map(c => {
         const sub = subByCompany.get(c.id);
+        const adminUser = userById.get(c.userId);
         return {
           id: c.id,
-          name: c.name,
-          email: c.email,
+          name: c.companyName,
+          email: adminUser?.email || "",
+          industry: c.industry,
+          companySize: c.companySize,
+          country: c.country,
           userCount: usersByCompany.get(c.id) || 0,
           planName: sub?.planName || "Trial",
           status: sub?.status || "Active",
@@ -112,14 +116,14 @@ export function registerOwnerRoutes(app: Express) {
       const enrichedActivity = recentActivity.slice(0, 20).map(log => ({
         ...log,
         userName: userById.get(log.userId)?.name || "Unknown",
-        companyName: log.companyId ? companyById.get(log.companyId)?.name : null,
+        companyName: log.companyId ? companyById.get(log.companyId)?.companyName : null,
         action: log.activityType,
       }));
 
       const aiUsageByCompany = allCompanies.map(c => {
         const sub = subByCompany.get(c.id);
         return {
-          companyName: c.name,
+          companyName: c.companyName,
           count: aiByCompanyMap.get(c.id) || 0,
           dailyLimit: sub?.dailyAiLimit || 15,
         };
@@ -148,8 +152,11 @@ export function registerOwnerRoutes(app: Express) {
           storage.getUsersByCompany(c.id),
           storage.getDailyAiCount(c.id),
         ]);
+        const adminUser = users.find(u => u.role === "admin") || users[0];
         return {
           ...c,
+          name: c.companyName,
+          email: adminUser?.email || "",
           planName: sub?.planName || "Trial",
           status: sub?.status || "Active",
           maxUsers: sub?.maxUsers || 5,
@@ -347,7 +354,7 @@ export function registerOwnerRoutes(app: Express) {
       const userMap: Record<number, string> = {};
       const companyMap: Record<number, string> = {};
       for (const u of allUsers) userMap[u.id] = u.name;
-      for (const c of allCompanies) companyMap[c.id] = c.name;
+      for (const c of allCompanies) companyMap[c.id] = c.companyName;
       const enriched = logs.map(l => ({
         ...l,
         userName: l.userId ? userMap[l.userId] || "Unknown" : "System",
@@ -377,7 +384,7 @@ export function registerOwnerRoutes(app: Express) {
         const sub = subByCompany.get(c.id);
         const companyLogs = aiLogs.filter(l => l.companyId === c.id);
         return {
-          companyName: c.name,
+          companyName: c.companyName,
           planName: sub?.planName || "Trial",
           dailyLimit: sub?.dailyAiLimit || 15,
           today: companyLogs.filter(l => new Date(l.createdAt) >= today).length,
