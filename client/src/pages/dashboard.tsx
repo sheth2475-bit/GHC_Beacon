@@ -99,7 +99,7 @@ export default function DashboardPage() {
       return eff && eff < today && a.status !== "Completed" && a.status !== "Cancelled";
     });
     return { id: dept.id, name: dept.name, kpiCount: deptKpis.length, actionCount: deptActions.length, overdueCount: overdue.length };
-  });
+  }).filter(d => d.kpiCount > 0 || d.actionCount > 0);
 
   const pctOnTrack = stats && stats.totalKpis > 0 ? Math.round((stats.onTrack / stats.totalKpis) * 100) : 0;
   const pctCompleted = stats && stats.totalActions > 0 ? Math.round((stats.completedActions / stats.totalActions) * 100) : 0;
