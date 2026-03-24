@@ -590,81 +590,34 @@ export default function DashboardPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-3">
-
-              {/* ── Project Management snapshot ── */}
-              <div className="rounded-lg bg-muted/40 border p-2.5 space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Briefcase className="h-3 w-3" /> Project Management
-                </p>
-                <div className="grid grid-cols-3 gap-1">
-                  <div className="text-center">
-                    <p className="text-base font-bold text-primary leading-none" data-testid="text-review-active-projects">{portfolioStats?.active || 0}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Active</p>
-                  </div>
-                  <div className="text-center">
-                    <p className={`text-base font-bold leading-none ${(portfolioStats?.atRisk || 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} data-testid="text-review-at-risk">{portfolioStats?.atRisk || 0}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">At Risk</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-base font-bold text-emerald-600 leading-none" data-testid="text-review-completed-projects">{portfolioStats?.completed || 0}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Done</p>
-                  </div>
-                </div>
-                {(portfolioStats?.overdueTasks || 0) > 0 && (
-                  <p className="text-[10px] text-red-500 font-medium">⚠ {portfolioStats?.overdueTasks} overdue task{portfolioStats?.overdueTasks !== 1 ? "s" : ""}</p>
-                )}
-              </div>
-
-              {/* ── Action Tracker snapshot ── */}
-              <div className="rounded-lg bg-muted/40 border p-2.5 space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <ListChecks className="h-3 w-3" /> Action Tracker
-                </p>
-                <div className="grid grid-cols-3 gap-1">
-                  <div className="text-center">
-                    <p className="text-base font-bold text-blue-600 leading-none" data-testid="text-review-total-actions">{stats?.totalActions || 0}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Total</p>
-                  </div>
-                  <div className="text-center">
-                    <p className={`text-base font-bold leading-none ${(stats?.overdueActions || 0) > 0 ? "text-orange-500" : "text-muted-foreground"}`} data-testid="text-review-overdue-actions">{stats?.overdueActions || 0}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Overdue</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-base font-bold text-emerald-600 leading-none" data-testid="text-review-completed-actions">{stats?.completedActions || 0}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Done</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Monthly Review text ── */}
+            <CardContent className="px-4 pb-4">
               {latestReview ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2" data-testid="text-review-summary">
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3" data-testid="text-review-summary">
                     {latestReview.overallSummary?.split("\n")[0]}
                   </p>
                   {latestReview.strengths && (
-                    <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/15 p-2">
-                      <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-0.5">✓ Strengths</p>
-                      <p className="text-xs text-muted-foreground line-clamp-1">
-                        {latestReview.strengths.split("\n")[0].replace(/^[-•]\s*/, "")}
+                    <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/15 p-2.5">
+                      <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">✓ Key Strengths</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {latestReview.strengths.split("\n").slice(0, 2).join("; ").replace(/^[-•]\s*/gm, "")}
                       </p>
                     </div>
                   )}
                   {latestReview.gaps && (
-                    <div className="rounded-lg bg-red-500/5 border border-red-500/15 p-2">
-                      <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-0.5">⚠ Gaps</p>
-                      <p className="text-xs text-muted-foreground line-clamp-1">
-                        {latestReview.gaps.split("\n")[0].replace(/^[-•]\s*/, "")}
+                    <div className="rounded-lg bg-red-500/5 border border-red-500/15 p-2.5">
+                      <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-1">⚠ Key Gaps</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {latestReview.gaps.split("\n").slice(0, 2).join("; ").replace(/^[-•]\s*/gm, "")}
                       </p>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-2 text-center">
-                  <Layers className="h-6 w-6 text-muted-foreground/40 mb-1.5" />
-                  <p className="text-xs text-muted-foreground">No monthly review yet</p>
-                  <Link href="/reviews"><span className="text-xs text-primary hover:underline mt-0.5">Generate one →</span></Link>
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <Layers className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No reviews generated yet</p>
+                  <Link href="/reviews"><span className="text-xs text-primary hover:underline mt-1">Generate one →</span></Link>
                 </div>
               )}
             </CardContent>
