@@ -87,7 +87,7 @@ function InitiativeGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; is
       <CardContent className="p-5 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <Link href={`/initiatives/${p.id}`}>
+            <Link href={`/projects/${p.id}`}>
               <h3 className="font-semibold text-sm leading-tight hover:text-primary transition-colors line-clamp-1 cursor-pointer" data-testid={`text-project-name-${p.id}`}>{p.name}</h3>
             </Link>
             {p.description && (
@@ -153,7 +153,7 @@ function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isA
       <CardContent className="p-4 flex items-center gap-4">
         <div className={`w-1 self-stretch rounded-full shrink-0 ${healthDot(p.health)}`} />
         <div className="flex-1 min-w-0">
-          <Link href={`/initiatives/${p.id}`}>
+          <Link href={`/projects/${p.id}`}>
             <span className="font-semibold text-sm hover:text-primary transition-colors cursor-pointer" data-testid={`text-project-list-name-${p.id}`}>{p.name}</span>
           </Link>
           {p.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{p.description}</p>}
@@ -171,8 +171,8 @@ function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isA
         {p.owner && <span className="hidden lg:block text-xs text-muted-foreground shrink-0 w-28 truncate">{p.owner}</span>}
         {p.dueDate && <span className="hidden lg:block text-xs text-muted-foreground shrink-0">{p.dueDate}</span>}
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-muted-foreground">{p.completedTaskCount}/{p.taskCount} tasks</span>
-          <Link href={`/initiatives/${p.id}`}>
+          <span className="text-xs text-muted-foreground">{p.completedTaskCount}/{p.taskCount} initiatives</span>
+          <Link href={`/projects/${p.id}`}>
             <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
           </Link>
           {isAdmin && (
@@ -220,9 +220,9 @@ export default function PortfolioPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
       setShowCreate(false);
       setForm({ name: "", description: "", owner: "", businessUnit: "", strategicGoal: "", riskNotes: "", startDate: "", dueDate: "", status: "Not Started", priority: "High" });
-      toast({ title: "Initiative created successfully" });
+      toast({ title: "Project created successfully" });
     },
-    onError: () => toast({ title: "Failed to create initiative", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to create project", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -230,9 +230,9 @@ export default function PortfolioPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
-      toast({ title: "Initiative deleted" });
+      toast({ title: "Project deleted" });
     },
-    onError: () => toast({ title: "Failed to delete initiative", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to delete project", variant: "destructive" }),
   });
 
   const handleDownloadTemplate = () => {
@@ -258,7 +258,7 @@ export default function PortfolioPage() {
       const data = await res.json();
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
-      toast({ title: `${data.created} initiative${data.created !== 1 ? "s" : ""} imported successfully` });
+      toast({ title: `${data.created} project${data.created !== 1 ? "s" : ""} imported successfully` });
     } catch (err: any) {
       toast({ title: "Upload failed: " + (err.message || "Unknown error"), variant: "destructive" });
     } finally {
@@ -282,9 +282,9 @@ export default function PortfolioPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2.5">
             <FolderOpen className="h-6 w-6 text-primary" />
-            Initiative Portfolio
+            Projects
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">All strategic initiatives across your organisation</p>
+          <p className="text-sm text-muted-foreground mt-0.5">All strategic projects across your organisation</p>
         </div>
         {isAdmin && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -307,7 +307,7 @@ export default function PortfolioPage() {
               data-testid="input-bulk-upload-file"
             />
             <Button onClick={() => setShowCreate(true)} data-testid="button-create-project">
-              <Plus className="h-4 w-4 mr-1.5" /> New Initiative
+              <Plus className="h-4 w-4 mr-1.5" /> New Project
             </Button>
           </div>
         )}
@@ -334,7 +334,7 @@ export default function PortfolioPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search initiatives or owners..."
+            placeholder="Search projects or owners..."
             className="pl-9"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -391,7 +391,7 @@ export default function PortfolioPage() {
       {!isLoading && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? "initiative" : "initiatives"}
+            {filtered.length} {filtered.length === 1 ? "project" : "projects"}
             {filtered.length !== projects.length && ` (filtered from ${projects.length})`}
           </p>
           {(filterStatus !== "All" || filterPriority !== "All" || filterHealth !== "All" || search) && (
@@ -419,19 +419,19 @@ export default function PortfolioPage() {
               <FolderOpen className="h-8 w-8 text-muted-foreground" />
             </div>
             <div>
-              <p className="font-semibold text-base">No initiatives found</p>
+              <p className="font-semibold text-base">No projects found</p>
               <p className="text-sm text-muted-foreground mt-1">
                 {search || filterStatus !== "All" || filterPriority !== "All" || filterHealth !== "All"
                   ? "Try adjusting your search or filters."
                   : isAdmin
-                  ? "Create your first initiative to get started."
-                  : "No initiatives have been created yet."}
+                  ? "Create your first project to get started."
+                  : "No projects have been created yet."}
               </p>
             </div>
             {isAdmin && !search && filterStatus === "All" && filterPriority === "All" && filterHealth === "All" && (
               <div className="flex items-center gap-2">
                 <Button onClick={() => setShowCreate(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Create First Initiative
+                  <Plus className="h-4 w-4 mr-1.5" /> Create First Project
                 </Button>
                 <span className="text-xs text-muted-foreground">or</span>
                 <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
@@ -455,22 +455,22 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* Create Initiative Dialog */}
+      {/* Create Project Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Initiative</DialogTitle>
+            <DialogTitle>New Project</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Initiative Name *</Label>
+              <Label>Project Name *</Label>
               <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Loyalty Programme Launch" data-testid="input-project-name" />
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
               <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="What is this initiative about?" rows={2} data-testid="input-project-description" />
+                placeholder="What is this project about?" rows={2} data-testid="input-project-description" />
             </div>
             <div className="space-y-1.5">
               <Label>Strategic Goal</Label>
@@ -532,7 +532,7 @@ export default function PortfolioPage() {
               disabled={!form.name || createMutation.isPending}
               data-testid="button-submit-project"
             >
-              {createMutation.isPending ? "Creating..." : "Create Initiative"}
+              {createMutation.isPending ? "Creating..." : "Create Project"}
             </Button>
           </DialogFooter>
         </DialogContent>

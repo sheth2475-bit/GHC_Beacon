@@ -18,10 +18,10 @@ async function seedProjectData(companyId: number) {
   for (const d of deptList) depts[d.name] = d.id;
 
   const projectData = [
-    { name: "Loyalty Program Launch", description: "Design and launch a digital loyalty program to drive repeat bookings and increase guest retention across all OYO properties.", owner: "Noura Bin Rashid", dept: "Sales & Revenue", businessUnit: "Marketing", startDate: "2026-01-15", dueDate: "2026-04-30", status: "In Progress", priority: "High", progress: 55 },
-    { name: "F&B Menu Overhaul", description: "Revamp the restaurant and bar menus to increase F&B revenue per cover from AED 128 to AED 145+. Includes new pricing strategy, supplier renegotiation, and seasonal menu items.", owner: "Khalid Mansoor", dept: "Operations", businessUnit: "F&B", startDate: "2026-02-01", dueDate: "2026-03-31", status: "In Progress", priority: "High", progress: 40 },
-    { name: "Staff Retention Initiative", description: "Reduce employee turnover below 18% through structured retention bonuses, career development programs, and improved working conditions for housekeeping and F&B staff.", owner: "Fatima Al Rashid", dept: "HR & Admin", businessUnit: "People & Culture", startDate: "2026-02-15", dueDate: "2026-06-30", status: "In Progress", priority: "Critical", progress: 30 },
-    { name: "Q2 Revenue Recovery Plan", description: "Develop and execute a comprehensive revenue plan for Q2 to recover from February's 5.8% budget shortfall. Includes corporate RFPs, weekend packages, and OTA rate optimization.", owner: "Priya Sharma", dept: "Sales & Revenue", businessUnit: "Revenue", startDate: "2026-03-01", dueDate: "2026-06-30", status: "Not Started", priority: "Critical", progress: 0 },
+    { name: "Loyalty Program Launch", description: "Design and launch a digital loyalty program to drive repeat bookings and increase guest retention across all OYO properties.", owner: "Noura Bin Rashid", dept: "Sales & Revenue", businessUnit: "Marketing", startDate: "2026-01-15", dueDate: "2026-04-30", status: "In Progress", priority: "High", progress: 55, strategicGoal: "Achieve 25% repeat guest rate and reduce customer acquisition cost by 15%", riskNotes: "PMS integration dependency may delay launch if IT capacity is constrained" },
+    { name: "F&B Menu Overhaul", description: "Revamp the restaurant and bar menus to increase F&B revenue per cover from AED 128 to AED 145+. Includes new pricing strategy, supplier renegotiation, and seasonal menu items.", owner: "Khalid Mansoor", dept: "Operations", businessUnit: "F&B", startDate: "2026-02-01", dueDate: "2026-03-31", status: "In Progress", priority: "High", progress: 40, strategicGoal: "Increase F&B revenue per cover to AED 145+ and grow F&B contribution to 18% of total revenue", riskNotes: "Supplier renegotiation may extend timeline; backup supplier list required" },
+    { name: "Staff Retention Initiative", description: "Reduce employee turnover below 18% through structured retention bonuses, career development programs, and improved working conditions for housekeeping and F&B staff.", owner: "Fatima Al Rashid", dept: "HR & Admin", businessUnit: "People & Culture", startDate: "2026-02-15", dueDate: "2026-06-30", status: "In Progress", priority: "Critical", progress: 30, strategicGoal: "Reduce employee turnover from 23% to below 18% and improve eNPS score by 15 points", riskNotes: "Competitor hotels actively recruiting trained staff; budget approval for bonuses still pending" },
+    { name: "Q2 Revenue Recovery Plan", description: "Develop and execute a comprehensive revenue plan for Q2 to recover from February's 5.8% budget shortfall. Includes corporate RFPs, weekend packages, and OTA rate optimization.", owner: "Priya Sharma", dept: "Sales & Revenue", businessUnit: "Revenue", startDate: "2026-03-01", dueDate: "2026-06-30", status: "Not Started", priority: "Critical", progress: 0, strategicGoal: "Recover Q2 revenue to within 3% of budget and restore GOP margin to 35%+", riskNotes: "Market demand softness in April may limit pricing power; corporate RFP outcomes uncertain" },
   ];
 
   const createdProjects: Record<string, number> = {};
@@ -38,6 +38,8 @@ async function seedProjectData(companyId: number) {
       status: p.status,
       priority: p.priority,
       progress: p.progress,
+      strategicGoal: (p as any).strategicGoal || null,
+      riskNotes: (p as any).riskNotes || null,
       tags: null,
       linkedKpiId: null,
     });
@@ -64,10 +66,44 @@ async function seedProjectData(companyId: number) {
     { project: "Q2 Revenue Recovery Plan", title: "OTA rate optimization for April–June", assignee: "Priya Sharma", status: "Not Started", priority: "Medium", dueDate: "2026-04-01", progress: 0 },
   ];
 
+  const createdTasks: Record<string, number> = {};
   for (const t of taskData) {
     const projectId = createdProjects[t.project];
     if (!projectId) continue;
-    await storage.createTask({ companyId, projectId, title: t.title, description: null, assignee: t.assignee, status: t.status, priority: t.priority, startDate: null, dueDate: t.dueDate, progress: t.progress, tags: null });
+    const task = await storage.createTask({ companyId, projectId, title: t.title, description: null, owner: t.assignee, assignee: t.assignee, status: t.status, priority: t.priority, startDate: null, dueDate: t.dueDate, progress: t.progress, tags: null });
+    createdTasks[`${t.project}::${t.title}`] = task.id;
+  }
+
+  const subtaskData = [
+    { initiative: "Loyalty Program Launch", task: "Define loyalty tiers and rewards structure", title: "Draft tier structure document (Bronze/Silver/Gold)", owner: "Noura Bin Rashid", dueDate: "2026-02-10", status: "Completed", completed: true },
+    { initiative: "Loyalty Program Launch", task: "Define loyalty tiers and rewards structure", title: "Benchmark competitor loyalty programs (Marriott, IHG)", owner: "Marketing Analyst", dueDate: "2026-02-12", status: "Completed", completed: true },
+    { initiative: "Loyalty Program Launch", task: "Select loyalty platform vendor", title: "Issue RFP to 3 shortlisted vendors", owner: "Noura Bin Rashid", dueDate: "2026-02-15", status: "Completed", completed: true },
+    { initiative: "Loyalty Program Launch", task: "Select loyalty platform vendor", title: "Conduct vendor demos and score evaluation matrix", owner: "IT Team", dueDate: "2026-02-25", status: "Completed", completed: true },
+    { initiative: "Loyalty Program Launch", task: "Develop member email communication plan", title: "Design welcome email sequence (3 emails)", owner: "Noura Bin Rashid", dueDate: "2026-03-12", status: "In Progress", completed: false },
+    { initiative: "Loyalty Program Launch", task: "Develop member email communication plan", title: "Set up email automation in CRM", owner: "IT Team", dueDate: "2026-03-18", status: "Not Started", completed: false },
+    { initiative: "Loyalty Program Launch", task: "Integrate loyalty program with PMS", title: "Map loyalty points logic to Opera PMS fields", owner: "IT Team", dueDate: "2026-03-20", status: "In Progress", completed: false },
+    { initiative: "Loyalty Program Launch", task: "Integrate loyalty program with PMS", title: "UAT testing in staging environment", owner: "IT Team", dueDate: "2026-03-30", status: "Not Started", completed: false },
+    { initiative: "F&B Menu Overhaul", task: "Benchmark competitor restaurant pricing", title: "Visit 5 competitor F&B outlets and record pricing", owner: "Khalid Mansoor", dueDate: "2026-02-15", status: "Completed", completed: true },
+    { initiative: "F&B Menu Overhaul", task: "Benchmark competitor restaurant pricing", title: "Compile benchmark report with recommendations", owner: "Khalid Mansoor", dueDate: "2026-02-18", status: "Completed", completed: true },
+    { initiative: "F&B Menu Overhaul", task: "Renegotiate supplier contracts for Q2", title: "Schedule meetings with top 5 suppliers", owner: "Khalid Mansoor", dueDate: "2026-03-05", status: "Completed", completed: true },
+    { initiative: "F&B Menu Overhaul", task: "Renegotiate supplier contracts for Q2", title: "Negotiate 8-12% cost reduction on key ingredients", owner: "Khalid Mansoor", dueDate: "2026-03-12", status: "In Progress", completed: false },
+    { initiative: "F&B Menu Overhaul", task: "Design new seasonal menu items", title: "Chef brainstorming session for 8 new dishes", owner: "Head Chef", dueDate: "2026-03-05", status: "Completed", completed: true },
+    { initiative: "F&B Menu Overhaul", task: "Design new seasonal menu items", title: "Costing and margin analysis for new items", owner: "Khalid Mansoor", dueDate: "2026-03-08", status: "In Progress", completed: false },
+    { initiative: "Staff Retention Initiative", task: "Conduct exit interviews for Q1 departures", title: "Interview 3 departed housekeeping staff", owner: "Fatima Al Rashid", dueDate: "2026-03-03", status: "Completed", completed: true },
+    { initiative: "Staff Retention Initiative", task: "Conduct exit interviews for Q1 departures", title: "Synthesise findings into HR gap report", owner: "Fatima Al Rashid", dueDate: "2026-03-05", status: "Completed", completed: true },
+    { initiative: "Staff Retention Initiative", task: "Design retention bonus structure", title: "Draft bonus tiers by tenure and department", owner: "Fatima Al Rashid", dueDate: "2026-03-10", status: "Completed", completed: true },
+    { initiative: "Staff Retention Initiative", task: "Design retention bonus structure", title: "Submit bonus budget for Finance approval", owner: "Fatima Al Rashid", dueDate: "2026-03-15", status: "In Progress", completed: false },
+    { initiative: "Q2 Revenue Recovery Plan", task: "Submit corporate RFP responses (Emirates NBD, ADNOC)", title: "Gather room rate data and availability grids", owner: "Sarah Al Maktoum", dueDate: "2026-03-07", status: "Completed", completed: true },
+    { initiative: "Q2 Revenue Recovery Plan", task: "Submit corporate RFP responses (Emirates NBD, ADNOC)", title: "Finalise and submit RFP documents to 3 corporates", owner: "Sarah Al Maktoum", dueDate: "2026-03-10", status: "In Progress", completed: false },
+    { initiative: "Q2 Revenue Recovery Plan", task: "Launch weekend staycation packages", title: "Design 2-night package with F&B credit", owner: "Noura Bin Rashid", dueDate: "2026-03-14", status: "Not Started", completed: false },
+    { initiative: "Q2 Revenue Recovery Plan", task: "Launch weekend staycation packages", title: "Load packages on OTA channels (Booking.com, Expedia)", owner: "IT Team", dueDate: "2026-03-18", status: "Not Started", completed: false },
+  ];
+
+  for (const s of subtaskData) {
+    const taskKey = `${s.initiative}::${s.task}`;
+    const taskId = createdTasks[taskKey];
+    if (!taskId) continue;
+    await storage.createSubtask({ taskId, title: s.title, owner: s.owner, dueDate: s.dueDate, status: s.status, completed: s.completed });
   }
 
   const milestoneData = [
@@ -204,6 +240,83 @@ async function seedMonthlyReview(companyId: number) {
   });
 }
 
+async function seedSubtasksForExistingTasks(allTasks: { id: number; title: string }[]) {
+  const subtaskMap: Record<string, { title: string; owner: string; dueDate: string; status: string; completed: boolean }[]> = {
+    "Define loyalty tiers and rewards structure": [
+      { title: "Draft tier structure document (Bronze/Silver/Gold)", owner: "Noura Bin Rashid", dueDate: "2026-02-10", status: "Completed", completed: true },
+      { title: "Benchmark competitor loyalty programs (Marriott, IHG)", owner: "Marketing Analyst", dueDate: "2026-02-12", status: "Completed", completed: true },
+    ],
+    "Select loyalty platform vendor": [
+      { title: "Issue RFP to 3 shortlisted vendors", owner: "Noura Bin Rashid", dueDate: "2026-02-15", status: "Completed", completed: true },
+      { title: "Conduct vendor demos and score evaluation matrix", owner: "IT Team", dueDate: "2026-02-25", status: "Completed", completed: true },
+    ],
+    "Develop member email communication plan": [
+      { title: "Design welcome email sequence (3 emails)", owner: "Noura Bin Rashid", dueDate: "2026-03-12", status: "In Progress", completed: false },
+      { title: "Set up email automation in CRM", owner: "IT Team", dueDate: "2026-03-18", status: "Not Started", completed: false },
+    ],
+    "Integrate loyalty program with PMS": [
+      { title: "Map loyalty points logic to Opera PMS fields", owner: "IT Team", dueDate: "2026-03-20", status: "In Progress", completed: false },
+      { title: "UAT testing in staging environment", owner: "IT Team", dueDate: "2026-03-30", status: "Not Started", completed: false },
+    ],
+    "Launch pilot with 500 existing guests": [
+      { title: "Identify and segment top 500 guests from PMS", owner: "Guest Relations Manager", dueDate: "2026-04-10", status: "Not Started", completed: false },
+      { title: "Send personalised pilot invitations", owner: "Noura Bin Rashid", dueDate: "2026-04-15", status: "Not Started", completed: false },
+    ],
+    "Benchmark competitor restaurant pricing": [
+      { title: "Visit 5 competitor F&B outlets and record pricing", owner: "Khalid Mansoor", dueDate: "2026-02-15", status: "Completed", completed: true },
+      { title: "Compile benchmark report with recommendations", owner: "Khalid Mansoor", dueDate: "2026-02-18", status: "Completed", completed: true },
+    ],
+    "Renegotiate supplier contracts for Q2": [
+      { title: "Schedule meetings with top 5 suppliers", owner: "Khalid Mansoor", dueDate: "2026-03-05", status: "Completed", completed: true },
+      { title: "Negotiate 8-12% cost reduction on key ingredients", owner: "Khalid Mansoor", dueDate: "2026-03-12", status: "In Progress", completed: false },
+    ],
+    "Design new seasonal menu items": [
+      { title: "Chef brainstorming session for 8 new dishes", owner: "Head Chef", dueDate: "2026-03-05", status: "Completed", completed: true },
+      { title: "Costing and margin analysis for new items", owner: "Khalid Mansoor", dueDate: "2026-03-08", status: "In Progress", completed: false },
+    ],
+    "Print and deploy updated menus": [
+      { title: "Finalise print-ready menu artwork", owner: "Khalid Mansoor", dueDate: "2026-03-22", status: "Not Started", completed: false },
+      { title: "Distribute printed menus to all outlets", owner: "Operations Manager", dueDate: "2026-03-27", status: "Not Started", completed: false },
+    ],
+    "Conduct exit interviews for Q1 departures": [
+      { title: "Interview 3 departed housekeeping staff", owner: "Fatima Al Rashid", dueDate: "2026-03-03", status: "Completed", completed: true },
+      { title: "Synthesise findings into HR gap report", owner: "Fatima Al Rashid", dueDate: "2026-03-05", status: "Completed", completed: true },
+    ],
+    "Design retention bonus structure": [
+      { title: "Draft bonus tiers by tenure and department", owner: "Fatima Al Rashid", dueDate: "2026-03-10", status: "Completed", completed: true },
+      { title: "Submit bonus budget for Finance approval", owner: "Fatima Al Rashid", dueDate: "2026-03-15", status: "In Progress", completed: false },
+    ],
+    "Launch career development framework": [
+      { title: "Map career paths for housekeeping and F&B roles", owner: "L&D Coordinator", dueDate: "2026-04-15", status: "Not Started", completed: false },
+      { title: "Create learning path templates in LMS", owner: "L&D Coordinator", dueDate: "2026-04-25", status: "Not Started", completed: false },
+    ],
+    "Submit corporate RFP responses (Emirates NBD, ADNOC)": [
+      { title: "Gather room rate data and availability grids", owner: "Sarah Al Maktoum", dueDate: "2026-03-07", status: "Completed", completed: true },
+      { title: "Finalise and submit RFP documents to 3 corporates", owner: "Sarah Al Maktoum", dueDate: "2026-03-10", status: "In Progress", completed: false },
+    ],
+    "Launch weekend staycation packages": [
+      { title: "Design 2-night package with F&B credit", owner: "Noura Bin Rashid", dueDate: "2026-03-14", status: "Not Started", completed: false },
+      { title: "Load packages on OTA channels (Booking.com, Expedia)", owner: "IT Team", dueDate: "2026-03-18", status: "Not Started", completed: false },
+    ],
+    "Present dynamic pricing model to GM": [
+      { title: "Build weekday/weekend rate differential grid", owner: "Priya Sharma", dueDate: "2026-03-20", status: "Not Started", completed: false },
+      { title: "Prepare GM presentation deck", owner: "Priya Sharma", dueDate: "2026-03-24", status: "Not Started", completed: false },
+    ],
+    "OTA rate optimization for April–June": [
+      { title: "Audit current OTA rate parity across channels", owner: "Priya Sharma", dueDate: "2026-03-25", status: "Not Started", completed: false },
+      { title: "Upload optimised rates to channel manager", owner: "IT Team", dueDate: "2026-04-01", status: "Not Started", completed: false },
+    ],
+  };
+
+  for (const task of allTasks) {
+    const subs = subtaskMap[task.title];
+    if (!subs) continue;
+    for (const s of subs) {
+      await storage.createSubtask({ taskId: task.id, title: s.title, owner: s.owner, dueDate: s.dueDate, status: s.status, completed: s.completed });
+    }
+  }
+}
+
 export async function seedDatabase() {
   const existing = await storage.getUserByEmail("demo@performo.ai");
 
@@ -267,6 +380,16 @@ export async function seedDatabase() {
     if (existingProjects.length === 0) {
       await seedProjectData(companyId);
       console.log("Seed: restored projects, tasks, milestones");
+    }
+
+    // ── Ensure subtasks (Tasks within Initiatives) ───────────────
+    const allTasks = await storage.getTasks(companyId);
+    if (allTasks.length > 0) {
+      const firstTaskSubs = await storage.getSubtasks(allTasks[0].id);
+      if (firstTaskSubs.length === 0) {
+        await seedSubtasksForExistingTasks(allTasks);
+        console.log("Seed: seeded tasks (subtasks) within initiatives");
+      }
     }
 
     // ── Ensure subscription ──────────────────────────────────────

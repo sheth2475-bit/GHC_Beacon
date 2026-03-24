@@ -52,6 +52,7 @@ function AppRouter() {
       <Route path="/kpis" component={KpiManagementPage} />
       <Route path="/actions" component={ActionsPage} />
       <Route path="/reviews" component={ReviewsPage} />
+      <Route path="/projects" component={PortfolioPage} />
       <Route path="/portfolio" component={PortfolioPage} />
       <Route path="/initiatives" component={PortfolioPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />

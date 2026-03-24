@@ -82,7 +82,7 @@ export default function WorkloadPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2.5">
           <Users className="h-6 w-6 text-primary" /> Team Workload
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Task distribution and capacity view by team member</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Initiative distribution and capacity view by team member</p>
       </div>
 
       {/* Summary stats */}
@@ -101,7 +101,7 @@ export default function WorkloadPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30"><Target className="h-3.5 w-3.5 text-blue-600" /></div>
-                <p className="text-xs text-muted-foreground font-medium">Total Tasks</p>
+                <p className="text-xs text-muted-foreground font-medium">Total Initiatives</p>
               </div>
               <p className="text-2xl font-bold tabular-nums">{totalTasks}</p>
             </CardContent>
@@ -157,8 +157,8 @@ export default function WorkloadPage() {
               <Users className="h-8 w-8 text-muted-foreground" />
             </div>
             <div>
-              <p className="font-semibold text-base">No tasks assigned yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Create tasks and assign them to team members to see workload distribution.</p>
+              <p className="font-semibold text-base">No initiatives assigned yet</p>
+              <p className="text-sm text-muted-foreground mt-1">Create initiatives and assign them to team members to see workload distribution.</p>
             </div>
           </CardContent>
         </Card>
@@ -188,7 +188,7 @@ export default function WorkloadPage() {
                           <p className="font-semibold text-sm" data-testid={`text-workload-name-${person.name.replace(/\s+/g, "-").toLowerCase()}`}>
                             {person.name}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{person.total} tasks · {completedPct}% complete</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{person.total} initiatives · {completedPct}% complete</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                           {person.overdue > 0 && (
@@ -226,7 +226,7 @@ export default function WorkloadPage() {
                             data-testid={`button-expand-${person.name.replace(/\s+/g, "-").toLowerCase()}`}
                           >
                             <BarChart3 className="h-3 w-3" />
-                            {isExpanded ? "Hide" : "Show"} tasks ({person.tasks.length})
+                            {isExpanded ? "Hide" : "Show"} initiatives ({person.tasks.length})
                           </button>
 
                           {isExpanded && (
@@ -272,8 +272,8 @@ export default function WorkloadPage() {
           <CardContent className="p-4 flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <p className="text-sm text-emerald-800 dark:text-emerald-200">
-              <span className="font-semibold">{totalCompleted} tasks completed</span> across {workload.length} team members.
-              {totalOverdue > 0 && ` ${totalOverdue} task${totalOverdue !== 1 ? "s" : ""} require immediate attention.`}
+              <span className="font-semibold">{totalCompleted} initiatives completed</span> across {workload.length} team members.
+              {totalOverdue > 0 && ` ${totalOverdue} initiative${totalOverdue !== 1 ? "s" : ""} require immediate attention.`}
             </p>
           </CardContent>
         </Card>

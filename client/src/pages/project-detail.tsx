@@ -152,7 +152,7 @@ function TaskCard({
                 data-testid={`button-expand-subtasks-${task.id}`}
               >
                 {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                {doneCount}/{totalSubs} subtasks
+                {doneCount}/{totalSubs} tasks
               </button>
             </div>
 
@@ -207,7 +207,7 @@ function TaskCard({
                       <Input
                         value={subForm.title}
                         onChange={e => setSubForm(f => ({ ...f, title: e.target.value }))}
-                        placeholder="Subtask title"
+                        placeholder="Task title"
                         className="h-7 text-xs"
                         data-testid={`input-subtask-title-${task.id}`}
                       />
@@ -254,7 +254,7 @@ function TaskCard({
                       onClick={() => setShowSubtaskForm(true)}
                       data-testid={`button-add-subtask-${task.id}`}
                     >
-                      <Plus className="h-3 w-3" /> Add subtask
+                      <Plus className="h-3 w-3" /> Add Task
                     </button>
                   )
                 )}
@@ -411,9 +411,9 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setShowTaskForm(false);
       setTaskForm({ title: "", description: "", owner: "", dueDate: "", status: "Not Started", priority: "Medium" });
-      toast({ title: "Task created" });
+      toast({ title: "Initiative created" });
     },
-    onError: () => toast({ title: "Failed to create task", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to create initiative", variant: "destructive" }),
   });
 
   const updateTaskMut = useMutation({
@@ -430,7 +430,7 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      toast({ title: "Task deleted" });
+      toast({ title: "Initiative deleted" });
     },
   });
 
@@ -463,9 +463,9 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setShowEditProject(false);
-      toast({ title: "Initiative updated" });
+      toast({ title: "Project updated" });
     },
-    onError: () => toast({ title: "Failed to update initiative", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to update project", variant: "destructive" }),
   });
 
   const addCommentMut = useMutation({
@@ -497,8 +497,8 @@ export default function ProjectDetailPage() {
   if (!project) {
     return (
       <div className="p-6 text-center">
-        <p className="text-muted-foreground">Initiative not found.</p>
-        <Link href="/initiatives"><Button variant="outline" className="mt-4">Back to Initiatives</Button></Link>
+        <p className="text-muted-foreground">Project not found.</p>
+        <Link href="/projects"><Button variant="outline" className="mt-4">Back to Projects</Button></Link>
       </div>
     );
   }
@@ -511,9 +511,9 @@ export default function ProjectDetailPage() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground" aria-label="Breadcrumb" data-testid="breadcrumb-project">
-        <Link href="/initiatives">
+        <Link href="/projects">
           <span className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-1">
-            <ArrowLeft className="h-3.5 w-3.5" /> Initiatives
+            <ArrowLeft className="h-3.5 w-3.5" /> Projects
           </span>
         </Link>
         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
@@ -564,7 +564,7 @@ export default function ProjectDetailPage() {
             </div>
             <div>
               <p className="text-2xl font-bold">{tasks.length}</p>
-              <p className="text-xs text-muted-foreground">Total Tasks</p>
+              <p className="text-xs text-muted-foreground">Total Initiatives</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{completedCount}</p>
@@ -582,7 +582,7 @@ export default function ProjectDetailPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList data-testid="tabs-project-detail">
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-          <TabsTrigger value="tasks" data-testid="tab-tasks">Tasks ({tasks.length})</TabsTrigger>
+          <TabsTrigger value="initiatives" data-testid="tab-initiatives">Initiatives ({tasks.length})</TabsTrigger>
           <TabsTrigger value="milestones" data-testid="tab-milestones">Milestones ({milestones.length})</TabsTrigger>
           <TabsTrigger value="comments" data-testid="tab-comments">Comments ({comments.length})</TabsTrigger>
         </TabsList>
@@ -592,7 +592,7 @@ export default function ProjectDetailPage() {
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-sm">Task Breakdown</CardTitle>
+                <CardTitle className="text-sm">Initiative Breakdown</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-2">
                 {TASK_STATUSES.map(s => {
@@ -631,8 +631,8 @@ export default function ProjectDetailPage() {
           </div>
         </TabsContent>
 
-        {/* ─ Tasks ─ */}
-        <TabsContent value="tasks" className="mt-4 space-y-4">
+        {/* ─ Initiatives ─ */}
+        <TabsContent value="initiatives" className="mt-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex gap-2">
               <Button
@@ -650,7 +650,7 @@ export default function ProjectDetailPage() {
             </div>
             {isAdmin && (
               <Button size="sm" onClick={() => setShowTaskForm(true)} data-testid="button-add-task">
-                <Plus className="h-4 w-4 mr-1" /> Add Task
+                <Plus className="h-4 w-4 mr-1" /> Add Initiative
               </Button>
             )}
           </div>
@@ -666,10 +666,10 @@ export default function ProjectDetailPage() {
                       <Target className="h-6 w-6 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="font-medium">No tasks yet</p>
-                      <p className="text-sm text-muted-foreground">{isAdmin ? "Add tasks to start tracking initiative progress." : "No tasks have been added yet."}</p>
+                      <p className="font-medium">No initiatives yet</p>
+                      <p className="text-sm text-muted-foreground">{isAdmin ? "Add initiatives to start tracking project progress." : "No initiatives have been added yet."}</p>
                     </div>
-                    {isAdmin && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Task</Button>}
+                    {isAdmin && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Initiative</Button>}
                   </CardContent>
                 </Card>
               ) : tasks.map(t => (
@@ -874,15 +874,15 @@ export default function ProjectDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Create Task Dialog */}
+      {/* Create Initiative Dialog */}
       <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Add Task</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Add Initiative</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>Title *</Label>
               <Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="Task title" data-testid="input-task-title" />
+                placeholder="Initiative title" data-testid="input-task-title" />
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
@@ -920,7 +920,7 @@ export default function ProjectDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTaskForm(false)}>Cancel</Button>
             <Button onClick={() => createTaskMut.mutate(taskForm)} disabled={!taskForm.title || createTaskMut.isPending} data-testid="button-submit-task">
-              {createTaskMut.isPending ? "Creating..." : "Create Task"}
+              {createTaskMut.isPending ? "Creating..." : "Create Initiative"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -959,13 +959,13 @@ export default function ProjectDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Initiative Dialog */}
+      {/* Edit Project Dialog */}
       <Dialog open={showEditProject} onOpenChange={setShowEditProject}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Initiative</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit Project</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Initiative Name</Label>
+              <Label>Project Name</Label>
               <Input value={editForm.name ?? ""} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} data-testid="input-edit-project-name" />
             </div>
             <div className="space-y-1.5">

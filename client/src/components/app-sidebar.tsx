@@ -40,7 +40,7 @@ const executiveInsightsNav = [
 ];
 
 const executionNav = [
-  { title: "Projects", url: "/initiatives", icon: FolderOpen },
+  { title: "Projects", url: "/projects", icon: FolderOpen },
   { title: "Workload", url: "/workload", icon: Users2 },
 ];
 
