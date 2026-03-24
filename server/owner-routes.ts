@@ -129,6 +129,16 @@ export function registerOwnerRoutes(app: Express) {
         };
       }).filter(c => c.count > 0).sort((a, b) => b.count - a.count);
 
+      const allUserDetails = allUsers.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        companyName: u.companyId ? companyById.get(u.companyId)?.companyName || "" : "",
+        companyId: u.companyId,
+        createdAt: u.createdAt,
+      }));
+
       res.json({
         totalCompanies: allCompanies.length,
         activeCompanies,
@@ -137,6 +147,7 @@ export function registerOwnerRoutes(app: Express) {
         recentCompanies,
         recentActivity: enrichedActivity,
         aiUsageByCompany,
+        allUsers: allUserDetails,
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message });

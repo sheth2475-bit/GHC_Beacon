@@ -1,15 +1,20 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { OwnerLayout } from "@/components/owner-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, Bot, Activity, TrendingUp, AlertCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Building2, Users, Bot, Activity, TrendingUp, AlertCircle, Search } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 
-function StatCard({ title, value, sub, icon: Icon, color }: {
-  title: string; value: string | number; sub?: string; icon: any; color: string;
+function StatCard({ title, value, sub, icon: Icon, color, onClick }: {
+  title: string; value: string | number; sub?: string; icon: any; color: string; onClick?: () => void;
 }) {
   return (
-    <Card className="bg-gray-900 border-white/10">
+    <Card
+      className={`bg-gray-900 border-white/10 ${onClick ? "cursor-pointer hover:border-white/20 transition-colors" : ""}`}
+      onClick={onClick}
+    >
       <CardContent className="pt-5 pb-4 px-5">
         <div className="flex items-start justify-between">
           <div>
@@ -33,10 +38,26 @@ const planColors: Record<string, string> = {
   Enterprise: "bg-purple-900/60 text-purple-300",
 };
 
+const roleColors: Record<string, string> = {
+  admin: "bg-violet-900/50 text-violet-300",
+  executive: "bg-blue-900/50 text-blue-300",
+  member: "bg-gray-700/60 text-gray-300",
+};
+
 export default function OwnerDashboard() {
+  const [showUsers, setShowUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+
   const { data: stats, isLoading } = useQuery<any>({
     queryKey: ["/api/owner/dashboard"],
   });
+
+  const filteredUsers = (stats?.allUsers || []).filter((u: any) =>
+    !userSearch ||
+    u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.companyName?.toLowerCase().includes(userSearch.toLowerCase())
+  );
 
   if (isLoading) {
     return (
@@ -59,7 +80,15 @@ export default function OwnerDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard title="Total Companies" value={stats?.totalCompanies ?? 0} icon={Building2} color="bg-blue-600" sub="Registered" />
           <StatCard title="Active Today" value={stats?.activeCompanies ?? 0} icon={TrendingUp} color="bg-emerald-600" sub="With AI usage" />
-          <StatCard title="Total Users" value={stats?.totalUsers ?? 0} icon={Users} color="bg-violet-600" sub="Across all companies" />
+          <StatCard
+            title="Total Users"
+            value={stats?.totalUsers ?? 0}
+            icon={Users}
+            color="bg-violet-600"
+            sub="Click to view all"
+            onClick={() => setShowUsers(true)}
+            data-testid="card-total-users"
+          />
           <StatCard title="AI Requests Today" value={stats?.aiRequestsToday ?? 0} icon={Bot} color="bg-amber-600" sub="All companies" />
         </div>
 
@@ -166,6 +195,58 @@ export default function OwnerDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* Users Dialog */}
+      <Dialog open={showUsers} onOpenChange={open => { setShowUsers(open); if (!open) setUserSearch(""); }}>
+        <DialogContent className="bg-gray-900 border-white/10 text-white max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Users className="h-4 w-4 text-violet-400" />
+              All Users
+              <span className="text-sm font-normal text-gray-400 ml-1">({stats?.totalUsers ?? 0} total)</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+            <Input
+              placeholder="Search by name, email or company..."
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              className="pl-8 bg-gray-800 border-white/10 text-white placeholder:text-gray-500 text-sm h-8"
+              data-testid="input-user-search"
+            />
+          </div>
+
+          <div className="overflow-y-auto flex-1 -mx-6 px-6">
+            <div className="divide-y divide-white/5">
+              {filteredUsers.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8">No users found</p>
+              ) : (
+                filteredUsers.map((u: any) => (
+                  <div key={u.id} className="flex items-center gap-3 py-2.5" data-testid={`row-user-${u.id}`}>
+                    <div className="h-8 w-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-semibold text-gray-200 flex-shrink-0">
+                      {u.name?.[0]?.toUpperCase() || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate" data-testid={`text-user-name-${u.id}`}>{u.name}</p>
+                      <p className="text-xs text-gray-400 truncate" data-testid={`text-user-email-${u.id}`}>{u.email}</p>
+                      {u.companyName && (
+                        <p className="text-xs text-gray-600 truncate">{u.companyName}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium capitalize ${roleColors[u.role] || roleColors.member}`}>
+                        {u.role}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </OwnerLayout>
   );
 }
