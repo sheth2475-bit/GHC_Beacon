@@ -349,7 +349,7 @@ export async function processAssistantMessage(
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
-    max_completion_tokens: 2000,
+    max_completion_tokens: 6000,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT(context, userName, userRole, canWrite) },
@@ -358,6 +358,12 @@ export async function processAssistantMessage(
   });
 
   const raw = response.choices[0]?.message?.content || "{}";
+  const finishReason = response.choices[0]?.finish_reason;
+
+  if (finishReason === "length") {
+    console.warn("Assistant response was cut off (finish_reason: length). Raw:", raw.slice(0, 200));
+  }
+
   try {
     const parsed = JSON.parse(cleanJson(raw));
     return {
@@ -367,7 +373,11 @@ export async function processAssistantMessage(
       quickActions: Array.isArray(parsed.quickActions) ? parsed.quickActions : [],
       pendingAction: parsed.pendingAction || null,
     };
-  } catch {
+  } catch (parseErr) {
+    console.error("Assistant JSON parse error. finish_reason:", finishReason, "Raw snippet:", raw.slice(0, 300));
+    if (finishReason === "length") {
+      return { type: "error", message: "My response was too long to complete. Please try asking a more specific question.", links: [], quickActions: [] };
+    }
     return { type: "error", message: "Sorry, I encountered an issue parsing the response. Please try again.", links: [], quickActions: [] };
   }
 }
