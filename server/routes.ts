@@ -354,6 +354,8 @@ export async function registerRoutes(
     const companyRecord = await storage.getCompany(company.id);
     const companyUsers = await storage.getUsersByCompany(company.id);
     const adminEmails = companyUsers.filter(u => u.role === "admin").map(u => u.email);
+    const ccEmails: string[] = Array.isArray(req.body.cc) ? req.body.cc.filter((e: string) => e.includes("@")) : [];
+    const allRecipients = Array.from(new Set([...adminEmails, ...ccEmails]));
 
     const today = new Date().toISOString().split("T")[0];
     const allActions = await storage.getActionItems(company.id);
@@ -369,7 +371,7 @@ export async function registerRoutes(
     for (const item of overdue) {
       try {
         await sendActionReminder({
-          to: adminEmails,
+          to: allRecipients,
           ownerName: item.ownerName || "Team Member",
           actionTitle: item.title,
           actionDescription: item.description,

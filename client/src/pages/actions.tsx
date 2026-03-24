@@ -32,6 +32,8 @@ export default function ActionsPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [remindDialog, setRemindDialog] = useState<ActionItem | null>(null);
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [showOverdueDialog, setShowOverdueDialog] = useState(false);
+  const [overdueCc, setOverdueCc] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterMeetingType, setFilterMeetingType] = useState("all");
@@ -138,11 +140,13 @@ export default function ActionsPage() {
   });
 
   const remindOverdueMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/action-items/remind-overdue", {});
+    mutationFn: async ({ cc }: { cc: string[] }) => {
+      const res = await apiRequest("POST", "/api/action-items/remind-overdue", { cc });
       return res.json();
     },
     onSuccess: (data) => {
+      setShowOverdueDialog(false);
+      setOverdueCc("");
       toast({ title: "Overdue reminders sent", description: `${data.sent} reminder${data.sent !== 1 ? "s" : ""} sent to admins.` });
     },
     onError: (err: any) => toast({ title: "Failed to send reminders", description: err.message, variant: "destructive" }),
@@ -198,7 +202,7 @@ export default function ActionsPage() {
               />
               <Button
                 variant="outline"
-                onClick={() => remindOverdueMutation.mutate()}
+                onClick={() => setShowOverdueDialog(true)}
                 disabled={remindOverdueMutation.isPending}
                 data-testid="button-remind-overdue"
               >
@@ -496,6 +500,55 @@ export default function ActionsPage() {
             <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !title} className="w-full" data-testid="button-create-action">
               {createMutation.isPending ? "Creating..." : "Create Action"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remind Overdue Dialog */}
+      <Dialog open={showOverdueDialog} onOpenChange={(open) => { if (!open) { setShowOverdueDialog(false); setOverdueCc(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BellRing className="h-4 w-4 text-amber-500" />
+              Send Overdue Reminders
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              An email reminder will be sent to all admin users for every overdue action item.
+              Optionally add CC recipients to loop in other people on all the reminders.
+            </p>
+            <div className="space-y-2">
+              <Label>CC Recipients (optional)</Label>
+              <Input
+                type="text"
+                placeholder="email1@company.com, email2@company.com"
+                value={overdueCc}
+                onChange={e => setOverdueCc(e.target.value)}
+                data-testid="input-overdue-cc"
+              />
+              <p className="text-xs text-muted-foreground">Separate multiple emails with commas</p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  const cc = overdueCc.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+                  remindOverdueMutation.mutate({ cc });
+                }}
+                disabled={remindOverdueMutation.isPending}
+                data-testid="button-send-overdue-reminder"
+              >
+                {remindOverdueMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending...</>
+                ) : (
+                  <><BellRing className="h-4 w-4 mr-2" />Send Reminders</>
+                )}
+              </Button>
+              <Button variant="outline" onClick={() => { setShowOverdueDialog(false); setOverdueCc(""); }}>
+                Cancel
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
