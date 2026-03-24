@@ -28,13 +28,12 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
     throw new Error("Resend not connected");
   }
 
-  // Use configured from_email only if it's NOT a free provider (gmail, yahoo, etc.)
-  // Resend requires a verified domain; fall back to their shared test sender otherwise
+  // Send from verified domain; ignore the configured from_email if it's a free provider
   const rawFrom: string = connectionSettings.settings.from_email || "";
   const freeProviders = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"];
   const isFreeProvider = freeProviders.some(p => rawFrom.toLowerCase().includes(p));
   const fromEmail = (!rawFrom || isFreeProvider)
-    ? "Performo AI <onboarding@resend.dev>"
+    ? "Performo AI <noreply@gulfhelicopters.com>"
     : rawFrom;
 
   return { apiKey: connectionSettings.settings.api_key, fromEmail };
