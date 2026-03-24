@@ -45,4 +45,4 @@ integrations = ["javascript_openai_ai_integrations:2.0.0", "resend:1.0.0"]
 [userenv]
 
 [userenv.shared]
-RESEND_TEST_EMAIL = "performo@moiulki.resend.app"
+RESEND_TEST_EMAIL = "dharmeshsheth00@gmail.com"
