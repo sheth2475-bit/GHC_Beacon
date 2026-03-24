@@ -33,7 +33,7 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
   const freeProviders = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"];
   const isFreeProvider = freeProviders.some(p => rawFrom.toLowerCase().includes(p));
   const fromEmail = (!rawFrom || isFreeProvider)
-    ? "Performo AI <noreply@gulfhelicopters.com>"
+    ? "Performo AI <dharmesh.sheth@gulfhelicopters.com>"
     : rawFrom;
 
   return { apiKey: connectionSettings.settings.api_key, fromEmail };
