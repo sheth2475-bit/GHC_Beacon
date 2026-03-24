@@ -112,8 +112,30 @@ IMPORTANT:
 export async function generateMonthlyReview(
   kpiData: { kpiName: string; target: string; actual: string; status: string; commentary: string }[],
   companyName: string,
-  month: string
+  month: string,
+  projectData?: {
+    total: number; active: number; completed: number; atRisk: number; overdueTasks: number;
+    projects: { name: string; status: string; health: string; progress: number; owner: string }[];
+  },
+  actionData?: {
+    total: number; overdue: number; completed: number;
+    overdueItems: { title: string; ownerName: string; daysOverdue: number }[];
+  }
 ): Promise<any> {
+  const projectSection = projectData ? `
+
+Project Management:
+- Total Projects: ${projectData.total} (${projectData.active} active, ${projectData.completed} completed, ${projectData.atRisk} at risk)
+- Overdue Tasks: ${projectData.overdueTasks}
+- Individual Projects:
+${projectData.projects.map(p => `  • ${p.name}: ${p.status}, ${p.progress}% complete, Health: ${p.health}${p.owner ? `, Owner: ${p.owner}` : ""}`).join("\n")}` : "";
+
+  const actionSection = actionData ? `
+
+Action Tracker:
+- Total Actions: ${actionData.total} (${actionData.completed} completed, ${actionData.overdue} overdue)
+${actionData.overdueItems.length > 0 ? `- Overdue Actions (top items):\n${actionData.overdueItems.slice(0, 5).map(a => `  • "${a.title}" — ${a.ownerName}, ${a.daysOverdue} day${a.daysOverdue !== 1 ? "s" : ""} overdue`).join("\n")}` : ""}` : "";
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     max_completion_tokens: 4096,
@@ -128,8 +150,9 @@ export async function generateMonthlyReview(
 3. CAUSE-FOCUSED — For each gap, suggest the most likely root cause based on the data pattern. If F&B revenue dropped while room revenue grew, note the disconnect.
 4. ACTION-ORIENTED — Each recommendation should be a specific action with a suggested owner and timeline, not vague advice like "improve customer service."
 5. BALANCED — Acknowledge wins genuinely. If revenue exceeded target, celebrate it but also ask whether it's sustainable.
+6. HOLISTIC — The review must cover KPI performance AND project execution AND action accountability as an integrated picture of company performance, not separate silos.
 
-Write as if you're presenting to a busy business owner who has 10 minutes to read this. Use bullet points for strengths, gaps, and recommendations. The executive summary should be 2-3 concise paragraphs that tell the story of the month.
+Write as if you're presenting to a busy business owner who has 10 minutes to read this. Use bullet points for strengths, gaps, and recommendations. The executive summary should be 2-3 concise paragraphs that tell the story of the month — weaving together KPIs, project health, and action delivery.
 
 Return a JSON object with: overall_summary, strengths (bullet points as string), gaps (bullet points as string), recommendations (bullet points as string), discussion_points (bullet points for next management meeting).`
       },
@@ -138,9 +161,11 @@ Return a JSON object with: overall_summary, strengths (bullet points as string),
         content: `Write the ${month} monthly performance review for ${companyName}.
 
 KPI Performance Data:
-${kpiData.map(k => `- ${k.kpiName}: Target = ${k.target}, Actual = ${k.actual}, Status = ${k.status}${k.commentary ? ` | Commentary: ${k.commentary}` : ""}`).join("\n")}
+${kpiData.length > 0 ? kpiData.map(k => `- ${k.kpiName}: Target = ${k.target}, Actual = ${k.actual}, Status = ${k.status}${k.commentary ? ` | Commentary: ${k.commentary}` : ""}`).join("\n") : "No KPI actuals recorded for this month."}
+${projectSection}
+${actionSection}
 
-Analyze the data, identify patterns, and write a professional management review. Be specific with numbers and root cause analysis.`
+Analyze all three areas — KPIs, projects, and actions — together. Identify patterns across them (e.g. if actions are overdue in the same area where KPIs are below target, that's a systemic issue). Write a professional, integrated management review. Be specific with numbers and root cause analysis.`
       }
     ],
   });

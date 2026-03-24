@@ -320,7 +320,60 @@ export async function registerRoutes(
       if (!company) return res.status(400).json({ message: "No company profile" });
       const fullCompany = await storage.getCompany(company.id);
       const { month, kpiData } = req.body;
-      const review = await generateMonthlyReview(kpiData, fullCompany!.companyName, month);
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const [allProjects, allTasks, allActions] = await Promise.all([
+        storage.getProjects(company.id),
+        storage.getTasks(company.id),
+        storage.getActionItems(company.id),
+      ]);
+
+      const activeProjects = allProjects.filter(p => p.status === "In Progress" || p.status === "Not Started");
+      const completedProjects = allProjects.filter(p => p.status === "Completed");
+      const atRiskProjects = allProjects.filter(p => {
+        const health = (p as any).healthScore;
+        return p.status !== "Completed" && (health === "Red" || health === "Amber");
+      });
+
+      const overdueActions = allActions.filter(a => {
+        const eff = a.revisedDueDate || a.dueDate;
+        return eff && eff < today && a.status !== "Completed" && a.status !== "Cancelled";
+      });
+      const completedActions = allActions.filter(a => a.status === "Completed");
+
+      const overdueTasksCount = allTasks.filter(t => {
+        const due = (t as any).dueDate;
+        return due && due < today && (t as any).status !== "Completed" && (t as any).status !== "Cancelled";
+      }).length;
+
+      const projectData = {
+        total: allProjects.length,
+        active: activeProjects.length,
+        completed: completedProjects.length,
+        atRisk: atRiskProjects.length,
+        overdueTasks: overdueTasksCount,
+        projects: allProjects.map(p => ({
+          name: p.name,
+          status: p.status,
+          health: (p as any).healthScore || "Amber",
+          progress: p.progress ?? 0,
+          owner: p.owner || "",
+        })),
+      };
+
+      const actionData = {
+        total: allActions.length,
+        overdue: overdueActions.length,
+        completed: completedActions.length,
+        overdueItems: overdueActions.map(a => {
+          const eff = a.revisedDueDate || a.dueDate || "";
+          const daysOverdue = eff ? Math.floor((Date.now() - new Date(eff).getTime()) / 86400000) : 0;
+          return { title: a.title, ownerName: a.ownerName || "Unassigned", daysOverdue };
+        }),
+      };
+
+      const review = await generateMonthlyReview(kpiData, fullCompany!.companyName, month, projectData, actionData);
       const saved = await storage.createMonthlyReview({
         companyId: company.id,
         reviewMonth: month,
