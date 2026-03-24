@@ -160,9 +160,14 @@ export async function sendActionReminder(payload: ReminderPayload): Promise<void
     ? `⚠ OVERDUE: ${payload.actionTitle}`
     : `Action Reminder: ${payload.actionTitle}`;
 
+  // If RESEND_TEST_EMAIL is set, override all recipients for testing purposes.
+  // This is required when using onboarding@resend.dev which only delivers to the Resend account owner.
+  const testEmail = process.env.RESEND_TEST_EMAIL;
+  const effectiveTo = testEmail ? [testEmail] : payload.to;
+
   const result = await client.emails.send({
     from: fromEmail,
-    to: payload.to,
+    to: effectiveTo,
     subject,
     html,
   });
