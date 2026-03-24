@@ -28,10 +28,16 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
     throw new Error("Resend not connected");
   }
 
-  return {
-    apiKey: connectionSettings.settings.api_key,
-    fromEmail: connectionSettings.settings.from_email || "Performo AI <noreply@performo.ai>",
-  };
+  // Use configured from_email only if it's NOT a free provider (gmail, yahoo, etc.)
+  // Resend requires a verified domain; fall back to their shared test sender otherwise
+  const rawFrom: string = connectionSettings.settings.from_email || "";
+  const freeProviders = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"];
+  const isFreeProvider = freeProviders.some(p => rawFrom.toLowerCase().includes(p));
+  const fromEmail = (!rawFrom || isFreeProvider)
+    ? "Performo AI <onboarding@resend.dev>"
+    : rawFrom;
+
+  return { apiKey: connectionSettings.settings.api_key, fromEmail };
 }
 
 async function getUncachableResendClient() {

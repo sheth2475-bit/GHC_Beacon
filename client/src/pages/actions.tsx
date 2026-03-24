@@ -147,7 +147,13 @@ export default function ActionsPage() {
     onSuccess: (data) => {
       setShowOverdueDialog(false);
       setOverdueCc("");
-      toast({ title: "Overdue reminders sent", description: `${data.sent} reminder${data.sent !== 1 ? "s" : ""} sent to admins.` });
+      if (data.sent > 0) {
+        toast({ title: "Overdue reminders sent", description: `${data.sent} reminder${data.sent !== 1 ? "s" : ""} sent successfully.` });
+      } else if (data.errors?.length > 0) {
+        toast({ title: "Reminders failed to send", description: data.errors[0], variant: "destructive" });
+      } else {
+        toast({ title: "No overdue actions", description: "There are no overdue action items to remind." });
+      }
     },
     onError: (err: any) => toast({ title: "Failed to send reminders", description: err.message, variant: "destructive" }),
   });
