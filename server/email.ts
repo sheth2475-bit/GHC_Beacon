@@ -32,8 +32,10 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
   const rawFrom: string = connectionSettings.settings.from_email || "";
   const freeProviders = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"];
   const isFreeProvider = freeProviders.some(p => rawFrom.toLowerCase().includes(p));
+  // onboarding@resend.dev is Resend's shared test sender — no domain verification needed.
+  // Replace with a verified domain address (e.g. noreply@yourdomain.com) for production.
   const fromEmail = (!rawFrom || isFreeProvider)
-    ? "Performo AI <dharmesh.sheth@gulfhelicopters.com>"
+    ? "Performo AI <onboarding@resend.dev>"
     : rawFrom;
 
   return { apiKey: connectionSettings.settings.api_key, fromEmail };
