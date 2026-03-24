@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, requireAuth, requireAdmin } from "./auth";
 import { generateKpis, generateMonthlyReview, generateDashboardPlan } from "./ai";
+import { sendActionReminder } from "./email";
 import { processAssistantMessage } from "./assistant";
 import { registerOwnerRoutes, logActivity } from "./owner-routes";
 import * as XLSX from "xlsx";
@@ -296,6 +297,96 @@ export async function registerRoutes(
     if (!item || item.companyId !== company.id) return res.status(404).json({ message: "Not found" });
     const updated = await storage.updateActionItem(id, req.body);
     res.json(updated);
+  });
+
+  // ── Action item email reminders ──────────────────────────────────────────
+  app.post("/api/action-items/:id/remind", requireAuth, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const item = await storage.getActionItem(id);
+    if (!item || item.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+
+    const sender = req.user!;
+    const companyRecord = await storage.getCompany(company.id);
+
+    // Collect recipients: admin users + any user whose name/email matches owner
+    const companyUsers = await storage.getUsersByCompany(company.id);
+    const adminEmails = companyUsers.filter(u => u.role === "admin").map(u => u.email);
+    const ownerEmail = req.body.ownerEmail as string | undefined;
+
+    const toAddresses: string[] = Array.from(new Set([
+      ...adminEmails,
+      ...(ownerEmail ? [ownerEmail] : []),
+    ]));
+
+    if (toAddresses.length === 0) {
+      return res.status(400).json({ message: "No recipient email addresses found" });
+    }
+
+    try {
+      await sendActionReminder({
+        to: toAddresses,
+        ownerName: item.ownerName || "Team Member",
+        actionTitle: item.title,
+        actionDescription: item.description,
+        dueDate: item.dueDate,
+        revisedDueDate: item.revisedDueDate,
+        priority: item.priority,
+        status: item.status,
+        completion: item.completion ?? 0,
+        companyName: companyRecord?.companyName || "Your Company",
+        senderName: sender.name || sender.email,
+      });
+      res.json({ ok: true, sentTo: toAddresses });
+    } catch (err: any) {
+      console.error("Email reminder error:", err);
+      res.status(500).json({ message: err.message || "Failed to send reminder" });
+    }
+  });
+
+  // ── Bulk reminder for all overdue actions ────────────────────────────────
+  app.post("/api/action-items/remind-overdue", requireAdmin, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+
+    const sender = req.user!;
+    const companyRecord = await storage.getCompany(company.id);
+    const companyUsers = await storage.getUsersByCompany(company.id);
+    const adminEmails = companyUsers.filter(u => u.role === "admin").map(u => u.email);
+
+    const today = new Date().toISOString().split("T")[0];
+    const allActions = await storage.getActionItems(company.id);
+    const overdue = allActions.filter(a => {
+      const due = a.revisedDueDate || a.dueDate;
+      return due && due < today && a.status !== "Completed" && a.status !== "Cancelled";
+    });
+
+    if (overdue.length === 0) return res.json({ ok: true, sent: 0 });
+
+    let sent = 0;
+    const errors: string[] = [];
+    for (const item of overdue) {
+      try {
+        await sendActionReminder({
+          to: adminEmails,
+          ownerName: item.ownerName || "Team Member",
+          actionTitle: item.title,
+          actionDescription: item.description,
+          dueDate: item.dueDate,
+          revisedDueDate: item.revisedDueDate,
+          priority: item.priority,
+          status: item.status,
+          completion: item.completion ?? 0,
+          companyName: companyRecord?.companyName || "Your Company",
+          senderName: sender.name || sender.email,
+        });
+        sent++;
+      } catch (err: any) {
+        errors.push(item.title + ": " + err.message);
+      }
+    }
+    res.json({ ok: true, sent, errors });
   });
 
   app.delete("/api/action-items/:id", requireAdmin, async (req: Request, res: Response) => {

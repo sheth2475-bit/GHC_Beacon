@@ -17,7 +17,7 @@ import { LoadingTable } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
-import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X, Bell, BellRing, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import type { ActionItem, Department, MeetingType } from "@shared/schema";
 
@@ -30,6 +30,8 @@ export default function ActionsPage() {
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: meetingTypes } = useQuery<MeetingType[]>({ queryKey: ["/api/meeting-types"] });
   const [showDialog, setShowDialog] = useState(false);
+  const [remindDialog, setRemindDialog] = useState<ActionItem | null>(null);
+  const [ownerEmail, setOwnerEmail] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterMeetingType, setFilterMeetingType] = useState("all");
@@ -122,6 +124,30 @@ export default function ActionsPage() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  const remindMutation = useMutation({
+    mutationFn: async ({ id, ownerEmail }: { id: number; ownerEmail?: string }) => {
+      const res = await apiRequest("POST", `/api/action-items/${id}/remind`, { ownerEmail: ownerEmail || undefined });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setRemindDialog(null);
+      setOwnerEmail("");
+      toast({ title: "Reminder sent", description: `Sent to ${data.sentTo?.join(", ")}` });
+    },
+    onError: (err: any) => toast({ title: "Failed to send reminder", description: err.message, variant: "destructive" }),
+  });
+
+  const remindOverdueMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/action-items/remind-overdue", {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Overdue reminders sent", description: `${data.sent} reminder${data.sent !== 1 ? "s" : ""} sent to admins.` });
+    },
+    onError: (err: any) => toast({ title: "Failed to send reminders", description: err.message, variant: "destructive" }),
+  });
+
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = (item: ActionItem) => {
     const effectiveDue = item.revisedDueDate || item.dueDate;
@@ -170,6 +196,19 @@ export default function ActionsPage() {
                 columnMap={actionColumnMap}
                 onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/action-items"] })}
               />
+              <Button
+                variant="outline"
+                onClick={() => remindOverdueMutation.mutate()}
+                disabled={remindOverdueMutation.isPending}
+                data-testid="button-remind-overdue"
+              >
+                {remindOverdueMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <BellRing className="h-4 w-4 mr-2 text-amber-500" />
+                )}
+                Remind Overdue
+              </Button>
               <Button onClick={() => setShowDialog(true)} data-testid="button-new-action">
                 <Plus className="h-4 w-4 mr-2" />New Action
               </Button>
@@ -379,6 +418,9 @@ export default function ActionsPage() {
                               </>
                             ) : (
                               <>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-amber-500" onClick={() => { setRemindDialog(item); setOwnerEmail(""); }} title="Send reminder email" data-testid={`button-remind-action-${item.id}`}>
+                                  <Bell className="h-3.5 w-3.5" />
+                                </Button>
                                 <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => startEdit(item)} data-testid={`button-edit-action-${item.id}`}>
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
@@ -455,6 +497,57 @@ export default function ActionsPage() {
               {createMutation.isPending ? "Creating..." : "Create Action"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remind Dialog */}
+      <Dialog open={!!remindDialog} onOpenChange={(open) => { if (!open) { setRemindDialog(null); setOwnerEmail(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-amber-500" />
+              Send Reminder Email
+            </DialogTitle>
+          </DialogHeader>
+          {remindDialog && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/40 border p-3 space-y-1">
+                <p className="text-sm font-medium">{remindDialog.title}</p>
+                <p className="text-xs text-muted-foreground">Owner: {remindDialog.ownerName || "—"}</p>
+                <p className="text-xs text-muted-foreground">Due: {formatDate(remindDialog.revisedDueDate || remindDialog.dueDate)}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                A reminder email will be sent to all admin users. Optionally enter the owner's email to include them directly.
+              </p>
+              <div className="space-y-2">
+                <Label>Owner's Email (optional)</Label>
+                <Input
+                  type="email"
+                  placeholder="owner@company.com"
+                  value={ownerEmail}
+                  onChange={e => setOwnerEmail(e.target.value)}
+                  data-testid="input-owner-email"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  onClick={() => remindMutation.mutate({ id: remindDialog.id, ownerEmail: ownerEmail || undefined })}
+                  disabled={remindMutation.isPending}
+                  data-testid="button-send-reminder"
+                >
+                  {remindMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending...</>
+                  ) : (
+                    <><Bell className="h-4 w-4 mr-2" />Send Reminder</>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={() => { setRemindDialog(null); setOwnerEmail(""); }}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
