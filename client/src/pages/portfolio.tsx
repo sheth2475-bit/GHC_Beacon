@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,12 +14,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ExcelUpload } from "@/components/excel-upload";
 import {
   FolderOpen, Plus, Search, CheckCircle2, AlertTriangle,
   Activity, Target, ChevronRight, Users, Calendar, Briefcase,
-  LayoutGrid, List, Trash2, TrendingUp, Download, Upload, FileSpreadsheet,
+  LayoutGrid, List, Trash2, TrendingUp, FileSpreadsheet,
 } from "lucide-react";
 import type { Project } from "@shared/schema";
+
+const projectColumnMap: Record<string, string> = {
+  "Name *": "name",
+  "Description": "description",
+  "Owner": "owner",
+  "Business Unit": "businessUnit",
+  "Strategic Goal": "strategicGoal",
+  "Start Date (YYYY-MM-DD)": "startDate",
+  "Due Date (YYYY-MM-DD)": "dueDate",
+  "Status": "status",
+  "Priority": "priority",
+};
 
 type ProjectWithHealth = Project & {
   health: "Green" | "Amber" | "Red" | "Completed";
@@ -193,14 +206,12 @@ function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isA
 export default function PortfolioPage() {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
   const [filterHealth, setFilterHealth] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showCreate, setShowCreate] = useState(false);
-  const [uploadPending, setUploadPending] = useState(false);
   const [form, setForm] = useState({
     name: "", description: "", owner: "", businessUnit: "",
     strategicGoal: "", riskNotes: "",
@@ -235,36 +246,9 @@ export default function PortfolioPage() {
     onError: () => toast({ title: "Failed to delete project", variant: "destructive" }),
   });
 
-  const handleDownloadTemplate = () => {
-    window.open("/api/initiatives/template", "_blank");
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadPending(true);
-    try {
-      const XLSX = await import("xlsx");
-      const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: "array" });
-      const sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
-      if (rows.length === 0) {
-        toast({ title: "No data found in the file", variant: "destructive" });
-        return;
-      }
-      const res = await apiRequest("POST", "/api/initiatives/bulk-upload", { rows });
-      const data = await res.json();
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
-      toast({ title: `${data.created} project${data.created !== 1 ? "s" : ""} imported successfully` });
-    } catch (err: any) {
-      toast({ title: "Upload failed: " + (err.message || "Unknown error"), variant: "destructive" });
-    } finally {
-      setUploadPending(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+  const onProjectImportSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
   };
 
   const filtered = projects.filter(p => {
@@ -288,23 +272,12 @@ export default function PortfolioPage() {
         </div>
         {isAdmin && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={handleDownloadTemplate} data-testid="button-download-template">
-              <Download className="h-4 w-4 mr-1.5" /> Template
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadPending} data-testid="button-bulk-upload">
-              {uploadPending ? (
-                <><span className="h-4 w-4 mr-1.5 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block" /> Uploading...</>
-              ) : (
-                <><Upload className="h-4 w-4 mr-1.5" /> Bulk Import</>
-              )}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleFileUpload}
-              data-testid="input-bulk-upload-file"
+            <ExcelUpload
+              templateUrl="/api/projects/template"
+              uploadUrl="/api/upload/projects"
+              entityName="Projects"
+              columnMap={projectColumnMap}
+              onSuccess={onProjectImportSuccess}
             />
             <Button onClick={() => setShowCreate(true)} data-testid="button-create-project">
               <Plus className="h-4 w-4 mr-1.5" /> New Project
@@ -434,7 +407,7 @@ export default function PortfolioPage() {
                   <Plus className="h-4 w-4 mr-1.5" /> Create First Project
                 </Button>
                 <span className="text-xs text-muted-foreground">or</span>
-                <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                <Button variant="outline" size="sm" onClick={() => window.open("/api/projects/template", "_blank")}>
                   <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Download Template
                 </Button>
               </div>

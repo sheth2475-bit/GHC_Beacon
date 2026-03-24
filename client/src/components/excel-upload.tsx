@@ -1,10 +1,20 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Upload, Download, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import * as XLSX from "xlsx";
+
+interface UploadError {
+  row: number;
+  reason: string;
+}
+
+interface UploadResult {
+  imported: number;
+  errors: UploadError[];
+}
 
 interface ExcelUploadProps {
   templateUrl: string;
@@ -18,7 +28,8 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<{ success: boolean; count: number } | null>(null);
+  const [result, setResult] = useState<UploadResult | null>(null);
+  const [originalRows, setOriginalRows] = useState<Record<string, any>[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleDownloadTemplate = () => {
@@ -31,6 +42,7 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
 
     setUploading(true);
     setResult(null);
+    setOriginalRows([]);
 
     try {
       const buffer = await file.arrayBuffer();
@@ -38,31 +50,87 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rawData = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
 
-      const mapped = rawData.map(row => {
-        const out: Record<string, any> = {};
-        for (const [excelCol, apiField] of Object.entries(columnMap)) {
-          out[apiField] = row[excelCol] || "";
-        }
-        return out;
-      }).filter(row => Object.values(row).some(v => v !== ""));
+      const nonEmpty = rawData.filter(row => Object.values(row).some(v => v !== ""));
 
-      if (mapped.length === 0) {
+      if (nonEmpty.length === 0) {
         toast({ title: "Empty file", description: "No data rows found in the file", variant: "destructive" });
         setUploading(false);
+        if (fileRef.current) fileRef.current.value = "";
         return;
       }
 
+      setOriginalRows(nonEmpty);
+
+      const mapped = nonEmpty.map(row => {
+        const out: Record<string, any> = {};
+        for (const [excelCol, apiField] of Object.entries(columnMap)) {
+          out[apiField] = row[excelCol] ?? "";
+        }
+        return out;
+      });
+
       const res = await apiRequest("POST", uploadUrl, { data: mapped });
-      const json = await res.json();
-      setResult({ success: true, count: json.imported || mapped.length });
-      toast({ title: "Import successful", description: `${json.imported || mapped.length} ${entityName} imported` });
-      onSuccess();
+      const json = await res.json() as { imported?: number; errors?: UploadError[] };
+
+      const uploadResult: UploadResult = {
+        imported: json.imported ?? mapped.length,
+        errors: json.errors ?? [],
+      };
+
+      setResult(uploadResult);
+
+      if (uploadResult.errors.length === 0) {
+        toast({ title: "Import successful", description: `${uploadResult.imported} ${entityName.toLowerCase()} imported` });
+        onSuccess();
+      } else if (uploadResult.imported > 0) {
+        toast({ title: "Partial import", description: `${uploadResult.imported} imported, ${uploadResult.errors.length} failed`, variant: "destructive" });
+        onSuccess();
+      } else {
+        toast({ title: "Import failed", description: `${uploadResult.errors.length} rows had errors`, variant: "destructive" });
+      }
     } catch (err: any) {
-      setResult({ success: false, count: 0 });
+      setResult({ imported: 0, errors: [{ row: 0, reason: err.message }] });
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const handleDownloadErrorReport = () => {
+    if (!result || result.errors.length === 0 || originalRows.length === 0) return;
+
+    const errorRowIndices = new Set(result.errors.map(e => e.row - 2));
+    const errorReasonMap: Record<number, string> = {};
+    for (const e of result.errors) {
+      errorReasonMap[e.row - 2] = e.reason;
+    }
+
+    const headers = [...Object.keys(columnMap), "Error Reason"];
+    const errorData = originalRows
+      .map((row, i) => ({ row, i }))
+      .filter(({ i }) => errorRowIndices.has(i))
+      .map(({ row, i }) => {
+        const out: Record<string, any> = {};
+        for (const col of Object.keys(columnMap)) {
+          out[col] = row[col] ?? "";
+        }
+        out["Error Reason"] = errorReasonMap[i] ?? "Unknown error";
+        return out;
+      });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(errorData, { header: headers });
+    ws["!cols"] = headers.map(h => ({ wch: Math.max(h.length + 4, 18) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Errors");
+    XLSX.writeFile(wb, `${entityName.toLowerCase().replace(/\s+/g, "_")}_errors.xlsx`);
+  };
+
+  const handleClose = (v: boolean) => {
+    setOpen(v);
+    if (!v) {
+      setResult(null);
+      setOriginalRows([]);
     }
   };
 
@@ -72,7 +140,7 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
         <Upload className="h-4 w-4 mr-2" />Import Excel
       </Button>
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setResult(null); }}>
+      <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -95,19 +163,32 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
                   <p className="text-sm text-muted-foreground">Processing file...</p>
                 </div>
               ) : result ? (
-                <div className="flex flex-col items-center gap-2">
-                  {result.success ? (
+                <div className="flex flex-col items-center gap-3">
+                  {result.errors.length === 0 ? (
                     <>
                       <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-                      <p className="text-sm font-medium">{result.count} {entityName.toLowerCase()} imported</p>
+                      <p className="text-sm font-medium">{result.imported} {entityName.toLowerCase()} imported successfully</p>
+                    </>
+                  ) : result.imported > 0 ? (
+                    <>
+                      <AlertTriangle className="h-8 w-8 text-amber-500" />
+                      <p className="text-sm font-medium">{result.imported} imported, {result.errors.length} failed</p>
+                      <Button variant="outline" size="sm" onClick={handleDownloadErrorReport} data-testid="button-download-errors">
+                        <Download className="h-4 w-4 mr-2" />Download Error Report
+                      </Button>
                     </>
                   ) : (
                     <>
                       <AlertCircle className="h-8 w-8 text-destructive" />
-                      <p className="text-sm text-destructive">Import failed</p>
+                      <p className="text-sm font-medium text-destructive">{result.errors.length} row{result.errors.length !== 1 ? "s" : ""} failed to import</p>
+                      {result.errors.length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleDownloadErrorReport} data-testid="button-download-errors">
+                          <Download className="h-4 w-4 mr-2" />Download Error Report
+                        </Button>
+                      )}
                     </>
                   )}
-                  <Button variant="ghost" size="sm" onClick={() => setResult(null)}>Upload another file</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setResult(null); setOriginalRows([]); }}>Upload another file</Button>
                 </div>
               ) : (
                 <>
@@ -120,7 +201,7 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
                     <input
                       ref={fileRef}
                       type="file"
-                      accept=".xlsx,.xls,.csv"
+                      accept=".xlsx,.xls"
                       className="hidden"
                       onChange={handleFileChange}
                       data-testid="input-file-upload"

@@ -422,28 +422,37 @@ export async function registerRoutes(
       const { data } = req.body;
       if (!Array.isArray(data) || data.length === 0) return res.status(400).json({ message: "No data provided" });
 
-      const created = [];
-      for (const row of data) {
-        const dept = departments.find(d => d.name.toLowerCase() === (row.department || "").toLowerCase());
-        const kpi = await storage.createKpi({
-          companyId: company.id,
-          departmentId: dept?.id || null,
-          kpiName: row.kpiName || row["KPI Name"] || "",
-          description: row.description || row["Description"] || null,
-          formula: row.formula || row["Formula"] || null,
-          unit: row.unit || row["Unit"] || null,
-          frequency: row.frequency || row["Frequency"] || null,
-          targetValue: row.targetValue || row["Target Value"] || null,
-          greenThreshold: row.greenThreshold || row["Green Threshold"] || null,
-          amberThreshold: row.amberThreshold || row["Amber Threshold"] || null,
-          redThreshold: row.redThreshold || row["Red Threshold"] || null,
-          ownerName: row.ownerName || row["Owner"] || null,
-          dataSource: row.dataSource || row["Data Source"] || null,
-          createdByAi: false,
-        });
-        created.push(kpi);
+      const created: any[] = [];
+      const errors: { row: number; reason: string }[] = [];
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        try {
+          const kpiName = (row.kpiName || row["KPI Name"] || "").trim();
+          if (!kpiName) throw new Error("KPI Name is required");
+          const dept = departments.find(d => d.name.toLowerCase() === (row.department || row["Department"] || "").toLowerCase());
+          const kpi = await storage.createKpi({
+            companyId: company.id,
+            departmentId: dept?.id || null,
+            kpiName,
+            description: row.description || row["Description"] || null,
+            formula: row.formula || row["Formula"] || null,
+            unit: row.unit || row["Unit"] || null,
+            frequency: row.frequency || row["Frequency"] || null,
+            targetValue: row.targetValue || row["Target Value"] || null,
+            greenThreshold: row.greenThreshold || row["Green Threshold"] || null,
+            amberThreshold: row.amberThreshold || row["Amber Threshold"] || null,
+            redThreshold: row.redThreshold || row["Red Threshold"] || null,
+            ownerName: row.ownerName || row["Owner"] || null,
+            dataSource: row.dataSource || row["Data Source"] || null,
+            createdByAi: false,
+          });
+          created.push(kpi);
+        } catch (e: any) {
+          errors.push({ row: i + 2, reason: e.message });
+        }
       }
-      res.json({ imported: created.length, kpis: created });
+      res.json({ imported: created.length, errors, kpis: created });
     } catch (err: any) {
       console.error("KPI upload error:", err);
       res.status(500).json({ message: "Failed to import KPIs" });
@@ -458,24 +467,34 @@ export async function registerRoutes(
       const { data } = req.body;
       if (!Array.isArray(data) || data.length === 0) return res.status(400).json({ message: "No data provided" });
 
-      const created = [];
-      for (const row of data) {
-        const dept = departments.find(d => d.name.toLowerCase() === (row.department || row["Department"] || "").toLowerCase());
-        const item = await storage.createActionItem({
-          companyId: company.id,
-          departmentId: dept?.id || null,
-          meetingType: row.meetingType || row["Meeting Type"] || null,
-          title: row.title || row["Title"] || "",
-          description: row.description || row["Description"] || null,
-          ownerName: row.ownerName || row["Owner"] || null,
-          dueDate: row.dueDate || row["Due Date (YYYY-MM-DD)"] || null,
-          revisedDueDate: row.revisedDueDate || row["Revised Due Date (YYYY-MM-DD)"] || null,
-          priority: row.priority || row["Priority (Low/Medium/High/Critical)"] || "Medium",
-          status: row.status || row["Status (Not Started/In Progress/Completed/Delayed)"] || "Not Started",
-        });
-        created.push(item);
+      const created: any[] = [];
+      const errors: { row: number; reason: string }[] = [];
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        try {
+          const title = (row.title || row["Title"] || "").trim();
+          if (!title) throw new Error("Title is required");
+          const dept = departments.find(d => d.name.toLowerCase() === (row.department || row["Department"] || "").toLowerCase());
+          const item = await storage.createActionItem({
+            companyId: company.id,
+            meetingId: null,
+            departmentId: dept?.id || null,
+            meetingType: row.meetingType || row["Meeting Type"] || null,
+            title,
+            description: row.description || row["Description"] || null,
+            ownerName: row.ownerName || row["Owner"] || null,
+            dueDate: row.dueDate || row["Due Date (YYYY-MM-DD)"] || null,
+            revisedDueDate: row.revisedDueDate || row["Revised Due Date (YYYY-MM-DD)"] || null,
+            priority: row.priority || row["Priority (Low/Medium/High/Critical)"] || "Medium",
+            status: row.status || row["Status (Not Started/In Progress/Completed/Delayed)"] || "Not Started",
+          });
+          created.push(item);
+        } catch (e: any) {
+          errors.push({ row: i + 2, reason: e.message });
+        }
       }
-      res.json({ imported: created.length, items: created });
+      res.json({ imported: created.length, errors, items: created });
     } catch (err: any) {
       console.error("Action upload error:", err);
       res.status(500).json({ message: "Failed to import actions" });
@@ -751,47 +770,96 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
-  // ─── Initiatives Excel Template & Bulk Upload ──────────────────────────────
-  app.get("/api/initiatives/template", requireAuth, async (_req: Request, res: Response) => {
+  // ─── Projects / Initiatives Excel Template & Bulk Upload ───────────────────
+  const buildProjectsTemplate = () => {
     const wb = XLSX.utils.book_new();
     const headers = [["Name *", "Description", "Owner", "Business Unit", "Strategic Goal", "Start Date (YYYY-MM-DD)", "Due Date (YYYY-MM-DD)", "Status", "Priority"]];
-    const example = [["Loyalty Programme Launch", "Drive customer retention via loyalty scheme", "Jane Smith", "Marketing", "Increase Revenue", "2024-01-01", "2024-06-30", "Not Started", "High"]];
-    const ws = XLSX.utils.aoa_to_sheet([...headers, ...example]);
-    ws["!cols"] = headers[0].map(h => ({ wch: Math.max(h.length + 4, 18) }));
-    XLSX.utils.book_append_sheet(wb, ws, "Initiatives");
+    const example = [["Loyalty Programme Launch", "Drive customer retention via loyalty scheme", "Jane Smith", "Marketing", "Increase Revenue", "2026-01-01", "2026-06-30", "Not Started", "High"]];
+    const note = [["", "", "", "", "", "", "", "Not Started | In Progress | At Risk | Delayed | Completed", "Critical | High | Medium | Low"]];
+    const ws = XLSX.utils.aoa_to_sheet([...headers, ...example, ...note]);
+    ws["!cols"] = headers[0].map(h => ({ wch: Math.max(h.length + 4, 22) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Projects");
+    return wb;
+  };
+
+  app.get("/api/projects/template", requireAuth, (_req: Request, res: Response) => {
+    const wb = buildProjectsTemplate();
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    res.setHeader("Content-Disposition", "attachment; filename=initiatives_template.xlsx");
+    res.setHeader("Content-Disposition", "attachment; filename=projects_template.xlsx");
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.send(buf);
+  });
+
+  app.get("/api/initiatives/template", requireAuth, (_req: Request, res: Response) => {
+    const wb = buildProjectsTemplate();
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", "attachment; filename=projects_template.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  });
+
+  const VALID_STATUSES = ["Not Started", "In Progress", "At Risk", "Delayed", "Completed"];
+  const VALID_PRIORITIES = ["Critical", "High", "Medium", "Low"];
+
+  const createProjectFromRow = async (companyId: number, row: Record<string, any>) => {
+    const name = (row["name"] || row["Name *"] || row["Name"] || "").trim();
+    if (!name) throw new Error("Name is required");
+    const statusVal = (row["status"] || row["Status"] || "Not Started").trim();
+    const priorityVal = (row["priority"] || row["Priority"] || "Medium").trim();
+    return await storage.createProject({
+      companyId,
+      name,
+      description: (row["description"] || row["Description"] || "").trim() || null,
+      owner: (row["owner"] || row["Owner"] || "").trim() || null,
+      businessUnit: (row["businessUnit"] || row["Business Unit"] || "").trim() || null,
+      strategicGoal: (row["strategicGoal"] || row["Strategic Goal"] || "").trim() || null,
+      riskNotes: null,
+      startDate: (row["startDate"] || row["Start Date (YYYY-MM-DD)"] || "").trim() || null,
+      dueDate: (row["dueDate"] || row["Due Date (YYYY-MM-DD)"] || "").trim() || null,
+      status: VALID_STATUSES.includes(statusVal) ? statusVal : "Not Started",
+      priority: VALID_PRIORITIES.includes(priorityVal) ? priorityVal : "Medium",
+    });
+  };
+
+  app.post("/api/upload/projects", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const { data } = req.body as { data: Record<string, any>[] };
+      if (!Array.isArray(data) || data.length === 0) return res.status(400).json({ message: "No data provided" });
+      const imported: any[] = [];
+      const errors: { row: number; reason: string }[] = [];
+      for (let i = 0; i < data.length; i++) {
+        try {
+          const proj = await createProjectFromRow(company.id, data[i]);
+          imported.push(proj);
+        } catch (e: any) {
+          errors.push({ row: i + 2, reason: e.message });
+        }
+      }
+      res.json({ imported: imported.length, errors, projects: imported });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   app.post("/api/initiatives/bulk-upload", requireAdmin, async (req: Request, res: Response) => {
     try {
       const company = await getCompanyForUser(req);
       if (!company) return res.status(404).json({ message: "Company not found" });
-      const { rows } = req.body as { rows: Record<string, string>[] };
+      const rows = (req.body.rows || req.body.data) as Record<string, any>[];
       if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ message: "No rows provided" });
-      const created = [];
-      for (const row of rows) {
-        const name = (row["Name *"] || row["Name"] || "").trim();
-        if (!name) continue;
-        const statusVal = row["Status"]?.trim() || "Not Started";
-        const priorityVal = row["Priority"]?.trim() || "Medium";
-        const proj = await storage.createProject({
-          companyId: company.id,
-          name,
-          description: row["Description"]?.trim() || null,
-          owner: row["Owner"]?.trim() || null,
-          businessUnit: row["Business Unit"]?.trim() || null,
-          strategicGoal: row["Strategic Goal"]?.trim() || null,
-          startDate: row["Start Date (YYYY-MM-DD)"]?.trim() || null,
-          dueDate: row["Due Date (YYYY-MM-DD)"]?.trim() || null,
-          status: ["Not Started","In Progress","At Risk","Delayed","Completed"].includes(statusVal) ? statusVal : "Not Started",
-          priority: ["Critical","High","Medium","Low"].includes(priorityVal) ? priorityVal : "Medium",
-        });
-        created.push(proj);
+      const imported: any[] = [];
+      const errors: { row: number; reason: string }[] = [];
+      for (let i = 0; i < rows.length; i++) {
+        try {
+          const proj = await createProjectFromRow(company.id, rows[i]);
+          imported.push(proj);
+        } catch (e: any) {
+          errors.push({ row: i + 2, reason: e.message });
+        }
       }
-      res.json({ created: created.length, initiatives: created });
+      res.json({ imported: imported.length, created: imported.length, errors, initiatives: imported });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
