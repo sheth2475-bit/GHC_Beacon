@@ -220,7 +220,9 @@ COMPANY DATA:
 ${context}
 
 IN-APP ROUTES (use in "links"):
-/ = Dashboard | /kpis = KPI Management | /kpi-builder = KPI Builder | /actions = Action Tracker | /meetings = Meetings | /reviews = Monthly Reviews | /planner = Dashboard Planner | /portfolio = Project Portfolio | /projects/{id} = Project Detail | /workload = Team Workload | /settings = Settings | /users = User Management
+/ = Dashboard | /kpis = KPI Management | /kpi-builder = KPI Builder | /actions = Action Tracker | /reviews = Monthly Reviews | /planner = Dashboard Planner | /portfolio = Project Portfolio | /projects/{id} = Project Detail | /workload = Team Workload | /settings = Settings | /users = User Management
+
+NOTE: There is NO /meetings route — the Meetings module has been removed. Action items are managed entirely in the Action Tracker (/actions).
 
 ${canWrite ? `WRITE PERMISSIONS: Full (Admin) — can create/update/close any record` : `WRITE PERMISSIONS: None (Executive) — read-only. Politely decline all modification requests.`}
 
@@ -314,6 +316,7 @@ OPERATION TYPES AND REQUIRED FIELDS:
 - create_task: { title, projectId, assignee?, status, priority, dueDate?, description? }
 - create_action_item: { title, ownerName, dueDate(YYYY-MM-DD), priority, status, departmentId?, meetingType?, description? }
 - create_milestone: { title, projectId, dueDate(YYYY-MM-DD), status, progress }
+NOTE: Dates are stored internally as YYYY-MM-DD but displayed to users as DD-MM-YYYY. Always use YYYY-MM-DD format when creating/updating records.
 - update_project: { id, ...fields to change }
 - update_task: { id, ...fields to change }
 - update_action_item: { id, ...fields to change }

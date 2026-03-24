@@ -71,7 +71,7 @@ export function NotificationBell() {
     if (urgentMilestones.length > 0) {
       lines.push(`🟣 MILESTONES DUE SOON (${urgentMilestones.length})`);
       urgentMilestones.forEach(m => {
-        lines.push(`  • ${m.title} — due ${m.dueDate}`);
+        lines.push(`  • ${m.title} — due ${m.dueDate ? `${m.dueDate.split("-")[2]}-${m.dueDate.split("-")[1]}-${m.dueDate.split("-")[0]}` : "N/A"}`);
       });
       lines.push("");
     }
@@ -260,7 +260,7 @@ export function NotificationBell() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate">{m.title}</p>
-                          <p className="text-[10px] text-muted-foreground">Due {m.dueDate}</p>
+                          <p className="text-[10px] text-muted-foreground">Due {m.dueDate ? `${m.dueDate.split("-")[2]}-${m.dueDate.split("-")[1]}-${m.dueDate.split("-")[0]}` : ""}</p>
                         </div>
                         <span className={`text-[10px] font-semibold shrink-0 ${daysLeft <= 1 ? "text-red-500" : "text-amber-500"}`}>
                           {daysLeft <= 0 ? "today" : `${daysLeft}d`}
