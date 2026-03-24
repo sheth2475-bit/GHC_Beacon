@@ -1,8 +1,8 @@
 import { useLocation, Link } from "wouter";
 import {
-  LayoutDashboard, Target, ListChecks, Calendar,
+  LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
-  FolderOpen, Users2,
+  FolderOpen, Users2, Clock,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -22,7 +22,6 @@ const adminPerformanceNav = [
   { title: "KPI Builder", url: "/kpi-builder", icon: Sparkles },
   { title: "KPI Management", url: "/kpis", icon: Target },
   { title: "Action Tracker", url: "/actions", icon: ListChecks },
-  { title: "Meetings", url: "/meetings", icon: Calendar },
 ];
 
 const executivePerformanceNav = [
@@ -60,6 +59,13 @@ export function AppSidebar() {
     enabled: !!user,
   });
   const planName: string = sub?.planName || "Trial";
+
+  const trialDaysLeft = (() => {
+    if (planName !== "Trial" || !sub?.trialStartDate) return null;
+    const start = new Date(sub.trialStartDate).getTime();
+    const elapsed = Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24));
+    return Math.max(0, 30 - elapsed);
+  })();
 
   const renderGroup = (label: string, items: typeof mainNav) => (
     <SidebarGroup>
@@ -119,7 +125,7 @@ export function AppSidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate" data-testid="text-user-name">{user.name}</p>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 <Badge
                   variant="outline"
                   className={`text-[9px] px-1 py-0 h-3.5 ${isAdmin ? "border-blue-400 text-blue-600 dark:text-blue-400" : "border-amber-400 text-amber-600 dark:text-amber-400"}`}
@@ -134,6 +140,16 @@ export function AppSidebar() {
                 >
                   {planName}
                 </Badge>
+                {trialDaysLeft !== null && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[9px] px-1 py-0 h-3.5 flex items-center gap-0.5 ${trialDaysLeft <= 7 ? "border-red-400 text-red-500" : "border-amber-400 text-amber-600 dark:text-amber-400"}`}
+                    data-testid="badge-trial-days"
+                  >
+                    <Clock className="h-2 w-2" />
+                    {trialDaysLeft}d left
+                  </Badge>
+                )}
               </div>
             </div>
             <Button size="icon" variant="ghost" onClick={logout} className="h-8 w-8 shrink-0" data-testid="button-logout">

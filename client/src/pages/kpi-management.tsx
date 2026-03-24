@@ -233,24 +233,26 @@ export default function KpiManagementPage() {
   if (error) return <div className="p-6"><ErrorState message="Failed to load KPIs" onRetry={() => refetch()} /></div>;
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title="KPI Management"
-        description="View, track, and manage all your key performance indicators"
-        icon={Target}
-        testId="text-kpi-mgmt-title"
-        actions={
-          <ExcelUpload
-            templateUrl="/api/templates/kpis"
-            uploadUrl="/api/upload/kpis"
-            entityName="KPIs"
-            columnMap={kpiColumnMap}
-            onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/kpis"] })}
-          />
-        }
-      />
+    <div className="flex flex-col h-full">
+      <div className="flex-none px-6 pt-5 pb-0">
+        <PageHeader
+          title="KPI Management"
+          description="View, track, and manage all your key performance indicators"
+          icon={Target}
+          testId="text-kpi-mgmt-title"
+          actions={
+            <ExcelUpload
+              templateUrl="/api/templates/kpis"
+              uploadUrl="/api/upload/kpis"
+              entityName="KPIs"
+              columnMap={kpiColumnMap}
+              onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/kpis"] })}
+            />
+          }
+        />
+      </div>
 
-      <div className="flex gap-3 flex-wrap items-center">
+      <div className="flex-none px-6 py-3 border-b flex gap-3 flex-wrap items-center bg-background">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -284,6 +286,7 @@ export default function KpiManagementPage() {
         )}
       </div>
 
+      <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
       {isLoading ? (
         <LoadingTable rows={6} cols={5} />
       ) : filteredKpis.length === 0 ? (
@@ -357,6 +360,7 @@ export default function KpiManagementPage() {
           </CardContent>
         </Card>
       )}
+      </div>
 
       <Dialog open={!!actualDialog} onOpenChange={(open) => !open && setActualDialog(null)}>
         <DialogContent>

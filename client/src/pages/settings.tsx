@@ -242,12 +242,37 @@ export default function SettingsPage() {
           <CardTitle className="text-base flex items-center gap-2">
             <Building2 className="h-4 w-4" />Departments
           </CardTitle>
+          <CardDescription>Departments used to organise KPIs, actions, and team members</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {departments.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="text-no-departments">No departments added yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {departments.map((dept) => (
+                <div
+                  key={dept.id}
+                  className="flex items-center gap-1 bg-muted border rounded-full px-3 py-1"
+                  data-testid={`row-department-${dept.id}`}
+                >
+                  <span className="text-sm font-medium" data-testid={`text-department-name-${dept.id}`}>{dept.name}</span>
+                  <button
+                    className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+                    data-testid={`button-delete-department-${dept.id}`}
+                    onClick={() => deleteDepartment.mutate(dept.id)}
+                    disabled={deleteDepartment.isPending}
+                    aria-label={`Remove ${dept.name}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Input
               data-testid="input-new-department"
-              placeholder="New department name"
+              placeholder="Add new department..."
               value={newDepartment}
               onChange={(e) => setNewDepartment(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddDepartment()}
@@ -257,34 +282,9 @@ export default function SettingsPage() {
               onClick={handleAddDepartment}
               disabled={createDepartment.isPending || !newDepartment.trim()}
             >
-              <Plus className="h-4 w-4 mr-1" />
-              Add
+              <Plus className="h-4 w-4 mr-1" />Add
             </Button>
           </div>
-          {departments.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2" data-testid="text-no-departments">No departments added yet</p>
-          ) : (
-            <div className="divide-y">
-              {departments.map((dept) => (
-                <div
-                  key={dept.id}
-                  className="flex items-center justify-between gap-1 py-2"
-                  data-testid={`row-department-${dept.id}`}
-                >
-                  <span className="text-sm" data-testid={`text-department-name-${dept.id}`}>{dept.name}</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    data-testid={`button-delete-department-${dept.id}`}
-                    onClick={() => deleteDepartment.mutate(dept.id)}
-                    disabled={deleteDepartment.isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -293,12 +293,37 @@ export default function SettingsPage() {
           <CardTitle className="text-base flex items-center gap-2">
             <LayoutList className="h-4 w-4" />Meeting Types
           </CardTitle>
+          <CardDescription>Meeting categories used to classify action items in the Action Tracker</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {meetingTypes.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="text-no-meeting-types">No meeting types added yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {meetingTypes.map((mt) => (
+                <div
+                  key={mt.id}
+                  className="flex items-center gap-1 bg-muted border rounded-full px-3 py-1"
+                  data-testid={`row-meeting-type-${mt.id}`}
+                >
+                  <span className="text-sm font-medium" data-testid={`text-meeting-type-name-${mt.id}`}>{mt.name}</span>
+                  <button
+                    className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+                    data-testid={`button-delete-meeting-type-${mt.id}`}
+                    onClick={() => deleteMeetingType.mutate(mt.id)}
+                    disabled={deleteMeetingType.isPending}
+                    aria-label={`Remove ${mt.name}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Input
               data-testid="input-new-meeting-type"
-              placeholder="New meeting type name"
+              placeholder="Add new meeting type..."
               value={newMeetingType}
               onChange={(e) => setNewMeetingType(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddMeetingType()}
@@ -308,34 +333,9 @@ export default function SettingsPage() {
               onClick={handleAddMeetingType}
               disabled={createMeetingType.isPending || !newMeetingType.trim()}
             >
-              <Plus className="h-4 w-4 mr-1" />
-              Add
+              <Plus className="h-4 w-4 mr-1" />Add
             </Button>
           </div>
-          {meetingTypes.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2" data-testid="text-no-meeting-types">No meeting types added yet</p>
-          ) : (
-            <div className="divide-y">
-              {meetingTypes.map((mt) => (
-                <div
-                  key={mt.id}
-                  className="flex items-center justify-between gap-1 py-2"
-                  data-testid={`row-meeting-type-${mt.id}`}
-                >
-                  <span className="text-sm" data-testid={`text-meeting-type-name-${mt.id}`}>{mt.name}</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    data-testid={`button-delete-meeting-type-${mt.id}`}
-                    onClick={() => deleteMeetingType.mutate(mt.id)}
-                    disabled={deleteMeetingType.isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -395,6 +395,13 @@ function SubscriptionCard() {
   const pct = Math.min(100, (dailyUsed / dailyLimit) * 100);
   const status = sub?.status || "Active";
 
+  const trialDaysLeft = (() => {
+    if (planName !== "Trial" || !sub?.trialStartDate) return null;
+    const start = new Date(sub.trialStartDate).getTime();
+    const elapsed = Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24));
+    return Math.max(0, 30 - elapsed);
+  })();
+
   return (
     <Card>
       <CardHeader>
@@ -418,6 +425,20 @@ function SubscriptionCard() {
                 {status}
               </span>
             </div>
+
+            {trialDaysLeft !== null && (
+              <div className={`rounded-lg border p-3 flex items-start gap-3 ${trialDaysLeft <= 7 ? "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/10" : "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/10"}`} data-testid="box-trial-countdown">
+                <Key className={`h-4 w-4 mt-0.5 shrink-0 ${trialDaysLeft <= 7 ? "text-red-500" : "text-amber-600"}`} />
+                <div>
+                  <p className={`text-sm font-semibold ${trialDaysLeft <= 7 ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`} data-testid="text-trial-days-left">
+                    {trialDaysLeft === 0 ? "Trial expired today" : `${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} remaining in your trial`}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Your 30-day free trial {trialDaysLeft === 0 ? "has ended" : "ends in " + trialDaysLeft + (trialDaysLeft === 1 ? " day" : " days")}. Activate a key below to upgrade your plan.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
