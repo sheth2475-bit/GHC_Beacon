@@ -571,6 +571,21 @@ export async function registerRoutes(
   });
 
   // ─── Projects ──────────────────────────────────────────────────────────────
+  // NOTE: /template must be registered before /:id so Express doesn't treat "template" as an id
+  app.get("/api/projects/template", requireAuth, (_req: Request, res: Response) => {
+    const wb = XLSX.utils.book_new();
+    const headers = [["Name *", "Description", "Owner", "Business Unit", "Strategic Goal", "Start Date (YYYY-MM-DD)", "Due Date (YYYY-MM-DD)", "Status", "Priority"]];
+    const example = [["Loyalty Programme Launch", "Drive customer retention via loyalty scheme", "Jane Smith", "Marketing", "Increase Revenue", "2026-01-01", "2026-06-30", "Not Started", "High"]];
+    const note = [["", "", "", "", "", "", "", "Not Started | In Progress | At Risk | Delayed | Completed", "Critical | High | Medium | Low"]];
+    const ws = XLSX.utils.aoa_to_sheet([...headers, ...example, ...note]);
+    ws["!cols"] = headers[0].map(h => ({ wch: Math.max(h.length + 4, 22) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Projects");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", "attachment; filename=projects_template.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  });
+
   app.get("/api/projects", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -770,34 +785,7 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
-  // ─── Projects / Initiatives Excel Template & Bulk Upload ───────────────────
-  const buildProjectsTemplate = () => {
-    const wb = XLSX.utils.book_new();
-    const headers = [["Name *", "Description", "Owner", "Business Unit", "Strategic Goal", "Start Date (YYYY-MM-DD)", "Due Date (YYYY-MM-DD)", "Status", "Priority"]];
-    const example = [["Loyalty Programme Launch", "Drive customer retention via loyalty scheme", "Jane Smith", "Marketing", "Increase Revenue", "2026-01-01", "2026-06-30", "Not Started", "High"]];
-    const note = [["", "", "", "", "", "", "", "Not Started | In Progress | At Risk | Delayed | Completed", "Critical | High | Medium | Low"]];
-    const ws = XLSX.utils.aoa_to_sheet([...headers, ...example, ...note]);
-    ws["!cols"] = headers[0].map(h => ({ wch: Math.max(h.length + 4, 22) }));
-    XLSX.utils.book_append_sheet(wb, ws, "Projects");
-    return wb;
-  };
-
-  app.get("/api/projects/template", requireAuth, (_req: Request, res: Response) => {
-    const wb = buildProjectsTemplate();
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    res.setHeader("Content-Disposition", "attachment; filename=projects_template.xlsx");
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.send(buf);
-  });
-
-  app.get("/api/initiatives/template", requireAuth, (_req: Request, res: Response) => {
-    const wb = buildProjectsTemplate();
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    res.setHeader("Content-Disposition", "attachment; filename=projects_template.xlsx");
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.send(buf);
-  });
-
+  // ─── Projects / Initiatives Excel Bulk Upload ──────────────────────────────
   const VALID_STATUSES = ["Not Started", "In Progress", "At Risk", "Delayed", "Completed"];
   const VALID_PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
