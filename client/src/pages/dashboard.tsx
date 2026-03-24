@@ -27,6 +27,9 @@ import {
   Clock,
   Printer,
   Layers,
+  AlertCircle,
+  Lightbulb,
+  MessageSquare,
 } from "lucide-react";
 import {
   BarChart,
@@ -592,24 +595,54 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="px-4 pb-4">
               {latestReview ? (
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3" data-testid="text-review-summary">
-                    {latestReview.overallSummary?.split("\n")[0]}
-                  </p>
+                <div className="overflow-y-auto max-h-72 space-y-3 pr-1">
+                  <div className="p-2.5 rounded-lg bg-muted/30 border">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1 text-muted-foreground">
+                      <MessageSquare className="h-3 w-3" />Executive Summary
+                    </p>
+                    {latestReview.overallSummary?.split("\n").filter(l => l.trim()).map((para, i) => (
+                      <p key={i} className="text-xs text-muted-foreground leading-relaxed mb-1 last:mb-0" data-testid={i === 0 ? "text-review-summary" : undefined}>
+                        {para}
+                      </p>
+                    ))}
+                  </div>
                   {latestReview.strengths && (
                     <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/15 p-2.5">
-                      <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">✓ Key Strengths</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {latestReview.strengths.split("\n").slice(0, 2).join("; ").replace(/^[-•]\s*/gm, "")}
+                      <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" />Strengths
                       </p>
+                      {latestReview.strengths.split("\n").filter(l => l.trim()).map((line, i) => (
+                        <div key={i} className="flex items-start gap-1.5 py-0.5">
+                          <span className="text-emerald-500 mt-0.5 shrink-0">•</span>
+                          <span className="text-xs text-muted-foreground leading-relaxed">{line.replace(/^[-•]\s*/, "")}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                   {latestReview.gaps && (
                     <div className="rounded-lg bg-red-500/5 border border-red-500/15 p-2.5">
-                      <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-1">⚠ Key Gaps</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {latestReview.gaps.split("\n").slice(0, 2).join("; ").replace(/^[-•]\s*/gm, "")}
+                      <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />Gaps & Concerns
                       </p>
+                      {latestReview.gaps.split("\n").filter(l => l.trim()).map((line, i) => (
+                        <div key={i} className="flex items-start gap-1.5 py-0.5">
+                          <span className="text-red-400 mt-0.5 shrink-0">•</span>
+                          <span className="text-xs text-muted-foreground leading-relaxed">{line.replace(/^[-•]\s*/, "")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {latestReview.recommendations && (
+                    <div className="rounded-lg bg-primary/5 border border-primary/15 p-2.5">
+                      <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <Lightbulb className="h-3 w-3" />Recommendations
+                      </p>
+                      {latestReview.recommendations.split("\n").filter(l => l.trim()).map((line, i) => (
+                        <div key={i} className="flex items-start gap-1.5 py-0.5">
+                          <span className="text-primary mt-0.5 shrink-0">•</span>
+                          <span className="text-xs text-muted-foreground leading-relaxed">{line.replace(/^[-•]\s*/, "")}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
