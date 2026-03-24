@@ -53,7 +53,9 @@ function AppRouter() {
       <Route path="/actions" component={ActionsPage} />
       <Route path="/reviews" component={ReviewsPage} />
       <Route path="/portfolio" component={PortfolioPage} />
+      <Route path="/initiatives" component={PortfolioPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
+      <Route path="/initiatives/:id" component={ProjectDetailPage} />
       <Route path="/workload" component={WorkloadPage} />
       {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}
       {isAdmin && <Route path="/meetings" component={MeetingsPage} />}

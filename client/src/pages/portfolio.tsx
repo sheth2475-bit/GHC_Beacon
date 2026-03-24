@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   FolderOpen, Plus, Search, CheckCircle2, AlertTriangle,
   Activity, Target, ChevronRight, Users, Calendar, Briefcase,
-  LayoutGrid, List, Trash2, TrendingUp,
+  LayoutGrid, List, Trash2, TrendingUp, Download, Upload, FileSpreadsheet,
 } from "lucide-react";
 import type { Project } from "@shared/schema";
 
@@ -80,14 +80,14 @@ function StatCard({ title, value, sub, icon: Icon, color, bg }: {
 const STATUSES = ["All", "Not Started", "In Progress", "At Risk", "Delayed", "Completed"];
 const PRIORITIES = ["All", "Critical", "High", "Medium", "Low"];
 
-function ProjectGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmin: boolean; onDelete: (id: number) => void }) {
+function InitiativeGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmin: boolean; onDelete: (id: number) => void }) {
   return (
     <Card className="group hover:shadow-md transition-all hover:border-primary/30 h-full overflow-hidden relative" data-testid={`card-project-${p.id}`}>
       <div className={`h-1 w-full ${healthDot(p.health)}`} />
       <CardContent className="p-5 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <Link href={`/projects/${p.id}`}>
+            <Link href={`/initiatives/${p.id}`}>
               <h3 className="font-semibold text-sm leading-tight hover:text-primary transition-colors line-clamp-1 cursor-pointer" data-testid={`text-project-name-${p.id}`}>{p.name}</h3>
             </Link>
             {p.description && (
@@ -95,7 +95,7 @@ function ProjectGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdm
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <Link href={`/projects/${p.id}`}>
+            <Link href={`/initiatives/${p.id}`}>
               <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
             </Link>
             {isAdmin && (
@@ -147,13 +147,13 @@ function ProjectGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdm
   );
 }
 
-function ProjectListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmin: boolean; onDelete: (id: number) => void }) {
+function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmin: boolean; onDelete: (id: number) => void }) {
   return (
     <Card className="group hover:shadow-sm transition-all hover:border-primary/20" data-testid={`card-project-list-${p.id}`}>
       <CardContent className="p-4 flex items-center gap-4">
         <div className={`w-1 self-stretch rounded-full shrink-0 ${healthDot(p.health)}`} />
         <div className="flex-1 min-w-0">
-          <Link href={`/projects/${p.id}`}>
+          <Link href={`/initiatives/${p.id}`}>
             <span className="font-semibold text-sm hover:text-primary transition-colors cursor-pointer" data-testid={`text-project-list-name-${p.id}`}>{p.name}</span>
           </Link>
           {p.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{p.description}</p>}
@@ -172,7 +172,7 @@ function ProjectListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmi
         {p.dueDate && <span className="hidden lg:block text-xs text-muted-foreground shrink-0">{p.dueDate}</span>}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-muted-foreground">{p.completedTaskCount}/{p.taskCount} tasks</span>
-          <Link href={`/projects/${p.id}`}>
+          <Link href={`/initiatives/${p.id}`}>
             <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
           </Link>
           {isAdmin && (
@@ -193,14 +193,17 @@ function ProjectListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmi
 export default function PortfolioPage() {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
   const [filterHealth, setFilterHealth] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showCreate, setShowCreate] = useState(false);
+  const [uploadPending, setUploadPending] = useState(false);
   const [form, setForm] = useState({
     name: "", description: "", owner: "", businessUnit: "",
+    strategicGoal: "", riskNotes: "",
     startDate: "", dueDate: "", status: "Not Started", priority: "High",
   });
 
@@ -216,10 +219,10 @@ export default function PortfolioPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
       setShowCreate(false);
-      setForm({ name: "", description: "", owner: "", businessUnit: "", startDate: "", dueDate: "", status: "Not Started", priority: "High" });
-      toast({ title: "Project created successfully" });
+      setForm({ name: "", description: "", owner: "", businessUnit: "", strategicGoal: "", riskNotes: "", startDate: "", dueDate: "", status: "Not Started", priority: "High" });
+      toast({ title: "Initiative created successfully" });
     },
-    onError: () => toast({ title: "Failed to create project", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to create initiative", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -227,10 +230,42 @@ export default function PortfolioPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
-      toast({ title: "Project deleted" });
+      toast({ title: "Initiative deleted" });
     },
-    onError: () => toast({ title: "Failed to delete project", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to delete initiative", variant: "destructive" }),
   });
+
+  const handleDownloadTemplate = () => {
+    window.open("/api/initiatives/template", "_blank");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadPending(true);
+    try {
+      const XLSX = await import("xlsx");
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
+      if (rows.length === 0) {
+        toast({ title: "No data found in the file", variant: "destructive" });
+        return;
+      }
+      const res = await apiRequest("POST", "/api/initiatives/bulk-upload", { rows });
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
+      toast({ title: `${data.created} initiative${data.created !== 1 ? "s" : ""} imported successfully` });
+    } catch (err: any) {
+      toast({ title: "Upload failed: " + (err.message || "Unknown error"), variant: "destructive" });
+    } finally {
+      setUploadPending(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const filtered = projects.filter(p => {
     if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.owner?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -243,18 +278,38 @@ export default function PortfolioPage() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2.5">
             <FolderOpen className="h-6 w-6 text-primary" />
-            Project Portfolio
+            Initiative Portfolio
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">All strategic projects across your organisation</p>
+          <p className="text-sm text-muted-foreground mt-0.5">All strategic initiatives across your organisation</p>
         </div>
         {isAdmin && (
-          <Button onClick={() => setShowCreate(true)} data-testid="button-create-project">
-            <Plus className="h-4 w-4 mr-1.5" /> New Project
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={handleDownloadTemplate} data-testid="button-download-template">
+              <Download className="h-4 w-4 mr-1.5" /> Template
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadPending} data-testid="button-bulk-upload">
+              {uploadPending ? (
+                <><span className="h-4 w-4 mr-1.5 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block" /> Uploading...</>
+              ) : (
+                <><Upload className="h-4 w-4 mr-1.5" /> Bulk Import</>
+              )}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileUpload}
+              data-testid="input-bulk-upload-file"
+            />
+            <Button onClick={() => setShowCreate(true)} data-testid="button-create-project">
+              <Plus className="h-4 w-4 mr-1.5" /> New Initiative
+            </Button>
+          </div>
         )}
       </div>
 
@@ -279,7 +334,7 @@ export default function PortfolioPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search projects or owners..."
+            placeholder="Search initiatives or owners..."
             className="pl-9"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -336,7 +391,7 @@ export default function PortfolioPage() {
       {!isLoading && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? "project" : "projects"}
+            {filtered.length} {filtered.length === 1 ? "initiative" : "initiatives"}
             {filtered.length !== projects.length && ` (filtered from ${projects.length})`}
           </p>
           {(filterStatus !== "All" || filterPriority !== "All" || filterHealth !== "All" || search) && (
@@ -352,7 +407,7 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* Project Cards / List */}
+      {/* Initiative Cards / List */}
       {isLoading ? (
         <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-2"}>
           {[1,2,3,4,5,6].map(i => <Skeleton key={i} className={viewMode === "grid" ? "h-52" : "h-20"} />)}
@@ -364,52 +419,63 @@ export default function PortfolioPage() {
               <FolderOpen className="h-8 w-8 text-muted-foreground" />
             </div>
             <div>
-              <p className="font-semibold text-base">No projects found</p>
+              <p className="font-semibold text-base">No initiatives found</p>
               <p className="text-sm text-muted-foreground mt-1">
                 {search || filterStatus !== "All" || filterPriority !== "All" || filterHealth !== "All"
                   ? "Try adjusting your search or filters."
                   : isAdmin
-                  ? "Create your first project to get started."
-                  : "No projects have been created yet."}
+                  ? "Create your first initiative to get started."
+                  : "No initiatives have been created yet."}
               </p>
             </div>
             {isAdmin && !search && filterStatus === "All" && filterPriority === "All" && filterHealth === "All" && (
-              <Button onClick={() => setShowCreate(true)}>
-                <Plus className="h-4 w-4 mr-1.5" /> Create First Project
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setShowCreate(true)}>
+                  <Plus className="h-4 w-4 mr-1.5" /> Create First Initiative
+                </Button>
+                <span className="text-xs text-muted-foreground">or</span>
+                <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                  <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Download Template
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(p => (
-            <ProjectGridCard key={p.id} p={p} isAdmin={isAdmin} onDelete={id => deleteMutation.mutate(id)} />
+            <InitiativeGridCard key={p.id} p={p} isAdmin={isAdmin} onDelete={id => deleteMutation.mutate(id)} />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map(p => (
-            <ProjectListRow key={p.id} p={p} isAdmin={isAdmin} onDelete={id => deleteMutation.mutate(id)} />
+            <InitiativeListRow key={p.id} p={p} isAdmin={isAdmin} onDelete={id => deleteMutation.mutate(id)} />
           ))}
         </div>
       )}
 
-      {/* Create Project Dialog */}
+      {/* Create Initiative Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Project</DialogTitle>
+            <DialogTitle>New Initiative</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Project Name *</Label>
+              <Label>Initiative Name *</Label>
               <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Loyalty Program Launch" data-testid="input-project-name" />
+                placeholder="e.g. Loyalty Programme Launch" data-testid="input-project-name" />
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
               <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="What is this project about?" rows={3} data-testid="input-project-description" />
+                placeholder="What is this initiative about?" rows={2} data-testid="input-project-description" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Strategic Goal</Label>
+              <Input value={form.strategicGoal} onChange={e => setForm(f => ({ ...f, strategicGoal: e.target.value }))}
+                placeholder="e.g. Increase Revenue by 20%" data-testid="input-project-strategic-goal" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -453,6 +519,11 @@ export default function PortfolioPage() {
                 </Select>
               </div>
             </div>
+            <div className="space-y-1.5">
+              <Label>Risk Notes</Label>
+              <Textarea value={form.riskNotes} onChange={e => setForm(f => ({ ...f, riskNotes: e.target.value }))}
+                placeholder="Any known risks or blockers?" rows={2} data-testid="input-project-risk-notes" />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -461,7 +532,7 @@ export default function PortfolioPage() {
               disabled={!form.name || createMutation.isPending}
               data-testid="button-submit-project"
             >
-              {createMutation.isPending ? "Creating..." : "Create Project"}
+              {createMutation.isPending ? "Creating..." : "Create Initiative"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -663,7 +663,14 @@ export async function registerRoutes(
 
   app.post("/api/tasks/:id/subtasks", requireAdmin, async (req: Request, res: Response) => {
     const taskId = parseInt(req.params.id as string);
-    const sub = await storage.createSubtask({ taskId, title: req.body.title, completed: false });
+    const sub = await storage.createSubtask({
+      taskId,
+      title: req.body.title,
+      owner: req.body.owner || null,
+      dueDate: req.body.dueDate || null,
+      status: req.body.status || "Not Started",
+      completed: false,
+    });
     res.json(sub);
   });
 
@@ -742,6 +749,52 @@ export async function registerRoutes(
     const id = parseInt(req.params.id as string);
     await storage.deleteComment(id);
     res.json({ ok: true });
+  });
+
+  // ─── Initiatives Excel Template & Bulk Upload ──────────────────────────────
+  app.get("/api/initiatives/template", requireAuth, async (_req: Request, res: Response) => {
+    const wb = XLSX.utils.book_new();
+    const headers = [["Name *", "Description", "Owner", "Business Unit", "Strategic Goal", "Start Date (YYYY-MM-DD)", "Due Date (YYYY-MM-DD)", "Status", "Priority"]];
+    const example = [["Loyalty Programme Launch", "Drive customer retention via loyalty scheme", "Jane Smith", "Marketing", "Increase Revenue", "2024-01-01", "2024-06-30", "Not Started", "High"]];
+    const ws = XLSX.utils.aoa_to_sheet([...headers, ...example]);
+    ws["!cols"] = headers[0].map(h => ({ wch: Math.max(h.length + 4, 18) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Initiatives");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", "attachment; filename=initiatives_template.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  });
+
+  app.post("/api/initiatives/bulk-upload", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const { rows } = req.body as { rows: Record<string, string>[] };
+      if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ message: "No rows provided" });
+      const created = [];
+      for (const row of rows) {
+        const name = (row["Name *"] || row["Name"] || "").trim();
+        if (!name) continue;
+        const statusVal = row["Status"]?.trim() || "Not Started";
+        const priorityVal = row["Priority"]?.trim() || "Medium";
+        const proj = await storage.createProject({
+          companyId: company.id,
+          name,
+          description: row["Description"]?.trim() || null,
+          owner: row["Owner"]?.trim() || null,
+          businessUnit: row["Business Unit"]?.trim() || null,
+          strategicGoal: row["Strategic Goal"]?.trim() || null,
+          startDate: row["Start Date (YYYY-MM-DD)"]?.trim() || null,
+          dueDate: row["Due Date (YYYY-MM-DD)"]?.trim() || null,
+          status: ["Not Started","In Progress","At Risk","Delayed","Completed"].includes(statusVal) ? statusVal : "Not Started",
+          priority: ["Critical","High","Medium","Low"].includes(priorityVal) ? priorityVal : "Medium",
+        });
+        created.push(proj);
+      }
+      res.json({ created: created.length, initiatives: created });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // ─── Portfolio Stats ───────────────────────────────────────────────────────

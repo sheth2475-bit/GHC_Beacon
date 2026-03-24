@@ -44,13 +44,14 @@ AI-powered SME performance and execution management platform.
 6. **Monthly Reviews** - AI-generated reviews with strengths/gaps/recommendations; **Export PDF** button uses browser print with a formatted print-only layout
 7. **Dashboard Planner** (admin only) - AI-recommended dashboard structure
 
-### Execution Management (New)
-8. **Portfolio** (/portfolio) - Project grid with health scores (Green/Amber/Red), stat cards, search/filter by status/priority/health, create project dialog (admin only)
-9. **Project Detail** (/projects/:id) - **Breadcrumb navigation** (Portfolio → Project Name), header with health/status/priority, progress stats, 4 tabs:
+### Execution Management
+8. **Initiative Portfolio** (/initiatives, also /portfolio as alias) - Initiative grid with health scores (Green/Amber/Red), stat cards, search/filter by status/priority/health; create initiative dialog with **Strategic Goal** + **Risk Notes** fields; **Excel Template download** + **Bulk Import** (client-side XLSX parse → POST /api/initiatives/bulk-upload)
+9. **Initiative Detail** (/initiatives/:id, also /projects/:id as alias) - **Breadcrumb navigation** (Initiatives → Initiative Name), header shows owner/business unit/strategic goal/risk notes, progress stats, 4 tabs:
    - Overview: task breakdown + upcoming milestones
-   - Tasks: List view + Board (Kanban) view, add/delete tasks, inline status change, subtask checkboxes
-   - Milestones: list with status change, add/delete
+   - Tasks: List view + Board (Kanban) view, add/delete tasks, inline status change; inline subtask creation with Owner/Due Date/Status fields
+   - Milestones: list/calendar view with status change, add/delete
    - Comments: post/delete comments (both roles), timestamped with author
+   - Task form uses **Owner** field (tasks.owner column); subtasks have owner/dueDate/status fields displayed
 10. **Workload** (/workload) - Team task distribution by assignee with overdue/in-progress/completed counts and task list
 11. **Global Search** - Header search button opens modal, searches across projects/tasks/KPIs/meetings/actions with category groupings
 

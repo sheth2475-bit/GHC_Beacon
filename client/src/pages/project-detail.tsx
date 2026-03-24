@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
-  ArrowLeft, Calendar, Users, Target, AlertTriangle, CheckCircle2, Edit3,
+  ArrowLeft, Calendar, Users, Target, AlertTriangle, Edit3,
   Plus, Trash2, MessageSquare, Send, Flag, ChevronDown, ChevronRight,
   LayoutList, LayoutGrid, Circle, CalendarDays,
 } from "lucide-react";
@@ -63,6 +62,13 @@ function priorityBorderColor(p: string) {
   return "border-l-gray-300 dark:border-l-gray-600";
 }
 
+function subStatusPill(s: string) {
+  if (s === "Completed") return "text-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400";
+  if (s === "In Progress") return "text-violet-700 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400";
+  if (s === "At Risk") return "text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400";
+  return "text-muted-foreground bg-muted";
+}
+
 function TaskCard({
   task, isAdmin, onStatusChange, onDelete
 }: {
@@ -72,10 +78,27 @@ function TaskCard({
   onDelete: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showSubtaskForm, setShowSubtaskForm] = useState(false);
+  const [subForm, setSubForm] = useState({ title: "", owner: "", dueDate: "", status: "Not Started" });
 
   const toggleSubtask = useMutation({
     mutationFn: ({ id, completed }: { id: number; completed: boolean }) =>
-      apiRequest("PATCH", `/api/subtasks/${id}`, { completed }),
+      apiRequest("PATCH", `/api/subtasks/${id}`, { completed, status: completed ? "Completed" : "Not Started" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects"] }),
+  });
+
+  const addSubtask = useMutation({
+    mutationFn: (data: typeof subForm) =>
+      apiRequest("POST", `/api/tasks/${task.id}/subtasks`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setSubForm({ title: "", owner: "", dueDate: "", status: "Not Started" });
+      setShowSubtaskForm(false);
+    },
+  });
+
+  const deleteSubtask = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/subtasks/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects"] }),
   });
 
@@ -83,6 +106,7 @@ function TaskCard({
   const totalSubs = task.subtasks?.length || 0;
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = task.dueDate && task.dueDate < today && task.status !== "Completed";
+  const owner = (task as any).owner || task.assignee;
 
   return (
     <Card className={`border-l-4 ${priorityBorderColor(task.priority)} hover:shadow-sm transition-all`} data-testid={`card-task-${task.id}`}>
@@ -112,9 +136,9 @@ function TaskCard({
               ) : (
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusPill(task.status)}`}>{task.status}</span>
               )}
-              {task.assignee && (
+              {owner && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Users className="h-3 w-3" /> {task.assignee}
+                  <Users className="h-3 w-3" /> {owner}
                 </span>
               )}
               {task.dueDate && (
@@ -122,34 +146,118 @@ function TaskCard({
                   <Calendar className="h-3 w-3" /> {task.dueDate}
                 </span>
               )}
-              {totalSubs > 0 && (
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors ml-auto"
-                  onClick={() => setExpanded(!expanded)}
-                  data-testid={`button-expand-subtasks-${task.id}`}
-                >
-                  {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  {doneCount}/{totalSubs} subtasks
-                </button>
-              )}
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors ml-auto"
+                onClick={() => setExpanded(!expanded)}
+                data-testid={`button-expand-subtasks-${task.id}`}
+              >
+                {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                {doneCount}/{totalSubs} subtasks
+              </button>
             </div>
 
             {/* Subtasks */}
-            {expanded && totalSubs > 0 && (
+            {expanded && (
               <div className="mt-3 space-y-1.5 pl-3 border-l-2 border-border">
                 {task.subtasks.map(sub => (
-                  <div key={sub.id} className="flex items-center gap-2" data-testid={`row-subtask-${sub.id}`}>
+                  <div key={sub.id} className="flex items-start gap-2 group/sub" data-testid={`row-subtask-${sub.id}`}>
                     <Checkbox
                       checked={sub.completed ?? false}
                       disabled={!isAdmin || toggleSubtask.isPending}
                       onCheckedChange={v => toggleSubtask.mutate({ id: sub.id, completed: !!v })}
+                      className="mt-0.5"
                       data-testid={`checkbox-subtask-${sub.id}`}
                     />
-                    <span className={`text-xs ${sub.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                      {sub.title}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-xs ${sub.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                        {sub.title}
+                      </span>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {(sub as any).owner && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                            <Users className="h-2.5 w-2.5" /> {(sub as any).owner}
+                          </span>
+                        )}
+                        {(sub as any).dueDate && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                            <Calendar className="h-2.5 w-2.5" /> {(sub as any).dueDate}
+                          </span>
+                        )}
+                        {(sub as any).status && (sub as any).status !== "Not Started" && (
+                          <span className={`text-[10px] px-1.5 py-0 rounded-full font-medium ${subStatusPill((sub as any).status)}`}>
+                            {(sub as any).status}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={() => deleteSubtask.mutate(sub.id)}
+                        className="text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover/sub:opacity-100 mt-0.5"
+                        data-testid={`button-delete-subtask-${sub.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 ))}
+                {isAdmin && (
+                  showSubtaskForm ? (
+                    <div className="mt-2 space-y-2 pt-2 border-t border-border/50">
+                      <Input
+                        value={subForm.title}
+                        onChange={e => setSubForm(f => ({ ...f, title: e.target.value }))}
+                        placeholder="Subtask title"
+                        className="h-7 text-xs"
+                        data-testid={`input-subtask-title-${task.id}`}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          value={subForm.owner}
+                          onChange={e => setSubForm(f => ({ ...f, owner: e.target.value }))}
+                          placeholder="Owner"
+                          className="h-7 text-xs"
+                        />
+                        <Input
+                          type="date"
+                          value={subForm.dueDate}
+                          onChange={e => setSubForm(f => ({ ...f, dueDate: e.target.value }))}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <Select value={subForm.status} onValueChange={v => setSubForm(f => ({ ...f, status: v }))}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => { if (subForm.title.trim()) addSubtask.mutate(subForm); }}
+                          disabled={!subForm.title.trim() || addSubtask.isPending}
+                          data-testid={`button-save-subtask-${task.id}`}
+                        >
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowSubtaskForm(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors mt-1"
+                      onClick={() => setShowSubtaskForm(true)}
+                      data-testid={`button-add-subtask-${task.id}`}
+                    >
+                      <Plus className="h-3 w-3" /> Add subtask
+                    </button>
+                  )
+                )}
               </div>
             )}
           </div>
@@ -236,8 +344,9 @@ function MilestoneCalendar({ milestones }: { milestones: Milestone[] }) {
 }
 
 export default function ProjectDetailPage() {
-  const [, params] = useRoute("/projects/:id");
-  const projectId = parseInt(params?.id ?? "0");
+  const [location] = useLocation();
+  const idMatch = location.match(/\/(?:projects|initiatives)\/(\d+)/);
+  const projectId = parseInt(idMatch?.[1] ?? "0");
   const { isAdmin, user } = useAuth();
   const { toast } = useToast();
 
@@ -250,13 +359,13 @@ export default function ProjectDetailPage() {
   const [comment, setComment] = useState("");
 
   const [taskForm, setTaskForm] = useState({
-    title: "", description: "", assignee: "", dueDate: "",
+    title: "", description: "", owner: "", dueDate: "",
     status: "Not Started", priority: "Medium",
   });
   const [msForm, setMsForm] = useState({
     title: "", dueDate: "", status: "Upcoming", progress: 0,
   });
-  const [editForm, setEditForm] = useState<Partial<Project>>({});
+  const [editForm, setEditForm] = useState<Partial<Project & { strategicGoal?: string; riskNotes?: string }>>({});
 
   const { data: project, isLoading } = useQuery<ProjectDetail>({
     queryKey: ["/api/projects", projectId],
@@ -301,7 +410,7 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setShowTaskForm(false);
-      setTaskForm({ title: "", description: "", assignee: "", dueDate: "", status: "Not Started", priority: "Medium" });
+      setTaskForm({ title: "", description: "", owner: "", dueDate: "", status: "Not Started", priority: "Medium" });
       toast({ title: "Task created" });
     },
     onError: () => toast({ title: "Failed to create task", variant: "destructive" }),
@@ -349,14 +458,14 @@ export default function ProjectDetailPage() {
   });
 
   const updateProjectMut = useMutation({
-    mutationFn: (data: Partial<Project>) => apiRequest("PATCH", `/api/projects/${projectId}`, data),
+    mutationFn: (data: typeof editForm) => apiRequest("PATCH", `/api/projects/${projectId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setShowEditProject(false);
-      toast({ title: "Project updated" });
+      toast({ title: "Initiative updated" });
     },
-    onError: () => toast({ title: "Failed to update project", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to update initiative", variant: "destructive" }),
   });
 
   const addCommentMut = useMutation({
@@ -388,29 +497,30 @@ export default function ProjectDetailPage() {
   if (!project) {
     return (
       <div className="p-6 text-center">
-        <p className="text-muted-foreground">Project not found.</p>
-        <Link href="/portfolio"><Button variant="outline" className="mt-4">Back to Portfolio</Button></Link>
+        <p className="text-muted-foreground">Initiative not found.</p>
+        <Link href="/initiatives"><Button variant="outline" className="mt-4">Back to Initiatives</Button></Link>
       </div>
     );
   }
 
   const byStatus = (s: string) => tasks.filter(t => t.status === s);
   const completedCount = tasks.filter(t => t.status === "Completed").length;
+  const ep = project as any;
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground" aria-label="Breadcrumb" data-testid="breadcrumb-project">
-        <Link href="/portfolio">
+        <Link href="/initiatives">
           <span className="hover:text-foreground transition-colors cursor-pointer flex items-center gap-1">
-            <ArrowLeft className="h-3.5 w-3.5" /> Portfolio
+            <ArrowLeft className="h-3.5 w-3.5" /> Initiatives
           </span>
         </Link>
         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
         <span className="text-foreground font-medium truncate max-w-[300px]" data-testid="breadcrumb-project-name">{project.name}</span>
       </nav>
 
-      {/* Project Header */}
+      {/* Initiative Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -425,12 +535,18 @@ export default function ProjectDetailPage() {
           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
             {project.owner && <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {project.owner}</span>}
             {project.businessUnit && <span className="flex items-center gap-1"><Flag className="h-3 w-3" /> {project.businessUnit}</span>}
+            {ep.strategicGoal && <span className="flex items-center gap-1"><Target className="h-3 w-3" /> {ep.strategicGoal}</span>}
             {project.startDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Start: {project.startDate}</span>}
             {project.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: {project.dueDate}</span>}
           </div>
+          {ep.riskNotes && (
+            <div className="mt-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-400 max-w-2xl">
+              <span className="font-semibold">Risk: </span>{ep.riskNotes}
+            </div>
+          )}
         </div>
         {isAdmin && (
-          <Button variant="outline" size="sm" onClick={() => { setEditForm(project); setShowEditProject(true); }}
+          <Button variant="outline" size="sm" onClick={() => { setEditForm(project as any); setShowEditProject(true); }}
             data-testid="button-edit-project">
             <Edit3 className="h-4 w-4 mr-1.5" /> Edit
           </Button>
@@ -542,7 +658,6 @@ export default function ProjectDetailPage() {
           {tasksLoading ? (
             <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20" />)}</div>
           ) : !boardView ? (
-            /* List view */
             <div className="space-y-2">
               {tasks.length === 0 ? (
                 <Card>
@@ -552,7 +667,7 @@ export default function ProjectDetailPage() {
                     </div>
                     <div>
                       <p className="font-medium">No tasks yet</p>
-                      <p className="text-sm text-muted-foreground">{isAdmin ? "Add tasks to start tracking project progress." : "No tasks have been added yet."}</p>
+                      <p className="text-sm text-muted-foreground">{isAdmin ? "Add tasks to start tracking initiative progress." : "No tasks have been added yet."}</p>
                     </div>
                     {isAdmin && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Task</Button>}
                   </CardContent>
@@ -568,20 +683,22 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           ) : (
-            /* Board view */
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 overflow-x-auto">
               {TASK_STATUSES.map(s => (
                 <div key={s} className="space-y-2">
                   <div className={`text-xs font-semibold px-2 py-1 rounded-md text-center ${statusPill(s)}`}>{s} ({byStatus(s).length})</div>
-                  {byStatus(s).map(t => (
-                    <Card key={t.id} className="border" data-testid={`board-task-${t.id}`}>
-                      <CardContent className="p-3">
-                        <p className="text-xs font-medium leading-tight">{t.title}</p>
-                        {t.assignee && <p className="text-[10px] text-muted-foreground mt-1">{t.assignee}</p>}
-                        {t.dueDate && <p className="text-[10px] text-muted-foreground">{t.dueDate}</p>}
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {byStatus(s).map(t => {
+                    const tOwner = (t as any).owner || t.assignee;
+                    return (
+                      <Card key={t.id} className="border" data-testid={`board-task-${t.id}`}>
+                        <CardContent className="p-3">
+                          <p className="text-xs font-medium leading-tight">{t.title}</p>
+                          {tOwner && <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><Users className="h-2.5 w-2.5" />{tOwner}</p>}
+                          {t.dueDate && <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />{t.dueDate}</p>}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                   {byStatus(s).length === 0 && (
                     <div className="border border-dashed border-border rounded-lg py-4 text-center text-xs text-muted-foreground">Empty</div>
                   )}
@@ -629,7 +746,7 @@ export default function ProjectDetailPage() {
                 </div>
                 <div>
                   <p className="font-medium">No milestones yet</p>
-                  <p className="text-sm text-muted-foreground">{isAdmin ? "Add milestones to track key project checkpoints." : "No milestones have been added."}</p>
+                  <p className="text-sm text-muted-foreground">{isAdmin ? "Add milestones to track key initiative checkpoints." : "No milestones have been added."}</p>
                 </div>
               </CardContent>
             </Card>
@@ -694,7 +811,6 @@ export default function ProjectDetailPage() {
 
         {/* ─ Comments ─ */}
         <TabsContent value="comments" className="mt-4 space-y-4">
-          {/* Add comment */}
           <Card>
             <CardContent className="p-4">
               <Textarea
@@ -718,7 +834,6 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Comment list */}
           {comments.length === 0 ? (
             <Card><CardContent className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground gap-2">
               <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
@@ -776,9 +891,9 @@ export default function ProjectDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Assignee</Label>
-                <Input value={taskForm.assignee} onChange={e => setTaskForm(f => ({ ...f, assignee: e.target.value }))}
-                  placeholder="Name" data-testid="input-task-assignee" />
+                <Label>Owner</Label>
+                <Input value={taskForm.owner} onChange={e => setTaskForm(f => ({ ...f, owner: e.target.value }))}
+                  placeholder="Name" data-testid="input-task-owner" />
               </div>
               <div className="space-y-1.5">
                 <Label>Due Date</Label>
@@ -844,18 +959,22 @@ export default function ProjectDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Project Dialog */}
+      {/* Edit Initiative Dialog */}
       <Dialog open={showEditProject} onOpenChange={setShowEditProject}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Edit Project</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Initiative</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Project Name</Label>
+              <Label>Initiative Name</Label>
               <Input value={editForm.name ?? ""} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} data-testid="input-edit-project-name" />
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
-              <Textarea value={editForm.description ?? ""} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={3} />
+              <Textarea value={editForm.description ?? ""} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={2} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Strategic Goal</Label>
+              <Input value={(editForm as any).strategicGoal ?? ""} onChange={e => setEditForm(f => ({ ...f, strategicGoal: e.target.value }))} placeholder="e.g. Increase Revenue by 20%" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -863,37 +982,59 @@ export default function ProjectDetailPage() {
                 <Input value={editForm.owner ?? ""} onChange={e => setEditForm(f => ({ ...f, owner: e.target.value }))} data-testid="input-edit-owner" />
               </div>
               <div className="space-y-1.5">
-                <Label>Progress (%)</Label>
-                <Input type="number" min="0" max="100" value={editForm.progress ?? 0}
-                  onChange={e => setEditForm(f => ({ ...f, progress: parseInt(e.target.value) || 0 }))} data-testid="input-edit-progress" />
+                <Label>Business Unit</Label>
+                <Input value={editForm.businessUnit ?? ""} onChange={e => setEditForm(f => ({ ...f, businessUnit: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Start Date</Label>
+                <Input type="date" value={editForm.startDate ?? ""} onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Due Date</Label>
+                <Input type="date" value={editForm.dueDate ?? ""} onChange={e => setEditForm(f => ({ ...f, dueDate: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Status</Label>
                 <Select value={editForm.status ?? "Not Started"} onValueChange={v => setEditForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger data-testid="select-edit-status"><SelectValue /></SelectTrigger>
-                  <SelectContent>{["Not Started","In Progress","At Risk","Delayed","Completed"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["Not Started","In Progress","At Risk","Delayed","Completed"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Priority</Label>
                 <Select value={editForm.priority ?? "Medium"} onValueChange={v => setEditForm(f => ({ ...f, priority: v }))}>
-                  <SelectTrigger data-testid="select-edit-priority"><SelectValue /></SelectTrigger>
-                  <SelectContent>{["Critical","High","Medium","Low"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["Critical","High","Medium","Low"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Due Date</Label>
-                <Input type="date" value={editForm.dueDate ?? ""} onChange={e => setEditForm(f => ({ ...f, dueDate: e.target.value }))} data-testid="input-edit-due" />
-              </div>
+            <div className="space-y-1.5">
+              <Label>Progress (%)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={editForm.progress ?? 0}
+                onChange={e => setEditForm(f => ({ ...f, progress: parseInt(e.target.value) || 0 }))}
+                data-testid="input-edit-progress"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Risk Notes</Label>
+              <Textarea value={(editForm as any).riskNotes ?? ""} onChange={e => setEditForm(f => ({ ...f, riskNotes: e.target.value }))} rows={2} placeholder="Any known risks or blockers?" />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditProject(false)}>Cancel</Button>
-            <Button onClick={() => updateProjectMut.mutate(editForm)} disabled={updateProjectMut.isPending} data-testid="button-submit-edit-project">
+            <Button onClick={() => updateProjectMut.mutate(editForm)} disabled={updateProjectMut.isPending} data-testid="button-save-edit-project">
               {updateProjectMut.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
