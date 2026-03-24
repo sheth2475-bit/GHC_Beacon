@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ExcelUpload } from "@/components/excel-upload";
+import { formatDate } from "@/lib/utils";
 import {
   FolderOpen, Plus, Search, CheckCircle2, AlertTriangle,
   Activity, Target, ChevronRight, Users, Calendar, Briefcase,
@@ -28,8 +29,8 @@ const projectColumnMap: Record<string, string> = {
   "Owner": "owner",
   "Business Unit": "businessUnit",
   "Strategic Goal": "strategicGoal",
-  "Start Date (YYYY-MM-DD)": "startDate",
-  "Due Date (YYYY-MM-DD)": "dueDate",
+  "Start Date (DD-MM-YYYY)": "startDate",
+  "Due Date (DD-MM-YYYY)": "dueDate",
   "Status": "status",
   "Priority": "priority",
 };
@@ -147,7 +148,7 @@ function InitiativeGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; is
           )}
           {p.dueDate && (
             <span className="flex items-center gap-1 shrink-0 ml-auto">
-              <Calendar className="h-3 w-3" /> {p.dueDate}
+              <Calendar className="h-3 w-3" /> {formatDate(p.dueDate)}
             </span>
           )}
           <span className="flex items-center gap-1 shrink-0">
@@ -182,7 +183,7 @@ function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isA
           <span className="font-medium w-8 text-right">{p.progress ?? 0}%</span>
         </div>
         {p.owner && <span className="hidden lg:block text-xs text-muted-foreground shrink-0 w-28 truncate">{p.owner}</span>}
-        {p.dueDate && <span className="hidden lg:block text-xs text-muted-foreground shrink-0">{p.dueDate}</span>}
+        {p.dueDate && <span className="hidden lg:block text-xs text-muted-foreground shrink-0">{formatDate(p.dueDate)}</span>}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-muted-foreground">{p.completedTaskCount}/{p.taskCount} initiatives</span>
           <Link href={`/projects/${p.id}`}>

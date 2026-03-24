@@ -9,6 +9,20 @@ import * as XLSX from "xlsx";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 
+/** Normalises a date string to YYYY-MM-DD for DB storage.
+ *  Accepts DD-MM-YYYY (from Excel uploads) or YYYY-MM-DD (legacy / browser date pickers). */
+function parseDateStr(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  // DD-MM-YYYY
+  const ddmmyyyy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  // YYYY-MM-DD (already correct)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return s;
+}
+
 function computeProjectHealth(
   project: { status: string; progress: number; dueDate: string | null | undefined },
   projectTasks: { status: string; dueDate: string | null | undefined }[],
@@ -401,9 +415,9 @@ export async function registerRoutes(
   app.get("/api/templates/actions", requireAuth, (_req: Request, res: Response) => {
     const wb = XLSX.utils.book_new();
     const data = [
-      ["Meeting Type", "Title", "Description", "Owner", "Due Date (YYYY-MM-DD)", "Revised Due Date (YYYY-MM-DD)", "Priority (Low/Medium/High/Critical)", "Status (Not Started/In Progress/Completed/Delayed)", "Department"],
-      ["PMO Steering Committee", "Implement feedback system", "Deploy guest feedback kiosks", "Sarah Johnson", "2026-03-15", "", "High", "In Progress", "Operations"],
-      ["CEO Meeting", "Review pricing", "Analyze competitor pricing", "Michael Chen", "2026-03-20", "2026-03-25", "Medium", "Not Started", "Sales"],
+      ["Meeting Type", "Title", "Description", "Owner", "Due Date (DD-MM-YYYY)", "Revised Due Date (DD-MM-YYYY)", "Priority (Low/Medium/High/Critical)", "Status (Not Started/In Progress/Completed/Delayed)", "Department"],
+      ["PMO Steering Committee", "Implement feedback system", "Deploy guest feedback kiosks", "Sarah Johnson", "15-03-2026", "", "High", "In Progress", "Operations"],
+      ["CEO Meeting", "Review pricing", "Analyze competitor pricing", "Michael Chen", "20-03-2026", "25-03-2026", "Medium", "Not Started", "Sales"],
     ];
     const ws = XLSX.utils.aoa_to_sheet(data);
     ws["!cols"] = data[0].map(() => ({ wch: 28 }));
@@ -484,8 +498,8 @@ export async function registerRoutes(
             title,
             description: row.description || row["Description"] || null,
             ownerName: row.ownerName || row["Owner"] || null,
-            dueDate: row.dueDate || row["Due Date (YYYY-MM-DD)"] || null,
-            revisedDueDate: row.revisedDueDate || row["Revised Due Date (YYYY-MM-DD)"] || null,
+            dueDate: parseDateStr(row.dueDate || row["Due Date (DD-MM-YYYY)"] || row["Due Date (YYYY-MM-DD)"] || null),
+            revisedDueDate: parseDateStr(row.revisedDueDate || row["Revised Due Date (DD-MM-YYYY)"] || row["Revised Due Date (YYYY-MM-DD)"] || null),
             priority: row.priority || row["Priority (Low/Medium/High/Critical)"] || "Medium",
             status: row.status || row["Status (Not Started/In Progress/Completed/Delayed)"] || "Not Started",
           });
@@ -574,8 +588,8 @@ export async function registerRoutes(
   // NOTE: /template must be registered before /:id so Express doesn't treat "template" as an id
   app.get("/api/projects/template", requireAuth, (_req: Request, res: Response) => {
     const wb = XLSX.utils.book_new();
-    const headers = [["Name *", "Description", "Owner", "Business Unit", "Strategic Goal", "Start Date (YYYY-MM-DD)", "Due Date (YYYY-MM-DD)", "Status", "Priority"]];
-    const example = [["Loyalty Programme Launch", "Drive customer retention via loyalty scheme", "Jane Smith", "Marketing", "Increase Revenue", "2026-01-01", "2026-06-30", "Not Started", "High"]];
+    const headers = [["Name *", "Description", "Owner", "Business Unit", "Strategic Goal", "Start Date (DD-MM-YYYY)", "Due Date (DD-MM-YYYY)", "Status", "Priority"]];
+    const example = [["Loyalty Programme Launch", "Drive customer retention via loyalty scheme", "Jane Smith", "Marketing", "Increase Revenue", "01-01-2026", "30-06-2026", "Not Started", "High"]];
     const note = [["", "", "", "", "", "", "", "Not Started | In Progress | At Risk | Delayed | Completed", "Critical | High | Medium | Low"]];
     const ws = XLSX.utils.aoa_to_sheet([...headers, ...example, ...note]);
     ws["!cols"] = headers[0].map(h => ({ wch: Math.max(h.length + 4, 22) }));
@@ -802,8 +816,8 @@ export async function registerRoutes(
       businessUnit: (row["businessUnit"] || row["Business Unit"] || "").trim() || null,
       strategicGoal: (row["strategicGoal"] || row["Strategic Goal"] || "").trim() || null,
       riskNotes: null,
-      startDate: (row["startDate"] || row["Start Date (YYYY-MM-DD)"] || "").trim() || null,
-      dueDate: (row["dueDate"] || row["Due Date (YYYY-MM-DD)"] || "").trim() || null,
+      startDate: parseDateStr(row["startDate"] || row["Start Date (DD-MM-YYYY)"] || row["Start Date (YYYY-MM-DD)"] || null),
+      dueDate: parseDateStr(row["dueDate"] || row["Due Date (DD-MM-YYYY)"] || row["Due Date (YYYY-MM-DD)"] || null),
       status: VALID_STATUSES.includes(statusVal) ? statusVal : "Not Started",
       priority: VALID_PRIORITIES.includes(priorityVal) ? priorityVal : "Medium",
     });
@@ -914,7 +928,17 @@ export async function registerRoutes(
   app.get("/api/subscription", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.json(null);
-    const sub = await storage.getSubscription(company.id);
+    let sub = await storage.getSubscription(company.id);
+    if (!sub) {
+      // Auto-create a Trial subscription for new companies so the countdown is visible from day 1
+      sub = await storage.upsertSubscription(company.id, {
+        planName: "Trial",
+        status: "Active",
+        maxUsers: 5,
+        dailyAiLimit: 15,
+        trialStartDate: company.createdAt ? new Date(company.createdAt) : new Date(),
+      });
+    }
     const dailyUsed = await storage.getDailyAiCount(company.id);
     res.json({ ...sub, dailyUsed });
   });

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Users, AlertTriangle, CheckCircle2, Activity, Target, BarChart3 } from "lucide-react";
 import type { Task } from "@shared/schema";
+import { formatDate } from "@/lib/utils";
 
 interface WorkloadEntry {
   name: string;
@@ -245,7 +246,7 @@ export default function WorkloadPage() {
                                         ? "text-red-500 font-semibold"
                                         : "text-muted-foreground"
                                     }`}>
-                                      {t.dueDate}
+                                      {formatDate(t.dueDate)}
                                     </span>
                                   )}
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${statusPill(t.status)}`}>

@@ -21,6 +21,7 @@ import {
   LayoutList, LayoutGrid, Circle, CalendarDays,
 } from "lucide-react";
 import type { Project, Task, Subtask, Milestone, ProjectComment } from "@shared/schema";
+import { formatDate } from "@/lib/utils";
 
 type ProjectDetail = Project & {
   health: "Green" | "Amber" | "Red" | "Completed";
@@ -143,7 +144,7 @@ function TaskCard({
               )}
               {task.dueDate && (
                 <span className={`text-xs flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                  <Calendar className="h-3 w-3" /> {task.dueDate}
+                  <Calendar className="h-3 w-3" /> {formatDate(task.dueDate)}
                 </span>
               )}
               <button
@@ -180,7 +181,7 @@ function TaskCard({
                         )}
                         {(sub as any).dueDate && (
                           <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                            <Calendar className="h-2.5 w-2.5" /> {(sub as any).dueDate}
+                            <Calendar className="h-2.5 w-2.5" /> {formatDate((sub as any).dueDate)}
                           </span>
                         )}
                         {(sub as any).status && (sub as any).status !== "Not Started" && (
@@ -325,7 +326,7 @@ function MilestoneCalendar({ milestones }: { milestones: Milestone[] }) {
                     <div className="flex items-center gap-2">
                       <CalendarDays className="h-3 w-3 text-muted-foreground shrink-0" />
                       <span className="text-xs font-medium">{ms.title}</span>
-                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{ms.dueDate}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{formatDate(ms.dueDate)}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${statusPill(ms.status)}`}>{ms.status}</span>
                     </div>
                   </div>
@@ -536,8 +537,8 @@ export default function ProjectDetailPage() {
             {project.owner && <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {project.owner}</span>}
             {project.businessUnit && <span className="flex items-center gap-1"><Flag className="h-3 w-3" /> {project.businessUnit}</span>}
             {ep.strategicGoal && <span className="flex items-center gap-1"><Target className="h-3 w-3" /> {ep.strategicGoal}</span>}
-            {project.startDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Start: {project.startDate}</span>}
-            {project.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: {project.dueDate}</span>}
+            {project.startDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Start: {formatDate(project.startDate)}</span>}
+            {project.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due: {formatDate(project.dueDate)}</span>}
           </div>
           {ep.riskNotes && (
             <div className="mt-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-400 max-w-2xl">
@@ -619,7 +620,7 @@ export default function ProjectDetailPage() {
                   <div key={m.id} className="flex items-center gap-2 text-xs" data-testid={`row-milestone-overview-${m.id}`}>
                     <Circle className="h-2 w-2 shrink-0 text-primary" />
                     <span className="flex-1 truncate">{m.title}</span>
-                    {m.dueDate && <span className="text-muted-foreground shrink-0">{m.dueDate}</span>}
+                    {m.dueDate && <span className="text-muted-foreground shrink-0">{formatDate(m.dueDate)}</span>}
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusPill(m.status)}`}>{m.status}</span>
                   </div>
                 ))}
@@ -694,7 +695,7 @@ export default function ProjectDetailPage() {
                         <CardContent className="p-3">
                           <p className="text-xs font-medium leading-tight">{t.title}</p>
                           {tOwner && <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><Users className="h-2.5 w-2.5" />{tOwner}</p>}
-                          {t.dueDate && <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />{t.dueDate}</p>}
+                          {t.dueDate && <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />{formatDate(t.dueDate)}</p>}
                         </CardContent>
                       </Card>
                     );
@@ -783,7 +784,7 @@ export default function ProjectDetailPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-                          {m.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {m.dueDate}</span>}
+                          {m.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(m.dueDate)}</span>}
                         </div>
                         {typeof m.progress === "number" && (
                           <div className="mt-2 space-y-1">

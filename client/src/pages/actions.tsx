@@ -18,6 +18,7 @@ import { ErrorState } from "@/components/error-state";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
 import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 import type { ActionItem, Department, MeetingType } from "@shared/schema";
 
 const STATUSES = ["Not Started", "In Progress", "Completed", "Delayed", "Cancelled"];
@@ -139,8 +140,8 @@ export default function ActionsPage() {
 
   const actionColumnMap: Record<string, string> = {
     "Meeting Type": "meetingType", "Title": "title", "Description": "description",
-    "Owner": "ownerName", "Due Date (YYYY-MM-DD)": "dueDate",
-    "Revised Due Date (YYYY-MM-DD)": "revisedDueDate",
+    "Owner": "ownerName", "Due Date (DD-MM-YYYY)": "dueDate",
+    "Revised Due Date (DD-MM-YYYY)": "revisedDueDate",
     "Priority (Low/Medium/High/Critical)": "priority",
     "Status (Not Started/In Progress/Completed/Delayed)": "status", "Department": "department",
   };
@@ -283,7 +284,7 @@ export default function ActionsPage() {
                           {isEditing ? (
                             <Input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} className="h-8 text-sm w-[136px]" data-testid={`input-edit-due-${item.id}`} />
                           ) : (
-                            <span className="text-sm tabular-nums whitespace-nowrap">{item.dueDate || "-"}</span>
+                            <span className="text-sm tabular-nums whitespace-nowrap">{formatDate(item.dueDate)}</span>
                           )}
                         </TableCell>
                         <TableCell className="align-top py-3">
@@ -291,7 +292,7 @@ export default function ActionsPage() {
                             <Input type="date" value={editRevisedDue} onChange={e => setEditRevisedDue(e.target.value)} className="h-8 text-sm w-[136px]" data-testid={`input-edit-revised-due-${item.id}`} />
                           ) : item.revisedDueDate ? (
                             <span className={`text-sm tabular-nums whitespace-nowrap ${overdue ? "text-red-500 font-medium" : "text-amber-600 dark:text-amber-400 font-medium"}`} data-testid={`text-revised-due-${item.id}`}>
-                              {item.revisedDueDate}
+                              {formatDate(item.revisedDueDate)}
                             </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">-</span>

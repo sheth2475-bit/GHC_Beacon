@@ -384,7 +384,7 @@ export default function DashboardPage() {
                               <div className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">{m.title}</p>
-                                <p className="text-xs text-muted-foreground">Due {m.dueDate}</p>
+                                <p className="text-xs text-muted-foreground">Due {m.dueDate ? `${m.dueDate.split("-")[2]}-${m.dueDate.split("-")[1]}-${m.dueDate.split("-")[0]}` : ""}</p>
                               </div>
                               <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
                                 daysLeft <= 1 ? "text-red-600 bg-red-500/10" : daysLeft <= 3 ? "text-amber-600 bg-amber-500/10" : "text-violet-600 bg-violet-500/10"
