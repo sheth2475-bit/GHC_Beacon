@@ -171,8 +171,8 @@ const FEATURES = [
     icon: LayoutDashboard,
     color: "text-blue-500",
     bg: "bg-blue-500/10",
-    title: "Executive Dashboard",
-    desc: "A live command centre — KPI health, overdue actions, project pulse, and team workload at a single glance. Updated in real time.",
+    title: "Smart Dashboard",
+    desc: "A live command centre that adapts to your data — shows KPI health when you have KPIs, project portfolio stats when you don't. Always relevant, never empty.",
   },
   {
     icon: Target,
@@ -186,21 +186,21 @@ const FEATURES = [
     color: "text-orange-500",
     bg: "bg-orange-500/10",
     title: "Action Tracker",
-    desc: "Every decision from every meeting becomes a tracked action — with owner, due date, priority, and live overdue alerts.",
-  },
-  {
-    icon: CalendarDays,
-    color: "text-violet-500",
-    bg: "bg-violet-500/10",
-    title: "Meeting Intelligence",
-    desc: "Log meeting minutes, auto-generate action items, and keep every commitment accountable — from CEO reviews to department stand-ups.",
+    desc: "Capture decisions and assign action items with owner, due date, and priority. Live overdue alerts mean nothing slips through the cracks.",
   },
   {
     icon: Briefcase,
     color: "text-pink-500",
     bg: "bg-pink-500/10",
-    title: "Project Portfolio",
-    desc: "Manage all strategic initiatives, milestones, and tasks across departments in one place. Red/Amber/Green health scoring keeps risks visible.",
+    title: "Project Management",
+    desc: "Portfolio → Initiatives → Tasks, three levels deep. Manage strategic projects, break them into initiatives, and track individual tasks — all in one place.",
+  },
+  {
+    icon: BarChart3,
+    color: "text-violet-500",
+    bg: "bg-violet-500/10",
+    title: "Portfolio View",
+    desc: "See every project's health (Red/Amber/Green), progress, and overdue tasks in a single portfolio view. Spot risks before they escalate.",
   },
   {
     icon: Sparkles,
@@ -214,7 +214,7 @@ const FEATURES = [
     color: "text-teal-500",
     bg: "bg-teal-500/10",
     title: "Monthly Reviews",
-    desc: "Auto-generate board-ready performance reviews with strengths, gaps, and recommendations. Export to PDF in one click.",
+    desc: "Auto-generate board-ready performance reviews with strengths, gaps, and recommendations — covering KPIs, actions, and projects in one narrative.",
   },
   {
     icon: Activity,
@@ -229,21 +229,21 @@ const STEPS = [
   {
     step: "01",
     title: "Set up your company in minutes",
-    desc: "Add your departments, invite your team, and let our AI generate a tailored KPI library for your industry — no consultants needed.",
+    desc: "Add your departments, invite your team, and let our AI generate a tailored KPI library for your industry. Create your first project and break it into initiatives and tasks — all before lunch.",
     color: "text-blue-500",
     border: "border-blue-500/30",
   },
   {
     step: "02",
     title: "Run your operations inside Performo",
-    desc: "Log meetings, assign actions, update KPI actuals, and track projects — everything connected in one platform instead of scattered across spreadsheets.",
+    desc: "Assign action items, update KPI actuals, and manage projects across three levels — Portfolio, Initiatives, and Tasks. Everything connected in one platform instead of scattered across spreadsheets.",
     color: "text-emerald-500",
     border: "border-emerald-500/30",
   },
   {
     step: "03",
     title: "Get clarity, take better decisions",
-    desc: "Your dashboard surfaces what matters: what's at risk, who's falling behind, and what the AI recommends — so you spend time fixing, not finding.",
+    desc: "Your dashboard adapts to what you have — project portfolio stats, action tracker summaries, and live KPI health. The AI tells you exactly where to focus so you spend time fixing, not finding.",
     color: "text-violet-500",
     border: "border-violet-500/30",
   },
@@ -253,28 +253,28 @@ const WHY_ITEMS = [
   {
     icon: Brain,
     title: "AI built in, not bolted on",
-    desc: "Performo AI understands your actual data — your KPIs, your actions, your reviews. It answers questions like a chief of staff who has read everything.",
+    desc: "Performo AI understands your actual data — your KPIs, actions, projects, and reviews. Ask it anything and get grounded answers, not generic summaries.",
     color: "text-amber-500",
     bg: "bg-amber-500/10",
   },
   {
     icon: Zap,
     title: "Operational from day one",
-    desc: "No 6-month implementation. No training programs. Invite your team, run your first meeting, and start tracking performance this week.",
+    desc: "No 6-month implementation. Invite your team, create your first project, assign actions, and get your dashboard showing real insights — this week.",
     color: "text-blue-500",
     bg: "bg-blue-500/10",
   },
   {
-    icon: Globe,
-    title: "Built for lean, ambitious teams",
-    desc: "Scaled-down enterprise performance management tools leave growing businesses behind. Performo is purpose-built for 20–500 person organisations that run fast.",
+    icon: Briefcase,
+    title: "Projects that actually connect to strategy",
+    desc: "Portfolio → Initiatives → Tasks. Every project ties back to a KPI or strategic goal. See at a glance which projects are healthy and which are at risk.",
     color: "text-emerald-500",
     bg: "bg-emerald-500/10",
   },
   {
     icon: Shield,
     title: "One source of truth",
-    desc: "Spreadsheets fragment accountability. Performo connects your strategy, operations, and people in a single platform — so nothing falls through the cracks.",
+    desc: "Spreadsheets fragment accountability. Performo connects your KPIs, action items, project tasks, and monthly reviews in a single platform — nothing falls through the cracks.",
     color: "text-violet-500",
     bg: "bg-violet-500/10",
   },
@@ -423,11 +423,6 @@ export default function LandingPage() {
             </button>
           </div>
 
-          {/* Trust line */}
-          <p className="mt-5 text-sm text-gray-400 flex items-center justify-center gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-            Used by 200+ growing businesses in hospitality, retail, and professional services
-          </p>
         </div>
       </section>
 
@@ -486,7 +481,7 @@ export default function LandingPage() {
           <div className="text-center mb-10">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">See it in action</h2>
             <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
-              One 2-minute walkthrough. Everything from KPI setup to AI-generated performance review.
+              One 2-minute walkthrough. From KPI setup and project tracking to AI-generated performance reviews — with real demo data.
             </p>
           </div>
 
@@ -598,7 +593,7 @@ export default function LandingPage() {
                     ["KPI tracking", "✓", "✓", "✓"],
                     ["Action accountability", "—", "✓", "✓"],
                     ["AI-generated insights", "—", "—", "✓"],
-                    ["Meeting → action sync", "—", "—", "✓"],
+                    ["Portfolio → Initiatives → Tasks", "—", "—", "✓"],
                     ["Project portfolio view", "—", "✓", "✓"],
                     ["Setup in < 1 day", "✓", "—", "✓"],
                     ["Price for growing teams", "Free", "$$$$", "$$"],
