@@ -46,6 +46,90 @@ async function getUncachableResendClient() {
   return { client: new Resend(apiKey), fromEmail };
 }
 
+export interface DueReminderPayload {
+  to: string[];
+  itemType: "Initiative" | "Project";
+  itemTitle: string;
+  ownerName: string;
+  dueDate: string;
+  daysUntilDue: number;
+  companyName: string;
+}
+
+export async function sendDueReminderEmail(payload: DueReminderPayload): Promise<void> {
+  const { client, fromEmail } = await getUncachableResendClient();
+
+  function fmtDate(d: string): string {
+    const [y, m, day] = d.split("-");
+    return `${day}-${m}-${y}`;
+  }
+
+  const urgencyColor = payload.daysUntilDue <= 1 ? "#dc2626" : payload.daysUntilDue <= 3 ? "#d97706" : "#2563eb";
+  const urgencyLabel = payload.daysUntilDue === 1 ? "Tomorrow" : `${payload.daysUntilDue} days`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="max-width:600px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);padding:28px 32px;">
+      <p style="margin:0 0 4px;font-size:11px;color:#bfdbfe;letter-spacing:0.08em;text-transform:uppercase;">Performo AI · Automated Reminder</p>
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">Upcoming Due Date</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 20px;font-size:14px;color:#374151;">
+        This is an automated reminder from <strong>Performo AI</strong> for <strong>${payload.companyName}</strong>.
+        The following ${payload.itemType.toLowerCase()} is due in <strong style="color:${urgencyColor};">${urgencyLabel}</strong>.
+      </p>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:20px;border-left:4px solid ${urgencyColor};">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span style="background:${urgencyColor}1a;color:${urgencyColor};padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600;">${payload.itemType}</span>
+        </div>
+        <h2 style="margin:0 0 12px;font-size:16px;font-weight:700;color:#111827;">${payload.itemTitle}</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr>
+            <td style="padding:5px 0;color:#6b7280;width:130px;">Owner</td>
+            <td style="padding:5px 0;color:#111827;font-weight:500;">${payload.ownerName}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#6b7280;">Due Date</td>
+            <td style="padding:5px 0;color:${urgencyColor};font-weight:700;">${fmtDate(payload.dueDate)}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#6b7280;">Time Remaining</td>
+            <td style="padding:5px 0;color:${urgencyColor};font-weight:700;">${urgencyLabel}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="margin:0;font-size:13px;color:#9ca3af;">
+        Please log in to <strong>Performo AI</strong> to review progress and ensure this ${payload.itemType.toLowerCase()} is on track for completion.<br/>
+        This is an automated reminder sent daily at 08:00 UTC.
+      </p>
+    </div>
+    <div style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;">
+        Performo AI &mdash; Performance Management Platform &bull; Confidential — For internal use only
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const subject = `⏰ Due in ${urgencyLabel}: ${payload.itemTitle}`;
+
+  const result = await client.emails.send({
+    from: fromEmail,
+    to: payload.to,
+    subject,
+    html,
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message || "Failed to send email");
+  }
+}
+
 export interface ReminderPayload {
   to: string[];
   ownerName: string;

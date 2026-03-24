@@ -64,6 +64,9 @@ app.use((req, res, next) => {
   const { seedDatabase } = await import("./seed");
   await seedDatabase().catch(console.error);
 
+  const { startScheduler } = await import("./scheduler");
+  startScheduler();
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
