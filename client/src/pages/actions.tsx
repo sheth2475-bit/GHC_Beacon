@@ -228,14 +228,15 @@ export default function ActionsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[180px]">Meeting Type</TableHead>
-                    <TableHead className="w-[250px]">Title</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Revised Due Date</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right w-[80px]"></TableHead>
+                    <TableHead className="w-[155px] whitespace-nowrap">Meeting Type</TableHead>
+                    <TableHead className="min-w-[180px] w-[22%]">Title</TableHead>
+                    <TableHead className="min-w-[200px] w-[28%]">Description</TableHead>
+                    <TableHead className="w-[110px] whitespace-nowrap">Owner</TableHead>
+                    <TableHead className="w-[105px] whitespace-nowrap">Due Date</TableHead>
+                    <TableHead className="w-[120px] whitespace-nowrap">Revised Due</TableHead>
+                    <TableHead className="w-[100px]">Priority</TableHead>
+                    <TableHead className="w-[130px]">Status</TableHead>
+                    <TableHead className="text-right w-[72px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -245,7 +246,7 @@ export default function ActionsPage() {
                     const isEditing = editingId === item.id;
                     return (
                       <TableRow key={item.id} className={overdue && !isEditing ? "bg-red-500/5" : isEditing ? "bg-primary/5 ring-1 ring-primary/20" : ""}>
-                        <TableCell>
+                        <TableCell className="align-top py-3">
                           {item.meetingType ? (
                             <Badge variant="secondary" className="font-normal text-xs whitespace-nowrap" data-testid={`badge-meeting-type-${item.id}`}>
                               {item.meetingType}
@@ -254,57 +255,61 @@ export default function ActionsPage() {
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top py-3">
                           {isEditing ? (
-                            <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-8 text-sm min-w-[180px]" data-testid={`input-edit-title-${item.id}`} autoFocus />
+                            <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-8 text-sm min-w-[160px]" data-testid={`input-edit-title-${item.id}`} autoFocus />
                           ) : (
-                            <div className="flex items-start gap-2">
-                              {overdue && <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />}
-                              <div>
-                                <p className="font-medium text-sm" data-testid={`text-action-${item.id}`}>{item.title}</p>
-                                {item.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 max-w-[220px]">{item.description}</p>}
-                              </div>
+                            <div className="flex items-start gap-1.5">
+                              {overdue && <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5" />}
+                              <p className="font-medium text-sm leading-snug" data-testid={`text-action-${item.id}`}>{item.title}</p>
                             </div>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top py-3">
+                          {item.description ? (
+                            <p className="text-sm text-muted-foreground line-clamp-2 leading-snug">{item.description}</p>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="align-top py-3">
                           {isEditing ? (
-                            <Input value={editOwner} onChange={e => setEditOwner(e.target.value)} className="h-8 text-sm w-[120px]" data-testid={`input-edit-owner-${item.id}`} />
+                            <Input value={editOwner} onChange={e => setEditOwner(e.target.value)} className="h-8 text-sm w-[110px]" data-testid={`input-edit-owner-${item.id}`} />
                           ) : (
                             <span className="text-sm text-muted-foreground">{item.ownerName || "-"}</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top py-3">
                           {isEditing ? (
-                            <Input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} className="h-8 text-sm w-[140px]" data-testid={`input-edit-due-${item.id}`} />
+                            <Input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} className="h-8 text-sm w-[136px]" data-testid={`input-edit-due-${item.id}`} />
                           ) : (
-                            <span className="text-sm tabular-nums">{item.dueDate || "-"}</span>
+                            <span className="text-sm tabular-nums whitespace-nowrap">{item.dueDate || "-"}</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top py-3">
                           {isEditing ? (
-                            <Input type="date" value={editRevisedDue} onChange={e => setEditRevisedDue(e.target.value)} className="h-8 text-sm w-[140px]" data-testid={`input-edit-revised-due-${item.id}`} />
+                            <Input type="date" value={editRevisedDue} onChange={e => setEditRevisedDue(e.target.value)} className="h-8 text-sm w-[136px]" data-testid={`input-edit-revised-due-${item.id}`} />
                           ) : item.revisedDueDate ? (
-                            <span className={`text-sm tabular-nums ${overdue ? "text-red-500 font-medium" : "text-amber-600 dark:text-amber-400 font-medium"}`} data-testid={`text-revised-due-${item.id}`}>
+                            <span className={`text-sm tabular-nums whitespace-nowrap ${overdue ? "text-red-500 font-medium" : "text-amber-600 dark:text-amber-400 font-medium"}`} data-testid={`text-revised-due-${item.id}`}>
                               {item.revisedDueDate}
                             </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top py-3">
                           {isEditing ? (
                             <Select value={editPriority} onValueChange={setEditPriority}>
-                              <SelectTrigger className="w-[110px] h-8 text-xs" data-testid={`select-edit-priority-${item.id}`}><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="w-[100px] h-8 text-xs" data-testid={`select-edit-priority-${item.id}`}><SelectValue /></SelectTrigger>
                               <SelectContent>{PRIORITIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                             </Select>
                           ) : (
                             <PriorityBadge status={item.priority} />
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top py-3">
                           <Select value={item.status || "Not Started"} onValueChange={(v) => updateMutation.mutate({ id: item.id, data: { status: v } })}>
-                            <SelectTrigger className="w-[130px] h-8 text-xs" data-testid={`select-status-${item.id}`}>
+                            <SelectTrigger className="w-[124px] h-8 text-xs" data-testid={`select-status-${item.id}`}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -312,7 +317,7 @@ export default function ActionsPage() {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="align-top py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             {isEditing ? (
                               <>
