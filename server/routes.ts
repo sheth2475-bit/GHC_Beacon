@@ -784,8 +784,10 @@ export async function registerRoutes(
     const projectsWithHealth = allProjects.map(p => {
       const pt = allTasks.filter(t => t.projectId === p.id);
       const pm = allMilestones.filter(m => m.projectId === p.id);
-      const health = computeProjectHealth(p, pt, pm);
-      return { ...p, health, taskCount: pt.length, completedTaskCount: pt.filter(t => t.status === "Completed").length };
+      const completedCount = pt.filter(t => t.status === "Completed").length;
+      const computedProgress = pt.length > 0 ? Math.round((completedCount / pt.length) * 100) : (p.progress ?? 0);
+      const health = computeProjectHealth({ ...p, progress: computedProgress }, pt, pm);
+      return { ...p, progress: computedProgress, health, taskCount: pt.length, completedTaskCount: completedCount };
     });
     res.json(projectsWithHealth);
   });
@@ -797,8 +799,10 @@ export async function registerRoutes(
     const project = await storage.getProject(id);
     if (!project || project.companyId !== company.id) return res.status(404).json({ message: "Not found" });
     const [pt, pm] = await Promise.all([storage.getTasksByProject(id), storage.getMilestonesByProject(id)]);
-    const health = computeProjectHealth(project, pt, pm);
-    res.json({ ...project, health, tasks: pt, milestones: pm });
+    const completedCount = pt.filter(t => t.status === "Completed").length;
+    const computedProgress = pt.length > 0 ? Math.round((completedCount / pt.length) * 100) : (project.progress ?? 0);
+    const health = computeProjectHealth({ ...project, progress: computedProgress }, pt, pm);
+    res.json({ ...project, progress: computedProgress, health, tasks: pt, milestones: pm });
   });
 
   app.post("/api/projects", requireAdmin, async (req: Request, res: Response) => {
