@@ -48,24 +48,29 @@ export default function ActionsPage() {
   // ── Inline editing ────────────────────────────────────────────────────────
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [editOwner, setEditOwner] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editRevisedDue, setEditRevisedDue] = useState("");
   const [editPriority, setEditPriority] = useState("Medium");
+  const [editCompletion, setEditCompletion] = useState(0);
 
   const startEdit = (item: ActionItem) => {
     setEditingId(item.id);
     setEditTitle(item.title);
+    setEditDescription(item.description || "");
     setEditOwner(item.ownerName || "");
     setEditDueDate(item.dueDate || "");
     setEditRevisedDue(item.revisedDueDate || "");
     setEditPriority(item.priority || "Medium");
+    setEditCompletion(item.completion ?? 0);
   };
 
   const saveEdit = () => {
     if (!editingId) return;
+    const autoStatus = editCompletion === 100 ? "Completed" : undefined;
     updateMutation.mutate(
-      { id: editingId, data: { title: editTitle, ownerName: editOwner, dueDate: editDueDate, revisedDueDate: editRevisedDue || null, priority: editPriority } },
+      { id: editingId, data: { title: editTitle, description: editDescription, ownerName: editOwner, dueDate: editDueDate, revisedDueDate: editRevisedDue || null, priority: editPriority, completion: editCompletion, ...(autoStatus ? { status: autoStatus } : {}) } },
       { onSuccess: () => { setEditingId(null); toast({ title: "Action updated" }); } }
     );
   };
@@ -236,6 +241,7 @@ export default function ActionsPage() {
                     <TableHead className="w-[105px] whitespace-nowrap">Due Date</TableHead>
                     <TableHead className="w-[120px] whitespace-nowrap">Revised Due</TableHead>
                     <TableHead className="w-[100px]">Priority</TableHead>
+                    <TableHead className="w-[110px] whitespace-nowrap">% Completion</TableHead>
                     <TableHead className="w-[130px]">Status</TableHead>
                     <TableHead className="text-right w-[72px]"></TableHead>
                   </TableRow>
@@ -267,8 +273,16 @@ export default function ActionsPage() {
                           )}
                         </TableCell>
                         <TableCell className="align-top py-3">
-                          {item.description ? (
-                            <p className="text-sm text-muted-foreground line-clamp-2 leading-snug">{item.description}</p>
+                          {isEditing ? (
+                            <Textarea
+                              value={editDescription}
+                              onChange={e => setEditDescription(e.target.value)}
+                              placeholder="Description..."
+                              className="text-sm min-w-[180px] min-h-[72px] resize-y"
+                              data-testid={`textarea-edit-desc-${item.id}`}
+                            />
+                          ) : item.description ? (
+                            <p className="text-sm text-muted-foreground leading-snug whitespace-pre-wrap break-words">{item.description}</p>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
@@ -309,7 +323,41 @@ export default function ActionsPage() {
                           )}
                         </TableCell>
                         <TableCell className="align-top py-3">
-                          <Select value={item.status || "Not Started"} onValueChange={(v) => updateMutation.mutate({ id: item.id, data: { status: v } })}>
+                          {isEditing ? (
+                            <div className="flex items-center gap-1.5 w-[100px]">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={editCompletion}
+                                onChange={e => {
+                                  const v = Math.min(100, Math.max(0, Number(e.target.value)));
+                                  setEditCompletion(v);
+                                }}
+                                className="h-8 text-sm w-[70px] text-center"
+                                data-testid={`input-edit-completion-${item.id}`}
+                              />
+                              <span className="text-xs text-muted-foreground">%</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1 w-[90px]">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium tabular-nums" data-testid={`text-completion-${item.id}`}>{item.completion ?? 0}%</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${(item.completion ?? 0) === 100 ? "bg-emerald-500" : (item.completion ?? 0) >= 50 ? "bg-primary" : "bg-amber-500"}`}
+                                  style={{ width: `${item.completion ?? 0}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="align-top py-3">
+                          <Select
+                            value={item.status || "Not Started"}
+                            onValueChange={(v) => updateMutation.mutate({ id: item.id, data: { status: v, ...(v === "Completed" ? { completion: 100 } : {}) } })}
+                          >
                             <SelectTrigger className="w-[124px] h-8 text-xs" data-testid={`select-status-${item.id}`}>
                               <SelectValue />
                             </SelectTrigger>

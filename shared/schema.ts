@@ -89,6 +89,7 @@ export const actionItems = pgTable("action_items", {
   revisedDueDate: text("revised_due_date"),
   priority: text("priority").default("Medium"),
   status: text("status").default("Not Started"),
+  completion: integer("completion").default(0),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
