@@ -18,7 +18,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Calendar, Users, Target, AlertTriangle, Edit3,
   Plus, Trash2, MessageSquare, Send, Flag, ChevronDown, ChevronRight,
-  LayoutList, LayoutGrid, Circle, CalendarDays,
+  LayoutList, LayoutGrid, Circle, CalendarDays, Pencil,
 } from "lucide-react";
 import type { Project, Task, Subtask, Milestone, ProjectComment, Department, TeamMember } from "@shared/schema";
 import { formatDate } from "@/lib/utils";
@@ -71,12 +71,14 @@ function subStatusPill(s: string) {
 }
 
 function TaskCard({
-  task, isAdmin, onStatusChange, onDelete
+  task, isAdmin, onStatusChange, onDelete, onEdit, teamMembers
 }: {
   task: TaskWithSubtasks;
   isAdmin: boolean;
   onStatusChange: (id: number, status: string) => void;
   onDelete: (id: number) => void;
+  onEdit: (task: TaskWithSubtasks) => void;
+  teamMembers: TeamMember[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showSubtaskForm, setShowSubtaskForm] = useState(false);
@@ -274,13 +276,22 @@ function TaskCard({
           </div>
 
           {isAdmin && (
-            <button
-              onClick={() => onDelete(task.id)}
-              className="text-muted-foreground hover:text-red-500 transition-colors shrink-0"
-              data-testid={`button-delete-task-${task.id}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => onEdit(task)}
+                className="text-muted-foreground hover:text-primary transition-colors"
+                data-testid={`button-edit-task-${task.id}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => onDelete(task.id)}
+                className="text-muted-foreground hover:text-red-500 transition-colors"
+                data-testid={`button-delete-task-${task.id}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
         </div>
       </CardContent>
@@ -367,6 +378,8 @@ export default function ProjectDetailPage() {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
+  const [editTaskId, setEditTaskId] = useState<number | null>(null);
+  const [editTaskForm, setEditTaskForm] = useState({ title: "", description: "", owner: "", dueDate: "", status: "Not Started", priority: "Medium" });
   const [comment, setComment] = useState("");
 
   const [taskForm, setTaskForm] = useState({
@@ -433,10 +446,15 @@ export default function ProjectDetailPage() {
   const updateTaskMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Task> }) =>
       apiRequest("PATCH", `/api/tasks/${id}`, data),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (variables.data.title !== undefined) {
+        setEditTaskId(null);
+        toast({ title: "Initiative updated" });
+      }
     },
+    onError: () => toast({ title: "Failed to update initiative", variant: "destructive" }),
   });
 
   const deleteTaskMut = useMutation({
@@ -691,8 +709,10 @@ export default function ProjectDetailPage() {
                   key={t.id}
                   task={t}
                   isAdmin={isAdmin}
+                  teamMembers={teamMembers}
                   onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status } })}
                   onDelete={id => deleteTaskMut.mutate(id)}
+                  onEdit={t => { setEditTaskId(t.id); setEditTaskForm({ title: t.title, description: (t as any).description || "", owner: (t as any).owner || t.assignee || "", dueDate: t.dueDate || "", status: t.status, priority: t.priority }); }}
                 />
               ))}
             </div>
@@ -945,6 +965,72 @@ export default function ProjectDetailPage() {
             <Button variant="outline" onClick={() => setShowTaskForm(false)}>Cancel</Button>
             <Button onClick={() => createTaskMut.mutate(taskForm)} disabled={!taskForm.title || createTaskMut.isPending} data-testid="button-submit-task">
               {createTaskMut.isPending ? "Creating..." : "Create Initiative"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Initiative Dialog */}
+      <Dialog open={editTaskId !== null} onOpenChange={open => { if (!open) setEditTaskId(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit Initiative</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Title *</Label>
+              <Input value={editTaskForm.title} onChange={e => setEditTaskForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Initiative title" data-testid="input-edit-task-title" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea value={editTaskForm.description} onChange={e => setEditTaskForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description" rows={2} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Owner</Label>
+                {teamMembers.length > 0 ? (
+                  <Select value={editTaskForm.owner || "none"} onValueChange={v => setEditTaskForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                    <SelectTrigger data-testid="select-edit-task-owner"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No owner</SelectItem>
+                      {teamMembers.map(m => <SelectItem key={m.id} value={m.name}>{m.name}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={editTaskForm.owner} onChange={e => setEditTaskForm(f => ({ ...f, owner: e.target.value }))}
+                    placeholder="Name" data-testid="input-edit-task-owner" />
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Due Date</Label>
+                <Input type="date" value={editTaskForm.dueDate} onChange={e => setEditTaskForm(f => ({ ...f, dueDate: e.target.value }))} data-testid="input-edit-task-due" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={editTaskForm.status} onValueChange={v => setEditTaskForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger data-testid="select-edit-task-status"><SelectValue /></SelectTrigger>
+                  <SelectContent>{TASK_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Priority</Label>
+                <Select value={editTaskForm.priority} onValueChange={v => setEditTaskForm(f => ({ ...f, priority: v }))}>
+                  <SelectTrigger data-testid="select-edit-task-priority"><SelectValue /></SelectTrigger>
+                  <SelectContent>{["Critical","High","Medium","Low"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTaskId(null)}>Cancel</Button>
+            <Button
+              onClick={() => { if (editTaskId && editTaskForm.title.trim()) updateTaskMut.mutate({ id: editTaskId, data: { ...editTaskForm, assignee: editTaskForm.owner } }); }}
+              disabled={!editTaskForm.title.trim() || updateTaskMut.isPending}
+              data-testid="button-submit-edit-task"
+            >
+              {updateTaskMut.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

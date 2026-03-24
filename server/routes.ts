@@ -818,7 +818,8 @@ export async function registerRoutes(
     if (!company) return res.status(404).json({ message: "Company not found" });
     const existing = await storage.getProject(id);
     if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
-    const updated = await storage.updateProject(id, req.body);
+    const { createdAt, health, taskCount, completedTaskCount, tasks, milestones, ...safeBody } = req.body;
+    const updated = await storage.updateProject(id, safeBody);
     res.json(updated);
   });
 
