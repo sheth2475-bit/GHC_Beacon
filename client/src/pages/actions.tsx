@@ -19,7 +19,7 @@ import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
 import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X, Bell, BellRing, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import type { ActionItem, Department, MeetingType } from "@shared/schema";
+import type { ActionItem, Department, MeetingType, TeamMember } from "@shared/schema";
 
 const STATUSES = ["Not Started", "In Progress", "Completed", "Delayed", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
@@ -29,6 +29,7 @@ export default function ActionsPage() {
   const { data: actions, isLoading, error, refetch } = useQuery<ActionItem[]>({ queryKey: ["/api/action-items"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: meetingTypes } = useQuery<MeetingType[]>({ queryKey: ["/api/meeting-types"] });
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({ queryKey: ["/api/team-members"] });
   const [showDialog, setShowDialog] = useState(false);
   const [remindDialog, setRemindDialog] = useState<ActionItem | null>(null);
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -338,7 +339,17 @@ export default function ActionsPage() {
                         </TableCell>
                         <TableCell className="align-top py-3">
                           {isEditing ? (
-                            <Input value={editOwner} onChange={e => setEditOwner(e.target.value)} className="h-8 text-sm w-[110px]" data-testid={`input-edit-owner-${item.id}`} />
+                            teamMembers.length > 0 ? (
+                              <Select value={editOwner || "none"} onValueChange={v => setEditOwner(v === "none" ? "" : v)}>
+                                <SelectTrigger className="h-8 text-sm w-[130px]" data-testid={`select-edit-owner-${item.id}`}><SelectValue placeholder="Owner" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No owner</SelectItem>
+                                  {teamMembers.map(m => <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input value={editOwner} onChange={e => setEditOwner(e.target.value)} className="h-8 text-sm w-[110px]" data-testid={`input-edit-owner-${item.id}`} />
+                            )
                           ) : (
                             <span className="text-sm text-muted-foreground">{item.ownerName || "-"}</span>
                           )}
@@ -428,7 +439,7 @@ export default function ActionsPage() {
                               </>
                             ) : (
                               <>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-amber-500" onClick={() => { setRemindDialog(item); setOwnerEmail(""); }} title="Send reminder email" data-testid={`button-remind-action-${item.id}`}>
+                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-amber-500" onClick={() => { setRemindDialog(item); const ownerMember = teamMembers.find(m => m.name === item.ownerName); setOwnerEmail(ownerMember?.email || ""); }} title="Send reminder email" data-testid={`button-remind-action-${item.id}`}>
                                   <Bell className="h-3.5 w-3.5" />
                                 </Button>
                                 <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => startEdit(item)} data-testid={`button-edit-action-${item.id}`}>
@@ -476,7 +487,17 @@ export default function ActionsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Owner</Label>
-                <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Person responsible" data-testid="input-action-owner" />
+                {teamMembers.length > 0 ? (
+                  <Select value={ownerName || "none"} onValueChange={v => setOwnerName(v === "none" ? "" : v)}>
+                    <SelectTrigger data-testid="select-action-owner"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No owner</SelectItem>
+                      {teamMembers.map(m => <SelectItem key={m.id} value={m.name}>{m.name}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Person responsible" data-testid="input-action-owner" />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Department</Label>

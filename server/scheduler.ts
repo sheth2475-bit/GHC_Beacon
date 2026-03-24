@@ -27,7 +27,22 @@ async function runDueDateCheck() {
       if (adminEmails.length === 0) continue;
 
       const testEmail = process.env.RESEND_TEST_EMAIL;
-      const recipients = testEmail ? [testEmail] : adminEmails;
+
+      // Fetch team members to look up owner emails
+      const teamMembers = await storage.getTeamMembers(company.id);
+      const memberEmailByName: Record<string, string> = {};
+      for (const m of teamMembers) {
+        if (m.email) memberEmailByName[m.name] = m.email;
+      }
+
+      const buildRecipients = (ownerName?: string | null): string[] => {
+        if (testEmail) return [testEmail];
+        const extras: string[] = [];
+        if (ownerName && memberEmailByName[ownerName]) {
+          extras.push(memberEmailByName[ownerName]);
+        }
+        return [...new Set([...adminEmails, ...extras])];
+      };
 
       // --- Check Initiatives (tasks table) ---
       const tasks = await storage.getTasks(company.id);
@@ -38,12 +53,13 @@ async function runDueDateCheck() {
           task.status !== "Completed" &&
           task.status !== "Cancelled"
         ) {
+          const ownerName = task.owner || task.assignee || "Unassigned";
           try {
             await sendDueReminderEmail({
-              to: recipients,
+              to: buildRecipients(ownerName),
               itemType: "Initiative",
               itemTitle: task.title,
-              ownerName: task.owner || task.assignee || "Unassigned",
+              ownerName,
               dueDate: effectiveDue,
               daysUntilDue: 3,
               companyName: company.companyName,
@@ -65,7 +81,7 @@ async function runDueDateCheck() {
         ) {
           try {
             await sendDueReminderEmail({
-              to: recipients,
+              to: buildRecipients(project.owner),
               itemType: "Project",
               itemTitle: project.name,
               ownerName: project.owner || "Unassigned",

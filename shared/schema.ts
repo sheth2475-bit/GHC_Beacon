@@ -272,6 +272,18 @@ export const ownerAuditLogs = pgTable("owner_audit_logs", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ─── Team Members ────────────────────────────────────────────────────────────
+
+export const teamMembers = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  name: text("name").notNull(),
+  email: text("email"),
+  department: text("department"),
+  jobTitle: text("job_title"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ─── Insert Schemas ──────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -296,6 +308,7 @@ export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
 export const insertActivationKeySchema = createInsertSchema(activationKeys).omit({ id: true, issuedAt: true });
 export const insertUserActivityLogSchema = createInsertSchema(userActivityLogs).omit({ id: true, createdAt: true });
 export const insertOwnerAuditLogSchema = createInsertSchema(ownerAuditLogs).omit({ id: true, createdAt: true });
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, createdAt: true });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -343,3 +356,5 @@ export type UserActivityLog = typeof userActivityLogs.$inferSelect;
 export type InsertUserActivityLog = z.infer<typeof insertUserActivityLogSchema>;
 export type OwnerAuditLog = typeof ownerAuditLogs.$inferSelect;
 export type InsertOwnerAuditLog = z.infer<typeof insertOwnerAuditLogSchema>;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;

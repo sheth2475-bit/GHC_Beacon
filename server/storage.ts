@@ -4,7 +4,7 @@ import {
   users, companies, departments, businessGoals, kpis, kpiActuals,
   meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
   projects, tasks, subtasks, milestones, projectComments, assistantLogs,
-  platformOwners, subscriptions, activationKeys, userActivityLogs, ownerAuditLogs,
+  platformOwners, subscriptions, activationKeys, userActivityLogs, ownerAuditLogs, teamMembers,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -20,6 +20,7 @@ import {
   type ActivationKey, type InsertActivationKey,
   type UserActivityLog, type InsertUserActivityLog,
   type OwnerAuditLog, type InsertOwnerAuditLog,
+  type TeamMember, type InsertTeamMember,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -29,6 +30,11 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, data: Partial<InsertUser>): Promise<User>;
   deleteUser(id: number): Promise<void>;
+
+  getTeamMembers(companyId: number): Promise<TeamMember[]>;
+  createTeamMember(member: InsertTeamMember): Promise<TeamMember>;
+  updateTeamMember(id: number, data: Partial<InsertTeamMember>): Promise<TeamMember>;
+  deleteTeamMember(id: number): Promise<void>;
 
   getCompany(id: number): Promise<Company | undefined>;
   getCompanyByUserId(userId: number): Promise<Company | undefined>;
@@ -581,6 +587,22 @@ export class DatabaseStorage implements IStorage {
   }
   async getOwnerAuditLogs(limit = 100) {
     return db.select().from(ownerAuditLogs).orderBy(desc(ownerAuditLogs.createdAt)).limit(limit);
+  }
+
+  // ─── Team Members ─────────────────────────────────────────────────────────
+  async getTeamMembers(companyId: number) {
+    return db.select().from(teamMembers).where(eq(teamMembers.companyId, companyId)).orderBy(teamMembers.name);
+  }
+  async createTeamMember(member: InsertTeamMember) {
+    const [created] = await db.insert(teamMembers).values(member).returning();
+    return created;
+  }
+  async updateTeamMember(id: number, data: Partial<InsertTeamMember>) {
+    const [updated] = await db.update(teamMembers).set(data).where(eq(teamMembers.id, id)).returning();
+    return updated;
+  }
+  async deleteTeamMember(id: number) {
+    await db.delete(teamMembers).where(eq(teamMembers.id, id));
   }
 
   // ─── Platform Analytics ───────────────────────────────────────────────────

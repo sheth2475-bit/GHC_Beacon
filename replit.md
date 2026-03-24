@@ -38,7 +38,7 @@ AI-powered SME performance and execution management platform.
 ### Performance Management
 1. **Dashboard** - Welcome banner, **"Today's Focus" panel** (overdue actions + at-risk KPIs + milestones this week), 6 KPI/action stat cards, KPI health donut, action bar chart, execution section (active projects, at-risk, overdue tasks, milestones), dept summary, latest review
 2. **KPI Builder** (admin only) - Manual KPI form + AI-generated KPIs
-3. **KPI Management** - Table with search, dept/frequency filters, **sparkline trend charts** (3-month AreaChart per KPI), **quick-entry popover** (⚡ icon per row for instant actual logging), add actuals dialog, Excel import
+3. **KPI Management** - Table with search, dept/frequency filters (Weekly/Monthly/Quarterly/One Time), **sparkline trend charts** (3-month AreaChart per KPI), **quick-entry popover** (⚡ icon per row for instant actual logging), **full edit dialog** (pencil icon — edits all KPI fields including owner from team members dropdown), add actuals dialog, Excel import
 4. **Action Tracker** - Meeting-type badge, due/revised dates, priority/status; meeting type filter
 5. **Meetings** (admin only) - Card-based meeting list with linked action items
 6. **Monthly Reviews** - AI-generated reviews with strengths/gaps/recommendations; **Export PDF** button uses browser print with a formatted print-only layout
@@ -57,7 +57,7 @@ AI-powered SME performance and execution management platform.
 
 ### Admin/Settings
 12. **Settings** (admin only) - Business profile, strategic goals, departments, meeting types; **Subscription & Plan card** showing current plan, daily AI usage bar, and activation key input
-13. **User Management** (admin only) - Add/change role/delete company users
+13. **User Management** (admin only) - Two tabs: (1) **Login Users** — add/change role/delete company users; (2) **Team Members** — manage name/email/job title/department for people who appear in owner dropdowns across the platform (KPIs, actions, projects, initiatives)
 
 ### Platform Owner System (new)
 - Separate auth area at `/owner/*` with its own session (platformOwnerId) independent of company auth

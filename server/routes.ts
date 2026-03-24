@@ -730,6 +730,35 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
+  // ─── Team Members ──────────────────────────────────────────────────────────
+  app.get("/api/team-members", requireAuth, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.json([]);
+    res.json(await storage.getTeamMembers(company.id));
+  });
+
+  app.post("/api/team-members", requireAdmin, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(400).json({ message: "No company profile" });
+    const { name, email, department, jobTitle } = req.body;
+    if (!name) return res.status(400).json({ message: "Name is required" });
+    const member = await storage.createTeamMember({ companyId: company.id, name, email: email || null, department: department || null, jobTitle: jobTitle || null });
+    res.status(201).json(member);
+  });
+
+  app.patch("/api/team-members/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const { name, email, department, jobTitle } = req.body;
+    const updated = await storage.updateTeamMember(id, { name, email, department, jobTitle });
+    res.json(updated);
+  });
+
+  app.delete("/api/team-members/:id", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    await storage.deleteTeamMember(id);
+    res.json({ ok: true });
+  });
+
   // ─── Projects ──────────────────────────────────────────────────────────────
   // NOTE: /template must be registered before /:id so Express doesn't treat "template" as an id
   app.get("/api/projects/template", requireAuth, (_req: Request, res: Response) => {

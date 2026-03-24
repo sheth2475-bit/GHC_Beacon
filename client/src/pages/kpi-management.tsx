@@ -18,9 +18,9 @@ import { ErrorState } from "@/components/error-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Trash2, Plus, Target, Search, Zap } from "lucide-react";
+import { Trash2, Plus, Target, Search, Zap, Pencil } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
-import type { Kpi, Department, KpiActual } from "@shared/schema";
+import type { Kpi, Department, KpiActual, TeamMember } from "@shared/schema";
 
 function KpiSparkline({ kpiId, actuals }: { kpiId: number; actuals: (KpiActual & { kpiName: string })[] }) {
   const kpiActuals = actuals
@@ -158,6 +158,21 @@ function QuickActualPopover({ kpi }: { kpi: Kpi }) {
   );
 }
 
+interface EditKpiForm {
+  kpiName: string;
+  description: string;
+  formula: string;
+  unit: string;
+  frequency: string;
+  targetValue: string;
+  greenThreshold: string;
+  amberThreshold: string;
+  redThreshold: string;
+  ownerName: string;
+  dataSource: string;
+  departmentId: string;
+}
+
 export default function KpiManagementPage() {
   const { toast } = useToast();
   const { data: kpis, isLoading, error, refetch } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
@@ -165,6 +180,7 @@ export default function KpiManagementPage() {
   const { data: allActuals = [] } = useQuery<(KpiActual & { kpiName: string })[]>({
     queryKey: ["/api/kpi-actuals/company"],
   });
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({ queryKey: ["/api/team-members"] });
   const [filterDept, setFilterDept] = useState("all");
   const [filterFreq, setFilterFreq] = useState("all");
   const [search, setSearch] = useState("");
@@ -173,6 +189,30 @@ export default function KpiManagementPage() {
   const [actualMonth, setActualMonth] = useState("");
   const [actualComment, setActualComment] = useState("");
   const [actualStatus, setActualStatus] = useState("On Track");
+  const [editKpi, setEditKpi] = useState<Kpi | null>(null);
+  const [editForm, setEditForm] = useState<EditKpiForm>({
+    kpiName: "", description: "", formula: "", unit: "", frequency: "Monthly",
+    targetValue: "", greenThreshold: "", amberThreshold: "", redThreshold: "",
+    ownerName: "", dataSource: "", departmentId: "",
+  });
+
+  const openEditKpi = (kpi: Kpi) => {
+    setEditKpi(kpi);
+    setEditForm({
+      kpiName: kpi.kpiName || "",
+      description: kpi.description || "",
+      formula: kpi.formula || "",
+      unit: kpi.unit || "",
+      frequency: kpi.frequency || "Monthly",
+      targetValue: kpi.targetValue || "",
+      greenThreshold: kpi.greenThreshold || "",
+      amberThreshold: kpi.amberThreshold || "",
+      redThreshold: kpi.redThreshold || "",
+      ownerName: kpi.ownerName || "",
+      dataSource: kpi.dataSource || "",
+      departmentId: kpi.departmentId ? String(kpi.departmentId) : "",
+    });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/kpis/${id}`); },
@@ -202,6 +242,22 @@ export default function KpiManagementPage() {
       setActualMonth("");
       setActualComment("");
       toast({ title: "Actual value saved" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateKpiMutation = useMutation({
+    mutationFn: async () => {
+      if (!editKpi) return;
+      const payload: Record<string, any> = { ...editForm };
+      payload.departmentId = editForm.departmentId ? parseInt(editForm.departmentId) : null;
+      await apiRequest("PATCH", `/api/kpis/${editKpi.id}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/kpis"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-stats"] });
+      setEditKpi(null);
+      toast({ title: "KPI updated" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -277,6 +333,7 @@ export default function KpiManagementPage() {
             <SelectItem value="Weekly">Weekly</SelectItem>
             <SelectItem value="Monthly">Monthly</SelectItem>
             <SelectItem value="Quarterly">Quarterly</SelectItem>
+            <SelectItem value="One Time">One Time</SelectItem>
           </SelectContent>
         </Select>
         {(filterDept !== "all" || filterFreq !== "all" || search) && (
@@ -347,7 +404,10 @@ export default function KpiManagementPage() {
                           <Button size="sm" variant="ghost" onClick={() => setActualDialog(kpi)} data-testid={`button-add-actual-${kpi.id}`}>
                             <Plus className="h-3 w-3 mr-1" />Actual
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteMutation.mutate(kpi.id)} data-testid={`button-delete-kpi-${kpi.id}`}>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditKpi(kpi)} data-testid={`button-edit-kpi-${kpi.id}`}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(kpi.id)} data-testid={`button-delete-kpi-${kpi.id}`}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -361,6 +421,97 @@ export default function KpiManagementPage() {
         </Card>
       )}
       </div>
+
+      {/* Edit KPI Dialog */}
+      <Dialog open={!!editKpi} onOpenChange={(open) => !open && setEditKpi(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit KPI — {editKpi?.kpiName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2 space-y-1.5">
+                <Label>KPI Name *</Label>
+                <Input value={editForm.kpiName} onChange={e => setEditForm(f => ({ ...f, kpiName: e.target.value }))} data-testid="input-edit-kpi-name" />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Description</Label>
+                <Textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} className="resize-none" rows={2} data-testid="input-edit-kpi-desc" />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Formula / How it's calculated</Label>
+                <Input value={editForm.formula} onChange={e => setEditForm(f => ({ ...f, formula: e.target.value }))} placeholder="e.g. (Sales / Total Leads) × 100" data-testid="input-edit-kpi-formula" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Unit</Label>
+                <Input value={editForm.unit} onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))} placeholder="e.g. %, AED, #" data-testid="input-edit-kpi-unit" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Frequency</Label>
+                <Select value={editForm.frequency} onValueChange={v => setEditForm(f => ({ ...f, frequency: v }))}>
+                  <SelectTrigger data-testid="select-edit-kpi-freq"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Weekly">Weekly</SelectItem>
+                    <SelectItem value="Monthly">Monthly</SelectItem>
+                    <SelectItem value="Quarterly">Quarterly</SelectItem>
+                    <SelectItem value="One Time">One Time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Target Value</Label>
+                <Input value={editForm.targetValue} onChange={e => setEditForm(f => ({ ...f, targetValue: e.target.value }))} placeholder="e.g. 85" data-testid="input-edit-kpi-target" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Department</Label>
+                <Select value={editForm.departmentId || "none"} onValueChange={v => setEditForm(f => ({ ...f, departmentId: v === "none" ? "" : v }))}>
+                  <SelectTrigger data-testid="select-edit-kpi-dept"><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No department</SelectItem>
+                    {(departments || []).map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />Green Threshold</Label>
+                <Input value={editForm.greenThreshold} onChange={e => setEditForm(f => ({ ...f, greenThreshold: e.target.value }))} placeholder="e.g. ≥ 85%" data-testid="input-edit-kpi-green" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" />Amber Threshold</Label>
+                <Input value={editForm.amberThreshold} onChange={e => setEditForm(f => ({ ...f, amberThreshold: e.target.value }))} placeholder="e.g. 70-84%" data-testid="input-edit-kpi-amber" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />Red Threshold</Label>
+                <Input value={editForm.redThreshold} onChange={e => setEditForm(f => ({ ...f, redThreshold: e.target.value }))} placeholder="e.g. < 70%" data-testid="input-edit-kpi-red" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Owner</Label>
+                <Select value={editForm.ownerName || "none"} onValueChange={v => setEditForm(f => ({ ...f, ownerName: v === "none" ? "" : v }))}>
+                  <SelectTrigger data-testid="select-edit-kpi-owner"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No owner</SelectItem>
+                    {teamMembers.map(m => <SelectItem key={m.id} value={m.name}>{m.name}{m.jobTitle ? ` (${m.jobTitle})` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Data Source</Label>
+                <Input value={editForm.dataSource} onChange={e => setEditForm(f => ({ ...f, dataSource: e.target.value }))} placeholder="e.g. CRM, Finance system" data-testid="input-edit-kpi-source" />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button onClick={() => updateKpiMutation.mutate()} disabled={updateKpiMutation.isPending || !editForm.kpiName} className="flex-1" data-testid="button-save-kpi-edit">
+                {updateKpiMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+              <Button variant="outline" onClick={() => setEditKpi(null)}>Cancel</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!actualDialog} onOpenChange={(open) => !open && setActualDialog(null)}>
         <DialogContent>
