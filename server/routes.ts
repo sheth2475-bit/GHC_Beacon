@@ -924,28 +924,46 @@ export async function registerRoutes(
     res.json(subs);
   });
 
+  // Helper: recalculate parent initiative progress from its subtasks
+  async function recalcInitiativeProgress(taskId: number) {
+    const subs = await storage.getSubtasks(taskId);
+    if (subs.length === 0) return;
+    const avg = Math.round(subs.reduce((sum, s) => sum + ((s as any).progress ?? (s.completed ? 100 : 0)), 0) / subs.length);
+    const status = avg >= 100 ? "Completed" : avg > 0 ? "In Progress" : "Not Started";
+    await storage.updateTask(taskId, { progress: avg, status } as any);
+  }
+
   app.post("/api/tasks/:id/subtasks", requireEditAccess, async (req: Request, res: Response) => {
     const taskId = parseInt(req.params.id as string);
+    const progress = parseInt(req.body.progress ?? "0") || 0;
+    const completed = progress >= 100;
     const sub = await storage.createSubtask({
       taskId,
       title: req.body.title,
       owner: req.body.owner || null,
       dueDate: req.body.dueDate || null,
-      status: req.body.status || "Not Started",
-      completed: false,
-    });
+      status: req.body.status || (completed ? "Completed" : "Not Started"),
+      completed,
+      progress,
+    } as any);
+    await recalcInitiativeProgress(taskId);
     res.json(sub);
   });
 
   app.patch("/api/subtasks/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
+    const existing = await storage.getSubtask(id);
+    if (!existing) return res.status(404).json({ message: "Not found" });
     const updated = await storage.updateSubtask(id, req.body);
+    await recalcInitiativeProgress(existing.taskId);
     res.json(updated);
   });
 
   app.delete("/api/subtasks/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
+    const existing = await storage.getSubtask(id);
     await storage.deleteSubtask(id);
+    if (existing) await recalcInitiativeProgress(existing.taskId);
     res.json({ ok: true });
   });
 

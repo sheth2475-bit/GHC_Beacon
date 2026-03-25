@@ -92,6 +92,7 @@ export interface IStorage {
 
   // Subtasks
   getSubtasks(taskId: number): Promise<Subtask[]>;
+  getSubtask(id: number): Promise<Subtask | undefined>;
   createSubtask(subtask: InsertSubtask): Promise<Subtask>;
   updateSubtask(id: number, data: Partial<InsertSubtask>): Promise<Subtask>;
   deleteSubtask(id: number): Promise<void>;
@@ -366,6 +367,10 @@ export class DatabaseStorage implements IStorage {
   // ─── Subtasks ─────────────────────────────────────────────────────────────
   async getSubtasks(taskId: number) {
     return db.select().from(subtasks).where(eq(subtasks.taskId, taskId)).orderBy(subtasks.createdAt);
+  }
+  async getSubtask(id: number) {
+    const [sub] = await db.select().from(subtasks).where(eq(subtasks.id, id));
+    return sub;
   }
   async createSubtask(subtask: InsertSubtask) {
     const [created] = await db.insert(subtasks).values(subtask).returning();

@@ -153,6 +153,7 @@ export const subtasks = pgTable("subtasks", {
   dueDate: text("due_date"),
   status: text("status").notNull().default("Not Started"),
   completed: boolean("completed").default(false),
+  progress: integer("progress").default(0),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

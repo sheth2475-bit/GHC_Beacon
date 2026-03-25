@@ -394,8 +394,13 @@ export async function seedDatabase() {
     // ── Ensure subtasks (Tasks within Initiatives) ───────────────
     const allTasks = await storage.getTasks(companyId);
     if (allTasks.length > 0) {
-      const firstTaskSubs = await storage.getSubtasks(allTasks[0].id);
-      if (firstTaskSubs.length === 0) {
+      // Check if ANY task has subtasks — prevents mass duplication on restart
+      let anySubtasksExist = false;
+      for (const t of allTasks.slice(0, 5)) {
+        const subs = await storage.getSubtasks(t.id);
+        if (subs.length > 0) { anySubtasksExist = true; break; }
+      }
+      if (!anySubtasksExist) {
         await seedSubtasksForExistingTasks(allTasks);
         console.log("Seed: seeded tasks (subtasks) within initiatives");
       }

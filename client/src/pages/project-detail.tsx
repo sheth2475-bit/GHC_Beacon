@@ -70,6 +70,12 @@ function subStatusPill(s: string) {
   return "text-muted-foreground bg-muted";
 }
 
+function subProgressToStatus(pct: number) {
+  if (pct >= 100) return "Completed";
+  if (pct > 0) return "In Progress";
+  return "Not Started";
+}
+
 function TaskCard({
   task, canEdit, onStatusChange, onDelete, onEdit, teamMembers
 }: {
@@ -82,12 +88,18 @@ function TaskCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showSubtaskForm, setShowSubtaskForm] = useState(false);
-  const [subForm, setSubForm] = useState({ title: "", owner: "", dueDate: "", status: "Not Started" });
+  const [subForm, setSubForm] = useState({ title: "", owner: "", dueDate: "", status: "Not Started", progress: 0 });
+  const [editSubId, setEditSubId] = useState<number | null>(null);
+  const [editSubForm, setEditSubForm] = useState({ title: "", owner: "", dueDate: "", status: "Not Started", progress: 0 });
+  const { toast } = useToast();
 
   const toggleSubtask = useMutation({
     mutationFn: ({ id, completed }: { id: number; completed: boolean }) =>
-      apiRequest("PATCH", `/api/subtasks/${id}`, { completed, status: completed ? "Completed" : "Not Started" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects"] }),
+      apiRequest("PATCH", `/api/subtasks/${id}`, { completed, status: completed ? "Completed" : "Not Started", progress: completed ? 100 : 0 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", task.projectId, "tasks"] });
+    },
   });
 
   const addSubtask = useMutation({
@@ -95,14 +107,30 @@ function TaskCard({
       apiRequest("POST", `/api/tasks/${task.id}/subtasks`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      setSubForm({ title: "", owner: "", dueDate: "", status: "Not Started" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", task.projectId, "tasks"] });
+      setSubForm({ title: "", owner: "", dueDate: "", status: "Not Started", progress: 0 });
       setShowSubtaskForm(false);
     },
   });
 
+  const updateSubtask = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: typeof editSubForm }) =>
+      apiRequest("PATCH", `/api/subtasks/${id}`, { ...data, completed: data.progress >= 100 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", task.projectId, "tasks"] });
+      setEditSubId(null);
+      toast({ title: "Task updated" });
+    },
+    onError: () => toast({ title: "Failed to update task", variant: "destructive" }),
+  });
+
   const deleteSubtask = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/subtasks/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/projects"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", task.projectId, "tasks"] });
+    },
   });
 
   const doneCount = task.subtasks?.filter(s => s.completed).length || 0;
@@ -110,208 +138,285 @@ function TaskCard({
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = task.dueDate && task.dueDate < today && task.status !== "Completed";
   const owner = (task as any).owner || task.assignee;
-  const progress = task.progress ?? 0;
-  const isCompleted = task.status === "Completed";
+
+  const computedProgress = totalSubs > 0
+    ? Math.round(task.subtasks.reduce((sum, s) => sum + ((s as any).progress ?? (s.completed ? 100 : 0)), 0) / totalSubs)
+    : (task.progress ?? 0);
+  const isCompleted = task.status === "Completed" || computedProgress >= 100;
 
   return (
-    <Card className={`border-l-4 ${priorityBorderColor(task.priority)} hover:shadow-sm transition-all`} data-testid={`card-task-${task.id}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          {/* Completion indicator */}
-          <div className="shrink-0 mt-0.5">
-            {isCompleted
-              ? <CheckCircle2 className="h-4 w-4 text-emerald-500" data-testid={`icon-completed-${task.id}`} />
-              : <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <span className={`font-semibold text-sm ${isCompleted ? "line-through text-muted-foreground" : ""}`} data-testid={`text-task-title-${task.id}`}>{task.title}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${priorityColor(task.priority)}`}>{task.priority}</span>
-              {isOverdue && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-0.5">
-                  <AlertTriangle className="h-2.5 w-2.5" /> Overdue
-                </span>
-              )}
+    <>
+      <Card className={`border-l-4 ${priorityBorderColor(task.priority)} hover:shadow-sm transition-all`} data-testid={`card-task-${task.id}`}>
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            {/* Completion indicator */}
+            <div className="shrink-0 mt-0.5">
+              {isCompleted
+                ? <CheckCircle2 className="h-4 w-4 text-emerald-500" data-testid={`icon-completed-${task.id}`} />
+                : <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />}
             </div>
-            {task.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{task.description}</p>}
-            <div className="flex items-center gap-3 flex-wrap">
-              {canEdit ? (
-                <Select value={task.status} onValueChange={v => onStatusChange(task.id, v)}>
-                  <SelectTrigger className="h-6 text-[11px] w-auto px-2 py-0" data-testid={`select-task-status-${task.id}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusPill(task.status)}`}>{task.status}</span>
-              )}
-              {owner && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Users className="h-3 w-3" /> {owner}
-                </span>
-              )}
-              {task.dueDate && (
-                <span className={`text-xs flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                  <Calendar className="h-3 w-3" /> {formatDate(task.dueDate)}
-                </span>
-              )}
-              <button
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors ml-auto"
-                onClick={() => setExpanded(!expanded)}
-                data-testid={`button-expand-subtasks-${task.id}`}
-              >
-                {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                {doneCount}/{totalSubs} tasks
-              </button>
-            </div>
-
-            {/* Progress bar */}
-            {(progress > 0 || isCompleted) && (
-              <div className="mt-2 flex items-center gap-2">
-                <Progress value={isCompleted ? 100 : progress} className="h-1.5 flex-1" />
-                <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{isCompleted ? 100 : progress}%</span>
-              </div>
-            )}
-
-            {/* Subtasks */}
-            {expanded && (
-              <div className="mt-3 space-y-1.5 pl-3 border-l-2 border-border">
-                {task.subtasks.map(sub => (
-                  <div key={sub.id} className="flex items-start gap-2 group/sub" data-testid={`row-subtask-${sub.id}`}>
-                    <Checkbox
-                      checked={sub.completed ?? false}
-                      disabled={!canEdit || toggleSubtask.isPending}
-                      onCheckedChange={v => toggleSubtask.mutate({ id: sub.id, completed: !!v })}
-                      className="mt-0.5"
-                      data-testid={`checkbox-subtask-${sub.id}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className={`text-xs ${sub.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                        {sub.title}
-                      </span>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {(sub as any).owner && (
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                            <Users className="h-2.5 w-2.5" /> {(sub as any).owner}
-                          </span>
-                        )}
-                        {(sub as any).dueDate && (
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                            <Calendar className="h-2.5 w-2.5" /> {formatDate((sub as any).dueDate)}
-                          </span>
-                        )}
-                        {(sub as any).status && (sub as any).status !== "Not Started" && (
-                          <span className={`text-[10px] px-1.5 py-0 rounded-full font-medium ${subStatusPill((sub as any).status)}`}>
-                            {(sub as any).status}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {canEdit && (
-                      <button
-                        onClick={() => deleteSubtask.mutate(sub.id)}
-                        className="text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover/sub:opacity-100 mt-0.5"
-                        data-testid={`button-delete-subtask-${sub.id}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {canEdit && (
-                  showSubtaskForm ? (
-                    <div className="mt-2 space-y-2 pt-2 border-t border-border/50">
-                      <Input
-                        value={subForm.title}
-                        onChange={e => setSubForm(f => ({ ...f, title: e.target.value }))}
-                        placeholder="Task title"
-                        className="h-7 text-xs"
-                        data-testid={`input-subtask-title-${task.id}`}
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        {teamMembers.length > 0 ? (
-                          <Select value={subForm.owner || "none"} onValueChange={v => setSubForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
-                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Owner" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">No owner</SelectItem>
-                              {teamMembers.map(m => <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            value={subForm.owner}
-                            onChange={e => setSubForm(f => ({ ...f, owner: e.target.value }))}
-                            placeholder="Owner"
-                            className="h-7 text-xs"
-                          />
-                        )}
-                        <Input
-                          type="date"
-                          value={subForm.dueDate}
-                          onChange={e => setSubForm(f => ({ ...f, dueDate: e.target.value }))}
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                      <Select value={subForm.status} onValueChange={v => setSubForm(f => ({ ...f, status: v }))}>
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TASK_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => { if (subForm.title.trim()) addSubtask.mutate(subForm); }}
-                          disabled={!subForm.title.trim() || addSubtask.isPending}
-                          data-testid={`button-save-subtask-${task.id}`}
-                        >
-                          Save
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowSubtaskForm(false)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors mt-1"
-                      onClick={() => setShowSubtaskForm(true)}
-                      data-testid={`button-add-subtask-${task.id}`}
-                    >
-                      <Plus className="h-3 w-3" /> Add Task
-                    </button>
-                  )
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                <span className={`font-semibold text-sm ${isCompleted ? "line-through text-muted-foreground" : ""}`} data-testid={`text-task-title-${task.id}`}>{task.title}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${priorityColor(task.priority)}`}>{task.priority}</span>
+                {isOverdue && !isCompleted && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-0.5">
+                    <AlertTriangle className="h-2.5 w-2.5" /> Overdue
+                  </span>
                 )}
               </div>
+              {task.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{task.description}</p>}
+              <div className="flex items-center gap-3 flex-wrap">
+                {canEdit ? (
+                  <Select value={task.status} onValueChange={v => onStatusChange(task.id, v)}>
+                    <SelectTrigger className="h-6 text-[11px] w-auto px-2 py-0" data-testid={`select-task-status-${task.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TASK_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusPill(task.status)}`}>{task.status}</span>
+                )}
+                {owner && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Users className="h-3 w-3" /> {owner}
+                  </span>
+                )}
+                {task.dueDate && (
+                  <span className={`text-xs flex items-center gap-1 ${isOverdue && !isCompleted ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                    <Calendar className="h-3 w-3" /> {formatDate(task.dueDate)}
+                  </span>
+                )}
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors ml-auto"
+                  onClick={() => setExpanded(!expanded)}
+                  data-testid={`button-expand-subtasks-${task.id}`}
+                >
+                  {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {doneCount}/{totalSubs} tasks
+                </button>
+              </div>
+
+              {/* Progress bar — auto from subtasks or manual */}
+              {(computedProgress > 0 || isCompleted) && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Progress value={computedProgress} className="h-1.5 flex-1" />
+                  <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{computedProgress}%</span>
+                  {totalSubs > 0 && <span className="text-[10px] text-muted-foreground/60 shrink-0">auto</span>}
+                </div>
+              )}
+
+              {/* Tasks (Subtasks) list */}
+              {expanded && (
+                <div className="mt-3 space-y-2 pl-3 border-l-2 border-border">
+                  {task.subtasks.map(sub => {
+                    const subProg = (sub as any).progress ?? (sub.completed ? 100 : 0);
+                    const subDone = subProg >= 100 || sub.completed;
+                    return (
+                      <div key={sub.id} className="group/sub" data-testid={`row-subtask-${sub.id}`}>
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            checked={sub.completed ?? false}
+                            disabled={!canEdit || toggleSubtask.isPending}
+                            onCheckedChange={v => toggleSubtask.mutate({ id: sub.id, completed: !!v })}
+                            className="mt-0.5"
+                            data-testid={`checkbox-subtask-${sub.id}`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-xs font-medium ${subDone ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                              {sub.title}
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              {(sub as any).owner && (
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                  <Users className="h-2.5 w-2.5" /> {(sub as any).owner}
+                                </span>
+                              )}
+                              {(sub as any).dueDate && (
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                  <Calendar className="h-2.5 w-2.5" /> {formatDate((sub as any).dueDate)}
+                                </span>
+                              )}
+                              <span className={`text-[10px] px-1.5 py-0 rounded-full font-medium ${subStatusPill(subDone ? "Completed" : (sub as any).status || "Not Started")}`}>
+                                {subDone ? "Completed" : (sub as any).status || "Not Started"}
+                              </span>
+                            </div>
+                          </div>
+                          {canEdit && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0 mt-0.5">
+                              <button
+                                onClick={() => { setEditSubId(sub.id); setEditSubForm({ title: sub.title, owner: (sub as any).owner || "", dueDate: (sub as any).dueDate || "", status: sub.status, progress: subProg }); }}
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                data-testid={`button-edit-subtask-${sub.id}`}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => deleteSubtask.mutate(sub.id)}
+                                className="text-muted-foreground hover:text-red-500 transition-colors"
+                                data-testid={`button-delete-subtask-${sub.id}`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {/* Sub-progress bar */}
+                        {subProg > 0 && (
+                          <div className="mt-1 ml-6 flex items-center gap-2">
+                            <Progress value={subProg} className={`h-1 flex-1 ${subDone ? "[&>div]:bg-emerald-500" : subProg > 0 ? "[&>div]:bg-violet-500" : ""}`} />
+                            <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{subProg}%</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {canEdit && (
+                    showSubtaskForm ? (
+                      <div className="mt-2 space-y-2 pt-2 border-t border-border/50">
+                        <Input
+                          value={subForm.title}
+                          onChange={e => setSubForm(f => ({ ...f, title: e.target.value }))}
+                          placeholder="Task title"
+                          className="h-7 text-xs"
+                          data-testid={`input-subtask-title-${task.id}`}
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          {teamMembers.length > 0 ? (
+                            <Select value={subForm.owner || "none"} onValueChange={v => setSubForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Owner" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No owner</SelectItem>
+                                {teamMembers.map(m => <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input value={subForm.owner} onChange={e => setSubForm(f => ({ ...f, owner: e.target.value }))} placeholder="Owner" className="h-7 text-xs" />
+                          )}
+                          <Input type="date" value={subForm.dueDate} onChange={e => setSubForm(f => ({ ...f, dueDate: e.target.value }))} className="h-7 text-xs" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select value={subForm.status} onValueChange={v => setSubForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : v === "Not Started" ? 0 : f.progress }))}>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {TASK_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              type="number" min={0} max={100}
+                              value={subForm.progress}
+                              onChange={e => {
+                                const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                setSubForm(f => ({ ...f, progress: pct, status: subProgressToStatus(pct) }));
+                              }}
+                              className="h-7 text-xs w-16"
+                              data-testid={`input-subtask-progress-${task.id}`}
+                              placeholder="%"
+                            />
+                            <span className="text-[10px] text-muted-foreground">%</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" className="h-7 text-xs" onClick={() => { if (subForm.title.trim()) addSubtask.mutate(subForm); }} disabled={!subForm.title.trim() || addSubtask.isPending} data-testid={`button-save-subtask-${task.id}`}>
+                            Save
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowSubtaskForm(false)}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors mt-1" onClick={() => setShowSubtaskForm(true)} data-testid={`button-add-subtask-${task.id}`}>
+                        <Plus className="h-3 w-3" /> Add Task
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            {canEdit && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => onEdit(task)} className="text-muted-foreground hover:text-primary transition-colors" data-testid={`button-edit-task-${task.id}`}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => onDelete(task.id)} className="text-muted-foreground hover:text-red-500 transition-colors" data-testid={`button-delete-task-${task.id}`}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             )}
           </div>
+        </CardContent>
+      </Card>
 
-          {canEdit && (
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={() => onEdit(task)}
-                className="text-muted-foreground hover:text-primary transition-colors"
-                data-testid={`button-edit-task-${task.id}`}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => onDelete(task.id)}
-                className="text-muted-foreground hover:text-red-500 transition-colors"
-                data-testid={`button-delete-task-${task.id}`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+      {/* Edit Task (Subtask) Dialog */}
+      <Dialog open={editSubId !== null} onOpenChange={open => { if (!open) setEditSubId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Edit Task</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Title *</Label>
+              <Input value={editSubForm.title} onChange={e => setEditSubForm(f => ({ ...f, title: e.target.value }))} placeholder="Task title" data-testid="input-edit-subtask-title" />
             </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Owner</Label>
+                {teamMembers.length > 0 ? (
+                  <Select value={editSubForm.owner || "none"} onValueChange={v => setEditSubForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                    <SelectTrigger className="text-xs" data-testid="select-edit-subtask-owner"><SelectValue placeholder="No owner" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No owner</SelectItem>
+                      {teamMembers.map(m => <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={editSubForm.owner} onChange={e => setEditSubForm(f => ({ ...f, owner: e.target.value }))} placeholder="Owner" data-testid="input-edit-subtask-owner" />
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Due Date</Label>
+                <Input type="date" value={editSubForm.dueDate} onChange={e => setEditSubForm(f => ({ ...f, dueDate: e.target.value }))} data-testid="input-edit-subtask-due" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={editSubForm.status} onValueChange={v => setEditSubForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : v === "Not Started" ? 0 : f.progress }))}>
+                <SelectTrigger data-testid="select-edit-subtask-status"><SelectValue /></SelectTrigger>
+                <SelectContent>{TASK_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>% Completion</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number" min={0} max={100}
+                  value={editSubForm.progress}
+                  onChange={e => {
+                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                    setEditSubForm(f => ({ ...f, progress: pct, status: subProgressToStatus(pct) }));
+                  }}
+                  className="w-24"
+                  data-testid="input-edit-subtask-progress"
+                />
+                <Progress value={editSubForm.progress} className={`flex-1 h-2 ${editSubForm.progress >= 100 ? "[&>div]:bg-emerald-500" : editSubForm.progress > 0 ? "[&>div]:bg-violet-500" : ""}`} />
+                <span className="text-xs text-muted-foreground w-10 text-right">{editSubForm.progress}%</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditSubId(null)}>Cancel</Button>
+            <Button
+              onClick={() => { if (editSubId && editSubForm.title.trim()) updateSubtask.mutate({ id: editSubId, data: editSubForm }); }}
+              disabled={!editSubForm.title.trim() || updateSubtask.isPending}
+              data-testid="button-submit-edit-subtask"
+            >
+              {updateSubtask.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1077,28 +1182,52 @@ export default function ProjectDetailPage() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>% Completion</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  type="number" min={0} max={100}
-                  value={editTaskForm.progress}
-                  onChange={e => {
-                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                    setEditTaskForm(f => ({ ...f, progress: pct, status: progressToStatus(pct) }));
-                  }}
-                  className="w-24"
-                  data-testid="input-edit-task-progress"
-                />
-                <Progress value={editTaskForm.progress} className="flex-1 h-2" />
-                <span className="text-xs text-muted-foreground w-10 text-right">{editTaskForm.progress}%</span>
-              </div>
-            </div>
+            {(() => {
+              const editingTask = tasks.find(t => t.id === editTaskId);
+              const hasSubs = (editingTask?.subtasks?.length ?? 0) > 0;
+              const autoProgress = hasSubs && editingTask
+                ? Math.round(editingTask.subtasks.reduce((sum, s) => sum + ((s as any).progress ?? (s.completed ? 100 : 0)), 0) / editingTask.subtasks.length)
+                : editTaskForm.progress;
+              return (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label>% Completion</Label>
+                    {hasSubs && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Auto-calculated from tasks</span>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {hasSubs ? (
+                      <span className="text-sm font-semibold w-24 text-center tabular-nums" data-testid="text-auto-progress">{autoProgress}%</span>
+                    ) : (
+                      <Input
+                        type="number" min={0} max={100}
+                        value={editTaskForm.progress}
+                        onChange={e => {
+                          const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                          setEditTaskForm(f => ({ ...f, progress: pct, status: progressToStatus(pct) }));
+                        }}
+                        className="w-24"
+                        data-testid="input-edit-task-progress"
+                      />
+                    )}
+                    <Progress value={autoProgress} className="flex-1 h-2" />
+                    <span className="text-xs text-muted-foreground w-10 text-right">{autoProgress}%</span>
+                  </div>
+                  {hasSubs && <p className="text-[10px] text-muted-foreground">Update task completion percentages below to change this value.</p>}
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTaskId(null)}>Cancel</Button>
             <Button
-              onClick={() => { if (editTaskId && editTaskForm.title.trim()) updateTaskMut.mutate({ id: editTaskId, data: { ...editTaskForm, assignee: editTaskForm.owner } }); }}
+              onClick={() => {
+                if (editTaskId && editTaskForm.title.trim()) {
+                  const editingTask = tasks.find(t => t.id === editTaskId);
+                  const hasSubs = (editingTask?.subtasks?.length ?? 0) > 0;
+                  const saveData = hasSubs ? { ...editTaskForm, assignee: editTaskForm.owner } : { ...editTaskForm, assignee: editTaskForm.owner };
+                  updateTaskMut.mutate({ id: editTaskId, data: saveData });
+                }
+              }}
               disabled={!editTaskForm.title.trim() || updateTaskMut.isPending}
               data-testid="button-submit-edit-task"
             >
