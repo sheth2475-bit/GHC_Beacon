@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2 } from "lucide-react";
+import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2, Copy, KeyRound, ArrowRight } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import type { TeamMember, Department, UserDepartmentAccess } from "@shared/schema";
@@ -57,6 +57,252 @@ function accessLevelBadge(level: string) {
     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${found?.color || "bg-muted text-muted-foreground"}`}>
       {found?.label || level}
     </span>
+  );
+}
+
+const TEMP_PASSWORD = "Welcome@123";
+
+function SetupMemberAccessDialog({ member, departments }: { member: TeamMember; departments: Department[] }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [createdUser, setCreatedUser] = useState<CompanyUser | null>(null);
+  const [email, setEmail] = useState(member.email || "");
+  const [role, setRole] = useState("executive");
+  const [copied, setCopied] = useState(false);
+
+  const handleClose = (o: boolean) => {
+    if (!o) { setOpen(false); setStep(1); setCreatedUser(null); setCopied(false); }
+    else setOpen(true);
+  };
+
+  const createMut = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/users", {
+        name: member.name,
+        email,
+        password: TEMP_PASSWORD,
+        role,
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message || "Failed to create account"); }
+      return res.json() as Promise<CompanyUser>;
+    },
+    onSuccess: (user) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setCreatedUser(user);
+      setStep(2);
+      toast({ title: "Login account created", description: `${member.name} can now log in.` });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const copyPassword = () => {
+    navigator.clipboard.writeText(TEMP_PASSWORD);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400"
+          data-testid={`button-setup-access-${member.id}`}>
+          <KeyRound className="h-3.5 w-3.5" />
+          Setup Access
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {step === 1 ? `Create Login — ${member.name}` : `Department Access — ${member.name}`}
+          </DialogTitle>
+        </DialogHeader>
+
+        {step === 1 && (
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-300">
+              A login account will be created so <strong>{member.name}</strong> can access the platform. Share the temporary password with them — they can change it after logging in.
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1.5">Email Address</label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="e.g. fatima@company.com"
+                  data-testid="input-setup-email"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1.5">Role</label>
+                <Select value={role} onValueChange={setRole}>
+                  <SelectTrigger data-testid="select-setup-role"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="executive"><div className="flex items-center gap-2"><Eye className="h-3.5 w-3.5 text-amber-600" /><span>Executive — view access</span></div></SelectItem>
+                    <SelectItem value="admin"><div className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-blue-600" /><span>Admin — full access</span></div></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1.5">Temporary Password</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono font-medium tracking-wide">
+                    {TEMP_PASSWORD}
+                  </div>
+                  <Button size="sm" variant="outline" onClick={copyPassword} className="shrink-0 gap-1.5" data-testid="button-copy-password">
+                    {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Share this with {member.name}. They can change it after first login.</p>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button
+                disabled={!email || createMut.isPending}
+                onClick={() => createMut.mutate()}
+                className="gap-1.5"
+                data-testid="button-create-account"
+              >
+                {createMut.isPending ? "Creating..." : <><span>Create Account</span><ArrowRight className="h-4 w-4" /></>}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === 2 && createdUser && (
+          <DeptAccessContent user={createdUser} departments={departments} onDone={() => setOpen(false)} />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeptAccessContent({ user, departments, onDone }: { user: CompanyUser; departments: Department[]; onDone: () => void }) {
+  const { toast } = useToast();
+  const [newDeptId, setNewDeptId] = useState<string>("");
+  const [newLevel, setNewLevel] = useState<string>("view");
+
+  const { data: access = [], isLoading } = useQuery<DeptAccessEntry[]>({
+    queryKey: ["/api/users", user.id, "department-access"],
+    queryFn: () => apiRequest("GET", `/api/users/${user.id}/department-access`).then(r => r.json()),
+  });
+
+  const addMut = useMutation({
+    mutationFn: ({ departmentId, accessLevel }: { departmentId: number; accessLevel: string }) =>
+      apiRequest("POST", `/api/users/${user.id}/department-access`, { departmentId, accessLevel }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "department-access"] });
+      setNewDeptId(""); setNewLevel("view");
+      toast({ title: "Department access added" });
+    },
+    onError: () => toast({ title: "Failed to add access", variant: "destructive" }),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (deptId: number) => apiRequest("DELETE", `/api/users/${user.id}/department-access/${deptId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "department-access"] });
+      toast({ title: "Department access removed" });
+    },
+    onError: () => toast({ title: "Failed to remove access", variant: "destructive" }),
+  });
+
+  const clearAllMut = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/users/${user.id}/department-access`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "department-access"] });
+      toast({ title: "Access set to All Departments" });
+    },
+    onError: () => toast({ title: "Failed to update access", variant: "destructive" }),
+  });
+
+  const availableDepts = departments.filter(d => !access.some(a => a.departmentId === d.id));
+  const isAllDepts = !isLoading && access.length === 0;
+
+  return (
+    <div className="space-y-4 py-2">
+      <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 p-3 text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4 shrink-0" />
+        Account created. Now configure which departments <strong>{user.name}</strong> can access.
+      </div>
+
+      <div className={`rounded-xl border-2 p-4 transition-colors ${isAllDepts ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20" : "border-muted bg-muted/30"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-9 w-9 items-center justify-center rounded-full ${isAllDepts ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-muted"}`}>
+              {isAllDepts ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <Lock className="h-5 w-5 text-muted-foreground" />}
+            </div>
+            <div>
+              <p className={`text-sm font-semibold ${isAllDepts ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}>All Departments</p>
+              <p className="text-xs text-muted-foreground">{isAllDepts ? "Sees all departments — no restrictions" : "Restricted to specific departments"}</p>
+            </div>
+          </div>
+          {!isAllDepts && !isLoading && (
+            <Button size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
+              onClick={() => clearAllMut.mutate()} disabled={clearAllMut.isPending}>
+              {clearAllMut.isPending ? "Updating..." : "Grant All"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {isLoading && <div className="h-16 bg-muted rounded animate-pulse" />}
+
+      {!isLoading && access.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Restricted To</p>
+          {access.map(entry => (
+            <div key={entry.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/50 border">
+              <div className="flex items-center gap-2 min-w-0">
+                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium truncate">{entry.departmentName}</span>
+                {accessLevelBadge(entry.accessLevel)}
+              </div>
+              <button onClick={() => removeMut.mutate(entry.departmentId)} disabled={removeMut.isPending}
+                className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {availableDepts.length > 0 && (
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            {isAllDepts ? "Restrict to a Department" : "Add Department"}
+          </p>
+          <div className="flex gap-2">
+            <Select value={newDeptId} onValueChange={setNewDeptId}>
+              <SelectTrigger className="flex-1"><SelectValue placeholder="Select department" /></SelectTrigger>
+              <SelectContent>{availableDepts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={newLevel} onValueChange={setNewLevel}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ACCESS_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full" size="sm" disabled={!newDeptId || addMut.isPending}
+            onClick={() => addMut.mutate({ departmentId: parseInt(newDeptId), accessLevel: newLevel })}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {addMut.isPending ? "Adding..." : "Add Department"}
+          </Button>
+        </div>
+      )}
+
+      <DialogFooter className="pt-2">
+        <Button onClick={onDone}>Done</Button>
+      </DialogFooter>
+    </div>
   );
 }
 
@@ -529,9 +775,7 @@ export default function UserManagementPage() {
                               triggerLabel="Dept Access"
                             />
                           ) : (
-                            <span className="text-[10px] text-muted-foreground italic border rounded px-2 py-1 bg-muted/40">
-                              No login account
-                            </span>
+                            <SetupMemberAccessDialog member={m} departments={departments} />
                           )}
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditMember(m)} data-testid={`button-edit-member-${m.id}`}>
                             <Pencil className="h-3.5 w-3.5" />
