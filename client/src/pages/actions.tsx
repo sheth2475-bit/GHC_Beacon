@@ -17,7 +17,7 @@ import { LoadingTable } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
-import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X, Bell, BellRing, Loader2 } from "lucide-react";
+import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X, Bell, BellRing, Loader2, Kanban, Calendar, List, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 import type { ActionItem, Department, TeamMember } from "@shared/schema";
@@ -41,6 +41,10 @@ export default function ActionsPage() {
   const [filterMeetingType, setFilterMeetingType] = useState("all");
   const [filterDept, setFilterDept] = useState("all");
   const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">("list");
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
 
   const [meetingType, setMeetingType] = useState("");
   const [title, setTitle] = useState("");
@@ -265,6 +269,28 @@ export default function ActionsPage() {
       )}
 
       <div className="flex-none px-6 py-3 border-b flex gap-3 flex-wrap items-center bg-background">
+        {/* View toggle */}
+        <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5 shrink-0">
+          {([
+            { mode: "list", icon: List, label: "List" },
+            { mode: "kanban", icon: Kanban, label: "Kanban" },
+            { mode: "calendar", icon: Calendar, label: "Calendar" },
+          ] as const).map(({ mode, icon: Icon, label }) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              data-testid={`button-view-${mode}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                viewMode === mode
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search actions or owners..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" data-testid="input-search-actions" />
@@ -298,6 +324,251 @@ export default function ActionsPage() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
+
+      {/* ══════ KANBAN VIEW ══════ */}
+      {viewMode === "kanban" && !isLoading && (
+        <div className="flex gap-4 h-full min-h-[400px] overflow-x-auto pb-4" data-testid="view-kanban">
+          {(["Not Started", "In Progress", "Delayed", "Completed", "Cancelled"] as const).map(col => {
+            const colActions = filtered.filter(a => (a.status || "Not Started") === col);
+            const colColors: Record<string, string> = {
+              "Not Started": "border-t-slate-400",
+              "In Progress": "border-t-blue-500",
+              "Delayed": "border-t-amber-500",
+              "Completed": "border-t-emerald-500",
+              "Cancelled": "border-t-gray-400",
+            };
+            const colDotColors: Record<string, string> = {
+              "Not Started": "bg-slate-400",
+              "In Progress": "bg-blue-500",
+              "Delayed": "bg-amber-500",
+              "Completed": "bg-emerald-500",
+              "Cancelled": "bg-gray-400",
+            };
+            const isDragOver = dragOverCol === col;
+            return (
+              <div
+                key={col}
+                className={`flex flex-col min-w-[260px] w-[260px] rounded-xl border-t-4 ${colColors[col]} bg-muted/30 border border-t-4 transition-colors ${isDragOver ? "bg-primary/5 border-primary/30" : ""}`}
+                onDragOver={e => { e.preventDefault(); setDragOverCol(col); }}
+                onDragLeave={() => setDragOverCol(null)}
+                onDrop={e => {
+                  e.preventDefault();
+                  setDragOverCol(null);
+                  if (dragId !== null) {
+                    const item = (actions || []).find(a => a.id === dragId);
+                    if (item && item.status !== col) {
+                      updateMutation.mutate({ id: dragId, data: { status: col, ...(col === "Completed" ? { completion: 100 } : {}) } });
+                    }
+                    setDragId(null);
+                  }
+                }}
+                data-testid={`kanban-col-${col.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                {/* Column header */}
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${colDotColors[col]}`} />
+                    <span className="text-xs font-semibold">{col}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded-full border">{colActions.length}</span>
+                </div>
+
+                {/* Cards */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                  {colActions.length === 0 && (
+                    <div className={`flex items-center justify-center h-16 rounded-lg border-2 border-dashed text-xs text-muted-foreground transition-colors ${isDragOver ? "border-primary/40 text-primary/60" : "border-border/40"}`}>
+                      Drop here
+                    </div>
+                  )}
+                  {colActions.map(item => {
+                    const overdue = isOverdue(item);
+                    const effDue = item.revisedDueDate || item.dueDate;
+                    const deptLabel = getEffectiveDept(item);
+                    const priorityColors: Record<string, string> = {
+                      Critical: "bg-red-500/10 text-red-600 border-red-500/20",
+                      High: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+                      Medium: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                      Low: "bg-gray-500/10 text-gray-600 border-gray-500/20",
+                    };
+                    return (
+                      <div
+                        key={item.id}
+                        draggable
+                        onDragStart={() => setDragId(item.id)}
+                        onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
+                        className={`bg-background rounded-lg border p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all select-none ${dragId === item.id ? "opacity-40 scale-95" : ""} ${overdue ? "border-red-300 dark:border-red-800" : ""}`}
+                        data-testid={`kanban-card-${item.id}`}
+                      >
+                        {/* Title + overdue */}
+                        <div className="flex items-start gap-1.5 mb-2">
+                          {overdue && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />}
+                          <p className="text-sm font-medium leading-snug line-clamp-2">{item.title}</p>
+                        </div>
+
+                        {/* Meta row */}
+                        <div className="flex items-center flex-wrap gap-1 mb-2">
+                          {deptLabel && (
+                            <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">{deptLabel}</span>
+                          )}
+                          {item.priority && (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${priorityColors[item.priority] || priorityColors.Medium}`}>
+                              {item.priority}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Progress bar */}
+                        {(item.completion ?? 0) > 0 && (
+                          <div className="mb-2">
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${(item.completion ?? 0) === 100 ? "bg-emerald-500" : "bg-primary"}`}
+                                style={{ width: `${item.completion ?? 0}%` }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 text-right">{item.completion}%</p>
+                          </div>
+                        )}
+
+                        {/* Footer: owner + due date */}
+                        <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                          {item.ownerName ? (
+                            <div className="flex items-center gap-1">
+                              <div className="h-4 w-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold shrink-0">
+                                {item.ownerName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                              </div>
+                              <span className="truncate max-w-[80px]">{item.ownerName}</span>
+                            </div>
+                          ) : <span />}
+                          {effDue && (
+                            <span className={`shrink-0 ${overdue ? "text-red-500 font-semibold" : ""}`}>
+                              {formatDate(effDue)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════ CALENDAR VIEW ══════ */}
+      {viewMode === "calendar" && !isLoading && (() => {
+        const year = calMonth.getFullYear();
+        const month = calMonth.getMonth();
+        const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date().toISOString().split("T")[0];
+        const monthLabel = calMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+        // Map actions by date string YYYY-MM-DD
+        const actionsByDate: Record<string, ActionItem[]> = {};
+        for (const a of filtered) {
+          const d = a.revisedDueDate || a.dueDate;
+          if (d) { actionsByDate[d] = [...(actionsByDate[d] || []), a]; }
+        }
+
+        const priorityDot: Record<string, string> = {
+          Critical: "bg-red-500",
+          High: "bg-orange-500",
+          Medium: "bg-blue-500",
+          Low: "bg-gray-400",
+        };
+
+        // Build grid cells: leading empty cells + day cells
+        const startOffset = firstDay; // Sun=0
+        const cells = Array.from({ length: startOffset }, () => null as null)
+          .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+
+        return (
+          <div data-testid="view-calendar">
+            {/* Month navigator */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setCalMonth(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted/50 transition-colors"
+                data-testid="button-cal-prev"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Prev
+              </button>
+              <h2 className="text-base font-bold">{monthLabel}</h2>
+              <button
+                onClick={() => setCalMonth(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted/50 transition-colors"
+                data-testid="button-cal-next"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Day labels */}
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+                <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-1">{d}</div>
+              ))}
+            </div>
+
+            {/* Day grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {cells.map((day, idx) => {
+                if (day === null) return <div key={`empty-${idx}`} />;
+                const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const dayActions = actionsByDate[dateStr] || [];
+                const isToday = dateStr === today;
+                const isPast = dateStr < today;
+
+                return (
+                  <div
+                    key={dateStr}
+                    className={`min-h-[80px] rounded-lg border p-1.5 transition-colors ${
+                      isToday ? "border-primary bg-primary/5 ring-1 ring-primary/30" :
+                      isPast && dayActions.some(a => isOverdue(a)) ? "bg-red-500/5 border-red-200 dark:border-red-900/30" :
+                      "border-border/60 hover:border-border bg-background"
+                    }`}
+                    data-testid={`cal-day-${dateStr}`}
+                  >
+                    <p className={`text-[11px] font-semibold mb-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground" : "text-foreground"}`}>
+                      {day}
+                    </p>
+                    <div className="space-y-0.5">
+                      {dayActions.slice(0, 3).map(a => (
+                        <div
+                          key={a.id}
+                          title={`${a.title} — ${a.ownerName || "Unassigned"}`}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate cursor-default ${
+                            isOverdue(a)
+                              ? "bg-red-500/10 text-red-700 dark:text-red-400"
+                              : a.status === "Completed"
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                              : "bg-primary/10 text-primary"
+                          }`}
+                          data-testid={`cal-action-${a.id}`}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityDot[a.priority || "Medium"] || priorityDot.Medium}`} />
+                          <span className="truncate">{a.title}</span>
+                        </div>
+                      ))}
+                      {dayActions.length > 3 && (
+                        <p className="text-[10px] text-muted-foreground pl-1">+{dayActions.length - 3} more</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ══════ LIST VIEW ══════ */}
+      {viewMode === "list" && (
+      <>
       {isLoading ? (
         <LoadingTable rows={6} cols={7} />
       ) : filtered.length === 0 ? (
@@ -511,6 +782,9 @@ export default function ActionsPage() {
           </CardContent>
         </Card>
       )}
+      </>
+      )}
+
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
