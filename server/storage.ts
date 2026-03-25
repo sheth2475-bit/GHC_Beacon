@@ -5,6 +5,7 @@ import {
   meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
   projects, tasks, subtasks, milestones, projectComments, assistantLogs,
   platformOwners, subscriptions, activationKeys, userActivityLogs, ownerAuditLogs, teamMembers,
+  userDepartmentAccess,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -21,6 +22,7 @@ import {
   type UserActivityLog, type InsertUserActivityLog,
   type OwnerAuditLog, type InsertOwnerAuditLog,
   type TeamMember, type InsertTeamMember,
+  type UserDepartmentAccess,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -157,6 +159,13 @@ export interface IStorage {
   // Owner Audit Logs
   createOwnerAuditLog(log: InsertOwnerAuditLog): Promise<OwnerAuditLog>;
   getOwnerAuditLogs(limit?: number): Promise<OwnerAuditLog[]>;
+
+  // Department Access Control
+  getDeptAccessForUser(userId: number): Promise<UserDepartmentAccess[]>;
+  getDeptAccessForUserWithDepts(userId: number): Promise<(UserDepartmentAccess & { departmentName: string })[]>;
+  setDeptAccess(userId: number, departmentId: number, accessLevel: string): Promise<UserDepartmentAccess>;
+  removeDeptAccess(id: number): Promise<void>;
+  removeDeptAccessForUser(userId: number): Promise<void>;
 
   // Platform analytics
   getAllCompanies(): Promise<Company[]>;
@@ -603,6 +612,38 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteTeamMember(id: number) {
     await db.delete(teamMembers).where(eq(teamMembers.id, id));
+  }
+
+  // ─── Department Access Control ────────────────────────────────────────────
+  async getDeptAccessForUser(userId: number) {
+    return db.select().from(userDepartmentAccess).where(eq(userDepartmentAccess.userId, userId));
+  }
+  async getDeptAccessForUserWithDepts(userId: number) {
+    const rows = await db
+      .select({ access: userDepartmentAccess, deptName: departments.name })
+      .from(userDepartmentAccess)
+      .innerJoin(departments, eq(userDepartmentAccess.departmentId, departments.id))
+      .where(eq(userDepartmentAccess.userId, userId));
+    return rows.map(r => ({ ...r.access, departmentName: r.deptName }));
+  }
+  async setDeptAccess(userId: number, departmentId: number, accessLevel: string) {
+    const existing = await db.select().from(userDepartmentAccess)
+      .where(and(eq(userDepartmentAccess.userId, userId), eq(userDepartmentAccess.departmentId, departmentId)));
+    if (existing.length > 0) {
+      const [updated] = await db.update(userDepartmentAccess)
+        .set({ accessLevel })
+        .where(and(eq(userDepartmentAccess.userId, userId), eq(userDepartmentAccess.departmentId, departmentId)))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(userDepartmentAccess).values({ userId, departmentId, accessLevel }).returning();
+    return created;
+  }
+  async removeDeptAccess(id: number) {
+    await db.delete(userDepartmentAccess).where(eq(userDepartmentAccess.id, id));
+  }
+  async removeDeptAccessForUser(userId: number) {
+    await db.delete(userDepartmentAccess).where(eq(userDepartmentAccess.userId, userId));
   }
 
   // ─── Platform Analytics ───────────────────────────────────────────────────

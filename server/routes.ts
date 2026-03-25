@@ -68,6 +68,34 @@ async function verifyKpiOwnership(req: Request, kpiId: number): Promise<boolean>
   return kpi?.companyId === company.id;
 }
 
+/**
+ * Returns the set of department IDs the current user is allowed to access.
+ * Returns null if the user has no restrictions (admin or no access entries configured).
+ * Returns number[] (possibly empty) for restricted users.
+ */
+async function getAccessibleDeptIds(req: Request): Promise<number[] | null> {
+  const user = req.user!;
+  if (user.role === "admin") return null;
+  const access = await storage.getDeptAccessForUser(user.id);
+  if (access.length === 0) return null;
+  return access.map(a => a.departmentId);
+}
+
+/**
+ * Returns the access level for a specific department for the current user.
+ * Returns "full" for admins. Returns null if no access.
+ */
+async function getDeptAccessLevel(req: Request, departmentId: number | null | undefined): Promise<"view" | "edit" | "full" | null> {
+  const user = req.user!;
+  if (user.role === "admin") return "full";
+  if (!departmentId) return "full";
+  const access = await storage.getDeptAccessForUser(user.id);
+  if (access.length === 0) return "full";
+  const entry = access.find(a => a.departmentId === departmentId);
+  if (!entry) return null;
+  return entry.accessLevel as "view" | "edit" | "full";
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -190,7 +218,10 @@ export async function registerRoutes(
   app.get("/api/kpis", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.json([]);
-    res.json(await storage.getKpis(company.id));
+    const deptIds = await getAccessibleDeptIds(req);
+    const all = await storage.getKpis(company.id);
+    const filtered = deptIds ? all.filter(k => !k.departmentId || deptIds.includes(k.departmentId)) : all;
+    res.json(filtered);
   });
 
   app.post("/api/kpis", requireAdmin, async (req: Request, res: Response) => {
@@ -223,7 +254,12 @@ export async function registerRoutes(
   app.get("/api/kpi-actuals/company", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
-    res.json(await storage.getAllKpiActuals(company.id));
+    const deptIds = await getAccessibleDeptIds(req);
+    const all = await storage.getAllKpiActuals(company.id);
+    const kpis = await storage.getKpis(company.id);
+    const allowedKpiIds = deptIds ? kpis.filter(k => !k.departmentId || deptIds.includes(k.departmentId)).map(k => k.id) : null;
+    const filtered = allowedKpiIds ? all.filter(a => allowedKpiIds.includes(a.kpiId)) : all;
+    res.json(filtered);
   });
 
   app.post("/api/kpi-actuals", requireAdmin, async (req: Request, res: Response) => {
@@ -246,7 +282,10 @@ export async function registerRoutes(
   app.get("/api/meetings", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.json([]);
-    res.json(await storage.getMeetings(company.id));
+    const deptIds = await getAccessibleDeptIds(req);
+    const all = await storage.getMeetings(company.id);
+    const filtered = deptIds ? all.filter(m => !m.departmentId || deptIds.includes(m.departmentId)) : all;
+    res.json(filtered);
   });
 
   app.post("/api/meetings", requireAdmin, async (req: Request, res: Response) => {
@@ -279,7 +318,10 @@ export async function registerRoutes(
   app.get("/api/action-items", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.json([]);
-    res.json(await storage.getActionItems(company.id));
+    const deptIds = await getAccessibleDeptIds(req);
+    const all = await storage.getActionItems(company.id);
+    const filtered = deptIds ? all.filter(a => !a.departmentId || deptIds.includes(a.departmentId)) : all;
+    res.json(filtered);
   });
 
   app.post("/api/action-items", requireAdmin, async (req: Request, res: Response) => {
@@ -730,6 +772,50 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
+  // ─── Department Access Control ─────────────────────────────────────────────
+
+  app.get("/api/users/me/department-access", requireAuth, async (req: Request, res: Response) => {
+    const user = req.user!;
+    const access = await storage.getDeptAccessForUserWithDepts(user.id);
+    res.json({ role: user.role, access });
+  });
+
+  app.get("/api/users/:id/department-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    const access = await storage.getDeptAccessForUserWithDepts(id);
+    res.json(access);
+  });
+
+  app.post("/api/users/:id/department-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    const { departmentId, accessLevel } = req.body;
+    if (!departmentId || !accessLevel) return res.status(400).json({ message: "departmentId and accessLevel required" });
+    const entry = await storage.setDeptAccess(id, departmentId, accessLevel);
+    res.json(entry);
+  });
+
+  app.delete("/api/users/:id/department-access/:deptId", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const deptId = parseInt(req.params.deptId as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    const access = await storage.getDeptAccessForUser(id);
+    const entry = access.find(a => a.departmentId === deptId);
+    if (!entry) return res.status(404).json({ message: "Access entry not found" });
+    await storage.removeDeptAccess(entry.id);
+    res.json({ ok: true });
+  });
+
   // ─── Team Members ──────────────────────────────────────────────────────────
   app.get("/api/team-members", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
@@ -778,10 +864,12 @@ export async function registerRoutes(
   app.get("/api/projects", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
+    const deptIds = await getAccessibleDeptIds(req);
     const allProjects = await storage.getProjects(company.id);
+    const visibleProjects = deptIds ? allProjects.filter(p => !p.departmentId || deptIds.includes(p.departmentId)) : allProjects;
     const allTasks = await storage.getTasks(company.id);
     const allMilestones = await storage.getMilestones(company.id);
-    const projectsWithHealth = allProjects.map(p => {
+    const projectsWithHealth = visibleProjects.map(p => {
       const pt = allTasks.filter(t => t.projectId === p.id);
       const pm = allMilestones.filter(m => m.projectId === p.id);
       const completedCount = pt.filter(t => t.status === "Completed").length;

@@ -57,7 +57,7 @@ AI-powered SME performance and execution management platform.
 
 ### Admin/Settings
 12. **Settings** (admin only) - Business profile, strategic goals, departments, meeting types; **Subscription & Plan card** showing current plan, daily AI usage bar, and activation key input
-13. **User Management** (admin only) - Two tabs: (1) **Login Users** — add/change role/delete company users; (2) **Team Members** — manage name/email/job title/department for people who appear in owner dropdowns across the platform (KPIs, actions, projects, initiatives)
+13. **User Management** (admin only) - Three tabs: (1) **Login Users** — add/change role/delete company users, with per-user **Department Access** button (Building2 icon) to open the access control dialog; (2) **Team Members** — manage name/email/job title/department for people who appear in owner dropdowns; (3) **Dept Access** — overview of all users' access with access level legend and per-user manage dialog
 
 ### Platform Owner System (new)
 - Separate auth area at `/owner/*` with its own session (platformOwnerId) independent of company auth
@@ -89,7 +89,7 @@ AI-powered SME performance and execution management platform.
 
 ## Database Schema
 
-Performance: users (role + companyId), companies, departments, business_goals, kpis, kpi_actuals, meetings, action_items, monthly_reviews, meeting_types, dashboard_plans
+Performance: users (role + companyId), companies, departments, business_goals, kpis, kpi_actuals, meetings, action_items, monthly_reviews, meeting_types, dashboard_plans, user_department_access (department-level access control per user)
 
 Execution: projects, tasks, subtasks, milestones, project_comments
 
@@ -108,6 +108,7 @@ Write endpoints require `requireAdmin` or `requireAuth` (comments). Reads requir
 - Workload: GET /api/workload
 - Search: GET /api/search?q=...
 - Users: GET /api/users, POST /api/users, PATCH /api/users/:id, DELETE /api/users/:id
+- Dept Access: GET /api/users/:id/department-access, POST /api/users/:id/department-access, DELETE /api/users/:id/department-access/:deptId, GET /api/users/me/department-access
 - Company lookup: `getCompanyForUser` checks user.companyId first, falls back to getCompanyByUserId
 - Health scoring: `computeProjectHealth(project, tasks, milestones)` → Green/Amber/Red/Completed
 

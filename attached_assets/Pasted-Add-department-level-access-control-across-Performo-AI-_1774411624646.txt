@@ -1,0 +1,107 @@
+Add department-level access control across Performo AI.
+
+Current issue:
+There is currently no department-based access restriction in the application.
+
+Required behavior:
+Under User Management, when assigning a user, I want to define which departments they can access.
+If a user is given access only to the HR department, then they should only be able to view and edit HR-related data across the entire application.
+
+Requirements:
+
+1. User Management Updates
+Add department-level access assignment in User Management.
+
+For each user, allow:
+- role assignment
+- company assignment
+- one or multiple allowed departments
+- access level per department:
+  - view only
+  - edit
+  - full access
+
+2. Department Access Logic
+If a user has access only to HR, then they must only see and edit HR-related data across all modules.
+
+This restriction must apply to:
+- dashboards
+- KPIs
+- KPI actuals
+- initiatives
+- tasks
+- subtasks
+- milestones
+- action tracker
+- meetings
+- monthly reviews
+- comments
+- uploads
+- search
+- assistant/chatbot results
+- reports
+- analytics
+
+3. Frontend Behavior
+- hide departments the user is not allowed to access
+- filter tables, cards, charts, and dropdowns automatically
+- prevent the user from selecting unauthorized departments
+- show only allowed department options in forms and filters
+
+4. Backend Enforcement
+This must be enforced at API/backend level, not only frontend.
+All queries and mutations must validate department access before returning or updating data.
+
+5. Database Changes
+Add proper department access mapping.
+
+Preferred design:
+Create a table such as:
+user_department_access
+- id
+- user_id
+- department_id
+- access_level
+- created_at
+
+access_level values:
+- view
+- edit
+- full
+
+6. Permission Rules
+- Super Admin: all departments
+- Company Admin: configurable access to one or more departments
+- CEO: all departments, usually view-only unless allowed otherwise
+- GM: only assigned departments/business units
+- Department Users: only assigned departments
+
+7. Write Restrictions
+If user has only view access for HR:
+- they can view HR data
+- they cannot edit HR data
+- they cannot create/update/delete HR records
+
+If user has edit access for HR:
+- they can create/update records only within HR
+- they cannot modify non-HR records
+
+8. Assistant Integration
+Performo Assistant must respect department-level access.
+If user has only HR access, assistant must only answer from HR data and only allow HR-related updates.
+
+9. Search and Reporting
+Global search and reports must also respect department-level access and only return allowed department records.
+
+10. UI
+In User Management, add a clear section called:
+Department Access Control
+
+Allow admins to assign:
+- department
+- access level
+
+Make the UI clean and easy to manage.
+
+11. Final expectation
+Department-based access must work across the full application consistently and securely, not only on selected pages.

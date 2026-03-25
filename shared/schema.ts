@@ -272,6 +272,16 @@ export const ownerAuditLogs = pgTable("owner_audit_logs", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ─── Department Access Control ───────────────────────────────────────────────
+
+export const userDepartmentAccess = pgTable("user_department_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  departmentId: integer("department_id").notNull().references(() => departments.id),
+  accessLevel: text("access_level").notNull().default("view"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ─── Team Members ────────────────────────────────────────────────────────────
 
 export const teamMembers = pgTable("team_members", {
@@ -309,6 +319,7 @@ export const insertActivationKeySchema = createInsertSchema(activationKeys).omit
 export const insertUserActivityLogSchema = createInsertSchema(userActivityLogs).omit({ id: true, createdAt: true });
 export const insertOwnerAuditLogSchema = createInsertSchema(ownerAuditLogs).omit({ id: true, createdAt: true });
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, createdAt: true });
+export const insertUserDepartmentAccessSchema = createInsertSchema(userDepartmentAccess).omit({ id: true, createdAt: true });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -358,3 +369,5 @@ export type OwnerAuditLog = typeof ownerAuditLogs.$inferSelect;
 export type InsertOwnerAuditLog = z.infer<typeof insertOwnerAuditLogSchema>;
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type UserDepartmentAccess = typeof userDepartmentAccess.$inferSelect;
+export type InsertUserDepartmentAccess = z.infer<typeof insertUserDepartmentAccessSchema>;
