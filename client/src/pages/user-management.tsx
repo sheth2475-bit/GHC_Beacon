@@ -557,14 +557,12 @@ export default function UserManagementPage() {
                                 : "No restrictions assigned — click 'Manage Access' to configure"}
                             </p>
                           </div>
-                          {!isSelf && (
-                            <DeptAccessDialog
-                              user={u}
-                              departments={departments}
-                              isSelf={isSelf}
-                              triggerLabel="Manage Access"
-                            />
-                          )}
+                          <DeptAccessDialog
+                            user={u}
+                            departments={departments}
+                            isSelf={isSelf}
+                            triggerLabel="Manage Access"
+                          />
                         </div>
                       </CardContent>
                     </Card>
