@@ -363,19 +363,9 @@ export async function seedDatabase() {
     for (const d of deptList) depts[d.name] = d.id;
 
     // ── Ensure demo user dept access ──────────────────────────────
-    // exec: Sales dept (edit) + Finance (view) — Revenue Director persona
+    // exec: no dept restrictions (sees all departments)
     // member: Sales dept (full) — Dept Head persona
     const salesDeptId = depts["Sales & Revenue"] ?? depts["Sales"] ?? Object.values(depts)[0];
-    const financeDeptId = depts["Finance"] ?? Object.values(depts)[Object.values(depts).length - 1];
-    const execUser = await storage.getUserByEmail("exec@performo.ai");
-    if (execUser && salesDeptId && financeDeptId) {
-      const execAccess = await storage.getDeptAccessForUser(execUser.id);
-      if (execAccess.length === 0) {
-        await storage.setDeptAccess(execUser.id, salesDeptId, "edit");
-        await storage.setDeptAccess(execUser.id, financeDeptId, "view");
-        console.log("Seed: configured dept access for exec user");
-      }
-    }
     const memberUser = await storage.getUserByEmail("member@performo.ai");
     if (memberUser && salesDeptId) {
       const memberAccess = await storage.getDeptAccessForUser(memberUser.id);
@@ -464,13 +454,10 @@ export async function seedDatabase() {
 
   // ── Demo users with realistic dept access ─────────────────────
   const salesId = depts["Sales & Revenue"] ?? depts["Sales"] ?? Object.values(depts)[0];
-  const financeId = depts["Finance"] ?? Object.values(depts)[Object.values(depts).length - 1];
 
-  // exec: Revenue Director persona — sees Sales + Finance only
+  // exec: no dept restrictions (sees all departments)
   const execHash = await hashPassword("exec123");
-  const execUser = await storage.createUser({ name: "Ravi Mehta", email: "exec@performo.ai", passwordHash: execHash, companyId: company.id, role: "executive" });
-  if (salesId) await storage.setDeptAccess(execUser.id, salesId, "edit");
-  if (financeId) await storage.setDeptAccess(execUser.id, financeId, "view");
+  await storage.createUser({ name: "Ravi Mehta", email: "exec@performo.ai", passwordHash: execHash, companyId: company.id, role: "executive" });
 
   // member: Sales Dept Head — manages Sales department
   const memberHash = await hashPassword("member123");
