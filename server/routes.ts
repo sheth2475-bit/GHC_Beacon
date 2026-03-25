@@ -1776,10 +1776,11 @@ You can help the user understand their data, suggest chart types, explain insigh
       measure: string,
       dimension: string | null,
       aggregation: string = "sum",
-      limit?: number
+      limit?: number,
+      sortChronological?: boolean
     ): { name: string; value: number }[] {
       if (!dimension) {
-        const vals = rows.map(r => Number(r[measure]) || 0).filter(v => !isNaN(v));
+        const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
         const total = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
           : aggregation === "count" ? vals.length
           : aggregation === "min" ? Math.min(...vals)
@@ -1789,7 +1790,15 @@ You can help the user understand their data, suggest chart types, explain insigh
       }
       const groups: Record<string, number[]> = {};
       for (const row of rows) {
-        const key = String(row[dimension] ?? "Unknown");
+        const rawKey = row[dimension];
+        // Normalize date keys to short month labels if they look like dates
+        let key: string;
+        const parsed = rawKey ? new Date(String(rawKey)) : null;
+        if (parsed && !isNaN(parsed.getTime()) && String(rawKey).length >= 6) {
+          key = parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        } else {
+          key = String(rawKey ?? "Unknown").trim() || "Unknown";
+        }
         if (!groups[key]) groups[key] = [];
         const val = Number(row[measure]);
         if (!isNaN(val)) groups[key].push(val);
@@ -1801,9 +1810,63 @@ You can help the user understand their data, suggest chart types, explain insigh
           : aggregation === "max" ? Math.max(...vals)
           : vals.reduce((a, b) => a + b, 0);
         return { name, value: Math.round(value * 100) / 100 };
-      }).sort((a, b) => b.value - a.value);
+      });
+      // For date-like keys, sort chronologically; otherwise sort by value desc
+      if (sortChronological) {
+        result.sort((a, b) => {
+          const da = new Date(a.name); const db = new Date(b.name);
+          if (!isNaN(da.getTime()) && !isNaN(db.getTime())) return da.getTime() - db.getTime();
+          return 0;
+        });
+      } else {
+        result.sort((a, b) => b.value - a.value);
+      }
       if (limit) result = result.slice(0, limit);
       return result;
+    }
+
+    // Helper: compute rich data statistics for AI context
+    function computeDataStats(rows: Record<string, unknown>[], columns: { columnName: string; label: string; columnType: string }[]) {
+      const stats: Record<string, unknown> = {};
+      for (const col of columns.filter(c => c.columnType !== "ignore")) {
+        const vals = rows.map(r => r[col.columnName]).filter(v => v !== null && v !== undefined && v !== "");
+        if (col.columnType === "measure") {
+          const nums = vals.map(v => Number(v)).filter(v => !isNaN(v));
+          if (nums.length > 0) {
+            const sum = nums.reduce((a, b) => a + b, 0);
+            const avg = sum / nums.length;
+            const sorted = [...nums].sort((a, b) => a - b);
+            // Detect outliers: values > mean + 2*stddev
+            const variance = nums.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / nums.length;
+            const stddev = Math.sqrt(variance);
+            const outliers = nums.filter(v => Math.abs(v - avg) > 2 * stddev);
+            stats[col.label] = {
+              type: "measure", sum: Math.round(sum * 100) / 100,
+              avg: Math.round(avg * 100) / 100,
+              min: sorted[0], max: sorted[sorted.length - 1],
+              count: nums.length,
+              hasOutliers: outliers.length > 0,
+              outlierCount: outliers.length,
+            };
+          }
+        } else if (col.columnType === "dimension") {
+          const strVals = vals.map(v => String(v));
+          const freq: Record<string, number> = {};
+          for (const v of strVals) freq[v] = (freq[v] || 0) + 1;
+          const topVals = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([v]) => v);
+          stats[col.label] = { type: "dimension", uniqueCount: Object.keys(freq).length, topValues: topVals };
+        } else if (col.columnType === "date") {
+          const dates = vals.map(v => new Date(String(v))).filter(d => !isNaN(d.getTime())).sort((a, b) => a.getTime() - b.getTime());
+          if (dates.length > 0) {
+            stats[col.label] = {
+              type: "date", min: dates[0].toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+              max: dates[dates.length - 1].toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+              count: dates.length,
+            };
+          }
+        }
+      }
+      return stats;
     }
 
     // ── Datasets ──────────────────────────────────────────────────────
@@ -1886,68 +1949,115 @@ You can help the user understand their data, suggest chart types, explain insigh
 
     app.post("/api/v2/analytics/datasets/:id/ask", requireAuth, async (req: Request, res: Response) => {
       try {
-        const user = req.user as Express.User;
         const company = await getCompanyForUser(req);
         const ds = await storage.getAnalyticsDataset(Number(req.params.id));
         if (!ds || !company) return res.status(404).json({ message: "Not found" });
 
         const columns = await storage.getAnalyticsDatasetColumns(ds.id);
         const rows = (ds.rawData as Record<string, unknown>[]) || [];
-        const { question, chartTypeOverride } = req.body as { question: string; chartTypeOverride?: string };
+        const { question, chartTypeOverride, previousQuestion, previousResult } = req.body as {
+          question: string;
+          chartTypeOverride?: string;
+          previousQuestion?: string;
+          previousResult?: { title: string; chartType: string; measure?: string; dimension?: string; aggregation?: string };
+        };
 
+        const activeColumns = columns.filter(c => c.columnType !== "ignore");
         const measures = columns.filter(c => c.columnType === "measure");
-        const dimensions = columns.filter(c => c.columnType === "dimension");
         const dates = columns.filter(c => c.columnType === "date");
 
-        const colSummary = columns.filter(c => c.columnType !== "ignore").map(c =>
-          `${c.label} (${c.columnType}${c.columnType === "measure" ? ", " + (c.aggregation || "sum") : ""})`
-        ).join(", ");
-        const sampleRows = rows.slice(0, 5).map(r => {
+        const colSummary = activeColumns.map(c =>
+          `${c.label} [columnName: ${c.columnName}, type: ${c.columnType}${c.columnType === "measure" ? ", agg: " + (c.aggregation || "sum") : ""}]`
+        ).join("\n  ");
+
+        const sampleRows = rows.slice(0, 8).map(r => {
           const s: Record<string, unknown> = {};
-          columns.filter(c => c.columnType !== "ignore").forEach(c => s[c.label] = r[c.columnName]);
+          activeColumns.forEach(c => { s[c.label] = r[c.columnName]; });
           return s;
         });
 
+        const dataStats = computeDataStats(rows, activeColumns);
+
+        const isFollowUp = !!previousQuestion && !!previousResult;
+        const followUpContext = isFollowUp ? `
+FOLLOW-UP CONTEXT (user is refining the previous result):
+  Previous question: "${previousQuestion}"
+  Previous chart: ${previousResult!.chartType} of ${previousResult!.measure || "?"} by ${previousResult!.dimension || "none"}
+  Previous aggregation: ${previousResult!.aggregation || "sum"}
+  Interpret the new question as a refinement of this — preserve the measure/dimension if not changed.
+` : "";
+
         const oai = await getOaiV2();
-        const prompt = `You are an analytics engine for a business intelligence platform.
+        const prompt = `You are an expert analytics engine for a business intelligence platform used by hotel and hospitality companies.
 
-Dataset: "${ds.name}"
-Columns: ${colSummary}
-Sample rows: ${JSON.stringify(sampleRows)}
-Total rows: ${rows.length}
-User question: "${question}"
+Dataset: "${ds.name}" (${rows.length} rows)
 
-Respond with a JSON object (no markdown) with this exact structure:
+Columns:
+  ${colSummary}
+
+Sample data (first 8 rows):
+${JSON.stringify(sampleRows, null, 2)}
+
+Data statistics:
+${JSON.stringify(dataStats, null, 2)}
+${followUpContext}
+Current question: "${question}"
+
+CHART TYPE SELECTION RULES (choose the BEST fit):
+- "kpi": single headline number — total, average, count, rate (no dimension needed)
+- "line": time series/trend when dimension is a date — use when question has "trend", "over time", "by month", "monthly", "weekly", "quarterly"
+- "bar": comparing categories — use when comparing named groups (regions, departments, products)
+- "pie": share/distribution of whole — use when question has "share", "breakdown", "distribution", "composition", "percentage of" AND unique categories ≤ 8
+- "table": ranked list — use when question has "top N", "bottom N", "list", "rank", or needs multiple columns
+- For follow-up "show only top N" → change to table; "compare" → keep bar; "as donut" → keep pie
+
+Return a JSON object (no markdown, no code fences):
 {
-  "title": "Short chart title",
-  "interpretation": "One sentence describing what you understood",
+  "title": "Concise chart title (max 6 words)",
+  "subtitle": "Optional context line (e.g. 'Jan 2024 – Mar 2025')",
+  "interpretation": "Plain English: what I understood you're asking for",
   "chartType": "kpi|line|bar|pie|table",
-  "measure": "exact_column_name",
-  "dimension": "exact_column_name_or_null",
+  "measure": "exact columnName from the list above",
+  "dimension": "exact columnName or null for KPI",
   "aggregation": "sum|avg|count|min|max",
-  "dateGrain": "month|quarter|year|null",
-  "topN": null or number,
-  "narrative": "2-3 sentences describing the insight, trend, or finding",
-  "suggestedQuestions": ["follow-up question 1", "follow-up question 2", "follow-up question 3"]
+  "topN": null or a number (for top/bottom N requests),
+  "sortOrder": "desc|asc|chronological",
+  "narrative": "3-4 sentences. State the key finding first with specific numbers. Then describe trend or distribution. Then flag anomaly or notable insight if present. Use concrete values from the data stats.",
+  "trendDirection": "up|down|flat|null (for time series, based on data stats)",
+  "anomalyDetected": true|false,
+  "anomalyNote": "One sentence if anomaly detected, else null",
+  "topValue": {"name": "...", "value": 0} or null,
+  "bottomValue": {"name": "...", "value": 0} or null,
+  "suggestedQuestions": [
+    "Specific follow-up #1 that builds on this result",
+    "Specific follow-up #2 that drills deeper",
+    "Specific follow-up #3 that compares or contrasts",
+    "Specific follow-up #4 that adds a filter or different view"
+  ]
 }
 
-Chart type selection:
-- kpi: single total/average/count headline metric
-- line: time series trend (when dimension is a date column)
-- bar: comparing values across categories
-- pie: share of whole (≤8 categories)
-- table: ranked list, top N, or detailed breakdown
-
-Only use column names that exist. For dimension, use the exact columnName (not label). Return null for dimension if it is a KPI/single-metric question.`;
+IMPORTANT: 
+- Use exact columnName values (not labels) for measure and dimension fields.
+- If the question is ambiguous, pick the most likely interpretation.
+- The narrative MUST contain at least 2 specific numbers from the data.
+- suggestedQuestions must be natural language questions a business user would actually ask.`;
 
         const completion = await oai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
           response_format: { type: "json_object" },
-          max_tokens: 800,
+          max_tokens: 1200,
         });
 
-        let aiResult: { title: string; interpretation: string; chartType: string; measure: string; dimension: string | null; aggregation: string; topN: number | null; narrative: string; suggestedQuestions: string[] };
+        let aiResult: {
+          title: string; subtitle?: string; interpretation: string; chartType: string;
+          measure: string; dimension: string | null; aggregation: string;
+          topN: number | null; sortOrder?: string; narrative: string;
+          trendDirection?: string | null; anomalyDetected?: boolean; anomalyNote?: string | null;
+          topValue?: { name: string; value: number } | null;
+          bottomValue?: { name: string; value: number } | null;
+          suggestedQuestions: string[];
+        };
         try {
           aiResult = JSON.parse(completion.choices[0].message.content || "{}");
         } catch {
@@ -1959,40 +2069,80 @@ Only use column names that exist. For dimension, use the exact columnName (not l
         const measureCol = columns.find(c => c.columnName === aiResult.measure || c.label === aiResult.measure);
         const dimCol = aiResult.dimension ? columns.find(c => c.columnName === aiResult.dimension || c.label === aiResult.dimension) : null;
 
-        // Compute chart data
+        // Determine if dimension is date-like for chronological sorting
+        const isDimDate = dimCol?.columnType === "date" || (dimCol && dates.some(d => d.columnName === dimCol.columnName));
+        const shouldSortChron = isDimDate || finalChartType === "line" || aiResult.sortOrder === "chronological";
+
+        // Compute chart data server-side
         let chartData: unknown;
         if (finalChartType === "kpi") {
           const vals = rows.map(r => Number(measureCol ? r[measureCol.columnName] : 0)).filter(v => !isNaN(v));
           const value = agg === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
-            : agg === "count" ? vals.length : vals.reduce((a, b) => a + b, 0);
+            : agg === "count" ? vals.length
+            : agg === "min" ? Math.min(...vals)
+            : agg === "max" ? Math.max(...vals)
+            : vals.reduce((a, b) => a + b, 0);
           chartData = { value: Math.round(value * 100) / 100, label: measureCol?.label || aiResult.measure, count: vals.length };
         } else if (finalChartType === "table") {
-          const displayCols = columns.filter(c => c.columnType !== "ignore").slice(0, 8);
-          const tableRows = rows.slice(0, aiResult.topN || 20).map(r => {
-            const row: Record<string, unknown> = {};
-            displayCols.forEach(c => { row[c.label] = r[c.columnName]; });
-            return row;
-          });
           if (measureCol && dimCol) {
-            const aggRows = aggregateData(rows, measureCol.columnName, dimCol.columnName, agg, aiResult.topN || 20);
+            const aggRows = aggregateData(rows, measureCol.columnName, dimCol.columnName, agg, aiResult.topN || 25, false);
+            if (aiResult.sortOrder === "asc") aggRows.sort((a, b) => a.value - b.value);
             chartData = { rows: aggRows.map(r => ({ [dimCol.label]: r.name, [measureCol.label]: r.value })), columns: [dimCol.label, measureCol.label] };
           } else {
+            const displayCols = activeColumns.slice(0, 7);
+            const tableRows = rows.slice(0, aiResult.topN || 25).map(r => {
+              const row: Record<string, unknown> = {};
+              displayCols.forEach(c => { row[c.label] = r[c.columnName]; });
+              return row;
+            });
             chartData = { rows: tableRows, columns: displayCols.map(c => c.label) };
           }
         } else {
-          const aggData = measureCol ? aggregateData(rows, measureCol.columnName, dimCol?.columnName || null, agg, aiResult.topN || undefined) : [];
-          chartData = { data: aggData, xKey: "name", yKey: "value", measureLabel: measureCol?.label, dimensionLabel: dimCol?.label };
+          // line/bar/pie
+          const aggData = measureCol
+            ? aggregateData(rows, measureCol.columnName, dimCol?.columnName || null, agg, aiResult.topN || undefined, shouldSortChron)
+            : [];
+          // For pie, limit to 10 slices
+          const finalData = (finalChartType === "pie") ? aggData.slice(0, 10) : aggData;
+          chartData = { data: finalData, xKey: "name", yKey: "value", measureLabel: measureCol?.label, dimensionLabel: dimCol?.label };
         }
 
-        const chartConfig = { chartType: finalChartType, data: chartData, measure: aiResult.measure, dimension: aiResult.dimension, aggregation: agg, suggestedQuestions: aiResult.suggestedQuestions };
+        // Compute top/bottom values from the data if AI didn't provide them
+        let topValue = aiResult.topValue || null;
+        let bottomValue = aiResult.bottomValue || null;
+        if (!topValue && measureCol && dimCol) {
+          const aggRows = aggregateData(rows, measureCol.columnName, dimCol.columnName, agg, undefined, false);
+          if (aggRows.length > 0) {
+            topValue = { name: aggRows[0].name, value: aggRows[0].value };
+            bottomValue = aggRows.length > 1 ? { name: aggRows[aggRows.length - 1].name, value: aggRows[aggRows.length - 1].value } : null;
+          }
+        }
+
+        const chartConfig = {
+          chartType: finalChartType,
+          data: chartData,
+          measure: aiResult.measure,
+          measureLabel: measureCol?.label,
+          dimension: aiResult.dimension,
+          dimensionLabel: dimCol?.label,
+          aggregation: agg,
+        };
 
         res.json({
           title: aiResult.title,
+          subtitle: aiResult.subtitle || null,
           interpretation: aiResult.interpretation,
           chartType: finalChartType,
           chartConfig,
           narrative: aiResult.narrative,
-          suggestedQuestions: aiResult.suggestedQuestions,
+          trendDirection: aiResult.trendDirection || null,
+          anomalyDetected: aiResult.anomalyDetected || false,
+          anomalyNote: aiResult.anomalyNote || null,
+          topValue,
+          bottomValue,
+          isFollowUp,
+          previousQuestion: isFollowUp ? previousQuestion : null,
+          suggestedQuestions: aiResult.suggestedQuestions || [],
           question,
         });
       } catch (err) {
@@ -2052,25 +2202,30 @@ Only use column names that exist. For dimension, use the exact columnName (not l
           `${c.label} (${c.columnType})`
         ).join(", ");
 
-        const prompt = `You are an analytics engine. Analyze this dataset and generate 4-6 interesting auto-insights.
+        const dataStats = computeDataStats(rows, columns.filter(c => c.columnType !== "ignore"));
+        const prompt = `You are an expert analytics engine for a hospitality/hotel business intelligence platform.
 
-Dataset: "${ds.name}" with ${rows.length} rows
+Dataset: "${ds.name}" (${rows.length} rows)
 Columns: ${colSummary}
+Data statistics: ${JSON.stringify(dataStats)}
 Sample data (first 10 rows): ${JSON.stringify(rows.slice(0, 10))}
 
-Generate insights covering: trends, top performers, comparisons, anomalies, distributions.
+Generate 6 diverse, actionable business insights that a hotel executive or operations manager would find immediately valuable.
+Cover: total KPIs, time trends, category comparisons, top/bottom performers, anomalies, distributions.
 
-Return a JSON array (no markdown) with objects like:
-[{
-  "insightType": "trend|top_performer|comparison|anomaly|distribution|summary",
-  "title": "Short title",
-  "description": "2-3 sentence description of the finding",
-  "chartType": "kpi|bar|line|pie|table",
-  "suggestedQuestion": "A natural language question that would generate this insight",
-  "priority": 1-5
-}]
-
-Return ONLY the JSON array.`;
+Return a JSON object with key "insights" containing an array:
+{
+  "insights": [
+    {
+      "insightType": "summary|trend|top_performer|bottom_performer|comparison|anomaly|distribution",
+      "title": "Short insight title (max 5 words)",
+      "description": "2-3 sentences. Include specific numbers. Explain business implication.",
+      "chartType": "kpi|bar|line|pie|table",
+      "suggestedQuestion": "Natural language question a user would type to get this insight",
+      "priority": 1-6
+    }
+  ]
+}`;
 
         const completion = await oai.chat.completions.create({
           model: "gpt-4o-mini",

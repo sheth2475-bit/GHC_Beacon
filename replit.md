@@ -63,12 +63,14 @@ AI-powered SME performance and execution management platform.
 14. **Analytics Studio Hub** (/analytics) - Three-tab hub: Datasets | Insights | Dashboards. Stats row, upload CTA, onboarding banner for new users.
 15. **Upload Dataset** (/analytics/upload) - Drag-drop or click-to-browse Excel (.xlsx/.xls/.csv) upload. Auto-detects column types (measure/dimension/date). Navigate to Configure or skip to Explore.
 16. **Configure Dataset** (/analytics/datasets/:id/configure) - Column classification table: type (dimension/measure/date/ignore), aggregation (sum/avg/count/min/max), format (number/currency/percentage). Inline label editing.
-17. **Explore / Insight Builder** (/analytics/datasets/:id/explore) - Natural-language search bar + field explorer (measures/dimensions/dates). GPT-4o-mini selects chart type (KPI/bar/line/pie/table), aggregates data server-side, returns chart + AI narrative + follow-up questions. Save insight → pin to dashboard dialog.
+17. **Explore / Insight Builder** (/analytics/datasets/:id/explore) - 3-column layout: left field explorer (200px, measures/dimensions/dates) + center search+chart area + right details panel (260px). 8 chart types (kpi/bar/column/line/area/pie/donut/table) with inline switcher. Follow-up context mode (Context ON/OFF toggle), trend badges (↑/↓), anomaly badge + note, top/bottom performer cards in right panel. "New question" resets state. Follow-up chips send `previousQuestion`/`previousResult` to AI for context continuity. Premium loading state with step badges. Save insight → pin to dashboard dialog.
 18. **Dashboard Composer** (/analytics/dashboards/:id) - Pinned insights grid with mini-charts. Add/remove/reorder insights. AI narrative generation (executive summary + highlights + risks + recommendations). Publish with visibility control (private/department/company). Create new dashboard at /analytics/dashboards/new.
 
 **V1 Analytics Studio preserved**: /analytics/new (wizard), /analytics/:id (old dashboard view) — still functional for existing V1 dashboards.
 
 **Analytics Studio V2 DB tables**: analytics_datasets_v2, analytics_dataset_columns_v2, analytics_insights, analytics_auto_insights, analytics_dashboard_definitions, analytics_dashboard_items
+
+**Demo Data** (seeded for demo account): `OYO Hotel Performance Data` dataset (id=1) — 60 rows, 5 UAE properties, 12 months (Apr 2024–Mar 2025), 13 columns (revenue/ADR/occupancy/satisfaction/etc.). 6 saved insights + "OYO Performance Analytics" dashboard (id=3, published). Re-seed with: `node scripts/seed-demo-analytics.mjs`
 
 **Analytics Studio V1 DB tables**: analytics_dashboards, analytics_dashboard_uploads, analytics_dashboard_widgets, analytics_dashboard_narratives, analytics_dashboard_chat
 

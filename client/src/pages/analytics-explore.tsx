@@ -39,12 +39,20 @@ type FullDataset = AnalyticsDataset & {
 
 type AskResult = {
   title: string;
+  subtitle?: string | null;
   interpretation: string;
   chartType: string;
   chartConfig: Record<string, unknown>;
   narrative: string;
   suggestedQuestions: string[];
   question: string;
+  trendDirection?: string | null;
+  anomalyDetected?: boolean;
+  anomalyNote?: string | null;
+  topValue?: { name: string; value: number } | null;
+  bottomValue?: { name: string; value: number } | null;
+  isFollowUp?: boolean;
+  previousQuestion?: string | null;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -309,6 +317,7 @@ export default function AnalyticsExplorePage() {
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [selectedDashId, setSelectedDashId] = useState<string>("");
   const [newDashName, setNewDashName] = useState("");
+  const [followUpMode, setFollowUpMode] = useState(false);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -316,6 +325,17 @@ export default function AnalyticsExplorePage() {
     mutationFn: (q: string) => apiRequest("POST", `/api/v2/analytics/datasets/${id}/ask`, {
       question: q,
       chartTypeOverride: chartOverride && !["area", "column", "donut"].includes(chartOverride) ? chartOverride : undefined,
+      // Send previous result as context for follow-up questions
+      ...(followUpMode && result ? {
+        previousQuestion: result.question,
+        previousResult: {
+          title: result.title,
+          chartType: result.chartType,
+          measure: (result.chartConfig as { measure?: string }).measure,
+          dimension: (result.chartConfig as { dimension?: string }).dimension,
+          aggregation: (result.chartConfig as { aggregation?: string }).aggregation,
+        },
+      } : {}),
     }).then(r => r.json()),
     onSuccess: (data: AskResult) => {
       setResult(data);
@@ -385,12 +405,23 @@ export default function AnalyticsExplorePage() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  const handleAsk = useCallback((q?: string) => {
+  const handleAsk = useCallback((q?: string, asFollowUp?: boolean) => {
     const query = (q || question).trim();
     if (!query || askMutation.isPending) return;
     if (!q) setQuestion(query);
+    // If explicitly triggered as follow-up, set mode; otherwise start fresh
+    if (asFollowUp !== undefined) setFollowUpMode(asFollowUp);
     askMutation.mutate(query);
   }, [question, askMutation]);
+
+  const handleNewQuestion = useCallback(() => {
+    setFollowUpMode(false);
+    setResult(null);
+    setSavedInsightId(null);
+    setQuestion("");
+    setChartOverride("");
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, []);
 
   const handlePinConfirm = async () => {
     let insightId = savedInsightId;
@@ -769,16 +800,52 @@ export default function AnalyticsExplorePage() {
             {/* ── Result ───────────────────────────────────────────── */}
             {result && !askMutation.isPending && (
               <div className="space-y-4">
+
+                {/* Follow-up context ribbon */}
+                {result.isFollowUp && result.previousQuestion && (
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 border border-border/60">
+                    <ArrowRight className="h-3 w-3 shrink-0 text-primary/60" />
+                    <span className="truncate">Follow-up of: <em className="text-foreground">"{result.previousQuestion}"</em></span>
+                    <button onClick={handleNewQuestion} className="ml-auto shrink-0 hover:text-foreground transition-colors" title="Start fresh">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Chart header */}
                 <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-black leading-tight" data-testid="text-insight-title">{result.title}</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                      <Eye className="h-3 w-3" /> Based on {ds.rowCount?.toLocaleString()} records
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-lg font-black leading-tight" data-testid="text-insight-title">{result.title}</h2>
+                      {/* Trend direction badge */}
+                      {result.trendDirection === "up" && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full" data-testid="badge-trend-up">
+                          ↑ Trending Up
+                        </span>
+                      )}
+                      {result.trendDirection === "down" && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full" data-testid="badge-trend-down">
+                          ↓ Trending Down
+                        </span>
+                      )}
+                      {result.anomalyDetected && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full" data-testid="badge-anomaly">
+                          ⚡ Anomaly Detected
+                        </span>
+                      )}
+                    </div>
+                    {result.subtitle && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{result.subtitle}</p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground/60 mt-0.5 flex items-center gap-1">
+                      <Eye className="h-3 w-3" /> {ds.rowCount?.toLocaleString()} records · {CHART_TYPE_OPTIONS.find(o => o.value === activeChartType)?.label || activeChartType}
                     </p>
                   </div>
-                  {/* Actions */}
+                  {/* Action buttons */}
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5 text-muted-foreground" onClick={handleNewQuestion} data-testid="button-new-question">
+                      <RefreshCw className="h-3.5 w-3.5" /> New
+                    </Button>
                     <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5 text-muted-foreground" onClick={handleExport} data-testid="button-export">
                       <Download className="h-3.5 w-3.5" /> Export
                     </Button>
@@ -788,7 +855,7 @@ export default function AnalyticsExplorePage() {
                       </span>
                     ) : (
                       <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => saveInsightMutation.mutate()} disabled={saveInsightMutation.isPending} data-testid="button-save-insight">
-                        {saveInsightMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save Insight
+                        {saveInsightMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
                       </Button>
                     )}
                     <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => { if (!savedInsightId) saveInsightMutation.mutate(); setPinDialogOpen(true); }} data-testid="button-pin-insight">
@@ -797,9 +864,17 @@ export default function AnalyticsExplorePage() {
                   </div>
                 </div>
 
+                {/* Anomaly note */}
+                {result.anomalyDetected && result.anomalyNote && (
+                  <div className="flex items-start gap-2.5 text-xs bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2.5" data-testid="anomaly-note">
+                    <span className="text-amber-600 shrink-0 mt-0.5">⚡</span>
+                    <p className="text-amber-800 dark:text-amber-300">{result.anomalyNote}</p>
+                  </div>
+                )}
+
                 {/* Chart type switcher */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mr-1">Chart:</span>
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mr-1 shrink-0">Visual:</span>
                   {CHART_TYPE_OPTIONS.map(({ value, label, Icon }) => (
                     <button
                       key={value}
@@ -814,8 +889,8 @@ export default function AnalyticsExplorePage() {
                 </div>
 
                 {/* Chart canvas */}
-                <div className="rounded-xl border bg-card overflow-hidden">
-                  <div className="h-[3px] bg-gradient-to-r from-primary via-primary/60 to-primary/20" />
+                <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+                  <div className={`h-[3px] bg-gradient-to-r ${result.trendDirection === "up" ? "from-emerald-500 to-emerald-300" : result.trendDirection === "down" ? "from-red-500 to-red-300" : result.anomalyDetected ? "from-amber-500 to-amber-300" : "from-primary via-primary/60 to-primary/20"}`} />
                   <div className="p-5">
                     <InsightChart result={result} override={activeChartType} />
                   </div>
@@ -824,17 +899,27 @@ export default function AnalyticsExplorePage() {
                 {/* Follow-up questions */}
                 {result.suggestedQuestions?.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                      <ArrowRight className="h-3 w-3" /> Ask a follow-up
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <ArrowRight className="h-3 w-3" /> Follow-up questions
+                      </p>
+                      <button
+                        onClick={() => { setFollowUpMode(!followUpMode); }}
+                        className={`text-[10px] px-2.5 py-0.5 rounded-full border transition-all ${followUpMode ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-border hover:border-primary/40"}`}
+                        data-testid="button-followup-mode"
+                      >
+                        {followUpMode ? "Context ON" : "Context OFF"}
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {result.suggestedQuestions.map((q, i) => (
                         <button
                           key={i}
-                          onClick={() => handleAsk(q)}
-                          className="text-xs px-3 py-1.5 rounded-full border bg-card hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
+                          onClick={() => handleAsk(q, true)}
+                          className="text-xs px-3 py-1.5 rounded-full border bg-card hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all group"
                           data-testid={`followup-${i}`}
                         >
+                          <ArrowRight className="h-2.5 w-2.5 inline mr-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                           {q}
                         </button>
                       ))}
@@ -868,20 +953,52 @@ export default function AnalyticsExplorePage() {
                 {/* Interpretation */}
                 <div>
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-                    <Info className="h-2.5 w-2.5" /> Interpretation
+                    <Info className="h-2.5 w-2.5" /> How it was interpreted
                   </p>
+                  <p className="text-[11px] text-muted-foreground italic mb-2 leading-relaxed">{result.interpretation}</p>
                   <div className="rounded-lg border overflow-hidden">
                     {interpParts && (
-                      <div className="px-3 py-1.5 divide-y divide-border/50">
+                      <div className="px-3 py-1 divide-y divide-border/50">
                         <InterpRow label="Measure" value={interpParts.measure} highlight />
                         <InterpRow label="Dimension" value={interpParts.dimension} />
                         <InterpRow label="Aggregation" value={interpParts.aggregation} />
-                        <InterpRow label="Chart Type" value={currentChartLabel} />
-                        <InterpRow label="Filters" value="None applied" />
+                        <InterpRow label="Chart" value={currentChartLabel} />
+                        {result.trendDirection && result.trendDirection !== "null" && (
+                          <InterpRow label="Trend" value={result.trendDirection === "up" ? "↑ Upward" : result.trendDirection === "down" ? "↓ Downward" : "→ Flat"} />
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
+
+                {/* Top / Bottom performers */}
+                {(result.topValue || result.bottomValue) && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <Zap className="h-2.5 w-2.5" /> Key Values
+                    </p>
+                    <div className="space-y-1.5">
+                      {result.topValue && (
+                        <div className="flex items-center justify-between rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-3 py-2">
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">▲ Highest</span>
+                          <div className="text-right">
+                            <p className="text-xs font-bold">{formatValue(result.topValue.value)}</p>
+                            <p className="text-[10px] text-muted-foreground">{result.topValue.name}</p>
+                          </div>
+                        </div>
+                      )}
+                      {result.bottomValue && (
+                        <div className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 px-3 py-2">
+                          <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold">▼ Lowest</span>
+                          <div className="text-right">
+                            <p className="text-xs font-bold">{formatValue(result.bottomValue.value)}</p>
+                            <p className="text-[10px] text-muted-foreground">{result.bottomValue.name}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* AI Narrative */}
                 {result.narrative && (
@@ -899,17 +1016,17 @@ export default function AnalyticsExplorePage() {
                 {result.suggestedQuestions?.length > 0 && (
                   <div>
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <ArrowRight className="h-2.5 w-2.5" /> Next Questions
+                      <ArrowRight className="h-2.5 w-2.5" /> Explore Further
                     </p>
                     <div className="space-y-1.5">
                       {result.suggestedQuestions.slice(0, 4).map((q, i) => (
                         <button
                           key={i}
-                          onClick={() => handleAsk(q)}
+                          onClick={() => handleAsk(q, true)}
                           className="w-full text-left text-xs px-3 py-2 rounded-lg border bg-card hover:bg-muted/40 hover:border-primary/30 transition-all flex items-center gap-2 group"
                         >
-                          <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0 group-hover:text-primary" />
-                          <span>{q}</span>
+                          <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0 group-hover:text-primary transition-colors" />
+                          <span className="leading-snug">{q}</span>
                         </button>
                       ))}
                     </div>
@@ -926,6 +1043,9 @@ export default function AnalyticsExplorePage() {
                   </Button>
                   <Button variant="ghost" size="sm" className="w-full h-8 text-xs gap-2 justify-start text-muted-foreground" onClick={handleExport}>
                     <Download className="h-3.5 w-3.5" /> Export CSV
+                  </Button>
+                  <Button variant="ghost" size="sm" className="w-full h-8 text-xs gap-2 justify-start text-muted-foreground" onClick={handleNewQuestion}>
+                    <RefreshCw className="h-3.5 w-3.5" /> New Question
                   </Button>
                 </div>
               </>
