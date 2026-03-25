@@ -146,7 +146,7 @@ export default function AnalyticsStudioPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const [tab, setTab] = useState<Tab>("datasets");
+  const [tab, setTab] = useState<Tab>("dashboards");
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ type: "dataset" | "insight" | "definition"; id: number } | null>(null);
 
@@ -261,14 +261,14 @@ export default function AnalyticsStudioPage() {
         {/* Tabs + search */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5">
-            <button className={tabCls("datasets")} onClick={() => setTab("datasets")} data-testid="tab-datasets">
-              <Database className="h-3.5 w-3.5" /> Datasets <span className="ml-0.5 text-[10px] bg-muted rounded-full px-1.5 font-normal">{datasets.length}</span>
+            <button className={tabCls("dashboards")} onClick={() => setTab("dashboards")} data-testid="tab-dashboards">
+              <LayoutDashboard className="h-3.5 w-3.5" /> Dashboards <span className="ml-0.5 text-[10px] bg-muted rounded-full px-1.5 font-normal">{definitions.length}</span>
             </button>
             <button className={tabCls("insights")} onClick={() => setTab("insights")} data-testid="tab-insights">
               <Lightbulb className="h-3.5 w-3.5" /> Insights <span className="ml-0.5 text-[10px] bg-muted rounded-full px-1.5 font-normal">{insights.length}</span>
             </button>
-            <button className={tabCls("dashboards")} onClick={() => setTab("dashboards")} data-testid="tab-dashboards">
-              <LayoutDashboard className="h-3.5 w-3.5" /> Dashboards <span className="ml-0.5 text-[10px] bg-muted rounded-full px-1.5 font-normal">{definitions.length}</span>
+            <button className={tabCls("datasets")} onClick={() => setTab("datasets")} data-testid="tab-datasets">
+              <Database className="h-3.5 w-3.5" /> Datasets & Ask Question <span className="ml-0.5 text-[10px] bg-muted rounded-full px-1.5 font-normal">{datasets.length}</span>
             </button>
           </div>
           <div className="relative flex-1 min-w-[200px] max-w-sm">
