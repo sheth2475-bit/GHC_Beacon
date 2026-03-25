@@ -66,20 +66,9 @@ export const kpiActuals = pgTable("kpi_actuals", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-export const meetings = pgTable("meetings", {
-  id: serial("id").primaryKey(),
-  companyId: integer("company_id").notNull().references(() => companies.id),
-  title: text("title").notNull(),
-  meetingDate: text("meeting_date").notNull(),
-  departmentId: integer("department_id").references(() => departments.id),
-  summary: text("summary"),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
-
 export const actionItems = pgTable("action_items", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),
-  meetingId: integer("meeting_id").references(() => meetings.id),
   departmentId: integer("department_id").references(() => departments.id),
   meetingType: text("meeting_type"),
   title: text("title").notNull(),
@@ -102,13 +91,6 @@ export const monthlyReviews = pgTable("monthly_reviews", {
   gaps: text("gaps"),
   recommendations: text("recommendations"),
   aiGeneratedText: text("ai_generated_text"),
-  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
-
-export const meetingTypes = pgTable("meeting_types", {
-  id: serial("id").primaryKey(),
-  companyId: integer("company_id").notNull().references(() => companies.id),
-  name: text("name").notNull(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -302,10 +284,8 @@ export const insertDepartmentSchema = createInsertSchema(departments).omit({ id:
 export const insertBusinessGoalSchema = createInsertSchema(businessGoals).omit({ id: true, createdAt: true });
 export const insertKpiSchema = createInsertSchema(kpis).omit({ id: true, createdAt: true });
 export const insertKpiActualSchema = createInsertSchema(kpiActuals).omit({ id: true, createdAt: true });
-export const insertMeetingSchema = createInsertSchema(meetings).omit({ id: true, createdAt: true });
 export const insertActionItemSchema = createInsertSchema(actionItems).omit({ id: true, createdAt: true });
 export const insertMonthlyReviewSchema = createInsertSchema(monthlyReviews).omit({ id: true, createdAt: true });
-export const insertMeetingTypeSchema = createInsertSchema(meetingTypes).omit({ id: true, createdAt: true });
 export const insertDashboardPlanSchema = createInsertSchema(dashboardPlans).omit({ id: true, createdAt: true });
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
@@ -335,14 +315,10 @@ export type Kpi = typeof kpis.$inferSelect;
 export type InsertKpi = z.infer<typeof insertKpiSchema>;
 export type KpiActual = typeof kpiActuals.$inferSelect;
 export type InsertKpiActual = z.infer<typeof insertKpiActualSchema>;
-export type Meeting = typeof meetings.$inferSelect;
-export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
 export type ActionItem = typeof actionItems.$inferSelect;
 export type InsertActionItem = z.infer<typeof insertActionItemSchema>;
 export type MonthlyReview = typeof monthlyReviews.$inferSelect;
 export type InsertMonthlyReview = z.infer<typeof insertMonthlyReviewSchema>;
-export type MeetingType = typeof meetingTypes.$inferSelect;
-export type InsertMeetingType = z.infer<typeof insertMeetingTypeSchema>;
 export type DashboardPlan = typeof dashboardPlans.$inferSelect;
 export type InsertDashboardPlan = z.infer<typeof insertDashboardPlanSchema>;
 export type Project = typeof projects.$inferSelect;

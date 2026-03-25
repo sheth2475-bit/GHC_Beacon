@@ -11,8 +11,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/page-header";
 import { LoadingPage } from "@/components/loading-state";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, User, Building2, Database, Trash2, Plus, LayoutList, Save, X, Target, ShieldCheck, Key, Loader2, Bot } from "lucide-react";
-import type { Department, MeetingType } from "@shared/schema";
+import { Settings, User, Building2, Database, Trash2, Plus, Save, X, Target, ShieldCheck, Key, Loader2, Bot } from "lucide-react";
+import type { Department } from "@shared/schema";
 
 const INDUSTRIES = [
   "Hospitality", "Restaurants", "Retail", "Real Estate", "Healthcare clinics",
@@ -26,7 +26,6 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [newDepartment, setNewDepartment] = useState("");
-  const [newMeetingType, setNewMeetingType] = useState("");
 
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -37,7 +36,6 @@ export default function SettingsPage() {
 
   const { data: company, isLoading: companyLoading } = useQuery<any>({ queryKey: ["/api/company"] });
   const { data: departments = [], isLoading: deptsLoading } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
-  const { data: meetingTypes = [], isLoading: mtLoading } = useQuery<MeetingType[]>({ queryKey: ["/api/meeting-types"] });
 
   useEffect(() => {
     if (company) {
@@ -91,34 +89,7 @@ export default function SettingsPage() {
     },
   });
 
-  const createMeetingType = useMutation({
-    mutationFn: async (name: string) => {
-      await apiRequest("POST", "/api/meeting-types", { name });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/meeting-types"] });
-      setNewMeetingType("");
-      toast({ title: "Meeting type added" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to add meeting type", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const deleteMeetingType = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/meeting-types/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/meeting-types"] });
-      toast({ title: "Meeting type removed" });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Failed to remove meeting type", description: err.message, variant: "destructive" });
-    },
-  });
-
-  if (companyLoading || deptsLoading || mtLoading) return <LoadingPage />;
+  if (companyLoading || deptsLoading) return <LoadingPage />;
 
   const infoRow = (label: string, value: React.ReactNode, testId?: string) => (
     <div className="flex items-center justify-between gap-1 py-2">
@@ -131,12 +102,6 @@ export default function SettingsPage() {
     const trimmed = newDepartment.trim();
     if (!trimmed) return;
     createDepartment.mutate(trimmed);
-  };
-
-  const handleAddMeetingType = () => {
-    const trimmed = newMeetingType.trim();
-    if (!trimmed) return;
-    createMeetingType.mutate(trimmed);
   };
 
   const addGoal = () => {
@@ -281,57 +246,6 @@ export default function SettingsPage() {
               data-testid="button-add-department"
               onClick={handleAddDepartment}
               disabled={createDepartment.isPending || !newDepartment.trim()}
-            >
-              <Plus className="h-4 w-4 mr-1" />Add
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <LayoutList className="h-4 w-4" />Meeting Types
-          </CardTitle>
-          <CardDescription>Meeting categories used to classify action items in the Action Tracker</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {meetingTypes.length === 0 ? (
-            <p className="text-sm text-muted-foreground" data-testid="text-no-meeting-types">No meeting types added yet</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {meetingTypes.map((mt) => (
-                <div
-                  key={mt.id}
-                  className="flex items-center gap-1 bg-muted border rounded-full px-3 py-1"
-                  data-testid={`row-meeting-type-${mt.id}`}
-                >
-                  <span className="text-sm font-medium" data-testid={`text-meeting-type-name-${mt.id}`}>{mt.name}</span>
-                  <button
-                    className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
-                    data-testid={`button-delete-meeting-type-${mt.id}`}
-                    onClick={() => deleteMeetingType.mutate(mt.id)}
-                    disabled={deleteMeetingType.isPending}
-                    aria-label={`Remove ${mt.name}`}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <Input
-              data-testid="input-new-meeting-type"
-              placeholder="Add new meeting type..."
-              value={newMeetingType}
-              onChange={(e) => setNewMeetingType(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddMeetingType()}
-            />
-            <Button
-              data-testid="button-add-meeting-type"
-              onClick={handleAddMeetingType}
-              disabled={createMeetingType.isPending || !newMeetingType.trim()}
             >
               <Plus className="h-4 w-4 mr-1" />Add
             </Button>

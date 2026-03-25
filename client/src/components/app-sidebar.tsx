@@ -2,7 +2,7 @@ import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
-  FolderOpen, Users2, Clock, Calendar,
+  FolderOpen, Users2, Clock,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -40,7 +40,6 @@ const executiveInsightsNav = [
 
 const executionNav = [
   { title: "Projects", url: "/projects", icon: FolderOpen },
-  { title: "Meetings", url: "/meetings", icon: Calendar },
   { title: "Workload", url: "/workload", icon: Users2 },
 ];
 

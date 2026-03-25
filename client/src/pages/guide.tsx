@@ -229,11 +229,10 @@ const MODULES = [
     color: "orange",
     screenshot: null,
     screenshotAlt: "",
-    overview: "Settings is where you configure your company profile, manage departments and meeting types, set up your team, and manage your subscription plan and activation key.",
+    overview: "Settings is where you configure your company profile, manage departments, set up your team, and manage your subscription plan and activation key.",
     readingGuide: [
       { area: "Company Profile tab", desc: "Update your company name, industry, company size, and country. These details are used by the AI to generate relevant KPIs and performance insights." },
       { area: "Departments", desc: "Add departments as chip badges (e.g. Sales, Operations, HR, Finance). Click the × on any chip to remove it. Departments are used to filter KPIs and action items." },
-      { area: "Meeting Types", desc: "Define the types of meetings your business runs (e.g. CEO Meeting, Board Review). These appear as badges on action items. Add or remove types as chip badges." },
       { area: "Strategic Goals", desc: "List your company's strategic goals for the year. The AI uses these when generating insights and recommendations." },
       { area: "Subscription card", desc: "Shows your current plan (Trial / Growth / Enterprise), your daily AI request limit and usage, and remaining trial days if you are on a free trial." },
       { area: "Trial countdown", desc: "If your account is on a 30-day free trial, a banner shows exactly how many days remain. When ≤ 7 days, it turns red. Enter your activation key below it to upgrade." },
@@ -242,10 +241,9 @@ const MODULES = [
     actions: [
       { step: "1", text: "Go to Settings > Company Profile and fill in your company details" },
       { step: "2", text: "Add your Departments (at least one per team that uses KPIs)" },
-      { step: "3", text: "Define your Meeting Types to match how your business runs" },
-      { step: "4", text: "Add 3–5 Strategic Goals — these guide the AI's recommendations" },
-      { step: "5", text: "Check your Subscription card to see your AI limit and days remaining" },
-      { step: "6", text: "Enter your Activation Key when ready to upgrade to a paid plan" },
+      { step: "3", text: "Add 3–5 Strategic Goals — these guide the AI's recommendations" },
+      { step: "4", text: "Check your Subscription card to see your AI limit and days remaining" },
+      { step: "5", text: "Enter your Activation Key when ready to upgrade to a paid plan" },
     ],
   },
 ];

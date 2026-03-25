@@ -2,15 +2,15 @@ import { db } from "./db";
 import { eq, desc, and, ilike, or, inArray, gte, sql as sqlExpr } from "drizzle-orm";
 import {
   users, companies, departments, businessGoals, kpis, kpiActuals,
-  meetings, actionItems, monthlyReviews, meetingTypes, dashboardPlans,
+  actionItems, monthlyReviews, dashboardPlans,
   projects, tasks, subtasks, milestones, projectComments, assistantLogs,
   platformOwners, subscriptions, activationKeys, userActivityLogs, ownerAuditLogs, teamMembers,
   userDepartmentAccess,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
-  type InsertMeeting, type Meeting, type InsertActionItem, type ActionItem,
-  type InsertMonthlyReview, type MonthlyReview, type InsertMeetingType, type MeetingType,
+  type InsertActionItem, type ActionItem,
+  type InsertMonthlyReview, type MonthlyReview,
   type InsertDashboardPlan, type DashboardPlan,
   type InsertProject, type Project, type InsertTask, type Task,
   type InsertSubtask, type Subtask, type InsertMilestone, type Milestone,
@@ -62,12 +62,6 @@ export interface IStorage {
   getAllKpiActuals(companyId: number): Promise<(KpiActual & { kpiName: string })[]>;
   createKpiActual(actual: InsertKpiActual): Promise<KpiActual>;
 
-  getMeetings(companyId: number): Promise<Meeting[]>;
-  getMeeting(id: number): Promise<Meeting | undefined>;
-  createMeeting(meeting: InsertMeeting): Promise<Meeting>;
-  updateMeeting(id: number, data: Partial<InsertMeeting>): Promise<Meeting>;
-  deleteMeeting(id: number): Promise<void>;
-
   getActionItems(companyId: number): Promise<ActionItem[]>;
   getActionItem(id: number): Promise<ActionItem | undefined>;
   createActionItem(item: InsertActionItem): Promise<ActionItem>;
@@ -77,10 +71,6 @@ export interface IStorage {
   getMonthlyReviews(companyId: number): Promise<MonthlyReview[]>;
   getMonthlyReview(id: number): Promise<MonthlyReview | undefined>;
   createMonthlyReview(review: InsertMonthlyReview): Promise<MonthlyReview>;
-
-  getMeetingTypes(companyId: number): Promise<MeetingType[]>;
-  createMeetingType(mt: InsertMeetingType): Promise<MeetingType>;
-  deleteMeetingType(id: number): Promise<void>;
 
   getDashboardPlans(companyId: number): Promise<DashboardPlan[]>;
   createDashboardPlan(plan: InsertDashboardPlan): Promise<DashboardPlan>;
@@ -124,7 +114,6 @@ export interface IStorage {
     projects: Project[];
     tasks: Task[];
     kpis: Kpi[];
-    meetings: Meeting[];
     actionItems: ActionItem[];
   }>;
 
@@ -284,26 +273,6 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async getMeetings(companyId: number) {
-    return db.select().from(meetings).where(eq(meetings.companyId, companyId)).orderBy(desc(meetings.createdAt));
-  }
-  async getMeeting(id: number) {
-    const [meeting] = await db.select().from(meetings).where(eq(meetings.id, id));
-    return meeting;
-  }
-  async createMeeting(meeting: InsertMeeting) {
-    const [created] = await db.insert(meetings).values(meeting).returning();
-    return created;
-  }
-  async updateMeeting(id: number, data: Partial<InsertMeeting>) {
-    const [updated] = await db.update(meetings).set(data).where(eq(meetings.id, id)).returning();
-    return updated;
-  }
-  async deleteMeeting(id: number) {
-    await db.delete(actionItems).where(eq(actionItems.meetingId, id));
-    await db.delete(meetings).where(eq(meetings.id, id));
-  }
-
   async getActionItems(companyId: number) {
     return db.select().from(actionItems).where(eq(actionItems.companyId, companyId)).orderBy(desc(actionItems.createdAt));
   }
@@ -333,17 +302,6 @@ export class DatabaseStorage implements IStorage {
   async createMonthlyReview(review: InsertMonthlyReview) {
     const [created] = await db.insert(monthlyReviews).values(review).returning();
     return created;
-  }
-
-  async getMeetingTypes(companyId: number) {
-    return db.select().from(meetingTypes).where(eq(meetingTypes.companyId, companyId));
-  }
-  async createMeetingType(mt: InsertMeetingType) {
-    const [created] = await db.insert(meetingTypes).values(mt).returning();
-    return created;
-  }
-  async deleteMeetingType(id: number) {
-    await db.delete(meetingTypes).where(eq(meetingTypes.id, id));
   }
 
   async getDashboardPlans(companyId: number) {
@@ -465,14 +423,13 @@ export class DatabaseStorage implements IStorage {
   // ─── Search ───────────────────────────────────────────────────────────────
   async searchAll(companyId: number, q: string) {
     const term = `%${q}%`;
-    const [searchProjects, searchTasks, searchKpis, searchMeetings, searchActions] = await Promise.all([
+    const [searchProjects, searchTasks, searchKpis, searchActions] = await Promise.all([
       db.select().from(projects).where(and(eq(projects.companyId, companyId), or(ilike(projects.name, term), ilike(projects.description, term)))).limit(10),
       db.select().from(tasks).where(and(eq(tasks.companyId, companyId), or(ilike(tasks.title, term), ilike(tasks.description, term)))).limit(10),
       db.select().from(kpis).where(and(eq(kpis.companyId, companyId), or(ilike(kpis.kpiName, term), ilike(kpis.description, term)))).limit(10),
-      db.select().from(meetings).where(and(eq(meetings.companyId, companyId), or(ilike(meetings.title, term), ilike(meetings.summary, term)))).limit(10),
       db.select().from(actionItems).where(and(eq(actionItems.companyId, companyId), or(ilike(actionItems.title, term), ilike(actionItems.description, term)))).limit(10),
     ]);
-    return { projects: searchProjects, tasks: searchTasks, kpis: searchKpis, meetings: searchMeetings, actionItems: searchActions };
+    return { projects: searchProjects, tasks: searchTasks, kpis: searchKpis, actionItems: searchActions };
   }
 
   // ─── Assistant Logs ───────────────────────────────────────────────────────

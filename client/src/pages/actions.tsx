@@ -20,7 +20,7 @@ import { ExcelUpload } from "@/components/excel-upload";
 import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X, Bell, BellRing, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
-import type { ActionItem, Department, MeetingType, TeamMember } from "@shared/schema";
+import type { ActionItem, Department, TeamMember } from "@shared/schema";
 
 const STATUSES = ["Not Started", "In Progress", "Completed", "Delayed", "Cancelled"];
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
@@ -30,7 +30,6 @@ export default function ActionsPage() {
   const { canEdit } = useAuth();
   const { data: actions, isLoading, error, refetch } = useQuery<ActionItem[]>({ queryKey: ["/api/action-items"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
-  const { data: meetingTypes } = useQuery<MeetingType[]>({ queryKey: ["/api/meeting-types"] });
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({ queryKey: ["/api/team-members"] });
   const [showDialog, setShowDialog] = useState(false);
   const [remindDialog, setRemindDialog] = useState<ActionItem | null>(null);
@@ -178,9 +177,7 @@ export default function ActionsPage() {
 
   const getDeptName = (deptId: number | null) => departments?.find(d => d.id === deptId)?.name || "-";
 
-  const meetingTypeNames = (meetingTypes || []).map(mt => mt.name);
-  const actionMeetingTypes = Array.from(new Set((actions || []).map(a => a.meetingType).filter((x): x is string => !!x)));
-  const uniqueMeetingTypes = Array.from(new Set([...meetingTypeNames, ...actionMeetingTypes]));
+  const uniqueMeetingTypes = Array.from(new Set((actions || []).map(a => a.meetingType).filter((x): x is string => !!x)));
 
   const actionColumnMap: Record<string, string> = {
     "Meeting Type": "meetingType", "Title": "title", "Description": "description",

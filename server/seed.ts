@@ -198,33 +198,21 @@ async function seedKpiData(companyId: number, depts: Record<string, number>) {
 }
 
 async function seedMeetingsAndActions(companyId: number, depts: Record<string, number>) {
-  const meetings = [
-    { title: "February Monthly Operations Review", date: "2026-02-28", dept: "Operations", summary: "Reviewed February performance. Occupancy dropped to 79%. Guest satisfaction improved to 4.6. F&B revenue per cover fell below target at AED 128. Housekeeping excellent at 25 min turnaround." },
-    { title: "Q1 Revenue Strategy Meeting", date: "2026-02-15", dept: "Sales & Revenue", summary: "Discussed March-April booking pipeline. Corporate RFP responses due March 10. Proposed weekend staycation packages. Loyalty program showing 27% repeat rate." },
-    { title: "HR Monthly Review - February", date: "2026-02-25", dept: "HR & Admin", summary: "Turnover at 23% — 3 housekeepers joined competitor. Exit interviews indicate salary concerns. Training excellent at 10 hrs/employee. Retention bonus structure discussed." },
-    { title: "Finance Committee - February Closeout", date: "2026-02-27", dept: "Finance", summary: "GOP margin at 31%, below 35% target. Revenue shortfall of 5.8%. CPOR rose to AED 245. Recommendation: defer non-essential capex to Q2. F&B food cost ratio at 34%." },
-  ];
-  const createdMeetings: Record<string, number> = {};
-  for (const m of meetings) {
-    const deptId = depts[m.dept] || Object.values(depts)[0];
-    const meeting = await storage.createMeeting({ companyId, title: m.title, meetingDate: m.date, departmentId: deptId, summary: m.summary });
-    createdMeetings[m.title] = meeting.id;
-  }
   const actions = [
-    { title: "Launch business traveler lunch promotion", desc: "Design AED 75 fixed-price lunch menu to increase midweek F&B covers.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-10", revisedDue: "2026-03-15", priority: "High", status: "In Progress", dept: "Operations", meeting: "February Monthly Operations Review", meetingType: "Monthly Operations Review" },
-    { title: "Review and update menu pricing for Q2", desc: "Benchmark competitor pricing. Propose 8-12% adjustments on underperforming items.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-15", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Operations", meeting: "February Monthly Operations Review", meetingType: "Monthly Operations Review" },
-    { title: "Submit corporate RFP responses", desc: "Complete RFP responses for Emirates NBD, ADNOC, Etisalat.", owner: "Sarah Al Maktoum (Sales Manager)", due: "2026-03-10", revisedDue: null, priority: "Critical", status: "In Progress", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "PMO Steering Committee" },
-    { title: "Design weekend staycation packages", desc: "Create 2-night stay packages with F&B credit for local market.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-12", revisedDue: "2026-03-18", priority: "High", status: "In Progress", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "PMO Steering Committee" },
-    { title: "Present dynamic pricing model to GM", desc: "Build shoulder season pricing grid with weekday/weekend rate differentials.", owner: "Priya Sharma (Revenue Manager)", due: "2026-03-18", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "CEO Meeting" },
-    { title: "Implement housekeeping retention bonuses", desc: "AED 500/month retention bonus for housekeeping staff with >1yr tenure.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-08", revisedDue: null, priority: "High", status: "Completed", dept: "HR & Admin", meeting: "HR Monthly Review - February", meetingType: "Department Review" },
-    { title: "Conduct exit interviews for departed staff", desc: "Structured exit interviews for 3 departed housekeepers.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-05", revisedDue: null, priority: "Medium", status: "Completed", dept: "HR & Admin", meeting: "HR Monthly Review - February", meetingType: "Department Review" },
-    { title: "Defer Q1 capex: lobby renovation", desc: "Postpone lobby furniture replacement (AED 180K) to Q2.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-01", revisedDue: null, priority: "High", status: "Completed", dept: "Finance", meeting: "Finance Committee - February Closeout", meetingType: "Finance Committee" },
-    { title: "Analyze F&B food cost ratio", desc: "Food cost at 34% vs 30% target. Investigate wastage and portion control.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-20", revisedDue: "2026-03-25", priority: "High", status: "In Progress", dept: "Finance", meeting: "Finance Committee - February Closeout", meetingType: "Finance Committee" },
-    { title: "Loyalty program email campaign - March", desc: "Send email to 2,400 loyalty members with exclusive March rates and F&B voucher.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-05", revisedDue: "2026-03-12", priority: "Medium", status: "Delayed", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "CEO Meeting" },
+    { title: "Launch business traveler lunch promotion", desc: "Design AED 75 fixed-price lunch menu to increase midweek F&B covers.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-10", revisedDue: "2026-03-15", priority: "High", status: "In Progress", dept: "Operations", meetingType: "Monthly Operations Review" },
+    { title: "Review and update menu pricing for Q2", desc: "Benchmark competitor pricing. Propose 8-12% adjustments on underperforming items.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-15", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Operations", meetingType: "Monthly Operations Review" },
+    { title: "Submit corporate RFP responses", desc: "Complete RFP responses for Emirates NBD, ADNOC, Etisalat.", owner: "Sarah Al Maktoum (Sales Manager)", due: "2026-03-10", revisedDue: null, priority: "Critical", status: "In Progress", dept: "Sales & Revenue", meetingType: "PMO Steering Committee" },
+    { title: "Design weekend staycation packages", desc: "Create 2-night stay packages with F&B credit for local market.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-12", revisedDue: "2026-03-18", priority: "High", status: "In Progress", dept: "Sales & Revenue", meetingType: "PMO Steering Committee" },
+    { title: "Present dynamic pricing model to GM", desc: "Build shoulder season pricing grid with weekday/weekend rate differentials.", owner: "Priya Sharma (Revenue Manager)", due: "2026-03-18", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Sales & Revenue", meetingType: "CEO Meeting" },
+    { title: "Implement housekeeping retention bonuses", desc: "AED 500/month retention bonus for housekeeping staff with >1yr tenure.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-08", revisedDue: null, priority: "High", status: "Completed", dept: "HR & Admin", meetingType: "Department Review" },
+    { title: "Conduct exit interviews for departed staff", desc: "Structured exit interviews for 3 departed housekeepers.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-05", revisedDue: null, priority: "Medium", status: "Completed", dept: "HR & Admin", meetingType: "Department Review" },
+    { title: "Defer Q1 capex: lobby renovation", desc: "Postpone lobby furniture replacement (AED 180K) to Q2.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-01", revisedDue: null, priority: "High", status: "Completed", dept: "Finance", meetingType: "Finance Committee" },
+    { title: "Analyze F&B food cost ratio", desc: "Food cost at 34% vs 30% target. Investigate wastage and portion control.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-20", revisedDue: "2026-03-25", priority: "High", status: "In Progress", dept: "Finance", meetingType: "Finance Committee" },
+    { title: "Loyalty program email campaign - March", desc: "Send email to 2,400 loyalty members with exclusive March rates and F&B voucher.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-05", revisedDue: "2026-03-12", priority: "Medium", status: "Delayed", dept: "Sales & Revenue", meetingType: "CEO Meeting" },
   ];
   for (const a of actions) {
     const deptId = depts[a.dept] || Object.values(depts)[0];
-    await storage.createActionItem({ companyId, meetingId: createdMeetings[a.meeting] || null, departmentId: deptId, meetingType: a.meetingType, title: a.title, description: a.desc, ownerName: a.owner, dueDate: a.due, revisedDueDate: a.revisedDue, priority: a.priority, status: a.status });
+    await storage.createActionItem({ companyId, departmentId: deptId, meetingType: a.meetingType, title: a.title, description: a.desc, ownerName: a.owner, dueDate: a.due, revisedDueDate: a.revisedDue, priority: a.priority, status: a.status });
   }
 }
 
@@ -382,11 +370,11 @@ export async function seedDatabase() {
       console.log("Seed: restored KPI data (12 KPIs with actuals)");
     }
 
-    // ── Ensure meetings & action items ──────────────────────────
+    // ── Ensure action items ─────────────────────────────────────
     const existingActions = await storage.getActionItems(companyId);
     if (existingActions.length === 0) {
       await seedMeetingsAndActions(companyId, depts);
-      console.log("Seed: restored meetings and action items");
+      console.log("Seed: restored action items");
     }
 
     // ── Ensure monthly review ───────────────────────────────────
@@ -463,15 +451,6 @@ export async function seedDatabase() {
   const memberHash = await hashPassword("member123");
   const memberUser = await storage.createUser({ name: "Noura Bin Rashid", email: "member@performo.ai", passwordHash: memberHash, companyId: company.id, role: "team_member" });
   if (salesId) await storage.setDeptAccess(memberUser.id, salesId, "full");
-
-  const meetingTypeNames = [
-    "PMO Steering Committee", "CEO Meeting", "Monthly Operations Review",
-    "Department Review", "Finance Committee", "Board Meeting",
-    "Weekly Standup", "Strategy Meeting", "Other"
-  ];
-  for (const name of meetingTypeNames) {
-    await storage.createMeetingType({ companyId: company.id, name });
-  }
 
   const goals = [
     "Increase total revenue by 15% year-over-year through improved occupancy and ADR",
@@ -588,62 +567,22 @@ export async function seedDatabase() {
     }
   }
 
-  const meetings = [
-    {
-      title: "February Monthly Operations Review",
-      date: "2026-02-28",
-      dept: "Operations",
-      summary: "Reviewed February performance. Occupancy dropped to 79% as winter tourism slows. Guest satisfaction improved to 4.6. Key concern: F&B revenue per cover fell below target at AED 128. Agreed to review menu pricing and introduce a business traveler lunch promotion. Housekeeping performance excellent at 25 min turnaround."
-    },
-    {
-      title: "Q1 Revenue Strategy Meeting",
-      date: "2026-02-15",
-      dept: "Sales & Revenue",
-      summary: "Discussed March-April booking pipeline. Corporate RFP responses due by March 10. Proposed weekend staycation packages to offset midweek softness. Revenue Manager to present dynamic pricing recommendations for shoulder season. Loyalty program showing early traction with 27% repeat rate."
-    },
-    {
-      title: "HR Monthly Review - February",
-      date: "2026-02-25",
-      dept: "HR & Admin",
-      summary: "Turnover at 23% — 3 experienced housekeepers joined competitor hotel. Exit interviews indicate salary and workload concerns. Training completion excellent at 10 hrs/employee. Discussed retention bonus structure for high performers. New hires onboarding plan for March."
-    },
-    {
-      title: "Finance Committee - February Closeout",
-      date: "2026-02-27",
-      dept: "Finance",
-      summary: "GOP margin at 31%, below 35% target. Revenue shortfall of 5.8% vs budget drove the gap. Fixed costs remained stable. CPOR rose to AED 245 due to lower room volume. Recommendation: defer non-essential capex to Q2. Review F&B cost of goods — food cost ratio crept up to 34%."
-    },
-  ];
-
-  const createdMeetings: Record<string, number> = {};
-  for (const m of meetings) {
-    const meeting = await storage.createMeeting({
-      companyId: company.id,
-      title: m.title,
-      meetingDate: m.date,
-      departmentId: depts[m.dept],
-      summary: m.summary,
-    });
-    createdMeetings[m.title] = meeting.id;
-  }
-
   const actions = [
-    { title: "Launch business traveler lunch promotion", desc: "Design a fixed-price AED 75 business lunch menu to increase midweek F&B covers. Target 30+ covers/day.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-10", revisedDue: "2026-03-15", priority: "High", status: "In Progress", dept: "Operations", meeting: "February Monthly Operations Review", meetingType: "Monthly Operations Review" },
-    { title: "Review and update menu pricing for Q2", desc: "Benchmark competitor restaurant pricing. Propose 8-12% price adjustments on underperforming items. Present to GM by March 15.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-15", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Operations", meeting: "February Monthly Operations Review", meetingType: "Monthly Operations Review" },
-    { title: "Submit corporate RFP responses", desc: "Complete RFP responses for 3 key corporate accounts (Emirates NBD, ADNOC, Etisalat). Pricing approved by Revenue Manager.", owner: "Sarah Al Maktoum (Sales Manager)", due: "2026-03-10", revisedDue: null, priority: "Critical", status: "In Progress", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "PMO Steering Committee" },
-    { title: "Design weekend staycation packages", desc: "Create 2-night stay packages with F&B credit and late checkout for local market. Publish on OTAs and website by March 12.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-12", revisedDue: "2026-03-18", priority: "High", status: "In Progress", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "PMO Steering Committee" },
-    { title: "Present dynamic pricing model to GM", desc: "Build shoulder season pricing grid with weekday/weekend rate differentials. Include competitor rate analysis from STR report.", owner: "Priya Sharma (Revenue Manager)", due: "2026-03-18", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "CEO Meeting" },
-    { title: "Implement housekeeping retention bonuses", desc: "Propose AED 500/month retention bonus for housekeeping staff with >1 year tenure. Budget impact analysis required.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-08", revisedDue: null, priority: "High", status: "Completed", dept: "HR & Admin", meeting: "HR Monthly Review - February", meetingType: "Department Review" },
-    { title: "Conduct exit interviews for departed staff", desc: "Complete structured exit interviews for 3 departed housekeepers. Document findings and share with operations.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-05", revisedDue: null, priority: "Medium", status: "Completed", dept: "HR & Admin", meeting: "HR Monthly Review - February", meetingType: "Department Review" },
-    { title: "Defer Q1 capex: lobby renovation", desc: "Postpone lobby furniture replacement (AED 180K) to Q2 pending improved revenue performance. Notify procurement.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-01", revisedDue: null, priority: "High", status: "Completed", dept: "Finance", meeting: "Finance Committee - February Closeout", meetingType: "Finance Committee" },
-    { title: "Analyze F&B food cost ratio", desc: "Current food cost at 34% vs 30% target. Investigate supplier pricing, wastage, and portion control. Report with recommendations due March 20.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-20", revisedDue: "2026-03-25", priority: "High", status: "In Progress", dept: "Finance", meeting: "Finance Committee - February Closeout", meetingType: "Finance Committee" },
-    { title: "Loyalty program email campaign - March", desc: "Send targeted email to 2,400 loyalty members with exclusive March rates and F&B voucher. Measure open rate and conversion.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-05", revisedDue: "2026-03-12", priority: "Medium", status: "Delayed", dept: "Sales & Revenue", meeting: "Q1 Revenue Strategy Meeting", meetingType: "CEO Meeting" },
+    { title: "Launch business traveler lunch promotion", desc: "Design a fixed-price AED 75 business lunch menu to increase midweek F&B covers. Target 30+ covers/day.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-10", revisedDue: "2026-03-15", priority: "High", status: "In Progress", dept: "Operations", meetingType: "Monthly Operations Review" },
+    { title: "Review and update menu pricing for Q2", desc: "Benchmark competitor restaurant pricing. Propose 8-12% price adjustments on underperforming items. Present to GM by March 15.", owner: "Khalid Mansoor (F&B Manager)", due: "2026-03-15", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Operations", meetingType: "Monthly Operations Review" },
+    { title: "Submit corporate RFP responses", desc: "Complete RFP responses for 3 key corporate accounts (Emirates NBD, ADNOC, Etisalat). Pricing approved by Revenue Manager.", owner: "Sarah Al Maktoum (Sales Manager)", due: "2026-03-10", revisedDue: null, priority: "Critical", status: "In Progress", dept: "Sales & Revenue", meetingType: "PMO Steering Committee" },
+    { title: "Design weekend staycation packages", desc: "Create 2-night stay packages with F&B credit and late checkout for local market. Publish on OTAs and website by March 12.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-12", revisedDue: "2026-03-18", priority: "High", status: "In Progress", dept: "Sales & Revenue", meetingType: "PMO Steering Committee" },
+    { title: "Present dynamic pricing model to GM", desc: "Build shoulder season pricing grid with weekday/weekend rate differentials. Include competitor rate analysis from STR report.", owner: "Priya Sharma (Revenue Manager)", due: "2026-03-18", revisedDue: null, priority: "Medium", status: "Not Started", dept: "Sales & Revenue", meetingType: "CEO Meeting" },
+    { title: "Implement housekeeping retention bonuses", desc: "Propose AED 500/month retention bonus for housekeeping staff with >1 year tenure. Budget impact analysis required.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-08", revisedDue: null, priority: "High", status: "Completed", dept: "HR & Admin", meetingType: "Department Review" },
+    { title: "Conduct exit interviews for departed staff", desc: "Complete structured exit interviews for 3 departed housekeepers. Document findings and share with operations.", owner: "Fatima Al Rashid (HR Manager)", due: "2026-03-05", revisedDue: null, priority: "Medium", status: "Completed", dept: "HR & Admin", meetingType: "Department Review" },
+    { title: "Defer Q1 capex: lobby renovation", desc: "Postpone lobby furniture replacement (AED 180K) to Q2 pending improved revenue performance. Notify procurement.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-01", revisedDue: null, priority: "High", status: "Completed", dept: "Finance", meetingType: "Finance Committee" },
+    { title: "Analyze F&B food cost ratio", desc: "Current food cost at 34% vs 30% target. Investigate supplier pricing, wastage, and portion control. Report with recommendations due March 20.", owner: "Lisa Wong (Financial Controller)", due: "2026-03-20", revisedDue: "2026-03-25", priority: "High", status: "In Progress", dept: "Finance", meetingType: "Finance Committee" },
+    { title: "Loyalty program email campaign - March", desc: "Send targeted email to 2,400 loyalty members with exclusive March rates and F&B voucher. Measure open rate and conversion.", owner: "Noura Bin Rashid (Marketing Exec)", due: "2026-03-05", revisedDue: "2026-03-12", priority: "Medium", status: "Delayed", dept: "Sales & Revenue", meetingType: "CEO Meeting" },
   ];
 
   for (const a of actions) {
     await storage.createActionItem({
       companyId: company.id,
-      meetingId: a.meeting ? createdMeetings[a.meeting] || null : null,
       departmentId: depts[a.dept],
       meetingType: a.meetingType,
       title: a.title,
@@ -679,7 +618,7 @@ export async function seedDatabase() {
 
   await seedPlatformOwner();
 
-  console.log("Seed data created: 12 KPIs, 4 meetings, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive + team_member users + platform owner");
+  console.log("Seed data created: 12 KPIs, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive + team_member users + platform owner");
 }
 
 async function seedPlatformOwner() {

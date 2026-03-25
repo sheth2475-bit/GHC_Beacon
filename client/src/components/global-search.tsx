@@ -2,13 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, FolderOpen, Target, ListChecks, Calendar, CheckSquare, X } from "lucide-react";
+import { Search, FolderOpen, Target, ListChecks, CheckSquare, X } from "lucide-react";
 
 interface SearchResults {
   projects: { id: number; name: string; status: string }[];
   tasks: { id: number; title: string; status: string; projectId: number | null }[];
   kpis: { id: number; kpiName: string; departmentId: number | null }[];
-  meetings: { id: number; title: string; meetingDate: string }[];
   actionItems: { id: number; title: string; status: string }[];
 }
 
@@ -41,7 +40,7 @@ export function GlobalSearch() {
   }, [open]);
 
   const totalResults = results
-    ? results.projects.length + results.tasks.length + results.kpis.length + results.meetings.length + results.actionItems.length
+    ? results.projects.length + results.tasks.length + results.kpis.length + results.actionItems.length
     : 0;
 
   const goTo = (path: string) => {
@@ -74,7 +73,7 @@ export function GlobalSearch() {
             ref={inputRef}
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="Search projects, tasks, KPIs, meetings..."
+            placeholder="Search projects, tasks, KPIs, actions..."
             className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
             data-testid="input-search-query"
           />
@@ -142,23 +141,6 @@ export function GlobalSearch() {
                     >
                       <Target className="h-4 w-4 text-amber-500 shrink-0" />
                       <span className="flex-1 truncate">{k.kpiName}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {results.meetings.length > 0 && (
-                <div>
-                  <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Meetings</div>
-                  {results.meetings.map(m => (
-                    <button
-                      key={m.id}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted text-left text-sm transition-colors"
-                      onClick={() => goTo("/meetings")}
-                      data-testid={`search-result-meeting-${m.id}`}
-                    >
-                      <Calendar className="h-4 w-4 text-blue-500 shrink-0" />
-                      <span className="flex-1 truncate">{m.title}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">{m.meetingDate}</span>
                     </button>
                   ))}
                 </div>

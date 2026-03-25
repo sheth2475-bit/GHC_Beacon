@@ -62,13 +62,12 @@ async function buildContext(companyId: number): Promise<string> {
   const today = new Date().toISOString().split("T")[0];
 
   const [
-    kpiList, projects, actionItems, meetings, reviews, tasks, milestones,
+    kpiList, projects, actionItems, reviews, tasks, milestones,
     departments, company, users,
   ] = await Promise.all([
     storage.getKpis(companyId),
     storage.getProjects(companyId),
     storage.getActionItems(companyId),
-    storage.getMeetings(companyId),
     storage.getMonthlyReviews(companyId),
     storage.getTasks(companyId),
     storage.getMilestones(companyId),
@@ -150,10 +149,6 @@ async function buildContext(companyId: number): Promise<string> {
     return `  Milestone[${m.id}] "${m.title}" | Project:"${projectMap[m.projectId!] || "N/A"}"[ID:${m.projectId}] | Status:${m.status} | Progress:${m.progress}% | Due:${m.dueDate || "N/A"}(${dueStr})`;
   }).join("\n");
 
-  const meetingSummary = meetings.slice(0, 8).map(m =>
-    `  Meeting[${m.id}] "${m.title}" | Date:${m.meetingDate} | Dept:${deptMap[m.departmentId!] || "N/A"} | Type:${m.meetingType || "N/A"}`
-  ).join("\n");
-
   const reviewsSummary = reviews
     .sort((a, b) => b.reviewMonth.localeCompare(a.reviewMonth))
     .slice(0, 2)
@@ -204,9 +199,6 @@ ${taskSummary || "  None"}
 
 MILESTONES (${milestones.length} total | with days remaining):
 ${milestoneSummary || "  None"}
-
-RECENT MEETINGS (last 8):
-${meetingSummary || "  None"}
 
 MONTHLY REVIEWS (last 2):
 ${reviewsSummary || "  None"}`;

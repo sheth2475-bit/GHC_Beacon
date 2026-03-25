@@ -806,7 +806,7 @@ export default function UserManagementPage() {
               <Building2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium text-foreground mb-1">Department-Level Access Control</p>
-                <p className="text-muted-foreground">Configure which departments each user can access. Admin users always have full access. For team member and executive users, if no departments are assigned, they see all data. Once departments are assigned, they can only access data from those departments across all modules — KPIs, projects, actions, meetings, and more.</p>
+                <p className="text-muted-foreground">Configure which departments each user can access. Admin users always have full access. For team member and executive users, if no departments are assigned, they see all data. Once departments are assigned, they can only access data from those departments across all modules — KPIs, projects, actions, and more.</p>
               </div>
             </CardContent>
           </Card>

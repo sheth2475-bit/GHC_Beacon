@@ -398,7 +398,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-6 text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Performo AI brings your KPIs, actions, meetings, projects, and people into one connected platform — with an AI copilot that tells you exactly where to focus.
+            Performo AI brings your KPIs, actions, projects, and people into one connected platform — with an AI copilot that tells you exactly where to focus.
           </p>
 
           {/* CTAs */}
