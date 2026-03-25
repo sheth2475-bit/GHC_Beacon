@@ -1320,6 +1320,432 @@ export async function registerRoutes(
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Analytics Studio Routes
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    const multer = (await import("multer")).default;
+    const analyticsUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+    const getOai = async () => {
+      const OpenAI = (await import("openai")).default;
+      return new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+    };
+
+    // Helper: build widgets from data rows
+    function buildWidgetsFromData(rows: Record<string, unknown>[], config: Record<string, unknown> | null): { widgetType: string; title: string; config: unknown; position: number }[] {
+      if (!rows || !rows.length) return [];
+      const cols = Object.keys(rows[0]);
+      const numericCols = cols.filter(c => rows.every(r => r[c] !== null && r[c] !== "" && !isNaN(Number(r[c]))));
+      const textCols = cols.filter(c => !numericCols.includes(c));
+      const timeCol = cols.find(c => /date|month|period|week|year|quarter/i.test(c));
+      const categoryCol = textCols.find(c => c !== timeCol) || textCols[0];
+
+      const widgets: { widgetType: string; title: string; config: unknown; position: number }[] = [];
+      let pos = 0;
+
+      // KPI cards for numeric columns (top 4)
+      for (const col of numericCols.slice(0, 4)) {
+        const vals = rows.map(r => Number(r[col])).filter(v => !isNaN(v));
+        const total = vals.reduce((a, b) => a + b, 0);
+        const avg = vals.length ? total / vals.length : 0;
+        widgets.push({
+          widgetType: "kpi_card",
+          title: col.replace(/_/g, " "),
+          config: { metric: col, value: avg, total, count: vals.length, label: col.replace(/_/g, " ") },
+          position: pos++,
+        });
+      }
+
+      // Line/bar chart: time series if time column present
+      if (timeCol && numericCols.length > 0) {
+        const metric = numericCols[0];
+        const grouped: Record<string, number> = {};
+        for (const r of rows) {
+          const k = String(r[timeCol] || "");
+          grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0);
+        }
+        const chartData = Object.entries(grouped).map(([k, v]) => ({ [timeCol]: k, [metric]: Math.round(v * 100) / 100 }));
+        widgets.push({
+          widgetType: "line_chart",
+          title: `${metric.replace(/_/g, " ")} over time`,
+          config: { data: chartData, xKey: timeCol, yKey: metric, color: "#3b82f6" },
+          position: pos++,
+        });
+      }
+
+      // Bar chart: category breakdown
+      if (categoryCol && numericCols.length > 0) {
+        const metric = numericCols[0];
+        const grouped: Record<string, number> = {};
+        for (const r of rows) {
+          const k = String(r[categoryCol] || "Other");
+          grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0);
+        }
+        const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        const chartData = sorted.map(([k, v]) => ({ [categoryCol]: k, [metric]: Math.round(v * 100) / 100 }));
+        widgets.push({
+          widgetType: "bar_chart",
+          title: `${metric.replace(/_/g, " ")} by ${categoryCol.replace(/_/g, " ")}`,
+          config: { data: chartData, xKey: categoryCol, yKey: metric, color: "#8b5cf6" },
+          position: pos++,
+        });
+      }
+
+      // Pie chart if there's a second numeric column and a category
+      if (categoryCol && numericCols.length >= 2) {
+        const metric = numericCols[1];
+        const grouped: Record<string, number> = {};
+        for (const r of rows) {
+          const k = String(r[categoryCol] || "Other");
+          grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0);
+        }
+        const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 6);
+        const pieData = sorted.map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
+        widgets.push({
+          widgetType: "pie_chart",
+          title: `${metric.replace(/_/g, " ")} distribution`,
+          config: { data: pieData },
+          position: pos++,
+        });
+      }
+
+      // Data table (all rows, first 100)
+      widgets.push({
+        widgetType: "table",
+        title: "Data Table",
+        config: { columns: cols, rows: rows.slice(0, 100) },
+        position: pos++,
+      });
+
+      return widgets;
+    }
+
+    // GET all dashboards for company
+    app.get("/api/analytics/dashboards", requireAuth, async (req: Request, res: Response) => {
+      const user = (req as any).user;
+      const dbs = await storage.getAnalyticsDashboards(user.companyId);
+      res.json(dbs);
+    });
+
+    // POST create dashboard
+    app.post("/api/analytics/dashboards", requireAuth, async (req: Request, res: Response) => {
+      const user = (req as any).user;
+      const { title, description, audience, businessArea, naturalLanguagePrompt, visibility, departmentId } = req.body;
+      if (!title) return res.status(400).json({ message: "Title is required" });
+      const dash = await storage.createAnalyticsDashboard({
+        companyId: user.companyId,
+        createdBy: user.id,
+        title,
+        description: description || null,
+        audience: audience || null,
+        businessArea: businessArea || null,
+        naturalLanguagePrompt: naturalLanguagePrompt || null,
+        config: req.body.config || null,
+        templateConfig: null,
+        status: "draft",
+        visibility: visibility || "private",
+        departmentId: departmentId || null,
+      });
+      res.json(dash);
+    });
+
+    // GET single dashboard with all related data
+    app.get("/api/analytics/dashboards/:id", requireAuth, async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const dash = await storage.getAnalyticsDashboard(id);
+      if (!dash) return res.status(404).json({ message: "Dashboard not found" });
+      const [widgets, narrative, uploads, chat] = await Promise.all([
+        storage.getAnalyticsDashboardWidgets(id),
+        storage.getAnalyticsDashboardNarrative(id),
+        storage.getAnalyticsDashboardUploads(id),
+        storage.getAnalyticsDashboardChat(id),
+      ]);
+      res.json({ ...dash, widgets, narrative: narrative || null, uploads, chat });
+    });
+
+    // PATCH update dashboard
+    app.patch("/api/analytics/dashboards/:id", requireAuth, async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const dash = await storage.updateAnalyticsDashboard(id, req.body);
+      res.json(dash);
+    });
+
+    // DELETE dashboard
+    app.delete("/api/analytics/dashboards/:id", requireAuth, async (req: Request, res: Response) => {
+      await storage.deleteAnalyticsDashboard(Number(req.params.id));
+      res.json({ ok: true });
+    });
+
+    // POST generate Excel template (AI designs columns, returns xlsx download)
+    app.post("/api/analytics/dashboards/:id/generate-template", requireAuth, async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const dash = await storage.getAnalyticsDashboard(id);
+      if (!dash) return res.status(404).json({ message: "Not found" });
+
+      try {
+        const prompt = `You are a business data analyst. The user wants to create a dashboard with these details:
+Title: ${dash.title}
+Audience: ${dash.audience || "Business team"}
+Business Area: ${dash.businessArea || "General"}
+Requirements: ${dash.naturalLanguagePrompt || "General performance dashboard"}
+
+Design the EXACT Excel template columns they need. Return ONLY a JSON array (no markdown, no explanation) like this:
+[{"name":"Column Name","key":"column_key","type":"text|number|date|percent","required":true|false,"description":"Short description","example":"Example value"}]
+
+Keep it practical: 5-12 columns. Include columns for dates, key metrics, dimensions, and targets where relevant.`;
+
+        const oai = await getOai();
+        const completion = await oai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_tokens: 1500,
+        });
+
+        let cols: { name: string; key: string; type: string; required: boolean; description: string; example: string }[] = [];
+        try {
+          const raw = JSON.parse(completion.choices[0].message.content || "{}");
+          cols = Array.isArray(raw) ? raw : raw.columns || raw.template || [];
+        } catch { cols = []; }
+
+        if (!cols.length) {
+          cols = [
+            { name: "Date", key: "date", type: "date", required: true, description: "Period or date", example: "2026-01-01" },
+            { name: "Category", key: "category", type: "text", required: true, description: "Category or segment", example: "Sales" },
+            { name: "Value", key: "value", type: "number", required: true, description: "Primary metric", example: "1500" },
+            { name: "Target", key: "target", type: "number", required: false, description: "Target value", example: "2000" },
+          ];
+        }
+
+        // Save template config
+        await storage.updateAnalyticsDashboard(id, { templateConfig: cols });
+
+        // Build xlsx workbook
+        const wb = XLSX.utils.book_new();
+
+        // Instructions sheet
+        const instrData = [
+          ["Performo AI — Analytics Studio Template"],
+          ["Dashboard:", dash.title],
+          ["Audience:", dash.audience || "Business team"],
+          ["Business Area:", dash.businessArea || "General"],
+          [""],
+          ["INSTRUCTIONS"],
+          ["1. Fill in the 'Data' sheet with your data"],
+          ["2. Do not change column headers"],
+          ["3. Required columns are marked with * in the Data sheet"],
+          ["4. Date format: YYYY-MM-DD (e.g. 2026-03-01)"],
+          ["5. Numbers should not include currency symbols or commas"],
+          ["6. Upload the completed file back to Performo AI"],
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(instrData), "Instructions");
+
+        // Data sheet with headers and 10 blank rows
+        const headers = cols.map((c: { name: string; required: boolean }) => `${c.name}${c.required ? " *" : ""}`);
+        const exampleRow = cols.map((c: { example: string }) => c.example);
+        const blankRows = Array.from({ length: 10 }, () => cols.map(() => ""));
+        const dataSheet = XLSX.utils.aoa_to_sheet([headers, exampleRow, ...blankRows]);
+        XLSX.utils.book_append_sheet(wb, dataSheet, "Data");
+
+        // Column guide sheet
+        const guideHeaders = ["Column", "Key", "Type", "Required", "Description", "Example"];
+        const guideRows = cols.map((c: { name: string; key: string; type: string; required: boolean; description: string; example: string }) => [c.name, c.key, c.type, c.required ? "Yes" : "No", c.description, c.example]);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([guideHeaders, ...guideRows]), "Column Guide");
+
+        const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${dash.title.replace(/[^a-z0-9]/gi, "_")}_template.xlsx"`);
+        res.send(buf);
+      } catch (err: any) {
+        console.error("Template generation error:", err);
+        res.status(500).json({ message: err.message || "Failed to generate template" });
+      }
+    });
+
+    // POST upload data Excel
+    app.post("/api/analytics/dashboards/:id/upload", requireAuth, analyticsUpload.single("file"), async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const dash = await storage.getAnalyticsDashboard(id);
+      if (!dash) return res.status(404).json({ message: "Not found" });
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+      try {
+        const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+        // Try 'Data' sheet first, else first sheet
+        const sheetName = wb.SheetNames.includes("Data") ? "Data" : wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { raw: false, defval: "" });
+
+        // Get template config for validation
+        const templateCols = (dash.templateConfig || []) as { key: string; name: string; required: boolean; type: string }[];
+        const errors: { row: number; column: string; message: string }[] = [];
+
+        // Validate required columns exist
+        const actualKeys = rows.length > 0 ? Object.keys(rows[0]) : [];
+        const requiredCols = templateCols.filter(c => c.required);
+        for (const col of requiredCols) {
+          const match = actualKeys.find(k =>
+            k.toLowerCase().replace(/[^a-z0-9]/g, "") === col.key.toLowerCase().replace(/[^a-z0-9]/g, "") ||
+            k.toLowerCase().replace(/[^a-z0-9]/g, "") === col.name.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/\*/g, "")
+          );
+          if (!match) {
+            errors.push({ row: 0, column: col.name, message: `Required column "${col.name}" not found` });
+          }
+        }
+
+        // Validate numeric columns
+        if (templateCols.length > 0) {
+          for (let i = 0; i < Math.min(rows.length, 500); i++) {
+            const row = rows[i];
+            for (const col of templateCols) {
+              if (col.type === "number" || col.type === "percent") {
+                const key = Object.keys(row).find(k =>
+                  k.toLowerCase().replace(/[^a-z0-9]/g, "") === col.key.toLowerCase().replace(/[^a-z0-9]/g, "")
+                );
+                if (key && row[key] !== "" && isNaN(Number(row[key]))) {
+                  errors.push({ row: i + 2, column: col.name, message: `Invalid number: "${row[key]}"` });
+                }
+              }
+            }
+          }
+        }
+
+        const status = errors.length === 0 ? "valid" : errors.length > rows.length * 0.3 ? "invalid" : "valid";
+        const upload = await storage.createAnalyticsDashboardUpload({
+          dashboardId: id,
+          uploadedBy: (req as any).user.id,
+          fileName: req.file.originalname,
+          rowCount: rows.length,
+          data: rows as never,
+          validationStatus: status,
+          validationErrors: errors as never,
+        });
+
+        // Auto-build widgets if valid
+        if (status === "valid") {
+          const widgets = buildWidgetsFromData(rows as Record<string, unknown>[], dash.config as Record<string, unknown>);
+          await storage.upsertAnalyticsDashboardWidgets(id, widgets);
+          await storage.updateAnalyticsDashboard(id, { status: "draft" });
+        }
+
+        res.json({ upload, errors, rowCount: rows.length, status });
+      } catch (err: any) {
+        console.error("Upload error:", err);
+        res.status(500).json({ message: err.message || "Failed to process file" });
+      }
+    });
+
+    // POST generate AI narrative
+    app.post("/api/analytics/dashboards/:id/narrative", requireAuth, async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const dash = await storage.getAnalyticsDashboard(id);
+      if (!dash) return res.status(404).json({ message: "Not found" });
+      const uploads = await storage.getAnalyticsDashboardUploads(id);
+      const latestUpload = uploads[0];
+      if (!latestUpload) return res.status(400).json({ message: "No data uploaded yet" });
+
+      const rows = (latestUpload.data || []) as Record<string, unknown>[];
+      const summary = rows.slice(0, 30).map(r => JSON.stringify(r)).join("\n");
+
+      try {
+        const prompt = `You are an expert business analyst generating an executive dashboard narrative.
+
+Dashboard: ${dash.title}
+Audience: ${dash.audience || "Senior management"}
+Business Area: ${dash.businessArea || "General"}
+Total data rows: ${rows.length}
+
+Sample data (first 30 rows):
+${summary}
+
+Generate a comprehensive but concise dashboard narrative. Return ONLY a JSON object with these exact keys:
+{
+  "executiveSummary": "2-3 paragraph executive summary",
+  "insights": "3-5 key data insights as bullet points",
+  "highlights": "Top 3 positive highlights",
+  "risks": "Top 3 risks or concerns from the data",
+  "trends": "Key trends observed",
+  "suggestedActions": "3-5 recommended actions"
+}`;
+
+        const oai = await getOai();
+        const completion = await oai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_tokens: 2000,
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content || "{}");
+        const narrative = await storage.upsertAnalyticsDashboardNarrative({
+          dashboardId: id,
+          uploadId: latestUpload.id,
+          executiveSummary: result.executiveSummary || null,
+          insights: result.insights || null,
+          highlights: result.highlights || null,
+          risks: result.risks || null,
+          trends: result.trends || null,
+          suggestedActions: result.suggestedActions || null,
+        });
+        res.json(narrative);
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
+      }
+    });
+
+    // POST chat message
+    app.post("/api/analytics/dashboards/:id/chat", requireAuth, async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const user = (req as any).user;
+      const { content } = req.body;
+      if (!content) return res.status(400).json({ message: "Content required" });
+
+      const dash = await storage.getAnalyticsDashboard(id);
+      if (!dash) return res.status(404).json({ message: "Not found" });
+      const uploads = await storage.getAnalyticsDashboardUploads(id);
+      const latestUpload = uploads[0];
+      const rows = latestUpload ? (latestUpload.data || []) as Record<string, unknown>[] : [];
+      const colNames = rows.length > 0 ? Object.keys(rows[0]).join(", ") : "no data";
+
+      await storage.addAnalyticsDashboardChat({ dashboardId: id, userId: user.id, role: "user", content });
+
+      try {
+        const chatHistory = await storage.getAnalyticsDashboardChat(id);
+        const msgs = chatHistory.slice(-8).map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+        const systemMsg = `You are an AI analytics assistant helping refine a business dashboard.
+Dashboard: "${dash.title}" | Audience: ${dash.audience || "business team"} | Business Area: ${dash.businessArea || "general"}
+Available data columns: ${colNames}
+Total rows: ${rows.length}
+You can help the user understand their data, suggest chart types, explain insights, and refine the dashboard. Be concise and professional.`;
+
+        const oai = await getOai();
+        const completion = await oai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "system", content: systemMsg }, ...msgs],
+          max_tokens: 600,
+        });
+
+        const reply = completion.choices[0].message.content || "I couldn't generate a response.";
+        const assistantMsg = await storage.addAnalyticsDashboardChat({ dashboardId: id, userId: user.id, role: "assistant", content: reply });
+        res.json({ message: assistantMsg });
+      } catch (err: any) {
+        const reply = "I'm having trouble responding right now. Please try again.";
+        const assistantMsg = await storage.addAnalyticsDashboardChat({ dashboardId: id, userId: user.id, role: "assistant", content: reply });
+        res.json({ message: assistantMsg });
+      }
+    });
+
+    // GET chat history
+    app.get("/api/analytics/dashboards/:id/chat", requireAuth, async (req: Request, res: Response) => {
+      const msgs = await storage.getAnalyticsDashboardChat(Number(req.params.id));
+      res.json(msgs);
+    });
+  }
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });

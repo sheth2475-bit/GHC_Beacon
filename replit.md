@@ -59,6 +59,28 @@ AI-powered SME performance and execution management platform.
 12. **Settings** (admin only) - Business profile, strategic goals, departments, meeting types; **Subscription & Plan card** showing current plan, daily AI usage bar, and activation key input
 13. **User Management** (admin only) - Three tabs: (1) **Login Users** — add/change role/delete company users, with per-user **Department Access** button (Building2 icon) to open the access control dialog; (2) **Team Members** — manage name/email/job title/department for people who appear in owner dropdowns; (3) **Dept Access** — overview of all users' access with access level legend and per-user manage dialog
 
+### Analytics Studio (/analytics)
+14. **Analytics Studio Hub** (/analytics) - Self-service analytics module; lists all dashboards for the org with status, last-updated, widget count; "New Dashboard" button
+15. **New Dashboard Wizard** (/analytics/new) - 3-step wizard:
+    - Step 1 (Describe): title, natural-language prompt, audience, business area fields
+    - Step 2 (Template): AI generates column definitions via GPT-4o-mini → "Generate & Download Excel Template" (XLSX with headers + example rows + instructions sheet); columns shown as chips
+    - Step 3 (Upload): drag-and-drop Excel upload; auto-detects numeric/text/time columns; auto-builds KPI cards, line chart (time series), bar chart (category), pie chart (2nd metric), data table widgets
+16. **Dashboard View** (/analytics/:id) - 4 tabs:
+    - Dashboard: auto-built Recharts widgets (KPI cards, line/bar/pie charts, data table)
+    - AI Narrative: GPT-4o-mini generated summary with insights/highlights/risks/trends/recommendations
+    - Chat: AI chat assistant for data refinement and questions (per-dashboard conversation history)
+    - Data Uploads: list of all uploaded files with row counts and upload dates
+
+**Analytics Studio DB tables**: analytics_dashboards, analytics_dashboard_uploads, analytics_dashboard_widgets, analytics_dashboard_narratives, analytics_dashboard_chat
+
+**Analytics API routes**:
+- GET/POST /api/analytics/dashboards
+- GET/PATCH/DELETE /api/analytics/dashboards/:id
+- POST /api/analytics/dashboards/:id/generate-template (AI + xlsx download)
+- POST /api/analytics/dashboards/:id/upload (multer memoryStorage, validates .xlsx/.xls)
+- POST /api/analytics/dashboards/:id/narrative (GPT-4o-mini narrative generation)
+- GET/POST /api/analytics/dashboards/:id/chat
+
 ### Platform Owner System (new)
 - Separate auth area at `/owner/*` with its own session (platformOwnerId) independent of company auth
 - **Platform Owner Login** (/owner/login) — credentials: owner@performo.ai / owner123

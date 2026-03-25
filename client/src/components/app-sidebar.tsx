@@ -131,6 +131,9 @@ export function AppSidebar() {
         {renderGroup("Performance", performanceNav)}
         {renderGroup("Projects", executionNav)}
         {renderGroup("AI Insights", insightsNav)}
+        {renderGroup("Analytics", [
+          { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
+        ])}
         {isAdmin && renderGroup("Admin", [
           { title: "People", url: "/users", icon: Users },
           { title: "Settings", url: "/settings", icon: Settings },

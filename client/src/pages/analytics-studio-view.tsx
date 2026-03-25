@@ -1,0 +1,599 @@
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useRoute, Link, useLocation } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import {
+  BarChart3, ArrowLeft, Sparkles, Globe, Lock, Building2, Upload,
+  RefreshCw, Send, Loader2, Download, TrendingUp, AlertCircle,
+  CheckCircle2, Lightbulb, MessageSquare, FileSpreadsheet, Clock,
+  Check, Archive, Eye, MoreHorizontal, BookOpen,
+} from "lucide-react";
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
+  CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area,
+} from "recharts";
+import type { AnalyticsDashboard, AnalyticsDashboardWidget, AnalyticsDashboardNarrative, AnalyticsDashboardChat, AnalyticsDashboardUpload } from "@shared/schema";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16"];
+
+type DashboardFull = AnalyticsDashboard & {
+  widgets: AnalyticsDashboardWidget[];
+  narrative: AnalyticsDashboardNarrative | null;
+  uploads: AnalyticsDashboardUpload[];
+  chat: AnalyticsDashboardChat[];
+};
+
+/* ── KPI Card widget ── */
+function KpiCard({ widget }: { widget: AnalyticsDashboardWidget }) {
+  const cfg = widget.config as { metric: string; value: number; total: number; count: number; label: string } | null;
+  if (!cfg) return null;
+  const val = typeof cfg.value === "number" ? cfg.value : 0;
+  const displayVal = Number.isInteger(val) ? val.toLocaleString() : val.toFixed(2).replace(/\.?0+$/, "");
+  return (
+    <div className="rounded-xl border bg-card p-4 hover:shadow-sm transition-all" data-testid={`widget-kpi-${widget.id}`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide leading-none">{widget.title}</p>
+        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+          <TrendingUp className="h-3.5 w-3.5 text-primary" />
+        </div>
+      </div>
+      <p className="text-3xl font-black tabular-nums text-foreground">{displayVal}</p>
+      <p className="text-[10px] text-muted-foreground mt-1">{cfg.count} data points · Total: {typeof cfg.total === "number" ? cfg.total.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}</p>
+    </div>
+  );
+}
+
+/* ── Chart widget ── */
+function ChartWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
+  const cfg = widget.config as { data: Record<string, unknown>[]; xKey: string; yKey: string; color?: string } | null;
+  if (!cfg || !cfg.data || cfg.data.length === 0) return null;
+  const color = cfg.color || CHART_COLORS[0];
+
+  return (
+    <div className="rounded-xl border bg-card p-4" data-testid={`widget-chart-${widget.id}`}>
+      <p className="text-sm font-bold mb-3">{widget.title}</p>
+      <ResponsiveContainer width="100%" height={220}>
+        {widget.widgetType === "line_chart" || widget.widgetType === "area_chart" ? (
+          <AreaChart data={cfg.data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey={cfg.xKey} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
+            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} />
+            <Area type="monotone" dataKey={cfg.yKey} stroke={color} fill={`${color}20`} strokeWidth={2} dot={false} />
+          </AreaChart>
+        ) : (
+          <BarChart data={cfg.data} barSize={28} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey={cfg.xKey} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
+            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} />
+            <Bar dataKey={cfg.yKey} fill={color} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        )}
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ── Pie chart widget ── */
+function PieWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
+  const cfg = widget.config as { data: { name: string; value: number }[] } | null;
+  if (!cfg || !cfg.data || cfg.data.length === 0) return null;
+  return (
+    <div className="rounded-xl border bg-card p-4" data-testid={`widget-pie-${widget.id}`}>
+      <p className="text-sm font-bold mb-2">{widget.title}</p>
+      <ResponsiveContainer width="100%" height={220}>
+        <PieChart>
+          <Pie data={cfg.data} cx="50%" cy="45%" outerRadius="55%" innerRadius="30%" paddingAngle={3} dataKey="value" stroke="none">
+            {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+          </Pie>
+          <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} />
+          <Legend verticalAlign="bottom" height={24} iconType="circle" iconSize={7} formatter={(v: string) => <span className="text-[10px] text-foreground">{v}</span>} />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ── Data table widget ── */
+function TableWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
+  const cfg = widget.config as { columns: string[]; rows: Record<string, unknown>[] } | null;
+  if (!cfg || !cfg.rows || cfg.rows.length === 0) return null;
+  const cols = cfg.columns.slice(0, 8);
+  return (
+    <div className="rounded-xl border bg-card overflow-hidden" data-testid={`widget-table-${widget.id}`}>
+      <div className="px-4 py-2.5 border-b bg-muted/30">
+        <p className="text-sm font-bold">{widget.title}</p>
+        <p className="text-[10px] text-muted-foreground">{cfg.rows.length} rows</p>
+      </div>
+      <div className="overflow-x-auto max-h-64">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-muted/50">
+            <tr>{cols.map(c => <th key={c} className="px-3 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap">{c.replace(/_/g, " ")}</th>)}</tr>
+          </thead>
+          <tbody>
+            {cfg.rows.slice(0, 50).map((row, i) => (
+              <tr key={i} className="border-t border-border/50 hover:bg-muted/20">
+                {cols.map(c => <td key={c} className="px-3 py-1.5 whitespace-nowrap text-foreground/80">{String(row[c] ?? "—")}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Narrative panel ── */
+function NarrativePanel({ narrative, onGenerate, isGenerating }: {
+  narrative: AnalyticsDashboardNarrative | null;
+  onGenerate: () => void;
+  isGenerating: boolean;
+}) {
+  if (!narrative) {
+    return (
+      <div className="rounded-xl border bg-card p-5 flex flex-col items-center gap-3 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <Sparkles className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="font-bold text-sm mb-0.5">Generate AI Narrative</p>
+          <p className="text-xs text-muted-foreground">Let AI analyse your data and write an executive summary with insights, highlights, and recommendations.</p>
+        </div>
+        <Button onClick={onGenerate} disabled={isGenerating} size="sm" className="gap-2" data-testid="button-generate-narrative">
+          {isGenerating ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : <><Sparkles className="h-4 w-4" />Generate Narrative</>}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {narrative.executiveSummary && (
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <MessageSquare className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Executive Summary</span>
+          </div>
+          <p className="text-sm text-foreground leading-relaxed" data-testid="text-narrative-summary">{narrative.executiveSummary}</p>
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {narrative.highlights && (
+          <div className="rounded-xl border bg-emerald-500/5 border-emerald-500/15 p-4">
+            <div className="flex items-center gap-2 mb-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /><span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Highlights</span></div>
+            {narrative.highlights.split("\n").filter(l => l.trim()).map((l, i) => <p key={i} className="text-xs text-muted-foreground flex gap-1.5 mb-1"><span className="text-emerald-500 shrink-0">•</span>{l.replace(/^[-•]\s*/, "")}</p>)}
+          </div>
+        )}
+        {narrative.risks && (
+          <div className="rounded-xl border bg-red-500/5 border-red-500/15 p-4">
+            <div className="flex items-center gap-2 mb-2"><AlertCircle className="h-3.5 w-3.5 text-red-500" /><span className="text-xs font-bold text-red-500 uppercase tracking-wide">Risks & Concerns</span></div>
+            {narrative.risks.split("\n").filter(l => l.trim()).map((l, i) => <p key={i} className="text-xs text-muted-foreground flex gap-1.5 mb-1"><span className="text-red-400 shrink-0">•</span>{l.replace(/^[-•]\s*/, "")}</p>)}
+          </div>
+        )}
+      </div>
+      {narrative.insights && (
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2"><BookOpen className="h-3.5 w-3.5 text-blue-500" /><span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Key Insights</span></div>
+          {narrative.insights.split("\n").filter(l => l.trim()).map((l, i) => <p key={i} className="text-xs text-muted-foreground flex gap-1.5 mb-1"><span className="text-blue-400 shrink-0">•</span>{l.replace(/^[-•]\s*/, "")}</p>)}
+        </div>
+      )}
+      {narrative.suggestedActions && (
+        <div className="rounded-xl border bg-primary/5 border-primary/15 p-4">
+          <div className="flex items-center gap-2 mb-2"><Lightbulb className="h-3.5 w-3.5 text-primary" /><span className="text-xs font-bold text-primary uppercase tracking-wide">Recommended Actions</span></div>
+          {narrative.suggestedActions.split("\n").filter(l => l.trim()).map((l, i) => <p key={i} className="text-xs text-muted-foreground flex gap-1.5 mb-1"><span className="text-primary shrink-0">•</span>{l.replace(/^[-•]\s*/, "")}</p>)}
+        </div>
+      )}
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={onGenerate} disabled={isGenerating} className="gap-1.5 text-xs" data-testid="button-regenerate-narrative">
+          {isGenerating ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Regenerating…</> : <><RefreshCw className="h-3.5 w-3.5" />Regenerate</>}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export default function AnalyticsStudioViewPage() {
+  const [, params] = useRoute("/analytics/:id");
+  const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const id = Number(params?.id);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "narrative" | "chat" | "uploads">("dashboard");
+  const [chatInput, setChatInput] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const { data: dash, isLoading } = useQuery<DashboardFull>({ queryKey: ["/api/analytics/dashboards", id], queryFn: () => fetch(`/api/analytics/dashboards/${id}`).then(r => r.json()) });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Record<string, string>) => apiRequest("PATCH", `/api/analytics/dashboards/${id}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards", id] }); queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards"] }); },
+  });
+
+  const [generatingNarrative, setGeneratingNarrative] = useState(false);
+  const generateNarrative = async () => {
+    setGeneratingNarrative(true);
+    try {
+      await fetch(`/api/analytics/dashboards/${id}/narrative`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards", id] });
+    } catch { toast({ title: "Failed to generate narrative", variant: "destructive" }); }
+    finally { setGeneratingNarrative(false); }
+  };
+
+  const [sendingChat, setSendingChat] = useState(false);
+  const sendChat = async () => {
+    const msg = chatInput.trim();
+    if (!msg) return;
+    setSendingChat(true);
+    setChatInput("");
+    try {
+      await apiRequest("POST", `/api/analytics/dashboards/${id}/chat`, { content: msg });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards", id] });
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch { toast({ title: "Failed to send message", variant: "destructive" }); }
+    finally { setSendingChat(false); }
+  };
+
+  const handleRefreshUpload = async () => {
+    if (!uploadFile) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", uploadFile);
+      await fetch(`/api/analytics/dashboards/${id}/upload`, { method: "POST", body: fd });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards", id] });
+      setUploadFile(null);
+      toast({ title: "Data refreshed successfully" });
+    } catch { toast({ title: "Upload failed", variant: "destructive" }); }
+    finally { setUploading(false); }
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [dash?.chat?.length]);
+
+  if (isLoading) return (
+    <div className="p-5 space-y-4 h-full overflow-auto">
+      <div className="h-10 bg-muted/40 rounded-xl animate-pulse w-48" />
+      <div className="grid grid-cols-4 gap-3">{[1,2,3,4].map(i => <div key={i} className="h-24 bg-muted/40 rounded-xl animate-pulse" />)}</div>
+      <div className="h-64 bg-muted/40 rounded-xl animate-pulse" />
+    </div>
+  );
+
+  if (!dash) return (
+    <div className="p-8 text-center">
+      <p className="text-muted-foreground">Dashboard not found.</p>
+      <Link href="/analytics"><Button variant="ghost" className="mt-2">Back to Analytics Studio</Button></Link>
+    </div>
+  );
+
+  const kpiWidgets = dash.widgets.filter(w => w.widgetType === "kpi_card");
+  const chartWidgets = dash.widgets.filter(w => ["bar_chart", "line_chart", "area_chart"].includes(w.widgetType));
+  const pieWidgets = dash.widgets.filter(w => w.widgetType === "pie_chart");
+  const tableWidgets = dash.widgets.filter(w => w.widgetType === "table");
+  const hasData = dash.widgets.length > 0;
+  const latestUpload = dash.uploads?.[0];
+  const VisIcon = dash.visibility === "company" ? Globe : dash.visibility === "department" ? Building2 : Lock;
+  const isOwner = dash.createdBy === user?.id;
+
+  const tabCls = (t: string) => `px-3 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${activeTab === t ? "bg-background text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`;
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="p-5 max-w-screen-xl mx-auto space-y-4">
+
+        {/* Top bar */}
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-start gap-3 min-w-0">
+            <Link href="/analytics">
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border hover:bg-muted/50 transition-colors mt-0.5 shrink-0" data-testid="button-back-to-studio">
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-black truncate" data-testid="text-dashboard-title">{dash.title}</h1>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                  dash.status === "published" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" :
+                  dash.status === "archived" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20" :
+                  "bg-muted text-muted-foreground border-border"
+                }`}>{(dash.status || "draft").charAt(0).toUpperCase() + (dash.status || "draft").slice(1)}</span>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap mt-0.5 text-[11px] text-muted-foreground">
+                {dash.audience && <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{dash.audience}</span>}
+                {dash.businessArea && <span>{dash.businessArea}</span>}
+                <span className="flex items-center gap-1"><VisIcon className="h-3 w-3" />
+                  {dash.visibility === "company" ? "Company-wide" : dash.visibility === "department" ? "Department" : "Private"}
+                </span>
+                {latestUpload && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />Updated {new Date(latestUpload.uploadedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</span>}
+              </div>
+            </div>
+          </div>
+          {isOwner && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Select value={dash.visibility} onValueChange={v => updateMutation.mutate({ visibility: v })}>
+                <SelectTrigger className="h-8 text-xs w-36" data-testid="select-dash-visibility">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="department">Department</SelectItem>
+                  <SelectItem value="company">Company-wide</SelectItem>
+                </SelectContent>
+              </Select>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" data-testid="button-dash-actions">
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {dash.status !== "published" && (
+                    <DropdownMenuItem onClick={() => updateMutation.mutate({ status: "published" })} className="gap-2" data-testid="menuitem-publish">
+                      <Globe className="h-3.5 w-3.5 text-emerald-500" />Publish Dashboard
+                    </DropdownMenuItem>
+                  )}
+                  {dash.status === "published" && (
+                    <DropdownMenuItem onClick={() => updateMutation.mutate({ status: "draft" })} className="gap-2" data-testid="menuitem-unpublish">
+                      <Lock className="h-3.5 w-3.5" />Unpublish
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => updateMutation.mutate({ status: "archived" })} className="gap-2" data-testid="menuitem-archive">
+                    <Archive className="h-3.5 w-3.5 text-amber-500" />Archive
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setActiveTab("uploads")} className="gap-2">
+                    <RefreshCw className="h-3.5 w-3.5" />Refresh Data
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {dash.status !== "published" && (
+                <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => updateMutation.mutate({ status: "published" })} data-testid="button-publish-dashboard">
+                  <Globe className="h-3.5 w-3.5" />Publish
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5 w-fit">
+          <button className={tabCls("dashboard")} onClick={() => setActiveTab("dashboard")} data-testid="tab-dashboard">Dashboard</button>
+          <button className={tabCls("narrative")} onClick={() => setActiveTab("narrative")} data-testid="tab-narrative">
+            AI Narrative{dash.narrative ? <span className="ml-1 text-primary">•</span> : null}
+          </button>
+          <button className={tabCls("chat")} onClick={() => setActiveTab("chat")} data-testid="tab-chat">
+            Chat{dash.chat?.length > 0 ? <span className="ml-1 text-xs text-muted-foreground">({dash.chat.length})</span> : null}
+          </button>
+          <button className={tabCls("uploads")} onClick={() => setActiveTab("uploads")} data-testid="tab-uploads">
+            Data Uploads{dash.uploads?.length > 0 ? <span className="ml-1 text-xs text-muted-foreground">({dash.uploads.length})</span> : null}
+          </button>
+        </div>
+
+        {/* ── Dashboard tab ── */}
+        {activeTab === "dashboard" && (
+          <div className="space-y-4">
+            {!hasData ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4">
+                  <BarChart3 className="h-7 w-7 text-muted-foreground/50" />
+                </div>
+                <p className="font-bold text-base mb-1">No data yet</p>
+                <p className="text-sm text-muted-foreground mb-4 max-w-xs">Upload an Excel file to generate your dashboard widgets automatically.</p>
+                <Button size="sm" onClick={() => setActiveTab("uploads")} className="gap-2" data-testid="button-go-upload">
+                  <Upload className="h-4 w-4" />Upload Data
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* KPI cards */}
+                {kpiWidgets.length > 0 && (
+                  <div className={`grid gap-3 ${kpiWidgets.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : kpiWidgets.length === 3 ? "grid-cols-3" : kpiWidgets.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {kpiWidgets.map(w => <KpiCard key={w.id} widget={w} />)}
+                  </div>
+                )}
+
+                {/* Charts */}
+                {chartWidgets.length > 0 && (
+                  <div className={`grid gap-4 ${chartWidgets.length >= 2 ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
+                    {chartWidgets.map(w => <ChartWidget key={w.id} widget={w} />)}
+                  </div>
+                )}
+
+                {/* Pie charts */}
+                {pieWidgets.length > 0 && (
+                  <div className={`grid gap-4 ${pieWidgets.length >= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 max-w-sm"}`}>
+                    {pieWidgets.map(w => <PieWidget key={w.id} widget={w} />)}
+                  </div>
+                )}
+
+                {/* Table */}
+                {tableWidgets.map(w => <TableWidget key={w.id} widget={w} />)}
+
+                {/* Prompt to generate narrative */}
+                {!dash.narrative && (
+                  <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <div>
+                        <p className="text-sm font-bold">Generate AI Narrative</p>
+                        <p className="text-xs text-muted-foreground">Get an executive summary, insights, and recommendations from your data.</p>
+                      </div>
+                    </div>
+                    <Button size="sm" onClick={generateNarrative} disabled={generatingNarrative} className="gap-2 shrink-0" data-testid="button-generate-narrative-inline">
+                      {generatingNarrative ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generating…</> : <><Sparkles className="h-3.5 w-3.5" />Generate</>}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Narrative tab ── */}
+        {activeTab === "narrative" && (
+          <div>
+            {!hasData ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center rounded-xl border border-dashed">
+                <Sparkles className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground">Upload data first, then generate an AI narrative.</p>
+                <Button size="sm" onClick={() => setActiveTab("uploads")} variant="ghost" className="mt-2">Upload Data</Button>
+              </div>
+            ) : (
+              <NarrativePanel narrative={dash.narrative} onGenerate={generateNarrative} isGenerating={generatingNarrative} />
+            )}
+          </div>
+        )}
+
+        {/* ── Chat tab ── */}
+        {activeTab === "chat" && (
+          <div className="space-y-3">
+            <div className="rounded-xl border bg-card overflow-hidden flex flex-col" style={{ height: "460px" }}>
+              <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center gap-2 shrink-0">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                <span className="text-sm font-bold">AI Refinement Chat</span>
+                <span className="text-xs text-muted-foreground">Ask for changes, insights, or explanations</span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3" data-testid="chat-messages">
+                {dash.chat.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-center gap-2 opacity-60">
+                    <Sparkles className="h-8 w-8 text-primary/50" />
+                    <p className="text-sm font-medium">Start a conversation</p>
+                    <p className="text-xs text-muted-foreground max-w-xs">Ask to change chart types, add filters, explain specific numbers, or rewrite the narrative.</p>
+                    <div className="flex flex-wrap gap-1.5 justify-center mt-2">
+                      {["Show top 5 by revenue", "Explain the biggest drop", "What are the main trends?", "Compare this month vs last"].map(s => (
+                        <button key={s} onClick={() => setChatInput(s)} className="text-[11px] bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-full border transition-colors">{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {dash.chat.map(msg => (
+                  <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`} data-testid={`chat-msg-${msg.id}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                      msg.role === "user" ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-muted/60 text-foreground rounded-bl-sm"
+                    }`}>
+                      {msg.role === "assistant" && (
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Sparkles className="h-3 w-3 text-primary" />
+                          <span className="text-[10px] font-semibold text-primary">AI Assistant</span>
+                        </div>
+                      )}
+                      <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  </div>
+                ))}
+                {sendingChat && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted/60 rounded-2xl rounded-bl-sm px-3.5 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        <span className="text-xs text-muted-foreground">AI is thinking…</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              <div className="px-4 py-3 border-t bg-background/50 shrink-0">
+                <div className="flex gap-2">
+                  <Textarea
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                    placeholder="Ask for changes or insights… (Enter to send)"
+                    className="resize-none min-h-0 h-9 py-2 text-sm"
+                    rows={1}
+                    data-testid="input-chat-message"
+                    disabled={!hasData}
+                  />
+                  <Button size="sm" onClick={sendChat} disabled={sendingChat || !chatInput.trim() || !hasData} className="h-9 px-3 shrink-0" data-testid="button-send-chat">
+                    {sendingChat ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {!hasData && <p className="text-[10px] text-muted-foreground mt-1">Upload data first to enable the chat.</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Uploads tab ── */}
+        {activeTab === "uploads" && (
+          <div className="space-y-4">
+            {/* Upload zone */}
+            {isOwner && (
+              <div className="rounded-xl border bg-card p-5 space-y-3">
+                <div>
+                  <h3 className="font-bold text-sm mb-0.5">{dash.uploads?.length > 0 ? "Refresh Data" : "Upload Data"}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {dash.uploads?.length > 0
+                      ? "Upload an updated version of your Excel template to refresh all charts and regenerate the narrative."
+                      : "Upload your filled Excel template to generate the dashboard."
+                    }
+                  </p>
+                </div>
+                <label htmlFor="refresh-upload" className={`flex items-center gap-3 rounded-xl border-2 border-dashed p-4 cursor-pointer transition-colors ${uploadFile ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/20"}`} data-testid="label-refresh-upload-zone">
+                  {uploadFile ? <FileSpreadsheet className="h-5 w-5 text-primary shrink-0" /> : <Upload className="h-5 w-5 text-muted-foreground shrink-0" />}
+                  <div>
+                    {uploadFile ? (
+                      <p className="text-sm font-semibold text-primary">{uploadFile.name}</p>
+                    ) : (
+                      <p className="text-sm font-medium">Click to select Excel file</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">.xlsx or .xls · up to 10MB</p>
+                  </div>
+                  <input id="refresh-upload" type="file" accept=".xlsx,.xls" className="hidden" onChange={e => setUploadFile(e.target.files?.[0] || null)} data-testid="input-refresh-file" />
+                </label>
+                {uploadFile && (
+                  <Button onClick={handleRefreshUpload} disabled={uploading} className="w-full gap-2" data-testid="button-refresh-upload">
+                    {uploading ? <><Loader2 className="h-4 w-4 animate-spin" />Processing…</> : <><RefreshCw className="h-4 w-4" />Upload & Refresh Dashboard</>}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Upload history */}
+            {dash.uploads?.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Upload History</p>
+                {dash.uploads.map((u, i) => (
+                  <div key={u.id} className="rounded-xl border bg-card px-4 py-3 flex items-center gap-3" data-testid={`upload-history-${u.id}`}>
+                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{u.fileName}</p>
+                      <p className="text-xs text-muted-foreground">{u.rowCount} rows · {new Date(u.uploadedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {i === 0 && <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">Latest</span>}
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${u.validationStatus === "valid" ? "bg-emerald-500/10 text-emerald-600" : "bg-red-500/10 text-red-600"}`}>
+                        {u.validationStatus === "valid" ? <Check className="h-2.5 w-2.5" /> : null}{u.validationStatus}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              !isOwner && (
+                <div className="flex flex-col items-center justify-center py-12 text-center rounded-xl border border-dashed">
+                  <Upload className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No data uploads yet.</p>
+                </div>
+              )
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}

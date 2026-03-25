@@ -1,0 +1,150 @@
+Add a new module in Performo AI called Analytics Studio.
+
+This module should allow users to create dynamic dashboards by describing what they want in natural language, uploading a generated Excel template, refining the dashboard with AI, and then saving/publishing it for other users to view.
+
+Core concept:
+A user tells the application what they want to see in a dashboard.
+The application understands the request, generates the correct Excel template, and after upload builds a dynamic dashboard with AI narrative.
+The user can then ask for changes conversationally.
+Once satisfied, the user can save and publish the dashboard for others to view.
+Later, the creator can refresh the dashboard by re-uploading the latest data into the same template or mapped structure.
+
+Requirements:
+
+1. New module name:
+- Analytics Studio
+
+2. Main user flow:
+- user enters dashboard requirement in natural language
+- app interprets the request
+- app generates a tailored Excel template
+- user downloads and fills the template
+- user uploads the template
+- app validates the upload
+- app builds the dashboard dynamically
+- app generates AI narrative summary
+- user requests changes through chat or prompts
+- user saves draft or publishes dashboard
+- user can later refresh dashboard by uploading latest data
+
+3. Dashboard request form
+Capture:
+- dashboard title
+- audience (CEO, GM, department, analyst)
+- business area
+- metrics/KPIs needed
+- dimensions needed
+- time granularity
+- preferred visuals
+- filters required
+- narrative style
+- department visibility / permissions
+
+4. Template generation
+Generate a custom Excel workbook based on the requested dashboard.
+Include:
+- instructions sheet
+- sample data sheet
+- one or more data sheets
+- required columns
+- optional columns
+- validation guidance
+- example rows
+
+5. Upload and validation
+Support:
+- Excel upload
+- validation of required columns
+- date validation
+- numeric validation
+- duplicate detection
+- preview before save
+- row-level error messages
+- downloadable error report
+
+6. Dynamic dashboard generation
+After upload, auto-create:
+- KPI cards
+- charts
+- tables
+- filters
+- narrative summary
+- drill-down friendly layout
+
+7. AI narrative
+Generate:
+- executive summary
+- key insights
+- positive highlights
+- risks / concerns
+- trend observations
+- suggested actions
+
+8. Conversational refinement
+Allow user to ask:
+- change chart types
+- add/remove visuals
+- add filters
+- change grouping
+- change labels
+- shorten or improve narrative
+- show top/bottom performers
+- compare periods
+- add variance vs target
+
+9. Save and publish model
+Allow:
+- Save Draft
+- Publish Dashboard
+- Archive Dashboard
+
+Visibility options:
+- private
+- department-only
+- company-wide
+- role-based
+
+10. Shared content library
+Create pages for:
+- My Dashboards
+- Shared Dashboards
+- Published Dashboards
+- Template Library
+- Refresh Existing Dashboard
+
+11. Refresh existing dashboard
+Allow creator/admin to re-upload latest data into an existing saved dashboard so the same dashboard updates with fresh data.
+Keep version history if possible.
+
+12. Permissions
+Respect existing role-based and department-based access.
+Users should only create/view/publish dashboards within allowed department/company scope.
+
+13. Database support
+Add models/tables for:
+- dashboard_definitions
+- dashboard_templates
+- dashboard_uploads
+- dashboard_versions
+- dashboard_widgets
+- dashboard_permissions
+- dashboard_narratives
+- published_dashboards
+- refresh_history
+
+14. UI requirements
+Make it premium, simple, and business-friendly.
+The module should feel like a self-service analytics studio.
+Support:
+- guided creation
+- generated template download
+- upload preview
+- dashboard builder view
+- AI narrative panel
+- publish/share controls
+- content library view
+
+15. Important
+Use only Performo AI branding.
+Do not mention any third-party analytics product names anywhere in the UI.
+Build this as a real working module, not a mock concept.

@@ -30,6 +30,10 @@ import ProjectDetailPage from "@/pages/project-detail";
 import WorkloadPage from "@/pages/workload";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import AnalyticsStudioPage from "@/pages/analytics-studio";
+import AnalyticsStudioNewPage from "@/pages/analytics-studio-new";
+import AnalyticsStudioViewPage from "@/pages/analytics-studio-view";
+
 import GuidePage from "@/pages/guide";
 import OwnerLogin from "@/pages/owner-login";
 import OwnerDashboard from "@/pages/owner-dashboard";
@@ -57,6 +61,9 @@ function AppRouter() {
       <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/initiatives/:id" component={ProjectDetailPage} />
       <Route path="/workload" component={WorkloadPage} />
+      <Route path="/analytics" component={AnalyticsStudioPage} />
+      <Route path="/analytics/new" component={AnalyticsStudioNewPage} />
+      <Route path="/analytics/:id" component={AnalyticsStudioViewPage} />
       {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}
       {isAdmin && <Route path="/planner" component={PlannerPage} />}
       {isAdmin && <Route path="/settings" component={SettingsPage} />}

@@ -6,6 +6,8 @@ import {
   projects, tasks, subtasks, milestones, projectComments, assistantLogs,
   platformOwners, subscriptions, activationKeys, userActivityLogs, ownerAuditLogs, teamMembers,
   userDepartmentAccess,
+  analyticsDashboards, analyticsDashboardUploads, analyticsDashboardWidgets,
+  analyticsDashboardNarratives, analyticsDashboardChat,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -23,6 +25,11 @@ import {
   type OwnerAuditLog, type InsertOwnerAuditLog,
   type TeamMember, type InsertTeamMember,
   type UserDepartmentAccess,
+  type AnalyticsDashboard, type InsertAnalyticsDashboard,
+  type AnalyticsDashboardUpload, type InsertAnalyticsDashboardUpload,
+  type AnalyticsDashboardWidget, type InsertAnalyticsDashboardWidget,
+  type AnalyticsDashboardNarrative, type InsertAnalyticsDashboardNarrative,
+  type AnalyticsDashboardChat, type InsertAnalyticsDashboardChat,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -643,6 +650,82 @@ export class DatabaseStorage implements IStorage {
   }
   async getAllUsers() {
     return db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  // ─── Analytics Studio ─────────────────────────────────────────────────────
+  async getAnalyticsDashboards(companyId: number): Promise<AnalyticsDashboard[]> {
+    return db.select().from(analyticsDashboards)
+      .where(eq(analyticsDashboards.companyId, companyId))
+      .orderBy(desc(analyticsDashboards.updatedAt));
+  }
+  async getAnalyticsDashboard(id: number): Promise<AnalyticsDashboard | undefined> {
+    const [row] = await db.select().from(analyticsDashboards).where(eq(analyticsDashboards.id, id));
+    return row;
+  }
+  async createAnalyticsDashboard(data: InsertAnalyticsDashboard): Promise<AnalyticsDashboard> {
+    const [row] = await db.insert(analyticsDashboards).values(data).returning();
+    return row;
+  }
+  async updateAnalyticsDashboard(id: number, data: Partial<InsertAnalyticsDashboard>): Promise<AnalyticsDashboard> {
+    const [row] = await db.update(analyticsDashboards)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(analyticsDashboards.id, id))
+      .returning();
+    return row;
+  }
+  async deleteAnalyticsDashboard(id: number): Promise<void> {
+    await db.delete(analyticsDashboardChat).where(eq(analyticsDashboardChat.dashboardId, id));
+    await db.delete(analyticsDashboardNarratives).where(eq(analyticsDashboardNarratives.dashboardId, id));
+    await db.delete(analyticsDashboardWidgets).where(eq(analyticsDashboardWidgets.dashboardId, id));
+    await db.delete(analyticsDashboardUploads).where(eq(analyticsDashboardUploads.dashboardId, id));
+    await db.delete(analyticsDashboards).where(eq(analyticsDashboards.id, id));
+  }
+
+  async getAnalyticsDashboardUploads(dashboardId: number): Promise<AnalyticsDashboardUpload[]> {
+    return db.select().from(analyticsDashboardUploads)
+      .where(eq(analyticsDashboardUploads.dashboardId, dashboardId))
+      .orderBy(desc(analyticsDashboardUploads.uploadedAt));
+  }
+  async createAnalyticsDashboardUpload(data: InsertAnalyticsDashboardUpload): Promise<AnalyticsDashboardUpload> {
+    const [row] = await db.insert(analyticsDashboardUploads).values(data).returning();
+    return row;
+  }
+
+  async getAnalyticsDashboardWidgets(dashboardId: number): Promise<AnalyticsDashboardWidget[]> {
+    return db.select().from(analyticsDashboardWidgets)
+      .where(eq(analyticsDashboardWidgets.dashboardId, dashboardId))
+      .orderBy(analyticsDashboardWidgets.position);
+  }
+  async upsertAnalyticsDashboardWidgets(dashboardId: number, widgets: Omit<InsertAnalyticsDashboardWidget, 'dashboardId'>[]): Promise<AnalyticsDashboardWidget[]> {
+    await db.delete(analyticsDashboardWidgets).where(eq(analyticsDashboardWidgets.dashboardId, dashboardId));
+    if (!widgets.length) return [];
+    const rows = await db.insert(analyticsDashboardWidgets)
+      .values(widgets.map(w => ({ ...w, dashboardId })))
+      .returning();
+    return rows;
+  }
+
+  async getAnalyticsDashboardNarrative(dashboardId: number): Promise<AnalyticsDashboardNarrative | undefined> {
+    const [row] = await db.select().from(analyticsDashboardNarratives)
+      .where(eq(analyticsDashboardNarratives.dashboardId, dashboardId))
+      .orderBy(desc(analyticsDashboardNarratives.generatedAt))
+      .limit(1);
+    return row;
+  }
+  async upsertAnalyticsDashboardNarrative(data: InsertAnalyticsDashboardNarrative): Promise<AnalyticsDashboardNarrative> {
+    await db.delete(analyticsDashboardNarratives).where(eq(analyticsDashboardNarratives.dashboardId, data.dashboardId));
+    const [row] = await db.insert(analyticsDashboardNarratives).values(data).returning();
+    return row;
+  }
+
+  async getAnalyticsDashboardChat(dashboardId: number): Promise<AnalyticsDashboardChat[]> {
+    return db.select().from(analyticsDashboardChat)
+      .where(eq(analyticsDashboardChat.dashboardId, dashboardId))
+      .orderBy(analyticsDashboardChat.createdAt);
+  }
+  async addAnalyticsDashboardChat(data: InsertAnalyticsDashboardChat): Promise<AnalyticsDashboardChat> {
+    const [row] = await db.insert(analyticsDashboardChat).values(data).returning();
+    return row;
   }
 }
 

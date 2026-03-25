@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, timestamp, boolean, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, timestamp, boolean, real, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -367,3 +367,84 @@ export type UserDepartmentAccess = typeof userDepartmentAccess.$inferSelect;
 export type InsertUserDepartmentAccess = z.infer<typeof insertUserDepartmentAccessSchema>;
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+
+// ─── Analytics Studio ─────────────────────────────────────────────────────────
+
+export const analyticsDashboards = pgTable("analytics_dashboards", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  audience: text("audience"),
+  businessArea: text("business_area"),
+  naturalLanguagePrompt: text("natural_language_prompt"),
+  config: jsonb("config"),
+  templateConfig: jsonb("template_config"),
+  status: text("status").notNull().default("draft"),
+  visibility: text("visibility").notNull().default("private"),
+  departmentId: integer("department_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const analyticsDashboardUploads = pgTable("analytics_dashboard_uploads", {
+  id: serial("id").primaryKey(),
+  dashboardId: integer("dashboard_id").notNull().references(() => analyticsDashboards.id),
+  uploadedBy: integer("uploaded_by").notNull().references(() => users.id),
+  fileName: text("file_name").notNull(),
+  rowCount: integer("row_count").notNull().default(0),
+  data: jsonb("data"),
+  validationStatus: text("validation_status").default("pending"),
+  validationErrors: jsonb("validation_errors"),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+});
+
+export const analyticsDashboardWidgets = pgTable("analytics_dashboard_widgets", {
+  id: serial("id").primaryKey(),
+  dashboardId: integer("dashboard_id").notNull().references(() => analyticsDashboards.id),
+  widgetType: text("widget_type").notNull(),
+  title: text("title").notNull(),
+  config: jsonb("config"),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const analyticsDashboardNarratives = pgTable("analytics_dashboard_narratives", {
+  id: serial("id").primaryKey(),
+  dashboardId: integer("dashboard_id").notNull().references(() => analyticsDashboards.id),
+  uploadId: integer("upload_id"),
+  executiveSummary: text("executive_summary"),
+  insights: text("insights"),
+  highlights: text("highlights"),
+  risks: text("risks"),
+  trends: text("trends"),
+  suggestedActions: text("suggested_actions"),
+  generatedAt: timestamp("generated_at").notNull().defaultNow(),
+});
+
+export const analyticsDashboardChat = pgTable("analytics_dashboard_chat", {
+  id: serial("id").primaryKey(),
+  dashboardId: integer("dashboard_id").notNull().references(() => analyticsDashboards.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAnalyticsDashboardSchema = createInsertSchema(analyticsDashboards).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAnalyticsDashboardUploadSchema = createInsertSchema(analyticsDashboardUploads).omit({ id: true, uploadedAt: true });
+export const insertAnalyticsDashboardWidgetSchema = createInsertSchema(analyticsDashboardWidgets).omit({ id: true, createdAt: true });
+export const insertAnalyticsDashboardNarrativeSchema = createInsertSchema(analyticsDashboardNarratives).omit({ id: true, generatedAt: true });
+export const insertAnalyticsDashboardChatSchema = createInsertSchema(analyticsDashboardChat).omit({ id: true, createdAt: true });
+
+export type AnalyticsDashboard = typeof analyticsDashboards.$inferSelect;
+export type InsertAnalyticsDashboard = z.infer<typeof insertAnalyticsDashboardSchema>;
+export type AnalyticsDashboardUpload = typeof analyticsDashboardUploads.$inferSelect;
+export type InsertAnalyticsDashboardUpload = z.infer<typeof insertAnalyticsDashboardUploadSchema>;
+export type AnalyticsDashboardWidget = typeof analyticsDashboardWidgets.$inferSelect;
+export type InsertAnalyticsDashboardWidget = z.infer<typeof insertAnalyticsDashboardWidgetSchema>;
+export type AnalyticsDashboardNarrative = typeof analyticsDashboardNarratives.$inferSelect;
+export type InsertAnalyticsDashboardNarrative = z.infer<typeof insertAnalyticsDashboardNarrativeSchema>;
+export type AnalyticsDashboardChat = typeof analyticsDashboardChat.$inferSelect;
+export type InsertAnalyticsDashboardChat = z.infer<typeof insertAnalyticsDashboardChatSchema>;
