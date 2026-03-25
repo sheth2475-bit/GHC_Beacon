@@ -616,9 +616,11 @@ export async function registerRoutes(
           const title = (row.title || row["Title"] || "").trim();
           if (!title) throw new Error("Title is required");
           const dept = departments.find(d => d.name.toLowerCase() === (row.department || row["Department"] || "").toLowerCase());
+          const rawDept = (row.department || row["Department"] || "").trim();
           const item = await storage.createActionItem({
             companyId: company.id,
             departmentId: dept?.id || null,
+            departmentText: !dept && rawDept ? rawDept : null,
             meetingType: row.meetingType || row["Meeting Type"] || null,
             title,
             description: row.description || row["Description"] || null,

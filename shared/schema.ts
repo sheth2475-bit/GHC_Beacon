@@ -70,6 +70,7 @@ export const actionItems = pgTable("action_items", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),
   departmentId: integer("department_id").references(() => departments.id),
+  departmentText: text("department_text"),
   meetingType: text("meeting_type"),
   title: text("title").notNull(),
   description: text("description"),

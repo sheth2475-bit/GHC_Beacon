@@ -51,6 +51,7 @@ export default function ActionsPage() {
   const [priority, setPriority] = useState("Medium");
   const [status, setStatus] = useState("Not Started");
   const [deptId, setDeptId] = useState("");
+  const [deptInput, setDeptInput] = useState("");
 
   // ── Inline editing ────────────────────────────────────────────────────────
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -85,17 +86,20 @@ export default function ActionsPage() {
   const resetForm = () => {
     setMeetingType(""); setTitle(""); setDescription(""); setOwnerName("");
     setDueDate(""); setRevisedDueDate(""); setPriority("Medium");
-    setStatus("Not Started"); setDeptId("");
+    setStatus("Not Started"); setDeptId(""); setDeptInput("");
   };
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const trimmed = deptInput.trim();
+      const matchedDept = trimmed ? (departments || []).find(d => d.name.toLowerCase() === trimmed.toLowerCase()) : null;
       await apiRequest("POST", "/api/action-items", {
         meetingType: meetingType || null,
         title, description, ownerName, dueDate,
         revisedDueDate: revisedDueDate || null,
         priority, status,
-        departmentId: deptId ? parseInt(deptId) : null,
+        departmentId: matchedDept ? matchedDept.id : null,
+        departmentText: !matchedDept && trimmed ? trimmed : null,
       });
     },
     onSuccess: () => {
@@ -167,15 +171,23 @@ export default function ActionsPage() {
     return effectiveDue && effectiveDue < today && item.status !== "Completed" && item.status !== "Cancelled";
   };
 
-  const getDeptName = (deptId: number | null) => departments?.find(d => d.id === deptId)?.name || "-";
+  const getDeptName = (deptId: number | null) => departments?.find(d => d.id === deptId)?.name || null;
+  const getEffectiveDept = (a: ActionItem) => getDeptName(a.departmentId) || a.departmentText || null;
+
+  const knownDeptNames = (departments || []).map(d => d.name);
+  const customDepts = Array.from(new Set(
+    (actions || [])
+      .filter(a => !a.departmentId && a.departmentText && !knownDeptNames.includes(a.departmentText))
+      .map(a => a.departmentText as string)
+  ));
 
   const filtered = (actions || []).filter(a => {
     if (filterStatus !== "all" && a.status !== filterStatus) return false;
     if (filterPriority !== "all" && a.priority !== filterPriority) return false;
     if (filterMeetingType !== "all" && a.meetingType !== filterMeetingType) return false;
     if (filterDept !== "all") {
-      const deptName = getDeptName(a.departmentId);
-      if (deptName !== filterDept) return false;
+      const effectiveDept = getEffectiveDept(a);
+      if (effectiveDept !== filterDept) return false;
     }
     if (search && !a.title.toLowerCase().includes(search.toLowerCase()) &&
         !a.ownerName?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -233,9 +245,9 @@ export default function ActionsPage() {
       </div>
 
       {/* Department filter pills */}
-      {(departments || []).length > 0 && (
+      {((departments || []).length > 0 || customDepts.length > 0) && (
         <div className="flex-none px-6 pt-3 pb-0 flex items-center gap-2 flex-wrap">
-          {["all", ...(departments || []).map(d => d.name)].map(dept => (
+          {["all", ...(departments || []).map(d => d.name), ...customDepts].map(dept => (
             <button
               key={dept}
               onClick={() => setFilterDept(dept)}
@@ -377,10 +389,10 @@ export default function ActionsPage() {
                           ) : (
                             <div className="space-y-0.5">
                               {(() => {
-                                const dept = departments?.find(d => d.id === item.departmentId);
-                                return dept ? (
+                                const deptLabel = getDeptName(item.departmentId) || item.departmentText;
+                                return deptLabel ? (
                                   <span className="text-[10px] font-medium text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded block w-fit">
-                                    {dept.name}
+                                    {deptLabel}
                                   </span>
                                 ) : null;
                               })()}
@@ -539,10 +551,16 @@ export default function ActionsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Department</Label>
-                <Select value={deptId} onValueChange={setDeptId}>
-                  <SelectTrigger data-testid="select-action-dept"><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>{(departments || []).map(d => <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>)}</SelectContent>
-                </Select>
+                <Input
+                  list="dept-suggestions"
+                  value={deptInput}
+                  onChange={e => setDeptInput(e.target.value)}
+                  placeholder="Type or select department..."
+                  data-testid="input-action-dept"
+                />
+                <datalist id="dept-suggestions">
+                  {(departments || []).map(d => <option key={d.id} value={d.name} />)}
+                </datalist>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
