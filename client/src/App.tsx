@@ -33,6 +33,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import AnalyticsStudioPage from "@/pages/analytics-studio";
 import AnalyticsStudioNewPage from "@/pages/analytics-studio-new";
 import AnalyticsStudioViewPage from "@/pages/analytics-studio-view";
+import AnalyticsUploadPage from "@/pages/analytics-upload";
+import AnalyticsConfigurePage from "@/pages/analytics-configure";
+import AnalyticsExplorePage from "@/pages/analytics-explore";
+import AnalyticsDashboardComposePage from "@/pages/analytics-dashboard-compose";
 
 import GuidePage from "@/pages/guide";
 import OwnerLogin from "@/pages/owner-login";
@@ -62,6 +66,11 @@ function AppRouter() {
       <Route path="/initiatives/:id" component={ProjectDetailPage} />
       <Route path="/workload" component={WorkloadPage} />
       <Route path="/analytics" component={AnalyticsStudioPage} />
+      <Route path="/analytics/upload" component={AnalyticsUploadPage} />
+      <Route path="/analytics/dashboards/new" component={AnalyticsDashboardComposePage} />
+      <Route path="/analytics/dashboards/:id" component={AnalyticsDashboardComposePage} />
+      <Route path="/analytics/datasets/:id/configure" component={AnalyticsConfigurePage} />
+      <Route path="/analytics/datasets/:id/explore" component={AnalyticsExplorePage} />
       <Route path="/analytics/new" component={AnalyticsStudioNewPage} />
       <Route path="/analytics/:id" component={AnalyticsStudioViewPage} />
       {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}

@@ -1,0 +1,257 @@
+Now design and implement the Insight Builder screen in Analytics Studio as the core search-driven analytics experience of Performo AI.
+
+This screen is the most important part of the Analytics Studio module and must feel polished, intuitive, and powerful for business users.
+
+Core purpose:
+A user should be able to ask questions in plain language on the uploaded dataset and receive the most appropriate visual automatically, along with AI narrative, field interpretation, and options to save or pin the result.
+
+====================================================
+1. SCREEN NAME
+====================================================
+
+Insight Builder
+
+====================================================
+2. MAIN LAYOUT
+====================================================
+
+Design the screen with these main areas:
+
+A. Top search area
+- natural language question input
+- ask/search button
+- placeholder examples such as:
+  - Total Sales
+  - Revenue by Region
+  - Sales by Month
+  - Attrition Rate by Department
+  - Top 5 branches by profit
+
+B. Left panel: Dataset / Field Explorer
+Show:
+- dataset name
+- sheets if relevant
+- grouped fields:
+  - Dimensions
+  - Measures
+  - Dates
+  - Formulas
+- quick indicators for field type and formatting
+
+C. Center panel: Insight Result Area
+Show:
+- generated chart / KPI card / table
+- chart title
+- chart subtitle if useful
+- data freshness
+- applied filters summary
+
+D. Right panel: Insight Details / AI Panel
+Show:
+- interpretation summary of what the system understood
+- selected fields
+- aggregation used
+- narrative summary
+- suggested follow-up questions
+- recommended related insights
+
+====================================================
+3. NATURAL LANGUAGE QUERY EXPERIENCE
+====================================================
+
+When user types a question, the system should:
+1. interpret the request
+2. identify measures, dimensions, dates, filters, and comparison logic
+3. choose the best-fit visualization
+4. render the result
+5. show the interpretation summary clearly
+
+Examples:
+- “Total Sales” -> KPI card
+- “Sales by Month” -> line chart
+- “Revenue by Region” -> bar chart
+- “Revenue share by region” -> pie/donut chart if category count is small
+- “Top 10 customers by sales” -> ranked table or bar chart
+
+Show the interpretation in simple language, for example:
+- Measure: Revenue
+- Dimension: Region
+- Aggregation: Sum
+- Filter: None
+- Chart Type: Bar Chart
+
+====================================================
+4. BEST-FIT VISUAL RECOMMENDATION
+====================================================
+
+The screen must automatically recommend and display the best-fit visual based on the question and data context.
+
+Examples:
+- single metric total -> KPI card
+- trend over time -> line chart
+- category comparison -> bar/column chart
+- share of whole with few categories -> pie/donut chart
+- detailed ranking/list -> table
+
+User must also be able to manually override the chart type.
+
+Chart switcher should support at least:
+- KPI Card
+- Bar Chart
+- Column Chart
+- Line Chart
+- Area Chart
+- Pie / Donut
+- Table
+
+====================================================
+5. INSIGHT DETAILS PANEL
+====================================================
+
+Show a clean Insight Details panel containing:
+- what question was asked
+- interpreted dataset fields
+- aggregation logic
+- active filters
+- chart type used
+- narrative summary
+- suggested next questions
+
+Narrative examples:
+- “Revenue is highest in the North region, contributing 34% of total sales.”
+- “Sales show a rising trend from January to March before flattening in April.”
+
+Suggested follow-up examples:
+- compare this to last month
+- split this by product category
+- show top 5 only
+- add a department filter
+- change this to a table
+
+====================================================
+6. USER ACTIONS
+====================================================
+
+Provide clear action buttons:
+- Save Insight
+- Pin to Dashboard
+- Add to Existing Dashboard
+- Create New Dashboard
+- Edit Chart
+- Export
+- Ask Follow-up Question
+
+If user clicks Save Insight:
+- store the current insight with title, query, config, and narrative
+
+If user clicks Pin to Dashboard:
+- allow pinning to existing dashboard or creating a new one
+
+====================================================
+7. FOLLOW-UP QUESTION EXPERIENCE
+====================================================
+
+Allow follow-up questions while keeping context.
+
+Examples:
+User asks:
+- Revenue by Region
+Then follow-up:
+- now show only top 5
+- compare with last month
+- split by product line
+- change this to donut chart
+
+The app must preserve context from the previous insight unless the user starts a fresh query.
+
+====================================================
+8. SUGGESTED INSIGHTS / AUTO SUGGESTIONS
+====================================================
+
+Below or beside the insight, show:
+- suggested related questions
+- AI-detected anomalies
+- AI-detected trends
+- recommended next analyses
+
+Examples:
+- revenue trend by month
+- bottom 5 regions by margin
+- compare revenue vs target
+- identify top contributing product category
+
+These suggestions should be clickable and generate a new insight instantly.
+
+====================================================
+9. EMPTY / LOADING / ERROR STATES
+====================================================
+
+Include robust states:
+- empty state before first question
+- loading state while query is being interpreted and visual generated
+- no result state if question cannot be answered
+- ambiguous query state if multiple interpretations exist
+- error state if dataset is missing or invalid
+
+For ambiguous query:
+ask the user to clarify.
+
+Example:
+“I found multiple revenue fields. Which one do you want to use?”
+
+====================================================
+10. PERMISSIONS
+====================================================
+
+Respect existing role-based and department-based access rules.
+
+Users must only be able to:
+- query data within their allowed department/company scope
+- save insights within permitted visibility scope
+- pin insights only to dashboards they are allowed to use
+
+====================================================
+11. SAVE / PIN DATA MODEL
+====================================================
+
+Ensure this screen creates real working objects for:
+- saved insight
+- pinned insight
+- dashboard item
+- query history
+- follow-up question history if useful
+
+====================================================
+12. UX REQUIREMENTS
+====================================================
+
+This screen should feel:
+- premium
+- simple
+- fast
+- business-friendly
+- non-technical
+- intelligent
+
+It should be the strongest screen in Analytics Studio.
+
+Do not make it look like a raw SQL or developer interface.
+Keep it clean and executive-friendly.
+
+====================================================
+13. IMPORTANT PRODUCT BEHAVIOR
+====================================================
+
+- every question result is an Insight
+- chart recommendation happens automatically
+- user can override chart type
+- interpretation summary is always visible
+- follow-up questions preserve context
+- AI narrative is grounded in the returned result
+- user can save or pin the insight without leaving the screen
+
+====================================================
+14. FINAL EXPECTATION
+====================================================
+
+Build Insight Builder as a fully functional, polished, search-driven analytics screen that becomes the core experience of Analytics Studio in Performo AI.

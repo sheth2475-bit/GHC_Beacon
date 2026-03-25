@@ -8,6 +8,8 @@ import {
   userDepartmentAccess,
   analyticsDashboards, analyticsDashboardUploads, analyticsDashboardWidgets,
   analyticsDashboardNarratives, analyticsDashboardChat,
+  analyticsDatasets, analyticsDatasetColumns, analyticsInsights, analyticsAutoInsights,
+  analyticsDashboardDefinitions, analyticsDashboardItems,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -30,6 +32,12 @@ import {
   type AnalyticsDashboardWidget, type InsertAnalyticsDashboardWidget,
   type AnalyticsDashboardNarrative, type InsertAnalyticsDashboardNarrative,
   type AnalyticsDashboardChat, type InsertAnalyticsDashboardChat,
+  type AnalyticsDataset, type InsertAnalyticsDataset,
+  type AnalyticsDatasetColumn, type InsertAnalyticsDatasetColumn,
+  type AnalyticsInsight, type InsertAnalyticsInsight,
+  type AnalyticsAutoInsight, type InsertAnalyticsAutoInsight,
+  type AnalyticsDashboardDefinition, type InsertAnalyticsDashboardDefinition,
+  type AnalyticsDashboardItem, type InsertAnalyticsDashboardItem,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -174,6 +182,43 @@ export interface IStorage {
   // Platform analytics
   getAllCompanies(): Promise<Company[]>;
   getAllUsers(): Promise<User[]>;
+
+  // Analytics Studio V2 — Datasets
+  getAnalyticsDatasets(companyId: number): Promise<AnalyticsDataset[]>;
+  getAnalyticsDataset(id: number): Promise<AnalyticsDataset | undefined>;
+  createAnalyticsDataset(data: InsertAnalyticsDataset): Promise<AnalyticsDataset>;
+  updateAnalyticsDataset(id: number, data: Partial<InsertAnalyticsDataset>): Promise<AnalyticsDataset>;
+  deleteAnalyticsDataset(id: number): Promise<void>;
+
+  // Analytics Studio V2 — Columns
+  getAnalyticsDatasetColumns(datasetId: number): Promise<AnalyticsDatasetColumn[]>;
+  upsertAnalyticsDatasetColumns(datasetId: number, cols: Omit<InsertAnalyticsDatasetColumn, 'datasetId'>[]): Promise<AnalyticsDatasetColumn[]>;
+
+  // Analytics Studio V2 — Insights
+  getAnalyticsInsights(companyId: number): Promise<AnalyticsInsight[]>;
+  getAnalyticsInsightsByDataset(datasetId: number): Promise<AnalyticsInsight[]>;
+  getAnalyticsInsight(id: number): Promise<AnalyticsInsight | undefined>;
+  createAnalyticsInsight(data: InsertAnalyticsInsight): Promise<AnalyticsInsight>;
+  updateAnalyticsInsight(id: number, data: Partial<InsertAnalyticsInsight>): Promise<AnalyticsInsight>;
+  deleteAnalyticsInsight(id: number): Promise<void>;
+
+  // Analytics Studio V2 — Auto Insights
+  getAnalyticsAutoInsights(datasetId: number): Promise<AnalyticsAutoInsight[]>;
+  createAnalyticsAutoInsight(data: InsertAnalyticsAutoInsight): Promise<AnalyticsAutoInsight>;
+  deleteAnalyticsAutoInsights(datasetId: number): Promise<void>;
+
+  // Analytics Studio V2 — Dashboard Definitions
+  getAnalyticsDashboardDefinitions(companyId: number): Promise<AnalyticsDashboardDefinition[]>;
+  getAnalyticsDashboardDefinition(id: number): Promise<AnalyticsDashboardDefinition | undefined>;
+  createAnalyticsDashboardDefinition(data: InsertAnalyticsDashboardDefinition): Promise<AnalyticsDashboardDefinition>;
+  updateAnalyticsDashboardDefinition(id: number, data: Partial<InsertAnalyticsDashboardDefinition>): Promise<AnalyticsDashboardDefinition>;
+  deleteAnalyticsDashboardDefinition(id: number): Promise<void>;
+
+  // Analytics Studio V2 — Dashboard Items
+  getAnalyticsDashboardItems(dashboardId: number): Promise<(AnalyticsDashboardItem & { insight: AnalyticsInsight })[]>;
+  addAnalyticsDashboardItem(data: InsertAnalyticsDashboardItem): Promise<AnalyticsDashboardItem>;
+  removeAnalyticsDashboardItem(id: number): Promise<void>;
+  reorderAnalyticsDashboardItems(dashboardId: number, orderedIds: number[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -726,6 +771,146 @@ export class DatabaseStorage implements IStorage {
   async addAnalyticsDashboardChat(data: InsertAnalyticsDashboardChat): Promise<AnalyticsDashboardChat> {
     const [row] = await db.insert(analyticsDashboardChat).values(data).returning();
     return row;
+  }
+
+  // ─── Analytics Studio V2 ───────────────────────────────────────────────────
+
+  async getAnalyticsDatasets(companyId: number): Promise<AnalyticsDataset[]> {
+    return db.select().from(analyticsDatasets)
+      .where(eq(analyticsDatasets.companyId, companyId))
+      .orderBy(desc(analyticsDatasets.createdAt));
+  }
+  async getAnalyticsDataset(id: number): Promise<AnalyticsDataset | undefined> {
+    const [row] = await db.select().from(analyticsDatasets).where(eq(analyticsDatasets.id, id));
+    return row;
+  }
+  async createAnalyticsDataset(data: InsertAnalyticsDataset): Promise<AnalyticsDataset> {
+    const [row] = await db.insert(analyticsDatasets).values(data).returning();
+    return row;
+  }
+  async updateAnalyticsDataset(id: number, data: Partial<InsertAnalyticsDataset>): Promise<AnalyticsDataset> {
+    const [row] = await db.update(analyticsDatasets)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(analyticsDatasets.id, id))
+      .returning();
+    return row;
+  }
+  async deleteAnalyticsDataset(id: number): Promise<void> {
+    await db.delete(analyticsAutoInsights).where(eq(analyticsAutoInsights.datasetId, id));
+    const insights = await db.select({ id: analyticsInsights.id }).from(analyticsInsights).where(eq(analyticsInsights.datasetId, id));
+    for (const insight of insights) {
+      await db.delete(analyticsDashboardItems).where(eq(analyticsDashboardItems.insightId, insight.id));
+    }
+    await db.delete(analyticsInsights).where(eq(analyticsInsights.datasetId, id));
+    await db.delete(analyticsDatasetColumns).where(eq(analyticsDatasetColumns.datasetId, id));
+    await db.delete(analyticsDatasets).where(eq(analyticsDatasets.id, id));
+  }
+
+  async getAnalyticsDatasetColumns(datasetId: number): Promise<AnalyticsDatasetColumn[]> {
+    return db.select().from(analyticsDatasetColumns)
+      .where(eq(analyticsDatasetColumns.datasetId, datasetId))
+      .orderBy(analyticsDatasetColumns.position);
+  }
+  async upsertAnalyticsDatasetColumns(datasetId: number, cols: Omit<InsertAnalyticsDatasetColumn, 'datasetId'>[]): Promise<AnalyticsDatasetColumn[]> {
+    await db.delete(analyticsDatasetColumns).where(eq(analyticsDatasetColumns.datasetId, datasetId));
+    if (!cols.length) return [];
+    return db.insert(analyticsDatasetColumns)
+      .values(cols.map(c => ({ ...c, datasetId })))
+      .returning();
+  }
+
+  async getAnalyticsInsights(companyId: number): Promise<AnalyticsInsight[]> {
+    return db.select().from(analyticsInsights)
+      .where(eq(analyticsInsights.companyId, companyId))
+      .orderBy(desc(analyticsInsights.createdAt));
+  }
+  async getAnalyticsInsightsByDataset(datasetId: number): Promise<AnalyticsInsight[]> {
+    return db.select().from(analyticsInsights)
+      .where(eq(analyticsInsights.datasetId, datasetId))
+      .orderBy(desc(analyticsInsights.createdAt));
+  }
+  async getAnalyticsInsight(id: number): Promise<AnalyticsInsight | undefined> {
+    const [row] = await db.select().from(analyticsInsights).where(eq(analyticsInsights.id, id));
+    return row;
+  }
+  async createAnalyticsInsight(data: InsertAnalyticsInsight): Promise<AnalyticsInsight> {
+    const [row] = await db.insert(analyticsInsights).values(data).returning();
+    return row;
+  }
+  async updateAnalyticsInsight(id: number, data: Partial<InsertAnalyticsInsight>): Promise<AnalyticsInsight> {
+    const [row] = await db.update(analyticsInsights)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(analyticsInsights.id, id))
+      .returning();
+    return row;
+  }
+  async deleteAnalyticsInsight(id: number): Promise<void> {
+    await db.delete(analyticsDashboardItems).where(eq(analyticsDashboardItems.insightId, id));
+    await db.delete(analyticsInsights).where(eq(analyticsInsights.id, id));
+  }
+
+  async getAnalyticsAutoInsights(datasetId: number): Promise<AnalyticsAutoInsight[]> {
+    return db.select().from(analyticsAutoInsights)
+      .where(eq(analyticsAutoInsights.datasetId, datasetId))
+      .orderBy(desc(analyticsAutoInsights.priority));
+  }
+  async createAnalyticsAutoInsight(data: InsertAnalyticsAutoInsight): Promise<AnalyticsAutoInsight> {
+    const [row] = await db.insert(analyticsAutoInsights).values(data).returning();
+    return row;
+  }
+  async deleteAnalyticsAutoInsights(datasetId: number): Promise<void> {
+    await db.delete(analyticsAutoInsights).where(eq(analyticsAutoInsights.datasetId, datasetId));
+  }
+
+  async getAnalyticsDashboardDefinitions(companyId: number): Promise<AnalyticsDashboardDefinition[]> {
+    return db.select().from(analyticsDashboardDefinitions)
+      .where(eq(analyticsDashboardDefinitions.companyId, companyId))
+      .orderBy(desc(analyticsDashboardDefinitions.updatedAt));
+  }
+  async getAnalyticsDashboardDefinition(id: number): Promise<AnalyticsDashboardDefinition | undefined> {
+    const [row] = await db.select().from(analyticsDashboardDefinitions).where(eq(analyticsDashboardDefinitions.id, id));
+    return row;
+  }
+  async createAnalyticsDashboardDefinition(data: InsertAnalyticsDashboardDefinition): Promise<AnalyticsDashboardDefinition> {
+    const [row] = await db.insert(analyticsDashboardDefinitions).values(data).returning();
+    return row;
+  }
+  async updateAnalyticsDashboardDefinition(id: number, data: Partial<InsertAnalyticsDashboardDefinition>): Promise<AnalyticsDashboardDefinition> {
+    const [row] = await db.update(analyticsDashboardDefinitions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(analyticsDashboardDefinitions.id, id))
+      .returning();
+    return row;
+  }
+  async deleteAnalyticsDashboardDefinition(id: number): Promise<void> {
+    await db.delete(analyticsDashboardItems).where(eq(analyticsDashboardItems.dashboardId, id));
+    await db.delete(analyticsDashboardDefinitions).where(eq(analyticsDashboardDefinitions.id, id));
+  }
+
+  async getAnalyticsDashboardItems(dashboardId: number): Promise<(AnalyticsDashboardItem & { insight: AnalyticsInsight })[]> {
+    const items = await db.select().from(analyticsDashboardItems)
+      .where(eq(analyticsDashboardItems.dashboardId, dashboardId))
+      .orderBy(analyticsDashboardItems.position);
+    const result = [];
+    for (const item of items) {
+      const [insight] = await db.select().from(analyticsInsights).where(eq(analyticsInsights.id, item.insightId));
+      if (insight) result.push({ ...item, insight });
+    }
+    return result;
+  }
+  async addAnalyticsDashboardItem(data: InsertAnalyticsDashboardItem): Promise<AnalyticsDashboardItem> {
+    const [row] = await db.insert(analyticsDashboardItems).values(data).returning();
+    return row;
+  }
+  async removeAnalyticsDashboardItem(id: number): Promise<void> {
+    await db.delete(analyticsDashboardItems).where(eq(analyticsDashboardItems.id, id));
+  }
+  async reorderAnalyticsDashboardItems(dashboardId: number, orderedIds: number[]): Promise<void> {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db.update(analyticsDashboardItems)
+        .set({ position: i })
+        .where(and(eq(analyticsDashboardItems.id, orderedIds[i]), eq(analyticsDashboardItems.dashboardId, dashboardId)));
+    }
   }
 }
 

@@ -1746,6 +1746,463 @@ You can help the user understand their data, suggest chart types, explain insigh
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Analytics Studio V2 Routes
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    const multer = (await import("multer")).default;
+    const xlsx = await import("xlsx");
+    const v2Upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+    const getOaiV2 = async () => {
+      const OpenAI = (await import("openai")).default;
+      return new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+    };
+
+    // Helper: auto-detect column types from sample data
+    function autoDetectColumnType(values: unknown[]): string {
+      const nonEmpty = values.filter(v => v !== null && v !== undefined && v !== "");
+      if (nonEmpty.length === 0) return "dimension";
+      const numeric = nonEmpty.filter(v => !isNaN(Number(v)));
+      if (numeric.length / nonEmpty.length > 0.8) return "measure";
+      const dateStr = nonEmpty.filter(v => !isNaN(Date.parse(String(v))));
+      if (dateStr.length / nonEmpty.length > 0.8) return "date";
+      return "dimension";
+    }
+
+    // Helper: aggregate data for chart
+    function aggregateData(
+      rows: Record<string, unknown>[],
+      measure: string,
+      dimension: string | null,
+      aggregation: string = "sum",
+      limit?: number
+    ): { name: string; value: number }[] {
+      if (!dimension) {
+        const vals = rows.map(r => Number(r[measure]) || 0).filter(v => !isNaN(v));
+        const total = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
+          : aggregation === "count" ? vals.length
+          : aggregation === "min" ? Math.min(...vals)
+          : aggregation === "max" ? Math.max(...vals)
+          : vals.reduce((a, b) => a + b, 0);
+        return [{ name: measure, value: Math.round(total * 100) / 100 }];
+      }
+      const groups: Record<string, number[]> = {};
+      for (const row of rows) {
+        const key = String(row[dimension] ?? "Unknown");
+        if (!groups[key]) groups[key] = [];
+        const val = Number(row[measure]);
+        if (!isNaN(val)) groups[key].push(val);
+      }
+      let result = Object.entries(groups).map(([name, vals]) => {
+        const value = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
+          : aggregation === "count" ? vals.length
+          : aggregation === "min" ? Math.min(...vals)
+          : aggregation === "max" ? Math.max(...vals)
+          : vals.reduce((a, b) => a + b, 0);
+        return { name, value: Math.round(value * 100) / 100 };
+      }).sort((a, b) => b.value - a.value);
+      if (limit) result = result.slice(0, limit);
+      return result;
+    }
+
+    // ── Datasets ──────────────────────────────────────────────────────
+
+    app.get("/api/v2/analytics/datasets", requireAuth, async (req: Request, res: Response) => {
+      const user = req.user as Express.User;
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company" });
+      const datasets = await storage.getAnalyticsDatasets(company.id);
+      res.json(datasets);
+    });
+
+    app.post("/api/v2/analytics/datasets", requireAuth, v2Upload.single("file"), async (req: Request, res: Response) => {
+      try {
+        const user = req.user as Express.User;
+        const company = await getCompanyForUser(req);
+        if (!company) return res.status(400).json({ message: "No company" });
+        if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+        const wb = xlsx.read(req.file.buffer, { type: "buffer" });
+        const sheetNames = wb.SheetNames;
+        const sheet = wb.Sheets[sheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(sheet, { defval: null }) as Record<string, unknown>[];
+        const columns = rows.length ? Object.keys(rows[0]) : [];
+
+        const dataset = await storage.createAnalyticsDataset({
+          companyId: company.id,
+          createdBy: user.id,
+          name: req.body.name || req.file.originalname.replace(/\.(xlsx|xls|csv)$/i, ""),
+          description: req.body.description || null,
+          fileName: req.file.originalname,
+          sheetNames,
+          rowCount: rows.length,
+          rawData: rows.slice(0, 5000) as unknown as typeof rows,
+          status: "active",
+        });
+
+        // Auto-detect columns
+        const colDefs = columns.map((col, i) => {
+          const vals = rows.map(r => r[col]);
+          const type = autoDetectColumnType(vals);
+          return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
+        });
+        await storage.upsertAnalyticsDatasetColumns(dataset.id, colDefs);
+
+        res.json({ ...dataset, columns: colDefs });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Upload failed" });
+      }
+    });
+
+    app.get("/api/v2/analytics/datasets/:id", requireAuth, async (req: Request, res: Response) => {
+      const ds = await storage.getAnalyticsDataset(Number(req.params.id));
+      if (!ds) return res.status(404).json({ message: "Not found" });
+      const columns = await storage.getAnalyticsDatasetColumns(ds.id);
+      const insights = await storage.getAnalyticsInsightsByDataset(ds.id);
+      const autoInsights = await storage.getAnalyticsAutoInsights(ds.id);
+      res.json({ ...ds, columns, insights, autoInsights });
+    });
+
+    app.patch("/api/v2/analytics/datasets/:id", requireAuth, async (req: Request, res: Response) => {
+      const updated = await storage.updateAnalyticsDataset(Number(req.params.id), req.body);
+      res.json(updated);
+    });
+
+    app.delete("/api/v2/analytics/datasets/:id", requireAuth, async (req: Request, res: Response) => {
+      await storage.deleteAnalyticsDataset(Number(req.params.id));
+      res.json({ ok: true });
+    });
+
+    // Save column configuration
+    app.post("/api/v2/analytics/datasets/:id/columns", requireAuth, async (req: Request, res: Response) => {
+      const { columns } = req.body as { columns: Parameters<typeof storage.upsertAnalyticsDatasetColumns>[1] };
+      const cols = await storage.upsertAnalyticsDatasetColumns(Number(req.params.id), columns);
+      res.json(cols);
+    });
+
+    // ── Ask question → generate Insight ──────────────────────────────
+
+    app.post("/api/v2/analytics/datasets/:id/ask", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const user = req.user as Express.User;
+        const company = await getCompanyForUser(req);
+        const ds = await storage.getAnalyticsDataset(Number(req.params.id));
+        if (!ds || !company) return res.status(404).json({ message: "Not found" });
+
+        const columns = await storage.getAnalyticsDatasetColumns(ds.id);
+        const rows = (ds.rawData as Record<string, unknown>[]) || [];
+        const { question, chartTypeOverride } = req.body as { question: string; chartTypeOverride?: string };
+
+        const measures = columns.filter(c => c.columnType === "measure");
+        const dimensions = columns.filter(c => c.columnType === "dimension");
+        const dates = columns.filter(c => c.columnType === "date");
+
+        const colSummary = columns.filter(c => c.columnType !== "ignore").map(c =>
+          `${c.label} (${c.columnType}${c.columnType === "measure" ? ", " + (c.aggregation || "sum") : ""})`
+        ).join(", ");
+        const sampleRows = rows.slice(0, 5).map(r => {
+          const s: Record<string, unknown> = {};
+          columns.filter(c => c.columnType !== "ignore").forEach(c => s[c.label] = r[c.columnName]);
+          return s;
+        });
+
+        const oai = await getOaiV2();
+        const prompt = `You are an analytics engine for a business intelligence platform.
+
+Dataset: "${ds.name}"
+Columns: ${colSummary}
+Sample rows: ${JSON.stringify(sampleRows)}
+Total rows: ${rows.length}
+User question: "${question}"
+
+Respond with a JSON object (no markdown) with this exact structure:
+{
+  "title": "Short chart title",
+  "interpretation": "One sentence describing what you understood",
+  "chartType": "kpi|line|bar|pie|table",
+  "measure": "exact_column_name",
+  "dimension": "exact_column_name_or_null",
+  "aggregation": "sum|avg|count|min|max",
+  "dateGrain": "month|quarter|year|null",
+  "topN": null or number,
+  "narrative": "2-3 sentences describing the insight, trend, or finding",
+  "suggestedQuestions": ["follow-up question 1", "follow-up question 2", "follow-up question 3"]
+}
+
+Chart type selection:
+- kpi: single total/average/count headline metric
+- line: time series trend (when dimension is a date column)
+- bar: comparing values across categories
+- pie: share of whole (≤8 categories)
+- table: ranked list, top N, or detailed breakdown
+
+Only use column names that exist. For dimension, use the exact columnName (not label). Return null for dimension if it is a KPI/single-metric question.`;
+
+        const completion = await oai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_tokens: 800,
+        });
+
+        let aiResult: { title: string; interpretation: string; chartType: string; measure: string; dimension: string | null; aggregation: string; topN: number | null; narrative: string; suggestedQuestions: string[] };
+        try {
+          aiResult = JSON.parse(completion.choices[0].message.content || "{}");
+        } catch {
+          return res.status(500).json({ message: "AI parsing error" });
+        }
+
+        const finalChartType = chartTypeOverride || aiResult.chartType || "bar";
+        const agg = aiResult.aggregation || "sum";
+        const measureCol = columns.find(c => c.columnName === aiResult.measure || c.label === aiResult.measure);
+        const dimCol = aiResult.dimension ? columns.find(c => c.columnName === aiResult.dimension || c.label === aiResult.dimension) : null;
+
+        // Compute chart data
+        let chartData: unknown;
+        if (finalChartType === "kpi") {
+          const vals = rows.map(r => Number(measureCol ? r[measureCol.columnName] : 0)).filter(v => !isNaN(v));
+          const value = agg === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
+            : agg === "count" ? vals.length : vals.reduce((a, b) => a + b, 0);
+          chartData = { value: Math.round(value * 100) / 100, label: measureCol?.label || aiResult.measure, count: vals.length };
+        } else if (finalChartType === "table") {
+          const displayCols = columns.filter(c => c.columnType !== "ignore").slice(0, 8);
+          const tableRows = rows.slice(0, aiResult.topN || 20).map(r => {
+            const row: Record<string, unknown> = {};
+            displayCols.forEach(c => { row[c.label] = r[c.columnName]; });
+            return row;
+          });
+          if (measureCol && dimCol) {
+            const aggRows = aggregateData(rows, measureCol.columnName, dimCol.columnName, agg, aiResult.topN || 20);
+            chartData = { rows: aggRows.map(r => ({ [dimCol.label]: r.name, [measureCol.label]: r.value })), columns: [dimCol.label, measureCol.label] };
+          } else {
+            chartData = { rows: tableRows, columns: displayCols.map(c => c.label) };
+          }
+        } else {
+          const aggData = measureCol ? aggregateData(rows, measureCol.columnName, dimCol?.columnName || null, agg, aiResult.topN || undefined) : [];
+          chartData = { data: aggData, xKey: "name", yKey: "value", measureLabel: measureCol?.label, dimensionLabel: dimCol?.label };
+        }
+
+        const chartConfig = { chartType: finalChartType, data: chartData, measure: aiResult.measure, dimension: aiResult.dimension, aggregation: agg, suggestedQuestions: aiResult.suggestedQuestions };
+
+        res.json({
+          title: aiResult.title,
+          interpretation: aiResult.interpretation,
+          chartType: finalChartType,
+          chartConfig,
+          narrative: aiResult.narrative,
+          suggestedQuestions: aiResult.suggestedQuestions,
+          question,
+        });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Analysis failed" });
+      }
+    });
+
+    // Save insight
+    app.post("/api/v2/analytics/insights", requireAuth, async (req: Request, res: Response) => {
+      const user = req.user as Express.User;
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company" });
+      const insight = await storage.createAnalyticsInsight({ ...req.body, companyId: company.id, createdBy: user.id });
+      res.json(insight);
+    });
+
+    app.get("/api/v2/analytics/insights", requireAuth, async (req: Request, res: Response) => {
+      const user = req.user as Express.User;
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company" });
+      const insights = await storage.getAnalyticsInsights(company.id);
+      res.json(insights);
+    });
+
+    app.get("/api/v2/analytics/insights/:id", requireAuth, async (req: Request, res: Response) => {
+      const insight = await storage.getAnalyticsInsight(Number(req.params.id));
+      if (!insight) return res.status(404).json({ message: "Not found" });
+      res.json(insight);
+    });
+
+    app.patch("/api/v2/analytics/insights/:id", requireAuth, async (req: Request, res: Response) => {
+      const updated = await storage.updateAnalyticsInsight(Number(req.params.id), req.body);
+      res.json(updated);
+    });
+
+    app.delete("/api/v2/analytics/insights/:id", requireAuth, async (req: Request, res: Response) => {
+      await storage.deleteAnalyticsInsight(Number(req.params.id));
+      res.json({ ok: true });
+    });
+
+    // Generate auto-insights
+    app.post("/api/v2/analytics/datasets/:id/auto-insights", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const user = req.user as Express.User;
+        const company = await getCompanyForUser(req);
+        const ds = await storage.getAnalyticsDataset(Number(req.params.id));
+        if (!ds || !company) return res.status(404).json({ message: "Not found" });
+
+        const columns = await storage.getAnalyticsDatasetColumns(ds.id);
+        const rows = (ds.rawData as Record<string, unknown>[]) || [];
+        const measures = columns.filter(c => c.columnType === "measure");
+        const dimensions = columns.filter(c => c.columnType === "dimension");
+
+        const oai = await getOaiV2();
+        const colSummary = columns.filter(c => c.columnType !== "ignore").map(c =>
+          `${c.label} (${c.columnType})`
+        ).join(", ");
+
+        const prompt = `You are an analytics engine. Analyze this dataset and generate 4-6 interesting auto-insights.
+
+Dataset: "${ds.name}" with ${rows.length} rows
+Columns: ${colSummary}
+Sample data (first 10 rows): ${JSON.stringify(rows.slice(0, 10))}
+
+Generate insights covering: trends, top performers, comparisons, anomalies, distributions.
+
+Return a JSON array (no markdown) with objects like:
+[{
+  "insightType": "trend|top_performer|comparison|anomaly|distribution|summary",
+  "title": "Short title",
+  "description": "2-3 sentence description of the finding",
+  "chartType": "kpi|bar|line|pie|table",
+  "suggestedQuestion": "A natural language question that would generate this insight",
+  "priority": 1-5
+}]
+
+Return ONLY the JSON array.`;
+
+        const completion = await oai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_tokens: 1200,
+        });
+
+        let suggestions: { insightType: string; title: string; description: string; chartType: string; suggestedQuestion: string; priority: number }[] = [];
+        try {
+          const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+          suggestions = Array.isArray(parsed) ? parsed : (parsed.insights || parsed.results || []);
+        } catch { suggestions = []; }
+
+        await storage.deleteAnalyticsAutoInsights(ds.id);
+        const saved = [];
+        for (const s of suggestions.slice(0, 6)) {
+          const row = await storage.createAnalyticsAutoInsight({
+            datasetId: ds.id, companyId: company.id,
+            insightType: s.insightType || "summary", title: s.title,
+            description: s.description, chartType: s.chartType || "bar",
+            chartConfig: { suggestedQuestion: s.suggestedQuestion } as unknown as null,
+            priority: s.priority || 0,
+          });
+          saved.push(row);
+        }
+        res.json(saved);
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Auto-insight generation failed" });
+      }
+    });
+
+    // ── Dashboard Definitions ─────────────────────────────────────────
+
+    app.get("/api/v2/analytics/definitions", requireAuth, async (req: Request, res: Response) => {
+      const user = req.user as Express.User;
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company" });
+      const defs = await storage.getAnalyticsDashboardDefinitions(company.id);
+      res.json(defs);
+    });
+
+    app.post("/api/v2/analytics/definitions", requireAuth, async (req: Request, res: Response) => {
+      const user = req.user as Express.User;
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company" });
+      const def = await storage.createAnalyticsDashboardDefinition({ ...req.body, companyId: company.id, createdBy: user.id });
+      res.json(def);
+    });
+
+    app.get("/api/v2/analytics/definitions/:id", requireAuth, async (req: Request, res: Response) => {
+      const def = await storage.getAnalyticsDashboardDefinition(Number(req.params.id));
+      if (!def) return res.status(404).json({ message: "Not found" });
+      const items = await storage.getAnalyticsDashboardItems(def.id);
+      res.json({ ...def, items });
+    });
+
+    app.patch("/api/v2/analytics/definitions/:id", requireAuth, async (req: Request, res: Response) => {
+      const updated = await storage.updateAnalyticsDashboardDefinition(Number(req.params.id), req.body);
+      res.json(updated);
+    });
+
+    app.delete("/api/v2/analytics/definitions/:id", requireAuth, async (req: Request, res: Response) => {
+      await storage.deleteAnalyticsDashboardDefinition(Number(req.params.id));
+      res.json({ ok: true });
+    });
+
+    app.post("/api/v2/analytics/definitions/:id/items", requireAuth, async (req: Request, res: Response) => {
+      const { insightId, position, titleOverride } = req.body;
+      const item = await storage.addAnalyticsDashboardItem({ dashboardId: Number(req.params.id), insightId, position: position ?? 0, titleOverride: titleOverride ?? null });
+      res.json(item);
+    });
+
+    app.delete("/api/v2/analytics/definitions/:id/items/:itemId", requireAuth, async (req: Request, res: Response) => {
+      await storage.removeAnalyticsDashboardItem(Number(req.params.itemId));
+      res.json({ ok: true });
+    });
+
+    app.post("/api/v2/analytics/definitions/:id/reorder", requireAuth, async (req: Request, res: Response) => {
+      await storage.reorderAnalyticsDashboardItems(Number(req.params.id), req.body.orderedIds);
+      res.json({ ok: true });
+    });
+
+    app.post("/api/v2/analytics/definitions/:id/publish", requireAuth, async (req: Request, res: Response) => {
+      const { visibility } = req.body;
+      const updated = await storage.updateAnalyticsDashboardDefinition(Number(req.params.id), {
+        status: "published", visibility: visibility || "company",
+      });
+      res.json(updated);
+    });
+
+    // Generate dashboard narrative
+    app.post("/api/v2/analytics/definitions/:id/narrative", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const def = await storage.getAnalyticsDashboardDefinition(Number(req.params.id));
+        if (!def) return res.status(404).json({ message: "Not found" });
+        const items = await storage.getAnalyticsDashboardItems(def.id);
+        const insightSummaries = items.map(i => `- ${i.titleOverride || i.insight.title}: ${i.insight.narrative || i.insight.interpretation || ""}`).join("\n");
+
+        const oai = await getOaiV2();
+        const prompt = `Write an executive-level AI narrative for this dashboard: "${def.title}"
+
+Pinned insights:
+${insightSummaries || "No insights yet."}
+
+Return a JSON object:
+{
+  "summary": "2-3 sentence executive summary",
+  "highlights": "Top 3 positive findings",
+  "risks": "Top 2 risks or concerns",
+  "recommendation": "1-2 key recommended actions"
+}`;
+
+        const completion = await oai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_tokens: 600,
+        });
+
+        const result = JSON.parse(completion.choices[0].message.content || "{}");
+        const narrative = `${result.summary || ""}\n\nHighlights: ${result.highlights || ""}\n\nRisks: ${result.risks || ""}\n\nRecommendations: ${result.recommendation || ""}`;
+        const updated = await storage.updateAnalyticsDashboardDefinition(def.id, { narrativeSummary: narrative });
+        res.json(updated);
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Narrative generation failed" });
+      }
+    });
+  }
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });

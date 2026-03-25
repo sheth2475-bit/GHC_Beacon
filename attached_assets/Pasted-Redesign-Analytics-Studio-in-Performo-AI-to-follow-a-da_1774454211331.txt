@@ -1,0 +1,558 @@
+Redesign Analytics Studio in Performo AI to follow a data-first, search-driven analytics workflow.
+
+The goal is to create a self-service analytics experience where users:
+1. upload data
+2. configure the data model
+3. ask questions in natural language
+4. receive the best-fit visual automatically
+5. save each result as an Insight
+6. pin selected Insights to a dashboard
+7. publish the dashboard
+8. refresh it later with new data uploads
+
+Important:
+- Use only Performo AI branding in the UI
+- Do not mention any third-party product names anywhere in the application
+- This must be a real connected workflow, not a mock concept
+
+====================================================
+1. NEW PRODUCT LOGIC
+====================================================
+
+Replace the earlier dashboard-first flow with this new logic:
+
+Dataset -> Column Configuration -> Formula & Aggregation Setup -> Ask Questions -> Generate Insight -> Save or Pin Insight -> Compose Dashboard -> Publish -> Refresh with new data
+
+Dashboards must be assembled from pinned Insights, not only generated as a full dashboard in one step.
+
+====================================================
+2. CORE USER EXPERIENCE
+====================================================
+
+The user journey should be:
+
+1. User uploads Excel data
+2. Application reads sheets and columns
+3. Application asks user to classify each column:
+   - Dimension
+   - Measure
+   - Date
+   - Ignore
+
+4. If a column is a Measure, application asks:
+   - default aggregation:
+     - sum
+     - average
+     - count
+     - min
+     - max
+   - format:
+     - number
+     - currency
+     - percentage
+   - whether the user wants to create derived formulas using this measure
+
+5. If a column is a Date, application asks:
+   - date format
+   - whether it should support year / quarter / month / week / day grouping
+
+6. User can create formula fields such as:
+   - Gross Margin % = (Revenue - Cost) / Revenue
+   - Attrition Rate = Exits / Avg Headcount
+   - Revenue per Employee = Revenue / Headcount
+
+7. Once the dataset is configured, user can ask questions in natural language such as:
+   - Total Sales
+   - Revenue by Region
+   - Sales by Month
+   - Attrition Rate by Department
+   - Top 5 branches by profit
+   - Show customer complaints trend this year
+   - Compare revenue this month vs last month
+
+8. The application should interpret the question and automatically recommend the best-fit visual.
+
+9. Each generated result should be treated as an Insight.
+
+10. The user can:
+   - Save Insight
+   - Pin Insight to Dashboard
+   - Edit Insight
+   - Ask follow-up questions
+   - Create another Insight
+
+11. The user gradually assembles a dashboard by pinning selected Insights.
+
+12. Once satisfied, the user can:
+   - Save Dashboard as Draft
+   - Publish Dashboard
+   - Share Dashboard based on permissions
+
+13. Later, the creator can re-upload updated data for the same dataset and refresh the Insights and Dashboard while preserving mappings, formulas, and layout.
+
+====================================================
+3. BEST-FIT VISUALIZATION LOGIC
+====================================================
+
+Build automatic visualization recommendation logic.
+
+When the user asks a question, the application should analyze:
+- number of measures
+- number of dimensions
+- presence of a date column
+- cardinality of categories
+- whether user is asking for total, comparison, trend, share, ranking, or distribution
+
+Then recommend the best-fit visual.
+
+Examples:
+
+A. KPI Card
+Trigger when:
+- user asks for a single total, count, average, or headline metric
+Examples:
+- Total Sales
+- Total Headcount
+- Average Response Time
+- Attrition Rate
+
+B. Line Chart
+Trigger when:
+- question includes a time element
+Examples:
+- Sales by Month
+- Complaints trend by week
+- Revenue over time
+
+C. Bar / Column Chart
+Trigger when:
+- comparing values across categories
+Examples:
+- Revenue by Region
+- Profit by Product
+- Attrition by Department
+
+D. Pie / Donut Chart
+Trigger when:
+- showing share of whole and category count is small
+Examples:
+- Revenue share by region
+- Employee mix by category
+
+E. Table
+Trigger when:
+- user asks for detailed records, ranked lists, or tabular breakdown
+Examples:
+- Top 10 customers by sales
+- Show branch-wise revenue and profit
+
+F. Combo / Mixed Visual
+Trigger when:
+- user compares trend plus target / benchmark if supported
+
+The user should still be able to override the recommended chart type manually.
+
+====================================================
+4. INSIGHT OBJECT MODEL
+====================================================
+
+Each generated result should be treated as an Insight.
+
+Insight should include:
+- title
+- source dataset
+- question asked
+- interpreted query summary
+- selected measures
+- selected dimensions
+- filters applied
+- date grain
+- chart type
+- chart config
+- narrative summary
+- saved status
+- pinned status
+- linked dashboard if pinned
+- created_by
+- created_at
+- updated_at
+
+====================================================
+5. NATURAL LANGUAGE ANALYTICS EXPERIENCE
+====================================================
+
+Build a search-driven analytics interface where user can ask plain-language questions about the uploaded dataset.
+
+Features required:
+- search/input bar for analytics questions
+- follow-up question support
+- context-aware refinement
+- visible interpretation summary of what the system understood
+- ability to edit the query or chart
+- ability to save the Insight
+- ability to pin the Insight to a Dashboard
+
+Examples of follow-up questions:
+- now split this by region
+- compare this to last month
+- show only Qatar branches
+- change this to a bar chart
+- add average line
+- show top 5 only
+- make this suitable for CEO view
+
+====================================================
+6. SPOTLIGHT / AUTO-INSIGHT STYLE ANALYSIS
+====================================================
+
+Add an automatic insight engine that can scan the uploaded data and suggest:
+- anomalies
+- trends
+- sharp increases/decreases
+- top contributors
+- underperforming segments
+- outliers
+- strong month-on-month changes
+
+This should appear as:
+- Suggested Insights
+- Recommended Questions
+- AI-detected trends
+- AI-detected anomalies
+
+Users should be able to turn those suggestions into Insights and pin them to dashboards.
+
+====================================================
+7. SCREEN-BY-SCREEN FLOW
+====================================================
+
+Build these screens and flows.
+
+----------------------------------------------------
+SCREEN 1: Analytics Studio Home
+----------------------------------------------------
+Show:
+- Upload New Dataset
+- My Datasets
+- My Insights
+- My Dashboards
+- Published Dashboards
+- Suggested Insights
+- Recent Datasets
+- Recent Dashboards
+
+----------------------------------------------------
+SCREEN 2: Upload Dataset
+----------------------------------------------------
+Support:
+- Excel upload
+- multi-sheet workbook
+- file preview
+- file validation
+
+----------------------------------------------------
+SCREEN 3: Dataset Column Configuration
+----------------------------------------------------
+For each sheet and column, allow user to set:
+- Dimension
+- Measure
+- Date
+- Ignore
+
+For Measure:
+- default aggregation
+- format
+- formula eligibility
+
+For Date:
+- date type
+- available grains
+
+----------------------------------------------------
+SCREEN 4: Formula and Aggregation Builder
+----------------------------------------------------
+Allow user to:
+- create formula measures
+- define calculated fields
+- choose aggregation defaults
+- set field labels and formatting
+
+----------------------------------------------------
+SCREEN 5: Dataset Review / Save Dataset Model
+----------------------------------------------------
+Show:
+- dataset name
+- sheets used
+- dimensions
+- measures
+- date columns
+- formulas created
+- preview rows
+
+Allow:
+- save dataset model
+- edit mappings
+- continue to analytics
+
+----------------------------------------------------
+SCREEN 6: Insight Builder / Search Analytics Screen
+----------------------------------------------------
+This is the main analytics exploration screen.
+
+Show:
+- search bar for natural language questions
+- field explorer panel
+- saved filters
+- chart area
+- interpretation summary
+- recommended chart type
+- chart override options
+- AI narrative panel
+- suggested related questions
+
+User actions:
+- ask a question
+- edit query
+- change chart
+- save Insight
+- pin Insight
+- export Insight
+- ask follow-up question
+
+----------------------------------------------------
+SCREEN 7: Insight Result View
+----------------------------------------------------
+Show:
+- generated visualization
+- KPI card / chart / table
+- query interpretation
+- selected fields
+- filters
+- AI narrative
+- recommended follow-up questions
+
+Actions:
+- Save Insight
+- Pin to Dashboard
+- Create New Dashboard
+- Add to Existing Dashboard
+- Edit Insight
+- Download
+
+----------------------------------------------------
+SCREEN 8: Suggested Insights / Auto Insights
+----------------------------------------------------
+Show:
+- anomalies
+- trends
+- top movers
+- top/bottom performers
+- unusual changes
+- AI recommended insights
+
+Actions:
+- preview insight
+- save insight
+- pin to dashboard
+- ask follow-up question
+
+----------------------------------------------------
+SCREEN 9: Pin to Dashboard
+----------------------------------------------------
+Allow:
+- create new dashboard
+- add to existing dashboard
+- choose dashboard section
+- set insight title override if needed
+
+----------------------------------------------------
+SCREEN 10: Dashboard Composer
+----------------------------------------------------
+Dashboards must be assembled from pinned Insights.
+
+Allow:
+- reorder insights
+- resize cards
+- remove cards
+- rename cards
+- add dashboard title and description
+- add dashboard-level filters
+- add AI narrative summary at dashboard level
+
+----------------------------------------------------
+SCREEN 11: Save Dashboard Draft
+----------------------------------------------------
+Allow:
+- save as draft
+- add tags
+- define visibility
+- continue editing later
+
+----------------------------------------------------
+SCREEN 12: Publish Dashboard
+----------------------------------------------------
+Allow:
+- publish
+- archive
+- choose visibility:
+  - private
+  - department
+  - company-wide
+  - role-based
+
+----------------------------------------------------
+SCREEN 13: Published Dashboard View
+----------------------------------------------------
+Show:
+- pinned insights
+- dashboard filters
+- AI narrative summary
+- latest data refresh timestamp
+- creator
+- permissions
+
+----------------------------------------------------
+SCREEN 14: Refresh Dataset / Dashboard
+----------------------------------------------------
+Allow creator/admin to:
+- re-upload latest file
+- remap if needed
+- preserve model if schema matches
+- preserve formulas
+- preserve saved Insights
+- preserve pinned Dashboard layout
+- refresh visuals and narratives
+
+----------------------------------------------------
+SCREEN 15: My Insights
+----------------------------------------------------
+Show:
+- saved insights
+- pinned insights
+- recent insights
+- shared insights if supported
+
+----------------------------------------------------
+SCREEN 16: My Dashboards
+----------------------------------------------------
+Show:
+- drafts
+- published dashboards
+- archived dashboards
+- latest refresh date
+- versions
+
+----------------------------------------------------
+SCREEN 17: Published Dashboards Library
+----------------------------------------------------
+Show:
+- featured dashboards
+- department dashboards
+- executive dashboards
+- latest published
+- most viewed
+
+====================================================
+8. DATA MODEL / TABLES
+====================================================
+
+Add or update backend objects/tables for:
+
+- analytics_datasets
+- analytics_dataset_sheets
+- analytics_dataset_columns
+- analytics_dataset_mappings
+- analytics_formulas
+- analytics_saved_queries
+- analytics_insights
+- analytics_insight_versions
+- analytics_dashboard_definitions
+- analytics_dashboard_items
+- analytics_dashboard_permissions
+- analytics_dashboard_versions
+- analytics_refresh_history
+- analytics_auto_insights
+
+====================================================
+9. AI NARRATIVE REQUIREMENTS
+====================================================
+
+For each Insight, generate a concise AI narrative such as:
+- what the metric shows
+- notable trend or comparison
+- strongest or weakest category
+- unusual movement if any
+- suggested next question
+
+For each Dashboard, generate a higher-level narrative such as:
+- executive summary
+- top highlights
+- top risks
+- trend overview
+- suggested actions
+
+Keep narratives grounded in the uploaded data.
+
+====================================================
+10. PERMISSIONS
+====================================================
+
+Respect existing:
+- role-based access
+- department-based access
+- company scope
+
+Examples:
+- a user with HR-only access can only use and publish HR-permitted datasets, insights, and dashboards
+- a GM can only view dashboards in allowed scope
+- creator can edit own dashboards unless admin overrides
+
+====================================================
+11. UX REQUIREMENTS
+====================================================
+
+Make this module:
+- guided
+- business-friendly
+- simple for non-technical users
+- premium and polished
+- interactive
+- strong in search and exploration
+
+It should not feel like a raw BI developer interface.
+It should feel like an intelligent analytics creation experience.
+
+====================================================
+12. IMPORTANT PRODUCT RULES
+====================================================
+
+- User starts with data upload, not dashboard description
+- Column modeling is required before analytics begins
+- Best-fit chart recommendation must happen automatically
+- User can override chart recommendations
+- Every generated result is an Insight
+- User can save or pin an Insight
+- Dashboards are built from pinned Insights
+- Suggested Insights must be available from automatic analysis
+- Dashboard refresh must preserve structure where possible
+- No third-party branding should appear anywhere in the UI
+
+====================================================
+13. FINAL EXPECTATION
+====================================================
+
+Implement Analytics Studio as a full search-driven analytics and dashboard publishing module inside Performo AI.
+
+The result should support:
+- upload data
+- configure dataset
+- ask questions in natural language
+- get recommended best-fit visuals
+- save results as Insights
+- pin Insights to dashboards
+- publish dashboards
+- refresh with new data
+- generate AI narratives
+- suggest anomalies and trends automatically
+
+This must be a real connected workflow, not a mock.

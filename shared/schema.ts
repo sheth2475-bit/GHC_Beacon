@@ -448,3 +448,108 @@ export type AnalyticsDashboardNarrative = typeof analyticsDashboardNarratives.$i
 export type InsertAnalyticsDashboardNarrative = z.infer<typeof insertAnalyticsDashboardNarrativeSchema>;
 export type AnalyticsDashboardChat = typeof analyticsDashboardChat.$inferSelect;
 export type InsertAnalyticsDashboardChat = z.infer<typeof insertAnalyticsDashboardChatSchema>;
+
+// ─── Analytics Studio V2 — Data-first workflow ───────────────────────────────
+
+export const analyticsDatasets = pgTable("analytics_datasets_v2", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  fileName: text("file_name"),
+  sheetNames: text("sheet_names").array().default(sql`ARRAY[]::text[]`),
+  rowCount: integer("row_count").default(0),
+  rawData: jsonb("raw_data"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const analyticsDatasetColumns = pgTable("analytics_dataset_columns_v2", {
+  id: serial("id").primaryKey(),
+  datasetId: integer("dataset_id").notNull().references(() => analyticsDatasets.id),
+  columnName: text("column_name").notNull(),
+  label: text("label").notNull(),
+  columnType: text("column_type").notNull().default("dimension"),
+  aggregation: text("aggregation").default("sum"),
+  format: text("format").default("number"),
+  dateFormat: text("date_format"),
+  dateGrains: text("date_grains").array().default(sql`ARRAY[]::text[]`),
+  isFormula: boolean("is_formula").default(false),
+  formulaExpression: text("formula_expression"),
+  position: integer("position").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const analyticsInsights = pgTable("analytics_insights", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  datasetId: integer("dataset_id").notNull().references(() => analyticsDatasets.id),
+  title: text("title").notNull(),
+  question: text("question").notNull(),
+  interpretation: text("interpretation"),
+  chartType: text("chart_type").notNull().default("bar"),
+  chartConfig: jsonb("chart_config"),
+  narrative: text("narrative"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const analyticsAutoInsights = pgTable("analytics_auto_insights", {
+  id: serial("id").primaryKey(),
+  datasetId: integer("dataset_id").notNull().references(() => analyticsDatasets.id),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  insightType: text("insight_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  chartType: text("chart_type"),
+  chartConfig: jsonb("chart_config"),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const analyticsDashboardDefinitions = pgTable("analytics_dashboard_definitions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("draft"),
+  visibility: text("visibility").notNull().default("private"),
+  narrativeSummary: text("narrative_summary"),
+  tags: text("tags").array().default(sql`ARRAY[]::text[]`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const analyticsDashboardItems = pgTable("analytics_dashboard_items", {
+  id: serial("id").primaryKey(),
+  dashboardId: integer("dashboard_id").notNull().references(() => analyticsDashboardDefinitions.id),
+  insightId: integer("insight_id").notNull().references(() => analyticsInsights.id),
+  position: integer("position").notNull().default(0),
+  titleOverride: text("title_override"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAnalyticsDatasetSchema = createInsertSchema(analyticsDatasets).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAnalyticsDatasetColumnSchema = createInsertSchema(analyticsDatasetColumns).omit({ id: true, createdAt: true });
+export const insertAnalyticsInsightSchema = createInsertSchema(analyticsInsights).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAnalyticsAutoInsightSchema = createInsertSchema(analyticsAutoInsights).omit({ id: true, createdAt: true });
+export const insertAnalyticsDashboardDefinitionSchema = createInsertSchema(analyticsDashboardDefinitions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAnalyticsDashboardItemSchema = createInsertSchema(analyticsDashboardItems).omit({ id: true, createdAt: true });
+
+export type AnalyticsDataset = typeof analyticsDatasets.$inferSelect;
+export type InsertAnalyticsDataset = z.infer<typeof insertAnalyticsDatasetSchema>;
+export type AnalyticsDatasetColumn = typeof analyticsDatasetColumns.$inferSelect;
+export type InsertAnalyticsDatasetColumn = z.infer<typeof insertAnalyticsDatasetColumnSchema>;
+export type AnalyticsInsight = typeof analyticsInsights.$inferSelect;
+export type InsertAnalyticsInsight = z.infer<typeof insertAnalyticsInsightSchema>;
+export type AnalyticsAutoInsight = typeof analyticsAutoInsights.$inferSelect;
+export type InsertAnalyticsAutoInsight = z.infer<typeof insertAnalyticsAutoInsightSchema>;
+export type AnalyticsDashboardDefinition = typeof analyticsDashboardDefinitions.$inferSelect;
+export type InsertAnalyticsDashboardDefinition = z.infer<typeof insertAnalyticsDashboardDefinitionSchema>;
+export type AnalyticsDashboardItem = typeof analyticsDashboardItems.$inferSelect;
+export type InsertAnalyticsDashboardItem = z.infer<typeof insertAnalyticsDashboardItemSchema>;
