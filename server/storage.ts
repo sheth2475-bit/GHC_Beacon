@@ -155,7 +155,14 @@ export interface IStorage {
   getDeptAccessForUserWithDepts(userId: number): Promise<(UserDepartmentAccess & { departmentName: string })[]>;
   setDeptAccess(userId: number, departmentId: number, accessLevel: string): Promise<UserDepartmentAccess>;
   removeDeptAccess(id: number): Promise<void>;
+
   removeDeptAccessForUser(userId: number): Promise<void>;
+
+  // Documents
+  getDocuments(entityType: string, entityId: number): Promise<import("@shared/schema").Document[]>;
+  createDocument(doc: import("@shared/schema").InsertDocument): Promise<import("@shared/schema").Document>;
+  deleteDocument(id: number): Promise<void>;
+  getDocument(id: number): Promise<import("@shared/schema").Document | undefined>;
 
   // Platform analytics
   getAllCompanies(): Promise<Company[]>;
@@ -606,6 +613,28 @@ export class DatabaseStorage implements IStorage {
   }
   async removeDeptAccessForUser(userId: number) {
     await db.delete(userDepartmentAccess).where(eq(userDepartmentAccess.userId, userId));
+  }
+
+  // ─── Documents ────────────────────────────────────────────────────────────
+  async getDocuments(entityType: string, entityId: number) {
+    const { documents } = await import("@shared/schema");
+    return db.select().from(documents)
+      .where(and(eq(documents.entityType, entityType), eq(documents.entityId, entityId)))
+      .orderBy(desc(documents.createdAt));
+  }
+  async createDocument(doc: import("@shared/schema").InsertDocument) {
+    const { documents } = await import("@shared/schema");
+    const [created] = await db.insert(documents).values(doc).returning();
+    return created;
+  }
+  async deleteDocument(id: number) {
+    const { documents } = await import("@shared/schema");
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+  async getDocument(id: number) {
+    const { documents } = await import("@shared/schema");
+    const [doc] = await db.select().from(documents).where(eq(documents.id, id));
+    return doc;
   }
 
   // ─── Platform Analytics ───────────────────────────────────────────────────

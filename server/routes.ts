@@ -1252,6 +1252,74 @@ export async function registerRoutes(
     res.json(logs);
   });
 
+  // ─── Document upload / download / delete ─────────────────────────────────
+  {
+    const multer = (await import("multer")).default;
+    const path = (await import("path")).default;
+    const fsSync = (await import("fs")).default;
+    const { randomBytes } = await import("crypto");
+
+    const UPLOAD_DIR = path.join(process.cwd(), "uploads", "documents");
+    if (!fsSync.existsSync(UPLOAD_DIR)) fsSync.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+    // Serve uploaded files as static
+    app.use("/uploads", (await import("express")).static(path.join(process.cwd(), "uploads")));
+
+    const upload = multer({
+      storage: multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+        filename: (_req, file, cb) => {
+          const ext = path.extname(file.originalname);
+          cb(null, `${randomBytes(16).toString("hex")}${ext}`);
+        },
+      }),
+      limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
+    });
+
+    app.get("/api/documents", requireAuth, async (req: Request, res: Response) => {
+      const { entityType, entityId } = req.query;
+      if (!entityType || !entityId) return res.status(400).json({ message: "entityType and entityId required" });
+      const docs = await storage.getDocuments(String(entityType), Number(entityId));
+      res.json(docs);
+    });
+
+    app.post("/api/documents", requireAuth, requireEditAccess, upload.single("file"), async (req: Request, res: Response) => {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const { entityType, entityId } = req.body;
+      if (!entityType || !entityId) return res.status(400).json({ message: "entityType and entityId required" });
+      const doc = await storage.createDocument({
+        companyId: company.id,
+        entityType,
+        entityId: Number(entityId),
+        originalName: req.file.originalname,
+        storageName: req.file.filename,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        uploadedBy: (req.user as any)?.name || null,
+      });
+      res.json(doc);
+    });
+
+    app.delete("/api/documents/:id", requireAuth, requireEditAccess, async (req: Request, res: Response) => {
+      const doc = await storage.getDocument(Number(req.params.id));
+      if (!doc) return res.status(404).json({ message: "Document not found" });
+      // Delete file from disk
+      const filePath = path.join(UPLOAD_DIR, doc.storageName);
+      try { fsSync.unlinkSync(filePath); } catch {}
+      await storage.deleteDocument(doc.id);
+      res.json({ ok: true });
+    });
+
+    app.get("/api/documents/:id/download", requireAuth, async (req: Request, res: Response) => {
+      const doc = await storage.getDocument(Number(req.params.id));
+      if (!doc) return res.status(404).json({ message: "Document not found" });
+      const filePath = path.join(UPLOAD_DIR, doc.storageName);
+      res.download(filePath, doc.originalName);
+    });
+  }
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });

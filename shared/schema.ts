@@ -278,6 +278,21 @@ export const teamMembers = pgTable("team_members", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ─── Documents ───────────────────────────────────────────────────────────────
+
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  entityType: text("entity_type").notNull(),
+  entityId: integer("entity_id").notNull(),
+  originalName: text("original_name").notNull(),
+  storageName: text("storage_name").notNull(),
+  mimeType: text("mime_type"),
+  size: integer("size"),
+  uploadedBy: text("uploaded_by"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ─── Insert Schemas ──────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -302,6 +317,7 @@ export const insertUserActivityLogSchema = createInsertSchema(userActivityLogs).
 export const insertOwnerAuditLogSchema = createInsertSchema(ownerAuditLogs).omit({ id: true, createdAt: true });
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, createdAt: true });
 export const insertUserDepartmentAccessSchema = createInsertSchema(userDepartmentAccess).omit({ id: true, createdAt: true });
+export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -349,3 +365,5 @@ export type TeamMember = typeof teamMembers.$inferSelect;
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
 export type UserDepartmentAccess = typeof userDepartmentAccess.$inferSelect;
 export type InsertUserDepartmentAccess = z.infer<typeof insertUserDepartmentAccessSchema>;
+export type Document = typeof documents.$inferSelect;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;

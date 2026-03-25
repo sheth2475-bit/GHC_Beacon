@@ -21,6 +21,7 @@ import {
   LayoutList, Circle, CalendarDays, Pencil, CheckCircle2,
   Kanban, ChevronLeft, List,
 } from "lucide-react";
+import { DocumentAttachments } from "@/components/document-attachments";
 import type { Project, Task, Subtask, Milestone, ProjectComment, Department, TeamMember } from "@shared/schema";
 import { formatDate } from "@/lib/utils";
 
@@ -441,6 +442,11 @@ function TaskCard({
               </div>
             )
           )}
+
+          {/* Attachments section */}
+          <div className="pl-14 pr-4 py-3 border-t border-border/40">
+            <DocumentAttachments entityType="task" entityId={task.id} />
+          </div>
         </div>
       )}
 
