@@ -60,7 +60,7 @@ function accessLevelBadge(level: string) {
   );
 }
 
-function DeptAccessDialog({ user, departments, isSelf }: { user: CompanyUser; departments: Department[]; isSelf: boolean }) {
+function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: CompanyUser; departments: Department[]; isSelf: boolean; triggerLabel?: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [newDeptId, setNewDeptId] = useState<string>("");
@@ -97,10 +97,18 @@ function DeptAccessDialog({ user, departments, isSelf }: { user: CompanyUser; de
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-primary"
-          data-testid={`button-dept-access-${user.id}`} title="Manage Department Access">
-          <Building2 className="h-3.5 w-3.5" />
-        </Button>
+        {triggerLabel ? (
+          <Button size="sm" variant="outline" className="gap-1.5"
+            data-testid={`button-dept-access-${user.id}`}>
+            <Building2 className="h-3.5 w-3.5" />
+            {triggerLabel}
+          </Button>
+        ) : (
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-primary"
+            data-testid={`button-dept-access-${user.id}`} title="Manage Department Access">
+            <Building2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -546,11 +554,16 @@ export default function UserManagementPage() {
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {u.role === "admin"
                                 ? "All departments — unrestricted"
-                                : "Click manage to configure access"}
+                                : "No restrictions assigned — click 'Manage Access' to configure"}
                             </p>
                           </div>
                           {!isSelf && (
-                            <DeptAccessDialog user={u} departments={departments} isSelf={isSelf} />
+                            <DeptAccessDialog
+                              user={u}
+                              departments={departments}
+                              isSelf={isSelf}
+                              triggerLabel="Manage Access"
+                            />
                           )}
                         </div>
                       </CardContent>
