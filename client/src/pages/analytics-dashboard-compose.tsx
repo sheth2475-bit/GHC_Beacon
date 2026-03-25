@@ -250,7 +250,7 @@ export default function AnalyticsDashboardComposePage() {
     reorderMutation.mutate(items.map(i => i.id));
   };
 
-  const pinnedInsightIds = new Set(dash?.items.map(i => i.insightId) || []);
+  const pinnedInsightIds = new Set((dash?.items ?? []).map(i => i.insightId));
   const unpinnedInsights = allInsights.filter(i => !pinnedInsightIds.has(i.id));
 
   const VisIcon = dash?.visibility === "company" ? Globe : dash?.visibility === "department" ? Building2 : Lock;

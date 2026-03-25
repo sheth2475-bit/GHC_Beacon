@@ -156,8 +156,8 @@ const MODULES = [
     label: "Analytics Studio",
     icon: Database,
     color: "sky",
-    screenshot: null,
-    screenshotAlt: "",
+    screenshot: "/guide/analytics-studio-hub.jpeg",
+    screenshotAlt: "Analytics Studio hub showing Dashboards tab with OYO Performance Analytics dashboard card, Insights (7), and Datasets & Ask Question (1) tabs, with stats bar showing 1 dataset, 7 insights, 1 dashboard, 1 published",
     overview: "Analytics Studio is Performo's built-in data intelligence layer. Upload any Excel or CSV file and ask questions in plain English — the AI selects the right chart, detects trends, flags anomalies, and identifies top and bottom performers automatically. Save insights and pin them to shared dashboards that your whole team can see.",
     badge: "New",
     readingGuide: [
@@ -181,8 +181,8 @@ const MODULES = [
     label: "Insight Builder",
     icon: BarChart2,
     color: "sky",
-    screenshot: null,
-    screenshotAlt: "",
+    screenshot: "/guide/analytics-insight-chart.jpeg",
+    screenshotAlt: "Insight Builder showing a 3-column layout: left panel with field explorer (Revenue, ADR, Occupancy Rate etc as measures, Property and Month as dimensions), center panel with question 'What is the total revenue by property?' and a table result showing Dubai Marina at AED 31.8M as the top property, right panel showing Key Values with Dubai Marina as highest and Ajman Beach as lowest with AI analysis text",
     overview: "The Insight Builder is the 3-column interface you use to ask questions about your data and explore the results. Left panel: field explorer. Centre: question bar and chart. Right panel: interpretation, top/bottom performers, and AI analysis. Everything works together in real time.",
     badge: "New",
     readingGuide: [
@@ -214,8 +214,8 @@ const MODULES = [
     label: "Analytics Dashboards",
     icon: Pin,
     color: "sky",
-    screenshot: null,
-    screenshotAlt: "",
+    screenshot: "/guide/analytics-dashboard.jpeg",
+    screenshotAlt: "OYO Performance Analytics dashboard showing Published status badge, AI Executive Summary narrative, 7 insights count, and a grid of pinned chart cards including Total Revenue KPI card (96M AED), Total Revenue by Property bar chart, Monthly Revenue Trend line chart, Highest Average Occupancy Rate KPI, and ADR vs RevPAR comparison bar chart",
     overview: "Analytics Dashboards are shared canvases of pinned insights. Each dashboard shows a collection of charts you've saved from the Insight Builder. Dashboards can be published to the whole company or kept as private drafts. You can also add an AI-generated executive narrative that summarises all the charts in one paragraph.",
     badge: "New",
     readingGuide: [

@@ -450,9 +450,9 @@ export default function AnalyticsExplorePage() {
 
   // ── Derived data ───────────────────────────────────────────────────────────
 
-  const measures = ds?.columns.filter(c => c.columnType === "measure") || [];
-  const dimensions = ds?.columns.filter(c => c.columnType === "dimension") || [];
-  const dates = ds?.columns.filter(c => c.columnType === "date") || [];
+  const measures = (ds?.columns ?? []).filter(c => c.columnType === "measure");
+  const dimensions = (ds?.columns ?? []).filter(c => c.columnType === "dimension");
+  const dates = (ds?.columns ?? []).filter(c => c.columnType === "date");
 
   const starterPrompts = [
     measures[0] && `Total ${measures[0].label}`,
