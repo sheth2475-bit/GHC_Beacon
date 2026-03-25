@@ -163,44 +163,54 @@ function InitiativeGridCard({ p, canEdit, onDelete }: { p: ProjectWithHealth; ca
 
 function InitiativeListRow({ p, canEdit, onDelete }: { p: ProjectWithHealth; canEdit: boolean; onDelete: (id: number) => void }) {
   return (
-    <Card className="group hover:shadow-sm transition-all hover:border-primary/20" data-testid={`card-project-list-${p.id}`}>
-      <CardContent className="p-4 flex items-center gap-4">
-        <div className={`w-1 self-stretch rounded-full shrink-0 ${healthDot(p.health)}`} />
-        <div className="flex-1 min-w-0">
-          <Link href={`/projects/${p.id}`}>
-            <span className="font-semibold text-sm hover:text-primary transition-colors cursor-pointer" data-testid={`text-project-list-name-${p.id}`}>{p.name}</span>
-          </Link>
-          {p.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{p.description}</p>}
-        </div>
-        <div className="hidden sm:flex items-center gap-2 shrink-0">
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusPill(p.status)}`}>{p.status}</span>
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${priorityBadge(p.priority)}`}>{p.priority}</span>
-        </div>
-        <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground shrink-0 min-w-[160px]">
-          <div className="w-24">
-            <Progress value={p.progress ?? 0} className="h-1.5" />
-          </div>
-          <span className="font-medium w-8 text-right">{p.progress ?? 0}%</span>
-        </div>
-        {p.owner && <span className="hidden lg:block text-xs text-muted-foreground shrink-0 w-28 truncate">{p.owner}</span>}
-        {p.dueDate && <span className="hidden lg:block text-xs text-muted-foreground shrink-0">{formatDate(p.dueDate)}</span>}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-muted-foreground">{p.completedTaskCount}/{p.taskCount} initiatives</span>
-          <Link href={`/projects/${p.id}`}>
-            <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
-          </Link>
-          {canEdit && (
-            <button
-              onClick={() => onDelete(p.id)}
-              className="text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-              data-testid={`button-delete-project-list-${p.id}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <div
+      className="group flex items-center gap-0 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+      data-testid={`card-project-list-${p.id}`}
+    >
+      <div className={`w-1 self-stretch shrink-0 ${healthDot(p.health)}`} />
+      <div className="w-7 flex items-center justify-center px-1.5 shrink-0">
+        <span className={`w-2 h-2 rounded-full ${healthDot(p.health)}`} title={p.health} />
+      </div>
+      <div className="flex-1 min-w-0 py-2.5 pr-3">
+        <Link href={`/projects/${p.id}`}>
+          <span className="font-medium text-sm hover:text-primary transition-colors cursor-pointer" data-testid={`text-project-list-name-${p.id}`}>{p.name}</span>
+        </Link>
+        {p.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{p.description}</p>}
+      </div>
+      <div className="hidden sm:flex w-[130px] shrink-0 items-center gap-1.5 py-2.5">
+        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium truncate ${statusPill(p.status)}`}>{p.status}</span>
+      </div>
+      <div className="hidden sm:block w-[85px] shrink-0 py-2.5">
+        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${priorityBadge(p.priority)}`}>{p.priority}</span>
+      </div>
+      <div className="hidden md:flex w-[150px] shrink-0 items-center gap-2 py-2.5">
+        <Progress value={p.progress ?? 0} className="h-1.5 flex-1" />
+        <span className="text-xs font-semibold tabular-nums w-8 text-right">{p.progress ?? 0}%</span>
+      </div>
+      <div className="hidden lg:block w-[130px] shrink-0 py-2.5">
+        <span className="text-xs text-muted-foreground truncate">{p.owner || "-"}</span>
+      </div>
+      <div className="hidden lg:block w-[100px] shrink-0 py-2.5">
+        <span className="text-xs text-muted-foreground">{p.dueDate ? formatDate(p.dueDate) : "-"}</span>
+      </div>
+      <div className="w-[110px] shrink-0 py-2.5 text-xs text-muted-foreground">
+        {p.completedTaskCount}/{p.taskCount} initiatives
+      </div>
+      <div className="w-[60px] shrink-0 flex items-center justify-end gap-1 pr-3 py-2.5">
+        <Link href={`/projects/${p.id}`}>
+          <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+        </Link>
+        {canEdit && (
+          <button
+            onClick={() => onDelete(p.id)}
+            className="text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+            data-testid={`button-delete-project-list-${p.id}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -424,11 +434,26 @@ export default function PortfolioPage() {
           ))}
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(p => (
-            <InitiativeListRow key={p.id} p={p} canEdit={canEdit} onDelete={id => deleteMutation.mutate(id)} />
-          ))}
-        </div>
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            {/* Table header */}
+            <div className="flex items-center gap-0 border-b bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="w-1 shrink-0" />
+              <div className="w-7 shrink-0" />
+              <div className="flex-1 min-w-0 py-2 pr-3">Project</div>
+              <div className="hidden sm:block w-[130px] shrink-0 py-2">Status</div>
+              <div className="hidden sm:block w-[85px] shrink-0 py-2">Priority</div>
+              <div className="hidden md:block w-[150px] shrink-0 py-2">Progress</div>
+              <div className="hidden lg:block w-[130px] shrink-0 py-2">Owner</div>
+              <div className="hidden lg:block w-[100px] shrink-0 py-2">Due Date</div>
+              <div className="w-[110px] shrink-0 py-2">Initiatives</div>
+              <div className="w-[60px] shrink-0 pr-3" />
+            </div>
+            {filtered.map(p => (
+              <InitiativeListRow key={p.id} p={p} canEdit={canEdit} onDelete={id => deleteMutation.mutate(id)} />
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {/* Create Project Dialog */}

@@ -616,7 +616,6 @@ export default function UserManagementPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="users" data-testid="tab-users"><User className="h-4 w-4 mr-2" />Login Users</TabsTrigger>
           <TabsTrigger value="members" data-testid="tab-members"><Users className="h-4 w-4 mr-2" />Team Members</TabsTrigger>
-          <TabsTrigger value="access" data-testid="tab-access"><Building2 className="h-4 w-4 mr-2" />Dept Access</TabsTrigger>
         </TabsList>
 
         {/* ── Login Users Tab ── */}
@@ -662,69 +661,69 @@ export default function UserManagementPage() {
           </div>
 
           {usersLoading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />)}</div>
+            <div className="space-y-1">{[1,2,3].map(i => <div key={i} className="h-12 rounded bg-muted animate-pulse" />)}</div>
           ) : (
-            <div className="space-y-2">
-              {users.map(u => {
-                const isSelf = u.id === currentUser?.id;
-                const initials = u.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-                return (
-                  <Card key={u.id} data-testid={`card-user-${u.id}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary shrink-0">{initials}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm" data-testid={`text-user-name-${u.id}`}>{u.name}</span>
-                            {isSelf && <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">You</Badge>}
-                            {roleBadge(u.role)}
-                          </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Mail className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground truncate" data-testid={`text-user-email-${u.id}`}>{u.email}</span>
-                          </div>
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                {/* Table header */}
+                <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="w-8 shrink-0" />
+                  <div className="flex-1 min-w-0">Name &amp; Email</div>
+                  <div className="hidden sm:block w-36 shrink-0">Role</div>
+                  <div className="w-28 shrink-0">Dept Access</div>
+                  <div className="w-28 shrink-0 text-right">Actions</div>
+                </div>
+                {users.map(u => {
+                  const isSelf = u.id === currentUser?.id;
+                  const initials = u.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                  return (
+                    <div key={u.id} className="flex items-center gap-3 px-4 py-2.5 border-b last:border-b-0 hover:bg-muted/20 transition-colors" data-testid={`card-user-${u.id}`}>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary shrink-0">{initials}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-sm" data-testid={`text-user-name-${u.id}`}>{u.name}</span>
+                          {isSelf && <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">You</Badge>}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {!isSelf && (
-                            <Select value={u.role} onValueChange={(role) => updateRoleMutation.mutate({ id: u.id, role })}>
-                              <SelectTrigger className="h-8 w-32 text-xs" data-testid={`select-role-${u.id}`}><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="team_member">Team Member</SelectItem>
-                                <SelectItem value="executive">Executive</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                          <DeptAccessDialog user={u} departments={departments} isSelf={isSelf} triggerLabel="Dept Access" />
-                          {!isSelf && (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setDeleteTarget(u)} data-testid={`button-delete-user-${u.id}`}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground truncate" data-testid={`text-user-email-${u.id}`}>{u.email}</span>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                      <div className="hidden sm:block w-36 shrink-0">
+                        {!isSelf ? (
+                          <Select value={u.role} onValueChange={(role) => updateRoleMutation.mutate({ id: u.id, role })}>
+                            <SelectTrigger className="h-7 text-xs" data-testid={`select-role-${u.id}`}><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="team_member">Team Member</SelectItem>
+                              <SelectItem value="executive">Executive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : roleBadge(u.role)}
+                      </div>
+                      <div className="w-28 shrink-0">
+                        <DeptAccessDialog user={u} departments={departments} isSelf={isSelf} triggerLabel="Dept Access" />
+                      </div>
+                      <div className="w-28 shrink-0 flex justify-end">
+                        {!isSelf && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteTarget(u)} data-testid={`button-delete-user-${u.id}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
           )}
 
-          <Card className="bg-muted/40 border-dashed">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 shrink-0"><Shield className="h-4 w-4 text-blue-600" /></div>
-                  <div><p className="font-medium text-sm">Admin</p><p className="text-xs text-muted-foreground">Full access to all departments — no restrictions.</p></div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 shrink-0"><Eye className="h-4 w-4 text-amber-600" /></div>
-                  <div><p className="font-medium text-sm">Executive</p><p className="text-xs text-muted-foreground">Access depends on department assignments — use the "Dept Access" button on each card to configure.</p></div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex gap-4 text-xs text-muted-foreground bg-muted/30 rounded-lg px-4 py-3 border border-dashed">
+            <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-blue-600" /><span><strong>Admin</strong> — full access, all departments</span></div>
+            <div className="flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5 text-green-600" /><span><strong>Team Member</strong> — edit &amp; view, dept restrictions apply</span></div>
+            <div className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5 text-amber-600" /><span><strong>Executive</strong> — view only, dept restrictions apply</span></div>
+          </div>
         </TabsContent>
 
         {/* ── Team Members Tab ── */}
@@ -735,7 +734,7 @@ export default function UserManagementPage() {
           </div>
 
           {membersLoading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />)}</div>
+            <div className="space-y-1">{[1,2,3].map(i => <div key={i} className="h-12 rounded bg-muted animate-pulse" />)}</div>
           ) : members.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
@@ -746,130 +745,67 @@ export default function UserManagementPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {members.map(m => {
-                const initials = m.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-                const linkedUser = m.email ? users.find(u => u.email.toLowerCase() === m.email!.toLowerCase()) : undefined;
-                return (
-                  <Card key={m.id} data-testid={`card-member-${m.id}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-sm font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">{initials}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm" data-testid={`text-member-name-${m.id}`}>{m.name}</span>
-                            {m.jobTitle && <Badge variant="secondary" className="font-normal text-xs">{m.jobTitle}</Badge>}
-                            {m.department && <Badge variant="outline" className="font-normal text-xs">{m.department}</Badge>}
-                            {linkedUser && roleBadge(linkedUser.role)}
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                {/* Table header */}
+                <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="w-8 shrink-0" />
+                  <div className="flex-1 min-w-0">Name &amp; Email</div>
+                  <div className="hidden sm:block w-40 shrink-0">Role &amp; Department</div>
+                  <div className="hidden md:block w-32 shrink-0">Login Access</div>
+                  <div className="w-28 shrink-0 text-right">Actions</div>
+                </div>
+                {members.map(m => {
+                  const initials = m.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                  const linkedUser = m.email ? users.find(u => u.email.toLowerCase() === m.email!.toLowerCase()) : undefined;
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 border-b last:border-b-0 hover:bg-muted/20 transition-colors" data-testid={`card-member-${m.id}`}>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-xs font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">{initials}</div>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-sm" data-testid={`text-member-name-${m.id}`}>{m.name}</span>
+                        {m.email ? (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Mail className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground truncate" data-testid={`text-member-email-${m.id}`}>{m.email}</span>
                           </div>
-                          {m.email ? (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <Mail className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground" data-testid={`text-member-email-${m.id}`}>{m.email}</span>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground/60 mt-0.5 italic">No email — reminders will go to admins only</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {linkedUser ? (
-                            <DeptAccessDialog
-                              user={linkedUser}
-                              departments={departments}
-                              isSelf={linkedUser.id === currentUser?.id}
-                              triggerLabel="Dept Access"
-                            />
-                          ) : (
-                            <SetupMemberAccessDialog member={m} departments={departments} />
-                          )}
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditMember(m)} data-testid={`button-edit-member-${m.id}`}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeleteMemberTarget(m)} data-testid={`button-delete-member-${m.id}`}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/50 mt-0.5 italic">No email</p>
+                        )}
+                      </div>
+                      <div className="hidden sm:block w-40 shrink-0">
+                        <div className="flex flex-wrap gap-1">
+                          {m.jobTitle && <Badge variant="secondary" className="font-normal text-xs">{m.jobTitle}</Badge>}
+                          {m.department && <Badge variant="outline" className="font-normal text-xs">{m.department}</Badge>}
+                          {linkedUser && roleBadge(linkedUser.role)}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ── Department Access Control Tab ── */}
-        <TabsContent value="access" className="space-y-4">
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="p-4 flex gap-3">
-              <Building2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-foreground mb-1">Department-Level Access Control</p>
-                <p className="text-muted-foreground">Configure which departments each user can access. Admin users always have full access. For team member and executive users, if no departments are assigned, they see all data. Once departments are assigned, they can only access data from those departments across all modules — KPIs, projects, actions, and more.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Access Levels</p>
-            <div className="grid grid-cols-3 gap-3">
-              {ACCESS_LEVELS.map(l => (
-                <Card key={l.value} className="border">
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      {l.value === "view" && <Eye className="h-3.5 w-3.5 text-blue-600" />}
-                      {l.value === "edit" && <Edit2 className="h-3.5 w-3.5 text-amber-600" />}
-                      {l.value === "full" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
-                      <span className="text-xs font-semibold">{l.label}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{l.description}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User Access Overview</p>
-            {usersLoading ? (
-              <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-16 bg-muted rounded animate-pulse" />)}</div>
-            ) : (
-              <div className="space-y-2">
-                {users.map(u => {
-                  const initials = u.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-                  const isSelf = u.id === currentUser?.id;
-                  return (
-                    <Card key={u.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary shrink-0">{initials}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{u.name}</span>
-                              {isSelf && <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">You</Badge>}
-                              {roleBadge(u.role)}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {u.role === "admin"
-                                ? "All departments — unrestricted"
-                                : "No restrictions assigned — click 'Manage Access' to configure"}
-                            </p>
-                          </div>
+                      <div className="hidden md:block w-32 shrink-0">
+                        {linkedUser ? (
                           <DeptAccessDialog
-                            user={u}
+                            user={linkedUser}
                             departments={departments}
-                            isSelf={isSelf}
-                            triggerLabel="Manage Access"
+                            isSelf={linkedUser.id === currentUser?.id}
+                            triggerLabel="Dept Access"
                           />
-                        </div>
-                      </CardContent>
-                    </Card>
+                        ) : (
+                          <SetupMemberAccessDialog member={m} departments={departments} />
+                        )}
+                      </div>
+                      <div className="w-28 shrink-0 flex items-center justify-end gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditMember(m)} data-testid={`button-edit-member-${m.id}`}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteMemberTarget(m)} data-testid={`button-delete-member-${m.id}`}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
                   );
                 })}
-              </div>
-            )}
-          </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 

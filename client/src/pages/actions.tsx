@@ -39,6 +39,7 @@ export default function ActionsPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterMeetingType, setFilterMeetingType] = useState("all");
+  const [filterDept, setFilterDept] = useState("all");
   const [search, setSearch] = useState("");
 
   const [meetingType, setMeetingType] = useState("");
@@ -166,16 +167,20 @@ export default function ActionsPage() {
     return effectiveDue && effectiveDue < today && item.status !== "Completed" && item.status !== "Cancelled";
   };
 
+  const getDeptName = (deptId: number | null) => departments?.find(d => d.id === deptId)?.name || "-";
+
   const filtered = (actions || []).filter(a => {
     if (filterStatus !== "all" && a.status !== filterStatus) return false;
     if (filterPriority !== "all" && a.priority !== filterPriority) return false;
     if (filterMeetingType !== "all" && a.meetingType !== filterMeetingType) return false;
+    if (filterDept !== "all") {
+      const deptName = getDeptName(a.departmentId);
+      if (deptName !== filterDept) return false;
+    }
     if (search && !a.title.toLowerCase().includes(search.toLowerCase()) &&
         !a.ownerName?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
-
-  const getDeptName = (deptId: number | null) => departments?.find(d => d.id === deptId)?.name || "-";
 
   const uniqueMeetingTypes = Array.from(new Set((actions || []).map(a => a.meetingType).filter((x): x is string => !!x)));
 
@@ -227,6 +232,26 @@ export default function ActionsPage() {
         />
       </div>
 
+      {/* Department filter pills */}
+      {(departments || []).length > 0 && (
+        <div className="flex-none px-6 pt-3 pb-0 flex items-center gap-2 flex-wrap">
+          {["all", ...(departments || []).map(d => d.name)].map(dept => (
+            <button
+              key={dept}
+              onClick={() => setFilterDept(dept)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${
+                filterDept === dept
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+              }`}
+              data-testid={`pill-dept-${dept}`}
+            >
+              {dept === "all" ? "All Depts" : dept}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex-none px-6 py-3 border-b flex gap-3 flex-wrap items-center bg-background">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -253,8 +278,8 @@ export default function ActionsPage() {
             {PRIORITIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(filterStatus !== "all" || filterPriority !== "all" || filterMeetingType !== "all" || search) && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterStatus("all"); setFilterPriority("all"); setFilterMeetingType("all"); setSearch(""); }}>
+        {(filterStatus !== "all" || filterPriority !== "all" || filterMeetingType !== "all" || filterDept !== "all" || search) && (
+          <Button variant="ghost" size="sm" onClick={() => { setFilterStatus("all"); setFilterPriority("all"); setFilterMeetingType("all"); setFilterDept("all"); setSearch(""); }}>
             Clear filters
           </Button>
         )}

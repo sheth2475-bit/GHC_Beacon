@@ -280,6 +280,27 @@ export default function KpiManagementPage() {
     return departments?.find(d => d.id === deptId)?.name || "-";
   };
 
+  const latestActualByKpi: Record<number, string> = {};
+  for (const a of allActuals) {
+    const existing = allActuals
+      .filter(x => x.kpiId === a.kpiId)
+      .reduce((best, cur) => (cur.reviewMonth > best.reviewMonth ? cur : best), a);
+    latestActualByKpi[a.kpiId] = existing.status;
+  }
+
+  const trafficDot = (kpiId: number) => {
+    const status = latestActualByKpi[kpiId];
+    if (!status) return "bg-muted-foreground/30";
+    if (status === "On Track") return "bg-emerald-500";
+    if (status === "Below Target") return "bg-red-500";
+    return "bg-amber-500";
+  };
+
+  const trafficTitle = (kpiId: number) => {
+    const status = latestActualByKpi[kpiId];
+    return status || "No data";
+  };
+
   const kpiColumnMap: Record<string, string> = {
     "KPI Name": "kpiName", "Description": "description", "Formula": "formula",
     "Unit": "unit", "Frequency": "frequency", "Target Value": "targetValue",
@@ -377,9 +398,16 @@ export default function KpiManagementPage() {
                   {filteredKpis.map(kpi => (
                     <TableRow key={kpi.id}>
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-sm" data-testid={`text-kpi-${kpi.id}`}>{kpi.kpiName}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.formula}</p>
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={`mt-1.5 flex-shrink-0 w-2 h-2 rounded-full ${trafficDot(kpi.id)}`}
+                            title={trafficTitle(kpi.id)}
+                            data-testid={`dot-kpi-status-${kpi.id}`}
+                          />
+                          <div>
+                            <p className="font-medium text-sm" data-testid={`text-kpi-${kpi.id}`}>{kpi.kpiName}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.formula}</p>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>

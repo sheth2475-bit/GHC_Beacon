@@ -48,7 +48,6 @@ import type { ActionItem, MonthlyReview, Department, Kpi, Company, Milestone, Pr
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [focusTab, setFocusTab] = useState<"actions" | "kpis" | "milestones">("actions");
 
   const { data: companyData } = useQuery<Company & { departments: Department[] } | null>({ queryKey: ["/api/company"] });
   const { data: stats, isLoading: statsLoading } = useQuery<{
@@ -278,140 +277,90 @@ export default function DashboardPage() {
         ══════════════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
 
-          {/* ── Today's Focus (3 of 5 cols) ── */}
+          {/* ── Needs Attention (3 of 5 cols) ── */}
           <Card className="lg:col-span-3" data-testid="section-todays-focus">
             <CardHeader className="pb-0 pt-4 px-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <Zap className="h-4 w-4 text-amber-500" />
-                  Today's Focus
+                  Needs Attention
                   {focusCount > 0 && (
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">{focusCount}</span>
                   )}
                 </CardTitle>
-                {/* Tabs */}
-                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
-                  {([
-                    { id: "actions", label: "Overdue", count: overdueActions.length, color: "text-red-500" },
-                    { id: "kpis", label: "KPIs", count: atRiskKpis.length, color: "text-amber-500" },
-                    { id: "milestones", label: "Milestones", count: upcomingMilestones.length, color: "text-violet-500" },
-                  ] as const).map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setFocusTab(tab.id)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                        focusTab === tab.id
-                          ? "bg-background shadow-sm text-foreground"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      data-testid={`tab-focus-${tab.id}`}
-                    >
-                      {tab.label}
-                      {tab.count > 0 && (
-                        <span className={`text-[10px] font-bold ${tab.color}`}>{tab.count}</span>
-                      )}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  {overdueActions.length > 0 && <span className="text-red-500 font-semibold">{overdueActions.length} overdue</span>}
+                  {atRiskKpis.length > 0 && <span className="text-amber-500 font-semibold">{atRiskKpis.length} at-risk KPIs</span>}
+                  {upcomingMilestones.length > 0 && <span className="text-violet-500 font-semibold">{upcomingMilestones.length} milestones</span>}
                 </div>
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-4 pt-3">
-              {/* Overdue Actions Tab */}
-              {focusTab === "actions" && (
-                <div>
-                  {overdueActions.length === 0 ? (
-                    <div className="flex items-center gap-2 py-6 justify-center text-sm text-muted-foreground">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      All actions are on time — great work!
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {overdueActions.slice(0, 5).map(a => {
-                        const eff = a.revisedDueDate || a.dueDate || "";
-                        const daysOver = eff ? Math.floor((Date.now() - new Date(eff).getTime()) / 86400000) : 0;
-                        return (
-                          <Link key={a.id} href="/actions">
-                            <div className="flex items-center gap-3 rounded-lg p-2.5 hover:bg-red-500/5 border border-transparent hover:border-red-200 dark:hover:border-red-900/30 transition-all cursor-pointer group" data-testid={`focus-action-${a.id}`}>
-                              <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-0.5" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{a.title}</p>
-                                <p className="text-xs text-muted-foreground">{a.ownerName || "Unassigned"}</p>
-                              </div>
-                              <span className="text-xs font-semibold text-red-500 bg-red-500/10 px-2 py-0.5 rounded shrink-0">{daysOver}d late</span>
-                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                            </div>
-                          </Link>
-                        );
-                      })}
-                      {overdueActions.length > 5 && (
-                        <Link href="/actions"><span className="text-xs text-primary hover:underline cursor-pointer pl-2">+{overdueActions.length - 5} more actions →</span></Link>
-                      )}
-                    </div>
-                  )}
+              {focusCount === 0 ? (
+                <div className="flex items-center gap-2 py-6 justify-center text-sm text-muted-foreground">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  Everything looks good — nothing urgent right now!
                 </div>
-              )}
-
-              {/* At-Risk KPIs Tab */}
-              {focusTab === "kpis" && (
-                <div>
-                  {atRiskKpis.length === 0 ? (
-                    <div className="flex items-center gap-2 py-6 justify-center text-sm text-muted-foreground">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      All KPIs are on track — excellent!
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {atRiskKpis.slice(0, 5).map(a => (
-                        <Link key={a.kpiId} href="/kpis">
-                          <div className="flex items-center gap-3 rounded-lg p-2.5 hover:bg-amber-500/5 border border-transparent hover:border-amber-200 dark:hover:border-amber-900/30 transition-all cursor-pointer group" data-testid={`focus-kpi-${a.kpiId}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${a.status === "Below Target" ? "bg-red-500" : "bg-amber-500"}`} />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">{a.kpiName}</p>
-                              <p className="text-xs text-muted-foreground">Actual: {a.actualValue}</p>
-                            </div>
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
-                              a.status === "Below Target" ? "text-red-600 bg-red-500/10" : "text-amber-600 bg-amber-500/10"
-                            }`}>{a.status}</span>
-                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              ) : (
+                <div className="space-y-1">
+                  {overdueActions.slice(0, 4).map(a => {
+                    const eff = a.revisedDueDate || a.dueDate || "";
+                    const daysOver = eff ? Math.floor((Date.now() - new Date(eff).getTime()) / 86400000) : 0;
+                    return (
+                      <Link key={`action-${a.id}`} href="/actions">
+                        <div className="flex items-center gap-3 rounded-lg p-2 hover:bg-red-500/5 border border-transparent hover:border-red-200 dark:hover:border-red-900/30 transition-all cursor-pointer group" data-testid={`focus-action-${a.id}`}>
+                          <span className="text-[9px] font-bold uppercase tracking-wide bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded shrink-0 w-[52px] text-center">Action</span>
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{a.title}</p>
+                            <p className="text-xs text-muted-foreground">{a.ownerName || "Unassigned"}</p>
                           </div>
-                        </Link>
-                      ))}
-                      {atRiskKpis.length > 5 && (
-                        <Link href="/kpis"><span className="text-xs text-primary hover:underline cursor-pointer pl-2">+{atRiskKpis.length - 5} more KPIs →</span></Link>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Milestones Tab */}
-              {focusTab === "milestones" && (
-                <div>
-                  {upcomingMilestones.length === 0 ? (
-                    <div className="flex items-center gap-2 py-6 justify-center text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      No milestones due this week
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {upcomingMilestones.slice(0, 5).map(m => {
-                        const daysLeft = m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - Date.now()) / 86400000) : 0;
-                        return (
-                          <Link key={m.id} href="/portfolio">
-                            <div className="flex items-center gap-3 rounded-lg p-2.5 hover:bg-violet-500/5 border border-transparent hover:border-violet-200 dark:hover:border-violet-900/30 transition-all cursor-pointer group" data-testid={`focus-milestone-${m.id}`}>
-                              <div className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">{m.title}</p>
-                                <p className="text-xs text-muted-foreground">Due {m.dueDate ? `${m.dueDate.split("-")[2]}-${m.dueDate.split("-")[1]}-${m.dueDate.split("-")[0]}` : ""}</p>
-                              </div>
-                              <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
-                                daysLeft <= 1 ? "text-red-600 bg-red-500/10" : daysLeft <= 3 ? "text-amber-600 bg-amber-500/10" : "text-violet-600 bg-violet-500/10"
-                              }`}>{daysLeft <= 0 ? "today!" : `${daysLeft}d`}</span>
-                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                            </div>
-                          </Link>
-                        );
-                      })}
+                          <span className="text-xs font-semibold text-red-500 bg-red-500/10 px-2 py-0.5 rounded shrink-0">{daysOver}d late</span>
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        </div>
+                      </Link>
+                    );
+                  })}
+                  {atRiskKpis.slice(0, 3).map(a => (
+                    <Link key={`kpi-${a.kpiId}`} href="/kpis">
+                      <div className="flex items-center gap-3 rounded-lg p-2 hover:bg-amber-500/5 border border-transparent hover:border-amber-200 dark:hover:border-amber-900/30 transition-all cursor-pointer group" data-testid={`focus-kpi-${a.kpiId}`}>
+                        <span className="text-[9px] font-bold uppercase tracking-wide bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded shrink-0 w-[52px] text-center">KPI</span>
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${a.status === "Below Target" ? "bg-red-500" : "bg-amber-500"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">{a.kpiName}</p>
+                          <p className="text-xs text-muted-foreground">Actual: {a.actualValue}</p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
+                          a.status === "Below Target" ? "text-red-600 bg-red-500/10" : "text-amber-600 bg-amber-500/10"
+                        }`}>{a.status}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      </div>
+                    </Link>
+                  ))}
+                  {upcomingMilestones.slice(0, 3).map(m => {
+                    const daysLeft = m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - Date.now()) / 86400000) : 0;
+                    return (
+                      <Link key={`ms-${m.id}`} href="/portfolio">
+                        <div className="flex items-center gap-3 rounded-lg p-2 hover:bg-violet-500/5 border border-transparent hover:border-violet-200 dark:hover:border-violet-900/30 transition-all cursor-pointer group" data-testid={`focus-milestone-${m.id}`}>
+                          <span className="text-[9px] font-bold uppercase tracking-wide bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 px-1.5 py-0.5 rounded shrink-0 w-[52px] text-center">Milestone</span>
+                          <div className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">{m.title}</p>
+                            <p className="text-xs text-muted-foreground">Due {m.dueDate ? `${m.dueDate.split("-")[2]}-${m.dueDate.split("-")[1]}-${m.dueDate.split("-")[0]}` : ""}</p>
+                          </div>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
+                            daysLeft <= 1 ? "text-red-600 bg-red-500/10" : daysLeft <= 3 ? "text-amber-600 bg-amber-500/10" : "text-violet-600 bg-violet-500/10"
+                          }`}>{daysLeft <= 0 ? "today!" : `${daysLeft}d`}</span>
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        </div>
+                      </Link>
+                    );
+                  })}
+                  {(overdueActions.length > 4 || atRiskKpis.length > 3 || upcomingMilestones.length > 3) && (
+                    <div className="flex items-center gap-3 pt-1 pl-2">
+                      {overdueActions.length > 4 && <Link href="/actions"><span className="text-xs text-red-500 hover:underline">+{overdueActions.length - 4} actions</span></Link>}
+                      {atRiskKpis.length > 3 && <Link href="/kpis"><span className="text-xs text-amber-500 hover:underline">+{atRiskKpis.length - 3} KPIs</span></Link>}
+                      {upcomingMilestones.length > 3 && <Link href="/portfolio"><span className="text-xs text-violet-500 hover:underline">+{upcomingMilestones.length - 3} milestones</span></Link>}
                     </div>
                   )}
                 </div>
