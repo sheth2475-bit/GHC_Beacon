@@ -342,6 +342,14 @@ export async function seedDatabase() {
       console.log("Seed: created executive demo user exec@performo.ai");
     }
 
+    // ── Ensure team member demo user ─────────────────────────────
+    const memberExists = await storage.getUserByEmail("member@performo.ai");
+    if (!memberExists) {
+      const memberHash = await hashPassword("member123");
+      await storage.createUser({ name: "Noura Bin Rashid", email: "member@performo.ai", passwordHash: memberHash, companyId, role: "team_member" });
+      console.log("Seed: created team member demo user member@performo.ai");
+    }
+
     // ── Ensure departments ──────────────────────────────────────
     let deptList = await storage.getDepartments(companyId);
     if (deptList.length === 0) {
@@ -353,6 +361,29 @@ export async function seedDatabase() {
     }
     const depts: Record<string, number> = {};
     for (const d of deptList) depts[d.name] = d.id;
+
+    // ── Ensure demo user dept access ──────────────────────────────
+    // exec: Sales dept (edit) + Finance (view) — Revenue Director persona
+    // member: Sales dept (full) — Dept Head persona
+    const salesDeptId = depts["Sales & Revenue"] ?? depts["Sales"] ?? Object.values(depts)[0];
+    const financeDeptId = depts["Finance"] ?? Object.values(depts)[Object.values(depts).length - 1];
+    const execUser = await storage.getUserByEmail("exec@performo.ai");
+    if (execUser && salesDeptId && financeDeptId) {
+      const execAccess = await storage.getDeptAccessForUser(execUser.id);
+      if (execAccess.length === 0) {
+        await storage.setDeptAccess(execUser.id, salesDeptId, "edit");
+        await storage.setDeptAccess(execUser.id, financeDeptId, "view");
+        console.log("Seed: configured dept access for exec user");
+      }
+    }
+    const memberUser = await storage.getUserByEmail("member@performo.ai");
+    if (memberUser && salesDeptId) {
+      const memberAccess = await storage.getDeptAccessForUser(memberUser.id);
+      if (memberAccess.length === 0) {
+        await storage.setDeptAccess(memberUser.id, salesDeptId, "full");
+        console.log("Seed: configured dept access for team member user");
+      }
+    }
 
     // ── Ensure KPIs ─────────────────────────────────────────────
     const existingKpis = await storage.getKpis(companyId);
@@ -430,6 +461,21 @@ export async function seedDatabase() {
     const d = await storage.createDepartment({ companyId: company.id, name });
     depts[name] = d.id;
   }
+
+  // ── Demo users with realistic dept access ─────────────────────
+  const salesId = depts["Sales & Revenue"] ?? depts["Sales"] ?? Object.values(depts)[0];
+  const financeId = depts["Finance"] ?? Object.values(depts)[Object.values(depts).length - 1];
+
+  // exec: Revenue Director persona — sees Sales + Finance only
+  const execHash = await hashPassword("exec123");
+  const execUser = await storage.createUser({ name: "Ravi Mehta", email: "exec@performo.ai", passwordHash: execHash, companyId: company.id, role: "executive" });
+  if (salesId) await storage.setDeptAccess(execUser.id, salesId, "edit");
+  if (financeId) await storage.setDeptAccess(execUser.id, financeId, "view");
+
+  // member: Sales Dept Head — manages Sales department
+  const memberHash = await hashPassword("member123");
+  const memberUser = await storage.createUser({ name: "Noura Bin Rashid", email: "member@performo.ai", passwordHash: memberHash, companyId: company.id, role: "team_member" });
+  if (salesId) await storage.setDeptAccess(memberUser.id, salesId, "full");
 
   const meetingTypeNames = [
     "PMO Steering Committee", "CEO Meeting", "Monthly Operations Review",
@@ -636,15 +682,6 @@ export async function seedDatabase() {
   // ─── Demo Projects, Tasks, Milestones ────────────────────────────────────
   await seedProjectData(company.id);
 
-  const execHash = await hashPassword("exec123");
-  await storage.createUser({
-    name: "Ravi Mehta",
-    email: "exec@performo.ai",
-    passwordHash: execHash,
-    companyId: company.id,
-    role: "executive",
-  });
-
   await storage.upsertSubscription(company.id, {
     planName: "Growth",
     status: "Active",
@@ -655,7 +692,7 @@ export async function seedDatabase() {
 
   await seedPlatformOwner();
 
-  console.log("Seed data created: 12 KPIs, 4 meetings, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive users + platform owner");
+  console.log("Seed data created: 12 KPIs, 4 meetings, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive + team_member users + platform owner");
 }
 
 async function seedPlatformOwner() {

@@ -268,7 +268,7 @@ export async function registerRoutes(
     res.status(201).json(actual);
   });
 
-  app.post("/api/ai/generate-kpis", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/ai/generate-kpis", requireAuth, async (req: Request, res: Response) => {
     try {
       const { industry, department, goals } = req.body;
       const kpis = await generateKpis(industry, department, goals || []);
@@ -449,7 +449,7 @@ export async function registerRoutes(
     res.json(await storage.getMonthlyReviews(company.id));
   });
 
-  app.post("/api/ai/monthly-review", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/ai/monthly-review", requireAuth, async (req: Request, res: Response) => {
     try {
       const company = await getCompanyForUser(req);
       if (!company) return res.status(400).json({ message: "No company profile" });
@@ -531,7 +531,7 @@ export async function registerRoutes(
     res.json(await storage.getDashboardPlans(company.id));
   });
 
-  app.post("/api/ai/dashboard-plan", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/ai/dashboard-plan", requireAuth, async (req: Request, res: Response) => {
     try {
       const company = await getCompanyForUser(req);
       if (!company) return res.status(400).json({ message: "No company profile" });
