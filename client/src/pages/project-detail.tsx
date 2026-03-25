@@ -71,10 +71,10 @@ function subStatusPill(s: string) {
 }
 
 function TaskCard({
-  task, isAdmin, onStatusChange, onDelete, onEdit, teamMembers
+  task, canEdit, onStatusChange, onDelete, onEdit, teamMembers
 }: {
   task: TaskWithSubtasks;
-  isAdmin: boolean;
+  canEdit: boolean;
   onStatusChange: (id: number, status: string) => void;
   onDelete: (id: number) => void;
   onEdit: (task: TaskWithSubtasks) => void;
@@ -127,7 +127,7 @@ function TaskCard({
             </div>
             {task.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{task.description}</p>}
             <div className="flex items-center gap-3 flex-wrap">
-              {isAdmin ? (
+              {canEdit ? (
                 <Select value={task.status} onValueChange={v => onStatusChange(task.id, v)}>
                   <SelectTrigger className="h-6 text-[11px] w-auto px-2 py-0" data-testid={`select-task-status-${task.id}`}>
                     <SelectValue />
@@ -166,7 +166,7 @@ function TaskCard({
                   <div key={sub.id} className="flex items-start gap-2 group/sub" data-testid={`row-subtask-${sub.id}`}>
                     <Checkbox
                       checked={sub.completed ?? false}
-                      disabled={!isAdmin || toggleSubtask.isPending}
+                      disabled={!canEdit || toggleSubtask.isPending}
                       onCheckedChange={v => toggleSubtask.mutate({ id: sub.id, completed: !!v })}
                       className="mt-0.5"
                       data-testid={`checkbox-subtask-${sub.id}`}
@@ -193,7 +193,7 @@ function TaskCard({
                         )}
                       </div>
                     </div>
-                    {isAdmin && (
+                    {canEdit && (
                       <button
                         onClick={() => deleteSubtask.mutate(sub.id)}
                         className="text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover/sub:opacity-100 mt-0.5"
@@ -204,7 +204,7 @@ function TaskCard({
                     )}
                   </div>
                 ))}
-                {isAdmin && (
+                {canEdit && (
                   showSubtaskForm ? (
                     <div className="mt-2 space-y-2 pt-2 border-t border-border/50">
                       <Input
@@ -275,7 +275,7 @@ function TaskCard({
             )}
           </div>
 
-          {isAdmin && (
+          {canEdit && (
             <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => onEdit(task)}
@@ -369,7 +369,7 @@ export default function ProjectDetailPage() {
   const [location] = useLocation();
   const idMatch = location.match(/\/(?:projects|initiatives)\/(\d+)/);
   const projectId = parseInt(idMatch?.[1] ?? "0");
-  const { isAdmin, user } = useAuth();
+  const { canEdit, user } = useAuth();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState("overview");
@@ -577,7 +577,7 @@ export default function ProjectDetailPage() {
             </div>
           )}
         </div>
-        {isAdmin && (
+        {canEdit && (
           <Button variant="outline" size="sm" onClick={() => { setEditForm(project as any); setShowEditProject(true); }}
             data-testid="button-edit-project">
             <Edit3 className="h-4 w-4 mr-1.5" /> Edit
@@ -680,7 +680,7 @@ export default function ProjectDetailPage() {
                 <LayoutGrid className="h-4 w-4 mr-1" /> Board
               </Button>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <Button size="sm" onClick={() => setShowTaskForm(true)} data-testid="button-add-task">
                 <Plus className="h-4 w-4 mr-1" /> Add Initiative
               </Button>
@@ -699,16 +699,16 @@ export default function ProjectDetailPage() {
                     </div>
                     <div>
                       <p className="font-medium">No initiatives yet</p>
-                      <p className="text-sm text-muted-foreground">{isAdmin ? "Add initiatives to start tracking project progress." : "No initiatives have been added yet."}</p>
+                      <p className="text-sm text-muted-foreground">{canEdit ? "Add initiatives to start tracking project progress." : "No initiatives have been added yet."}</p>
                     </div>
-                    {isAdmin && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Initiative</Button>}
+                    {canEdit && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Initiative</Button>}
                   </CardContent>
                 </Card>
               ) : tasks.map(t => (
                 <TaskCard
                   key={t.id}
                   task={t}
-                  isAdmin={isAdmin}
+                  canEdit={canEdit}
                   teamMembers={teamMembers}
                   onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status } })}
                   onDelete={id => deleteTaskMut.mutate(id)}
@@ -765,7 +765,7 @@ export default function ProjectDetailPage() {
                 <CalendarDays className="h-3.5 w-3.5 mr-1" /> Calendar
               </Button>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <Button size="sm" onClick={() => setShowMilestoneForm(true)} data-testid="button-add-milestone">
                 <Plus className="h-4 w-4 mr-1" /> Add Milestone
               </Button>
@@ -780,7 +780,7 @@ export default function ProjectDetailPage() {
                 </div>
                 <div>
                   <p className="font-medium">No milestones yet</p>
-                  <p className="text-sm text-muted-foreground">{isAdmin ? "Add milestones to track key initiative checkpoints." : "No milestones have been added."}</p>
+                  <p className="text-sm text-muted-foreground">{canEdit ? "Add milestones to track key initiative checkpoints." : "No milestones have been added."}</p>
                 </div>
               </CardContent>
             </Card>
@@ -800,7 +800,7 @@ export default function ProjectDetailPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm">{m.title}</span>
-                          {isAdmin ? (
+                          {canEdit ? (
                             <Select
                               value={m.status}
                               onValueChange={v => updateMsMut.mutate({ id: m.id, data: { status: v } })}
@@ -826,7 +826,7 @@ export default function ProjectDetailPage() {
                           </div>
                         )}
                       </div>
-                      {isAdmin && (
+                      {canEdit && (
                         <button
                           onClick={() => deleteMsMut.mutate(m.id)}
                           className="text-muted-foreground hover:text-red-500 transition-colors"
@@ -890,7 +890,7 @@ export default function ProjectDetailPage() {
                         </div>
                         <p className="text-sm mt-1 text-foreground/90">{c.content}</p>
                       </div>
-                      {(isAdmin || user?.id === c.userId) && (
+                      {(canEdit || user?.id === c.userId) && (
                         <button
                           onClick={() => deleteCommentMut.mutate(c.id)}
                           className="text-muted-foreground hover:text-red-500 transition-colors"

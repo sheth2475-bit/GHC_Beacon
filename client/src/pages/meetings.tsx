@@ -16,10 +16,12 @@ import { LoadingCards } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { StatusBadge } from "@/components/status-badge";
 import { Plus, Calendar, Trash2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import type { Meeting, Department, ActionItem } from "@shared/schema";
 
 export default function MeetingsPage() {
   const { toast } = useToast();
+  const { canEdit } = useAuth();
   const { data: meetings, isLoading, error, refetch } = useQuery<Meeting[]>({ queryKey: ["/api/meetings"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: actions } = useQuery<ActionItem[]>({ queryKey: ["/api/action-items"] });
@@ -67,11 +69,11 @@ export default function MeetingsPage() {
           description="Manage meetings and linked action items"
           icon={Calendar}
           testId="text-meetings-title"
-          actions={
+          actions={canEdit ? (
             <Button onClick={() => setShowDialog(true)} data-testid="button-new-meeting">
               <Plus className="h-4 w-4 mr-2" />New Meeting
             </Button>
-          }
+          ) : undefined}
         />
       </div>
 
@@ -116,9 +118,11 @@ export default function MeetingsPage() {
                         </div>
                       )}
                     </div>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0" onClick={() => deleteMutation.mutate(meeting.id)} data-testid={`button-delete-meeting-${meeting.id}`}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canEdit && (
+                      <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0" onClick={() => deleteMutation.mutate(meeting.id)} data-testid={`button-delete-meeting-${meeting.id}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

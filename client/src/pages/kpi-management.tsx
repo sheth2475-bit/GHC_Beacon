@@ -19,6 +19,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Trash2, Plus, Target, Search, Zap, Pencil } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import type { Kpi, Department, KpiActual, TeamMember } from "@shared/schema";
 
@@ -175,6 +176,7 @@ interface EditKpiForm {
 
 export default function KpiManagementPage() {
   const { toast } = useToast();
+  const { canEdit } = useAuth();
   const { data: kpis, isLoading, error, refetch } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: allActuals = [] } = useQuery<(KpiActual & { kpiName: string })[]>({
@@ -296,7 +298,7 @@ export default function KpiManagementPage() {
           description="View, track, and manage all your key performance indicators"
           icon={Target}
           testId="text-kpi-mgmt-title"
-          actions={
+          actions={canEdit ? (
             <ExcelUpload
               templateUrl="/api/templates/kpis"
               uploadUrl="/api/upload/kpis"
@@ -304,7 +306,7 @@ export default function KpiManagementPage() {
               columnMap={kpiColumnMap}
               onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/kpis"] })}
             />
-          }
+          ) : undefined}
         />
       </div>
 
@@ -401,15 +403,19 @@ export default function KpiManagementPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setActualDialog(kpi)} data-testid={`button-add-actual-${kpi.id}`}>
-                            <Plus className="h-3 w-3 mr-1" />Actual
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditKpi(kpi)} data-testid={`button-edit-kpi-${kpi.id}`}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(kpi.id)} data-testid={`button-delete-kpi-${kpi.id}`}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {canEdit && (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => setActualDialog(kpi)} data-testid={`button-add-actual-${kpi.id}`}>
+                                <Plus className="h-3 w-3 mr-1" />Actual
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditKpi(kpi)} data-testid={`button-edit-kpi-${kpi.id}`}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(kpi.id)} data-testid={`button-delete-kpi-${kpi.id}`}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

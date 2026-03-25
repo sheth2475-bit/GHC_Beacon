@@ -18,6 +18,7 @@ import { ErrorState } from "@/components/error-state";
 import { StatusBadge, PriorityBadge } from "@/components/status-badge";
 import { ExcelUpload } from "@/components/excel-upload";
 import { Plus, Trash2, ListChecks, AlertTriangle, Search, Pencil, Check, X, Bell, BellRing, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 import type { ActionItem, Department, MeetingType, TeamMember } from "@shared/schema";
 
@@ -26,6 +27,7 @@ const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 
 export default function ActionsPage() {
   const { toast } = useToast();
+  const { canEdit } = useAuth();
   const { data: actions, isLoading, error, refetch } = useQuery<ActionItem[]>({ queryKey: ["/api/action-items"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: meetingTypes } = useQuery<MeetingType[]>({ queryKey: ["/api/meeting-types"] });
@@ -198,7 +200,7 @@ export default function ActionsPage() {
           description="Track and manage action items across departments"
           icon={ListChecks}
           testId="text-actions-title"
-          actions={
+          actions={canEdit ? (
             <div className="flex items-center gap-2">
               <ExcelUpload
                 templateUrl="/api/templates/actions"
@@ -224,7 +226,7 @@ export default function ActionsPage() {
                 <Plus className="h-4 w-4 mr-2" />New Action
               </Button>
             </div>
-          }
+          ) : undefined}
         />
       </div>
 
@@ -442,12 +444,16 @@ export default function ActionsPage() {
                                 <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-amber-500" onClick={() => { setRemindDialog(item); const ownerMember = teamMembers.find(m => m.name === item.ownerName); setOwnerEmail(ownerMember?.email || ""); }} title="Send reminder email" data-testid={`button-remind-action-${item.id}`}>
                                   <Bell className="h-3.5 w-3.5" />
                                 </Button>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => startEdit(item)} data-testid={`button-edit-action-${item.id}`}>
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteMutation.mutate(item.id)} data-testid={`button-delete-action-${item.id}`}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {canEdit && (
+                                  <>
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => startEdit(item)} data-testid={`button-edit-action-${item.id}`}>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteMutation.mutate(item.id)} data-testid={`button-delete-action-${item.id}`}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
                               </>
                             )}
                           </div>

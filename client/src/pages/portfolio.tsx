@@ -94,7 +94,7 @@ function StatCard({ title, value, sub, icon: Icon, color, bg }: {
 const STATUSES = ["All", "Not Started", "In Progress", "At Risk", "Delayed", "Completed"];
 const PRIORITIES = ["All", "Critical", "High", "Medium", "Low"];
 
-function InitiativeGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmin: boolean; onDelete: (id: number) => void }) {
+function InitiativeGridCard({ p, canEdit, onDelete }: { p: ProjectWithHealth; canEdit: boolean; onDelete: (id: number) => void }) {
   return (
     <Card className="group hover:shadow-md transition-all hover:border-primary/30 h-full overflow-hidden relative" data-testid={`card-project-${p.id}`}>
       <div className={`h-1 w-full ${healthDot(p.health)}`} />
@@ -112,7 +112,7 @@ function InitiativeGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; is
             <Link href={`/initiatives/${p.id}`}>
               <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
             </Link>
-            {isAdmin && (
+            {canEdit && (
               <button
                 onClick={e => { e.preventDefault(); e.stopPropagation(); onDelete(p.id); }}
                 className="text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
@@ -161,7 +161,7 @@ function InitiativeGridCard({ p, isAdmin, onDelete }: { p: ProjectWithHealth; is
   );
 }
 
-function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isAdmin: boolean; onDelete: (id: number) => void }) {
+function InitiativeListRow({ p, canEdit, onDelete }: { p: ProjectWithHealth; canEdit: boolean; onDelete: (id: number) => void }) {
   return (
     <Card className="group hover:shadow-sm transition-all hover:border-primary/20" data-testid={`card-project-list-${p.id}`}>
       <CardContent className="p-4 flex items-center gap-4">
@@ -189,7 +189,7 @@ function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isA
           <Link href={`/projects/${p.id}`}>
             <ChevronRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
           </Link>
-          {isAdmin && (
+          {canEdit && (
             <button
               onClick={() => onDelete(p.id)}
               className="text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
@@ -205,7 +205,7 @@ function InitiativeListRow({ p, isAdmin, onDelete }: { p: ProjectWithHealth; isA
 }
 
 export default function PortfolioPage() {
-  const { isAdmin } = useAuth();
+  const { canEdit } = useAuth();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
@@ -273,7 +273,7 @@ export default function PortfolioPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">All strategic projects across your organisation</p>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <div className="flex items-center gap-2 flex-wrap">
             <ExcelUpload
               templateUrl="/api/projects/template"
@@ -399,12 +399,12 @@ export default function PortfolioPage() {
               <p className="text-sm text-muted-foreground mt-1">
                 {search || filterStatus !== "All" || filterPriority !== "All" || filterHealth !== "All"
                   ? "Try adjusting your search or filters."
-                  : isAdmin
+                  : canEdit
                   ? "Create your first project to get started."
                   : "No projects have been created yet."}
               </p>
             </div>
-            {isAdmin && !search && filterStatus === "All" && filterPriority === "All" && filterHealth === "All" && (
+            {canEdit && !search && filterStatus === "All" && filterPriority === "All" && filterHealth === "All" && (
               <div className="flex items-center gap-2">
                 <Button onClick={() => setShowCreate(true)}>
                   <Plus className="h-4 w-4 mr-1.5" /> Create First Project
@@ -420,13 +420,13 @@ export default function PortfolioPage() {
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(p => (
-            <InitiativeGridCard key={p.id} p={p} isAdmin={isAdmin} onDelete={id => deleteMutation.mutate(id)} />
+            <InitiativeGridCard key={p.id} p={p} canEdit={canEdit} onDelete={id => deleteMutation.mutate(id)} />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map(p => (
-            <InitiativeListRow key={p.id} p={p} isAdmin={isAdmin} onDelete={id => deleteMutation.mutate(id)} />
+            <InitiativeListRow key={p.id} p={p} canEdit={canEdit} onDelete={id => deleteMutation.mutate(id)} />
           ))}
         </div>
       )}

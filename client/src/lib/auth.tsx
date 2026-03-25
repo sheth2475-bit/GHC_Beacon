@@ -15,6 +15,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   isExecutive: boolean;
+  canEdit: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resolvedUser = user ?? null;
   const isAdmin = resolvedUser?.role === "admin";
   const isExecutive = resolvedUser?.role === "executive";
+  const canEdit = resolvedUser?.role === "admin" || resolvedUser?.role === "team_member";
 
   return (
     <AuthContext.Provider
@@ -77,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAdmin,
         isExecutive,
+        canEdit,
         login: async (email, password) => { await loginMutation.mutateAsync({ email, password }); },
         register: async (name, email, password) => { await registerMutation.mutateAsync({ name, email, password }); },
         logout: async () => { await logoutMutation.mutateAsync(); },
