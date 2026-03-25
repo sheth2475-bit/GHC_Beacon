@@ -1153,6 +1153,11 @@ export async function registerRoutes(
         dailyAiLimit: 15,
         trialStartDate: company.createdAt ? new Date(company.createdAt) : new Date(),
       });
+    } else if (sub.planName === "Trial" && !sub.trialStartDate) {
+      // Backfill trialStartDate for existing Trial subscriptions that are missing it
+      sub = await storage.upsertSubscription(company.id, {
+        trialStartDate: company.createdAt ? new Date(company.createdAt) : new Date(),
+      });
     }
     const dailyUsed = await storage.getDailyAiCount(company.id);
     res.json({ ...sub, dailyUsed });

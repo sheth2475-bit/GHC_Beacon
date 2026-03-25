@@ -61,8 +61,10 @@ export function AppSidebar() {
   const planName: string = sub?.planName || "Trial";
 
   const trialDaysLeft = (() => {
-    if (planName !== "Trial" || !sub?.trialStartDate) return null;
-    const start = new Date(sub.trialStartDate).getTime();
+    if (planName !== "Trial") return null;
+    const start = sub?.trialStartDate
+      ? new Date(sub.trialStartDate).getTime()
+      : Date.now();
     const elapsed = Math.floor((Date.now() - start) / (1000 * 60 * 60 * 24));
     return Math.max(0, 30 - elapsed);
   })();
