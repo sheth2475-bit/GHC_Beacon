@@ -389,7 +389,7 @@ export default function KpiManagementPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <KpiSparkline kpiId={kpi.id} actuals={allActuals} />
-                          <QuickActualPopover kpi={kpi} />
+                          {canEdit && <QuickActualPopover kpi={kpi} />}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">{kpi.frequency}</TableCell>

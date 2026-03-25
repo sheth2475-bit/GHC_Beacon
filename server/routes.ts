@@ -1227,5 +1227,9 @@ export async function registerRoutes(
     res.json(logs);
   });
 
+  app.all(/^\/api\//, (_req: Request, res: Response) => {
+    res.status(404).json({ message: "API endpoint not found" });
+  });
+
   return httpServer;
 }
