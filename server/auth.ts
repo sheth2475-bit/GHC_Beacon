@@ -143,3 +143,9 @@ export function requireAdmin(req: Request, res: any, next: any) {
   if (req.user!.role !== "admin") return res.status(403).json({ message: "Admin access required" });
   next();
 }
+
+export function requireEditAccess(req: Request, res: any, next: any) {
+  if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+  if (!["admin", "team_member"].includes(req.user!.role)) return res.status(403).json({ message: "Edit access required" });
+  next();
+}

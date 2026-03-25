@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, requireAuth, requireAdmin } from "./auth";
+import { setupAuth, requireAuth, requireAdmin, requireEditAccess } from "./auth";
 import { generateKpis, generateMonthlyReview, generateDashboardPlan } from "./ai";
 import { sendActionReminder } from "./email";
 import { processAssistantMessage } from "./assistant";
@@ -224,21 +224,21 @@ export async function registerRoutes(
     res.json(filtered);
   });
 
-  app.post("/api/kpis", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/kpis", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(400).json({ message: "No company profile" });
     const kpi = await storage.createKpi({ ...req.body, companyId: company.id });
     res.status(201).json(kpi);
   });
 
-  app.patch("/api/kpis/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/kpis/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     if (!(await verifyKpiOwnership(req, id))) return res.status(404).json({ message: "Not found" });
     const kpi = await storage.updateKpi(id, req.body);
     res.json(kpi);
   });
 
-  app.delete("/api/kpis/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/kpis/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     if (!(await verifyKpiOwnership(req, id))) return res.status(404).json({ message: "Not found" });
     await storage.deleteKpi(id);
@@ -262,7 +262,7 @@ export async function registerRoutes(
     res.json(filtered);
   });
 
-  app.post("/api/kpi-actuals", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/kpi-actuals", requireEditAccess, async (req: Request, res: Response) => {
     if (!(await verifyKpiOwnership(req, req.body.kpiId))) return res.status(404).json({ message: "Not found" });
     const actual = await storage.createKpiActual(req.body);
     res.status(201).json(actual);
@@ -288,14 +288,14 @@ export async function registerRoutes(
     res.json(filtered);
   });
 
-  app.post("/api/meetings", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/meetings", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(400).json({ message: "No company profile" });
     const meeting = await storage.createMeeting({ ...req.body, companyId: company.id });
     res.status(201).json(meeting);
   });
 
-  app.patch("/api/meetings/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/meetings/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Not found" });
@@ -305,7 +305,7 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/meetings/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/meetings/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Not found" });
@@ -324,14 +324,14 @@ export async function registerRoutes(
     res.json(filtered);
   });
 
-  app.post("/api/action-items", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/action-items", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(400).json({ message: "No company profile" });
     const item = await storage.createActionItem({ ...req.body, companyId: company.id });
     res.status(201).json(item);
   });
 
-  app.patch("/api/action-items/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/action-items/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Not found" });
@@ -388,7 +388,7 @@ export async function registerRoutes(
   });
 
   // ── Bulk reminder for all overdue actions ────────────────────────────────
-  app.post("/api/action-items/remind-overdue", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/action-items/remind-overdue", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Not found" });
 
@@ -433,7 +433,7 @@ export async function registerRoutes(
     res.json({ ok: true, sent, errors });
   });
 
-  app.delete("/api/action-items/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/action-items/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Not found" });
@@ -616,7 +616,7 @@ export async function registerRoutes(
     res.send(buf);
   });
 
-  app.post("/api/upload/kpis", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/upload/kpis", requireEditAccess, async (req: Request, res: Response) => {
     try {
       const company = await getCompanyForUser(req);
       if (!company) return res.status(400).json({ message: "No company profile" });
@@ -661,7 +661,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload/actions", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/upload/actions", requireEditAccess, async (req: Request, res: Response) => {
     try {
       const company = await getCompanyForUser(req);
       if (!company) return res.status(400).json({ message: "No company profile" });
@@ -833,7 +833,7 @@ export async function registerRoutes(
     res.json(await storage.getTeamMembers(company.id));
   });
 
-  app.post("/api/team-members", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/team-members", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(400).json({ message: "No company profile" });
     const { name, email, department, jobTitle } = req.body;
@@ -842,14 +842,14 @@ export async function registerRoutes(
     res.status(201).json(member);
   });
 
-  app.patch("/api/team-members/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/team-members/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const { name, email, department, jobTitle } = req.body;
     const updated = await storage.updateTeamMember(id, { name, email, department, jobTitle });
     res.json(updated);
   });
 
-  app.delete("/api/team-members/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/team-members/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     await storage.deleteTeamMember(id);
     res.json({ ok: true });
@@ -903,14 +903,14 @@ export async function registerRoutes(
     res.json({ ...project, progress: computedProgress, health, tasks: pt, milestones: pm });
   });
 
-  app.post("/api/projects", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/projects", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
     const project = await storage.createProject({ ...req.body, companyId: company.id });
     res.json(project);
   });
 
-  app.patch("/api/projects/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/projects/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -921,7 +921,7 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/projects/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/projects/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -953,14 +953,14 @@ export async function registerRoutes(
     res.json(tasksWithSubtasks);
   });
 
-  app.post("/api/tasks", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/tasks", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
     const task = await storage.createTask({ ...req.body, companyId: company.id });
     res.json(task);
   });
 
-  app.patch("/api/tasks/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/tasks/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -970,7 +970,7 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/tasks/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/tasks/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
@@ -987,7 +987,7 @@ export async function registerRoutes(
     res.json(subs);
   });
 
-  app.post("/api/tasks/:id/subtasks", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/tasks/:id/subtasks", requireEditAccess, async (req: Request, res: Response) => {
     const taskId = parseInt(req.params.id as string);
     const sub = await storage.createSubtask({
       taskId,
@@ -1000,13 +1000,13 @@ export async function registerRoutes(
     res.json(sub);
   });
 
-  app.patch("/api/subtasks/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/subtasks/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const updated = await storage.updateSubtask(id, req.body);
     res.json(updated);
   });
 
-  app.delete("/api/subtasks/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/subtasks/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     await storage.deleteSubtask(id);
     res.json({ ok: true });
@@ -1026,20 +1026,20 @@ export async function registerRoutes(
     res.json(all);
   });
 
-  app.post("/api/milestones", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/milestones", requireEditAccess, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
     const ms = await storage.createMilestone({ ...req.body, companyId: company.id });
     res.json(ms);
   });
 
-  app.patch("/api/milestones/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/milestones/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const updated = await storage.updateMilestone(id, req.body);
     res.json(updated);
   });
 
-  app.delete("/api/milestones/:id", requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/milestones/:id", requireEditAccess, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     await storage.deleteMilestone(id);
     res.json({ ok: true });
@@ -1101,7 +1101,7 @@ export async function registerRoutes(
     });
   };
 
-  app.post("/api/upload/projects", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/upload/projects", requireEditAccess, async (req: Request, res: Response) => {
     try {
       const company = await getCompanyForUser(req);
       if (!company) return res.status(404).json({ message: "Company not found" });
@@ -1123,7 +1123,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/initiatives/bulk-upload", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/initiatives/bulk-upload", requireEditAccess, async (req: Request, res: Response) => {
     try {
       const company = await getCompanyForUser(req);
       if (!company) return res.status(404).json({ message: "Company not found" });

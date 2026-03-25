@@ -141,7 +141,8 @@ function SetupMemberAccessDialog({ member, departments }: { member: TeamMember; 
                 <Select value={role} onValueChange={setRole}>
                   <SelectTrigger data-testid="select-setup-role"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="executive"><div className="flex items-center gap-2"><Eye className="h-3.5 w-3.5 text-amber-600" /><span>Executive — view access</span></div></SelectItem>
+                    <SelectItem value="executive"><div className="flex items-center gap-2"><Eye className="h-3.5 w-3.5 text-amber-600" /><span>Executive — view only</span></div></SelectItem>
+                    <SelectItem value="team_member"><div className="flex items-center gap-2"><Pencil className="h-3.5 w-3.5 text-green-600" /><span>Team Member — edit &amp; view</span></div></SelectItem>
                     <SelectItem value="admin"><div className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-blue-600" /><span>Admin — full access</span></div></SelectItem>
                   </SelectContent>
                 </Select>
@@ -598,6 +599,8 @@ export default function UserManagementPage() {
   const roleBadge = (role: string) =>
     role === "admin" ? (
       <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 gap-1"><Shield className="h-3 w-3" />Admin</Badge>
+    ) : role === "team_member" ? (
+      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 gap-1"><Pencil className="h-3 w-3" />Team Member</Badge>
     ) : (
       <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 gap-1"><Eye className="h-3 w-3" />Executive</Badge>
     );
@@ -641,6 +644,7 @@ export default function UserManagementPage() {
                             <FormControl><SelectTrigger data-testid="select-user-role"><SelectValue /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="executive"><div className="flex items-center gap-2"><Eye className="h-3.5 w-3.5 text-amber-600" /><div><div className="font-medium">Executive</div><div className="text-xs text-muted-foreground">Read access (dept restrictions apply)</div></div></div></SelectItem>
+                              <SelectItem value="team_member"><div className="flex items-center gap-2"><Pencil className="h-3.5 w-3.5 text-green-600" /><div><div className="font-medium">Team Member</div><div className="text-xs text-muted-foreground">Edit &amp; view (dept restrictions apply)</div></div></div></SelectItem>
                               <SelectItem value="admin"><div className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-blue-600" /><div><div className="font-medium">Admin</div><div className="text-xs text-muted-foreground">Full access — all departments</div></div></div></SelectItem>
                             </SelectContent>
                           </Select>
@@ -686,6 +690,7 @@ export default function UserManagementPage() {
                               <SelectTrigger className="h-8 w-32 text-xs" data-testid={`select-role-${u.id}`}><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="team_member">Team Member</SelectItem>
                                 <SelectItem value="executive">Executive</SelectItem>
                               </SelectContent>
                             </Select>
@@ -801,7 +806,7 @@ export default function UserManagementPage() {
               <Building2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium text-foreground mb-1">Department-Level Access Control</p>
-                <p className="text-muted-foreground">Configure which departments each user can access. Admin users always have full access. For executive users, if no departments are assigned, they see all data. Once departments are assigned, they can only access data from those departments across all modules — KPIs, projects, actions, meetings, and more.</p>
+                <p className="text-muted-foreground">Configure which departments each user can access. Admin users always have full access. For team member and executive users, if no departments are assigned, they see all data. Once departments are assigned, they can only access data from those departments across all modules — KPIs, projects, actions, meetings, and more.</p>
               </div>
             </CardContent>
           </Card>
