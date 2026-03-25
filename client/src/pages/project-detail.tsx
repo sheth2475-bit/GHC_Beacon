@@ -18,7 +18,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Calendar, Users, Target, AlertTriangle, Edit3,
   Plus, Trash2, MessageSquare, Send, Flag, ChevronDown, ChevronRight,
-  LayoutList, LayoutGrid, Circle, CalendarDays, Pencil,
+  LayoutList, LayoutGrid, Circle, CalendarDays, Pencil, CheckCircle2,
 } from "lucide-react";
 import type { Project, Task, Subtask, Milestone, ProjectComment, Department, TeamMember } from "@shared/schema";
 import { formatDate } from "@/lib/utils";
@@ -110,14 +110,22 @@ function TaskCard({
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = task.dueDate && task.dueDate < today && task.status !== "Completed";
   const owner = (task as any).owner || task.assignee;
+  const progress = task.progress ?? 0;
+  const isCompleted = task.status === "Completed";
 
   return (
     <Card className={`border-l-4 ${priorityBorderColor(task.priority)} hover:shadow-sm transition-all`} data-testid={`card-task-${task.id}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
+          {/* Completion indicator */}
+          <div className="shrink-0 mt-0.5">
+            {isCompleted
+              ? <CheckCircle2 className="h-4 w-4 text-emerald-500" data-testid={`icon-completed-${task.id}`} />
+              : <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />}
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <span className="font-semibold text-sm" data-testid={`text-task-title-${task.id}`}>{task.title}</span>
+              <span className={`font-semibold text-sm ${isCompleted ? "line-through text-muted-foreground" : ""}`} data-testid={`text-task-title-${task.id}`}>{task.title}</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${priorityColor(task.priority)}`}>{task.priority}</span>
               {isOverdue && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-0.5">
@@ -158,6 +166,14 @@ function TaskCard({
                 {doneCount}/{totalSubs} tasks
               </button>
             </div>
+
+            {/* Progress bar */}
+            {(progress > 0 || isCompleted) && (
+              <div className="mt-2 flex items-center gap-2">
+                <Progress value={isCompleted ? 100 : progress} className="h-1.5 flex-1" />
+                <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{isCompleted ? 100 : progress}%</span>
+              </div>
+            )}
 
             {/* Subtasks */}
             {expanded && (
@@ -379,13 +395,26 @@ export default function ProjectDetailPage() {
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
-  const [editTaskForm, setEditTaskForm] = useState({ title: "", description: "", owner: "", dueDate: "", status: "Not Started", priority: "Medium" });
+  const [editTaskForm, setEditTaskForm] = useState({ title: "", description: "", owner: "", dueDate: "", status: "Not Started", priority: "Medium", progress: 0 });
+  const [editMilestoneId, setEditMilestoneId] = useState<number | null>(null);
+  const [editMsForm, setEditMsForm] = useState({ title: "", dueDate: "", status: "Upcoming", progress: 0 });
   const [comment, setComment] = useState("");
 
   const [taskForm, setTaskForm] = useState({
     title: "", description: "", owner: "", dueDate: "",
-    status: "Not Started", priority: "Medium",
+    status: "Not Started", priority: "Medium", progress: 0,
   });
+
+  const progressToStatus = (pct: number) => {
+    if (pct >= 100) return "Completed";
+    if (pct > 0) return "In Progress";
+    return "Not Started";
+  };
+  const msProgressToStatus = (pct: number) => {
+    if (pct >= 100) return "Completed";
+    if (pct > 0) return "In Progress";
+    return "Upcoming";
+  };
   const [msForm, setMsForm] = useState({
     title: "", dueDate: "", status: "Upcoming", progress: 0,
   });
@@ -437,7 +466,7 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setShowTaskForm(false);
-      setTaskForm({ title: "", description: "", owner: "", dueDate: "", status: "Not Started", priority: "Medium" });
+      setTaskForm({ title: "", description: "", owner: "", dueDate: "", status: "Not Started", priority: "Medium", progress: 0 });
       toast({ title: "Initiative created" });
     },
     onError: () => toast({ title: "Failed to create initiative", variant: "destructive" }),
@@ -710,9 +739,9 @@ export default function ProjectDetailPage() {
                   task={t}
                   canEdit={canEdit}
                   teamMembers={teamMembers}
-                  onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status } })}
+                  onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status, progress: status === "Completed" ? 100 : status === "Not Started" ? 0 : undefined } })}
                   onDelete={id => deleteTaskMut.mutate(id)}
-                  onEdit={t => { setEditTaskId(t.id); setEditTaskForm({ title: t.title, description: (t as any).description || "", owner: (t as any).owner || t.assignee || "", dueDate: t.dueDate || "", status: t.status, priority: t.priority }); }}
+                  onEdit={t => { setEditTaskId(t.id); setEditTaskForm({ title: t.title, description: (t as any).description || "", owner: (t as any).owner || t.assignee || "", dueDate: t.dueDate || "", status: t.status, priority: t.priority, progress: t.progress ?? 0 }); }}
                 />
               ))}
             </div>
@@ -819,21 +848,30 @@ export default function ProjectDetailPage() {
                         <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
                           {m.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(m.dueDate)}</span>}
                         </div>
-                        {typeof m.progress === "number" && (
+                        {typeof m.progress === "number" && (m.progress > 0 || m.status === "Completed") && (
                           <div className="mt-2 space-y-1">
-                            <Progress value={m.progress} className="h-1" />
-                            <p className="text-[10px] text-muted-foreground">{m.progress}% complete</p>
+                            <Progress value={m.status === "Completed" ? 100 : m.progress} className="h-1" />
+                            <p className="text-[10px] text-muted-foreground">{m.status === "Completed" ? 100 : m.progress}% complete</p>
                           </div>
                         )}
                       </div>
                       {canEdit && (
-                        <button
-                          onClick={() => deleteMsMut.mutate(m.id)}
-                          className="text-muted-foreground hover:text-red-500 transition-colors"
-                          data-testid={`button-delete-milestone-${m.id}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => { setEditMilestoneId(m.id); setEditMsForm({ title: m.title, dueDate: m.dueDate || "", status: m.status, progress: m.progress ?? 0 }); }}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            data-testid={`button-edit-milestone-${m.id}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteMsMut.mutate(m.id)}
+                            className="text-muted-foreground hover:text-red-500 transition-colors"
+                            data-testid={`button-delete-milestone-${m.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </CardContent>
@@ -947,7 +985,7 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Select value={taskForm.status} onValueChange={v => setTaskForm(f => ({ ...f, status: v }))}>
+                <Select value={taskForm.status} onValueChange={v => setTaskForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : v === "Not Started" ? 0 : f.progress }))}>
                   <SelectTrigger data-testid="select-task-status-new"><SelectValue /></SelectTrigger>
                   <SelectContent>{TASK_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
@@ -958,6 +996,23 @@ export default function ProjectDetailPage() {
                   <SelectTrigger data-testid="select-task-priority-new"><SelectValue /></SelectTrigger>
                   <SelectContent>{["Critical","High","Medium","Low"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>% Completion</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number" min={0} max={100}
+                  value={taskForm.progress}
+                  onChange={e => {
+                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                    setTaskForm(f => ({ ...f, progress: pct, status: progressToStatus(pct) }));
+                  }}
+                  className="w-24"
+                  data-testid="input-task-progress-new"
+                />
+                <Progress value={taskForm.progress} className="flex-1 h-2" />
+                <span className="text-xs text-muted-foreground w-10 text-right">{taskForm.progress}%</span>
               </div>
             </div>
           </div>
@@ -1009,7 +1064,7 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Select value={editTaskForm.status} onValueChange={v => setEditTaskForm(f => ({ ...f, status: v }))}>
+                <Select value={editTaskForm.status} onValueChange={v => setEditTaskForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : v === "Not Started" ? 0 : f.progress }))}>
                   <SelectTrigger data-testid="select-edit-task-status"><SelectValue /></SelectTrigger>
                   <SelectContent>{TASK_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
@@ -1020,6 +1075,23 @@ export default function ProjectDetailPage() {
                   <SelectTrigger data-testid="select-edit-task-priority"><SelectValue /></SelectTrigger>
                   <SelectContent>{["Critical","High","Medium","Low"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>% Completion</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number" min={0} max={100}
+                  value={editTaskForm.progress}
+                  onChange={e => {
+                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                    setEditTaskForm(f => ({ ...f, progress: pct, status: progressToStatus(pct) }));
+                  }}
+                  className="w-24"
+                  data-testid="input-edit-task-progress"
+                />
+                <Progress value={editTaskForm.progress} className="flex-1 h-2" />
+                <span className="text-xs text-muted-foreground w-10 text-right">{editTaskForm.progress}%</span>
               </div>
             </div>
           </div>
@@ -1053,10 +1125,27 @@ export default function ProjectDetailPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Select value={msForm.status} onValueChange={v => setMsForm(f => ({ ...f, status: v }))}>
+                <Select value={msForm.status} onValueChange={v => setMsForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : f.progress }))}>
                   <SelectTrigger data-testid="select-milestone-status-new"><SelectValue /></SelectTrigger>
                   <SelectContent>{MILESTONE_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>% Completion</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number" min={0} max={100}
+                  value={msForm.progress}
+                  onChange={e => {
+                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                    setMsForm(f => ({ ...f, progress: pct, status: msProgressToStatus(pct) }));
+                  }}
+                  className="w-24"
+                  data-testid="input-milestone-progress-new"
+                />
+                <Progress value={msForm.progress} className="flex-1 h-2" />
+                <span className="text-xs text-muted-foreground w-10 text-right">{msForm.progress}%</span>
               </div>
             </div>
           </div>
@@ -1064,6 +1153,60 @@ export default function ProjectDetailPage() {
             <Button variant="outline" onClick={() => setShowMilestoneForm(false)}>Cancel</Button>
             <Button onClick={() => createMsMut.mutate(msForm)} disabled={!msForm.title || createMsMut.isPending} data-testid="button-submit-milestone">
               {createMsMut.isPending ? "Creating..." : "Create Milestone"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Milestone Dialog */}
+      <Dialog open={editMilestoneId !== null} onOpenChange={open => { if (!open) setEditMilestoneId(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit Milestone</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Title *</Label>
+              <Input value={editMsForm.title} onChange={e => setEditMsForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Milestone title" data-testid="input-edit-milestone-title" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Due Date</Label>
+                <Input type="date" value={editMsForm.dueDate} onChange={e => setEditMsForm(f => ({ ...f, dueDate: e.target.value }))} data-testid="input-edit-milestone-due" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={editMsForm.status} onValueChange={v => setEditMsForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : f.progress }))}>
+                  <SelectTrigger data-testid="select-edit-milestone-status"><SelectValue /></SelectTrigger>
+                  <SelectContent>{MILESTONE_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>% Completion</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number" min={0} max={100}
+                  value={editMsForm.progress}
+                  onChange={e => {
+                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                    setEditMsForm(f => ({ ...f, progress: pct, status: msProgressToStatus(pct) }));
+                  }}
+                  className="w-24"
+                  data-testid="input-edit-milestone-progress"
+                />
+                <Progress value={editMsForm.progress} className="flex-1 h-2" />
+                <span className="text-xs text-muted-foreground w-10 text-right">{editMsForm.progress}%</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditMilestoneId(null)}>Cancel</Button>
+            <Button
+              onClick={() => { if (editMilestoneId && editMsForm.title.trim()) { updateMsMut.mutate({ id: editMilestoneId, data: editMsForm }); setEditMilestoneId(null); } }}
+              disabled={!editMsForm.title.trim() || updateMsMut.isPending}
+              data-testid="button-submit-edit-milestone"
+            >
+              {updateMsMut.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
