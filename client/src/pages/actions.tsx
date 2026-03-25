@@ -286,7 +286,7 @@ export default function ActionsPage() {
                     <TableHead className="w-[155px] whitespace-nowrap">Meeting Type</TableHead>
                     <TableHead className="min-w-[180px] w-[22%]">Title</TableHead>
                     <TableHead className="min-w-[200px] w-[28%]">Description</TableHead>
-                    <TableHead className="w-[110px] whitespace-nowrap">Owner</TableHead>
+                    <TableHead className="w-[160px] whitespace-nowrap">Dept / Owner</TableHead>
                     <TableHead className="w-[105px] whitespace-nowrap">Due Date</TableHead>
                     <TableHead className="w-[120px] whitespace-nowrap">Revised Due</TableHead>
                     <TableHead className="w-[100px]">Priority</TableHead>
@@ -350,7 +350,17 @@ export default function ActionsPage() {
                               <Input value={editOwner} onChange={e => setEditOwner(e.target.value)} className="h-8 text-sm w-[110px]" data-testid={`input-edit-owner-${item.id}`} />
                             )
                           ) : (
-                            <span className="text-sm text-muted-foreground">{item.ownerName || "-"}</span>
+                            <div className="space-y-0.5">
+                              {(() => {
+                                const dept = departments?.find(d => d.id === item.departmentId);
+                                return dept ? (
+                                  <span className="text-[10px] font-medium text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded block w-fit">
+                                    {dept.name}
+                                  </span>
+                                ) : null;
+                              })()}
+                              <span className="text-sm text-muted-foreground">{item.ownerName || "-"}</span>
+                            </div>
                           )}
                         </TableCell>
                         <TableCell className="align-top py-3">

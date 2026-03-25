@@ -56,11 +56,18 @@ function priorityColor(p: string) {
 const TASK_STATUSES = ["Not Started", "In Progress", "At Risk", "Completed"];
 const MILESTONE_STATUSES = ["Upcoming", "In Progress", "Completed", "Overdue"];
 
-function priorityBorderColor(p: string) {
-  if (p === "Critical") return "border-l-red-500";
-  if (p === "High") return "border-l-orange-500";
-  if (p === "Medium") return "border-l-blue-500";
-  return "border-l-gray-300 dark:border-l-gray-600";
+function statusDot(s: string) {
+  if (s === "Completed") return "bg-emerald-500";
+  if (s === "In Progress") return "bg-violet-500";
+  if (s === "At Risk") return "bg-red-500";
+  return "bg-slate-300 dark:bg-slate-600";
+}
+
+function priorityBg(p: string) {
+  if (p === "Critical") return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+  if (p === "High") return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400";
+  if (p === "Medium") return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+  return "bg-muted text-muted-foreground";
 }
 
 function subStatusPill(s: string) {
@@ -146,209 +153,295 @@ function TaskCard({
 
   return (
     <>
-      <Card className={`border-l-4 ${priorityBorderColor(task.priority)} hover:shadow-sm transition-all`} data-testid={`card-task-${task.id}`}>
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            {/* Completion indicator */}
-            <div className="shrink-0 mt-0.5">
-              {isCompleted
-                ? <CheckCircle2 className="h-4 w-4 text-emerald-500" data-testid={`icon-completed-${task.id}`} />
-                : <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                <span className={`font-semibold text-sm ${isCompleted ? "line-through text-muted-foreground" : ""}`} data-testid={`text-task-title-${task.id}`}>{task.title}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${priorityColor(task.priority)}`}>{task.priority}</span>
-                {isOverdue && !isCompleted && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400 flex items-center gap-0.5">
-                    <AlertTriangle className="h-2.5 w-2.5" /> Overdue
+      {/* ── Initiative row (ClickUp-style) ── */}
+      <div
+        className={`group flex items-center border-b last:border-b-0 transition-colors min-h-[44px] ${isOverdue && !isCompleted ? "bg-red-500/5 hover:bg-red-500/10" : "hover:bg-muted/40"}`}
+        data-testid={`card-task-${task.id}`}
+      >
+        {/* Expand chevron (28px) */}
+        <button
+          className="w-7 flex items-center justify-center shrink-0 self-stretch text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setExpanded(!expanded)}
+          data-testid={`button-expand-subtasks-${task.id}`}
+        >
+          {totalSubs > 0
+            ? (expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />)
+            : <span className="w-3.5 h-3.5 block" />}
+        </button>
+
+        {/* Status dot / selector (28px) */}
+        <div className="w-7 flex items-center justify-center shrink-0">
+          {canEdit ? (
+            <Select value={task.status} onValueChange={v => onStatusChange(task.id, v)}>
+              <SelectTrigger
+                className="border-0 p-0 h-auto w-auto shadow-none bg-transparent focus:ring-0 [&>svg]:hidden"
+                data-testid={`select-task-status-${task.id}`}
+              >
+                <div className={`w-3.5 h-3.5 rounded-sm ${statusDot(task.status)} cursor-pointer hover:opacity-80 transition-opacity`} title={task.status} />
+              </SelectTrigger>
+              <SelectContent>
+                {TASK_STATUSES.map(s => (
+                  <SelectItem key={s} value={s} className="text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-sm ${statusDot(s)}`} />
+                      {s}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className={`w-3.5 h-3.5 rounded-sm ${statusDot(task.status)}`} title={task.status} />
+          )}
+        </div>
+
+        {/* Title (flex-1) */}
+        <div className="flex-1 min-w-0 px-3 py-2.5">
+          <div className="flex items-center gap-1.5">
+            {isCompleted && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" data-testid={`icon-completed-${task.id}`} />}
+            <span
+              className={`text-sm font-medium truncate ${isCompleted ? "line-through text-muted-foreground" : ""}`}
+              data-testid={`text-task-title-${task.id}`}
+            >
+              {task.title}
+            </span>
+            {isOverdue && !isCompleted && <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />}
+          </div>
+          {task.description && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{task.description}</p>}
+          {totalSubs > 0 && (
+            <span className="text-[10px] text-muted-foreground/70">{doneCount}/{totalSubs} tasks</span>
+          )}
+        </div>
+
+        {/* Owner (145px) */}
+        <div className="w-[145px] shrink-0 px-2 hidden sm:block">
+          {owner ? (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 min-w-0">
+              <Users className="h-3 w-3 shrink-0" />
+              <span className="truncate">{owner}</span>
+            </span>
+          ) : <span className="text-xs text-muted-foreground">—</span>}
+        </div>
+
+        {/* Due date (105px) */}
+        <div className="w-[105px] shrink-0 px-2 hidden md:block">
+          {task.dueDate ? (
+            <span className={`text-xs flex items-center gap-1 ${isOverdue && !isCompleted ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+              <Calendar className="h-3 w-3 shrink-0" />
+              {formatDate(task.dueDate)}
+            </span>
+          ) : <span className="text-xs text-muted-foreground">—</span>}
+        </div>
+
+        {/* Priority (90px) */}
+        <div className="w-[90px] shrink-0 px-2 hidden md:block">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${priorityBg(task.priority)}`}>
+            {task.priority}
+          </span>
+        </div>
+
+        {/* Progress (130px) */}
+        <div className="w-[130px] shrink-0 px-2 hidden lg:block">
+          <div className="flex items-center gap-2">
+            <Progress
+              value={computedProgress}
+              className={`h-1.5 flex-1 ${isCompleted ? "[&>div]:bg-emerald-500" : computedProgress > 0 ? "[&>div]:bg-violet-500" : ""}`}
+            />
+            <span className="text-[10px] text-muted-foreground tabular-nums w-7 text-right shrink-0">{computedProgress}%</span>
+          </div>
+        </div>
+
+        {/* Actions (60px) */}
+        <div className="w-[60px] shrink-0 flex items-center justify-end gap-0.5 pr-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          {canEdit && (
+            <>
+              <button
+                onClick={() => onEdit(task)}
+                className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                data-testid={`button-edit-task-${task.id}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => onDelete(task.id)}
+                className="p-1 text-muted-foreground hover:text-red-500 transition-colors"
+                data-testid={`button-delete-task-${task.id}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Subtask rows (expanded) ── */}
+      {expanded && (
+        <div className="bg-muted/10">
+          {task.subtasks.map(sub => {
+            const subProg = (sub as any).progress ?? (sub.completed ? 100 : 0);
+            const subDone = subProg >= 100 || sub.completed;
+            return (
+              <div
+                key={sub.id}
+                className="group/sub flex items-center border-b last:border-b-0 hover:bg-muted/30 transition-colors min-h-[38px]"
+                data-testid={`row-subtask-${sub.id}`}
+              >
+                {/* Indent spacer (28px) */}
+                <div className="w-7 shrink-0 flex items-center justify-center">
+                  <div className="w-px h-full bg-border/60" />
+                </div>
+
+                {/* Checkbox (28px) */}
+                <div className="w-7 flex items-center justify-center shrink-0">
+                  <Checkbox
+                    checked={sub.completed ?? false}
+                    disabled={!canEdit || toggleSubtask.isPending}
+                    onCheckedChange={v => toggleSubtask.mutate({ id: sub.id, completed: !!v })}
+                    className="h-3.5 w-3.5"
+                    data-testid={`checkbox-subtask-${sub.id}`}
+                  />
+                </div>
+
+                {/* Title (flex-1) */}
+                <div className="flex-1 min-w-0 px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-medium ${subDone ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {sub.title}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Owner (145px) */}
+                <div className="w-[145px] shrink-0 px-2 hidden sm:block">
+                  {(sub as any).owner ? (
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
+                      <Users className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">{(sub as any).owner}</span>
+                    </span>
+                  ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                </div>
+
+                {/* Due date (105px) */}
+                <div className="w-[105px] shrink-0 px-2 hidden md:block">
+                  {(sub as any).dueDate ? (
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-2.5 w-2.5 shrink-0" />
+                      {formatDate((sub as any).dueDate)}
+                    </span>
+                  ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                </div>
+
+                {/* Status pill (90px) — instead of priority for subtasks */}
+                <div className="w-[90px] shrink-0 px-2 hidden md:block">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${subStatusPill(subDone ? "Completed" : (sub as any).status || "Not Started")}`}>
+                    {subDone ? "Completed" : ((sub as any).status || "Not Started")}
                   </span>
-                )}
+                </div>
+
+                {/* Progress (130px) */}
+                <div className="w-[130px] shrink-0 px-2 hidden lg:block">
+                  <div className="flex items-center gap-2">
+                    <Progress
+                      value={subProg}
+                      className={`h-1 flex-1 ${subDone ? "[&>div]:bg-emerald-500" : subProg > 0 ? "[&>div]:bg-violet-500" : ""}`}
+                    />
+                    <span className="text-[10px] text-muted-foreground tabular-nums w-7 text-right shrink-0">{subProg}%</span>
+                  </div>
+                </div>
+
+                {/* Actions (60px) */}
+                <div className="w-[60px] shrink-0 flex items-center justify-end gap-0.5 pr-3 opacity-0 group-hover/sub:opacity-100 transition-opacity">
+                  {canEdit && (
+                    <>
+                      <button
+                        onClick={() => { setEditSubId(sub.id); setEditSubForm({ title: sub.title, owner: (sub as any).owner || "", dueDate: (sub as any).dueDate || "", status: sub.status, progress: subProg }); }}
+                        className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                        data-testid={`button-edit-subtask-${sub.id}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => deleteSubtask.mutate(sub.id)}
+                        className="p-1 text-muted-foreground hover:text-red-500 transition-colors"
+                        data-testid={`button-delete-subtask-${sub.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              {task.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{task.description}</p>}
-              <div className="flex items-center gap-3 flex-wrap">
-                {canEdit ? (
-                  <Select value={task.status} onValueChange={v => onStatusChange(task.id, v)}>
-                    <SelectTrigger className="h-6 text-[11px] w-auto px-2 py-0" data-testid={`select-task-status-${task.id}`}>
-                      <SelectValue />
-                    </SelectTrigger>
+            );
+          })}
+
+          {/* Add task form */}
+          {canEdit && (
+            showSubtaskForm ? (
+              <div className="pl-14 pr-4 py-3 border-b border-border/50 space-y-2 bg-background/50">
+                <Input
+                  value={subForm.title}
+                  onChange={e => setSubForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Task title"
+                  className="h-7 text-xs"
+                  data-testid={`input-subtask-title-${task.id}`}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  {teamMembers.length > 0 ? (
+                    <Select value={subForm.owner || "none"} onValueChange={v => setSubForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Owner" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No owner</SelectItem>
+                        {teamMembers.map(m => <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value={subForm.owner} onChange={e => setSubForm(f => ({ ...f, owner: e.target.value }))} placeholder="Owner" className="h-7 text-xs" />
+                  )}
+                  <Input type="date" value={subForm.dueDate} onChange={e => setSubForm(f => ({ ...f, dueDate: e.target.value }))} className="h-7 text-xs" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={subForm.status} onValueChange={v => setSubForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : v === "Not Started" ? 0 : f.progress }))}>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {TASK_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                ) : (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusPill(task.status)}`}>{task.status}</span>
-                )}
-                {owner && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Users className="h-3 w-3" /> {owner}
-                  </span>
-                )}
-                {task.dueDate && (
-                  <span className={`text-xs flex items-center gap-1 ${isOverdue && !isCompleted ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                    <Calendar className="h-3 w-3" /> {formatDate(task.dueDate)}
-                  </span>
-                )}
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="number" min={0} max={100}
+                      value={subForm.progress}
+                      onChange={e => {
+                        const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                        setSubForm(f => ({ ...f, progress: pct, status: subProgressToStatus(pct) }));
+                      }}
+                      className="h-7 text-xs w-16"
+                      data-testid={`input-subtask-progress-${task.id}`}
+                      placeholder="%"
+                    />
+                    <span className="text-[10px] text-muted-foreground">%</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-7 text-xs" onClick={() => { if (subForm.title.trim()) addSubtask.mutate(subForm); }} disabled={!subForm.title.trim() || addSubtask.isPending} data-testid={`button-save-subtask-${task.id}`}>
+                    Save
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowSubtaskForm(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="pl-14 py-2 border-b border-border/30">
                 <button
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors ml-auto"
-                  onClick={() => setExpanded(!expanded)}
-                  data-testid={`button-expand-subtasks-${task.id}`}
+                  className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                  onClick={() => { setShowSubtaskForm(true); }}
+                  data-testid={`button-add-subtask-${task.id}`}
                 >
-                  {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  {doneCount}/{totalSubs} tasks
+                  <Plus className="h-3 w-3" /> Add Task
                 </button>
               </div>
-
-              {/* Progress bar — auto from subtasks or manual */}
-              {(computedProgress > 0 || isCompleted) && (
-                <div className="mt-2 flex items-center gap-2">
-                  <Progress value={computedProgress} className="h-1.5 flex-1" />
-                  <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{computedProgress}%</span>
-                  {totalSubs > 0 && <span className="text-[10px] text-muted-foreground/60 shrink-0">auto</span>}
-                </div>
-              )}
-
-              {/* Tasks (Subtasks) list */}
-              {expanded && (
-                <div className="mt-3 space-y-2 pl-3 border-l-2 border-border">
-                  {task.subtasks.map(sub => {
-                    const subProg = (sub as any).progress ?? (sub.completed ? 100 : 0);
-                    const subDone = subProg >= 100 || sub.completed;
-                    return (
-                      <div key={sub.id} className="group/sub" data-testid={`row-subtask-${sub.id}`}>
-                        <div className="flex items-start gap-2">
-                          <Checkbox
-                            checked={sub.completed ?? false}
-                            disabled={!canEdit || toggleSubtask.isPending}
-                            onCheckedChange={v => toggleSubtask.mutate({ id: sub.id, completed: !!v })}
-                            className="mt-0.5"
-                            data-testid={`checkbox-subtask-${sub.id}`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <span className={`text-xs font-medium ${subDone ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                              {sub.title}
-                            </span>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              {(sub as any).owner && (
-                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                  <Users className="h-2.5 w-2.5" /> {(sub as any).owner}
-                                </span>
-                              )}
-                              {(sub as any).dueDate && (
-                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                  <Calendar className="h-2.5 w-2.5" /> {formatDate((sub as any).dueDate)}
-                                </span>
-                              )}
-                              <span className={`text-[10px] px-1.5 py-0 rounded-full font-medium ${subStatusPill(subDone ? "Completed" : (sub as any).status || "Not Started")}`}>
-                                {subDone ? "Completed" : (sub as any).status || "Not Started"}
-                              </span>
-                            </div>
-                          </div>
-                          {canEdit && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0 mt-0.5">
-                              <button
-                                onClick={() => { setEditSubId(sub.id); setEditSubForm({ title: sub.title, owner: (sub as any).owner || "", dueDate: (sub as any).dueDate || "", status: sub.status, progress: subProg }); }}
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                                data-testid={`button-edit-subtask-${sub.id}`}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                              <button
-                                onClick={() => deleteSubtask.mutate(sub.id)}
-                                className="text-muted-foreground hover:text-red-500 transition-colors"
-                                data-testid={`button-delete-subtask-${sub.id}`}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        {/* Sub-progress bar */}
-                        {subProg > 0 && (
-                          <div className="mt-1 ml-6 flex items-center gap-2">
-                            <Progress value={subProg} className={`h-1 flex-1 ${subDone ? "[&>div]:bg-emerald-500" : subProg > 0 ? "[&>div]:bg-violet-500" : ""}`} />
-                            <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{subProg}%</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {canEdit && (
-                    showSubtaskForm ? (
-                      <div className="mt-2 space-y-2 pt-2 border-t border-border/50">
-                        <Input
-                          value={subForm.title}
-                          onChange={e => setSubForm(f => ({ ...f, title: e.target.value }))}
-                          placeholder="Task title"
-                          className="h-7 text-xs"
-                          data-testid={`input-subtask-title-${task.id}`}
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          {teamMembers.length > 0 ? (
-                            <Select value={subForm.owner || "none"} onValueChange={v => setSubForm(f => ({ ...f, owner: v === "none" ? "" : v }))}>
-                              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Owner" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">No owner</SelectItem>
-                                {teamMembers.map(m => <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Input value={subForm.owner} onChange={e => setSubForm(f => ({ ...f, owner: e.target.value }))} placeholder="Owner" className="h-7 text-xs" />
-                          )}
-                          <Input type="date" value={subForm.dueDate} onChange={e => setSubForm(f => ({ ...f, dueDate: e.target.value }))} className="h-7 text-xs" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Select value={subForm.status} onValueChange={v => setSubForm(f => ({ ...f, status: v, progress: v === "Completed" ? 100 : v === "Not Started" ? 0 : f.progress }))}>
-                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {TASK_STATUSES.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <div className="flex items-center gap-1.5">
-                            <Input
-                              type="number" min={0} max={100}
-                              value={subForm.progress}
-                              onChange={e => {
-                                const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                setSubForm(f => ({ ...f, progress: pct, status: subProgressToStatus(pct) }));
-                              }}
-                              className="h-7 text-xs w-16"
-                              data-testid={`input-subtask-progress-${task.id}`}
-                              placeholder="%"
-                            />
-                            <span className="text-[10px] text-muted-foreground">%</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" className="h-7 text-xs" onClick={() => { if (subForm.title.trim()) addSubtask.mutate(subForm); }} disabled={!subForm.title.trim() || addSubtask.isPending} data-testid={`button-save-subtask-${task.id}`}>
-                            Save
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowSubtaskForm(false)}>Cancel</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors mt-1" onClick={() => setShowSubtaskForm(true)} data-testid={`button-add-subtask-${task.id}`}>
-                        <Plus className="h-3 w-3" /> Add Task
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-
-            {canEdit && (
-              <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => onEdit(task)} className="text-muted-foreground hover:text-primary transition-colors" data-testid={`button-edit-task-${task.id}`}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => onDelete(task.id)} className="text-muted-foreground hover:text-red-500 transition-colors" data-testid={`button-delete-task-${task.id}`}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            )
+          )}
+        </div>
+      )}
 
       {/* Edit Task (Subtask) Dialog */}
       <Dialog open={editSubId !== null} onOpenChange={open => { if (!open) setEditSubId(null); }}>
@@ -824,7 +917,7 @@ export default function ProjectDetailPage() {
           {tasksLoading ? (
             <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20" />)}</div>
           ) : !boardView ? (
-            <div className="space-y-2">
+            <div>
               {tasks.length === 0 ? (
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
@@ -838,17 +931,44 @@ export default function ProjectDetailPage() {
                     {canEdit && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Initiative</Button>}
                   </CardContent>
                 </Card>
-              ) : tasks.map(t => (
-                <TaskCard
-                  key={t.id}
-                  task={t}
-                  canEdit={canEdit}
-                  teamMembers={teamMembers}
-                  onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status, progress: status === "Completed" ? 100 : status === "Not Started" ? 0 : undefined } })}
-                  onDelete={id => deleteTaskMut.mutate(id)}
-                  onEdit={t => { setEditTaskId(t.id); setEditTaskForm({ title: t.title, description: (t as any).description || "", owner: (t as any).owner || t.assignee || "", dueDate: t.dueDate || "", status: t.status, priority: t.priority, progress: t.progress ?? 0 }); }}
-                />
-              ))}
+              ) : (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  {/* Column header row */}
+                  <div className="flex items-center bg-muted/50 border-b text-xs font-medium text-muted-foreground select-none">
+                    <div className="w-7 shrink-0" />
+                    <div className="w-7 shrink-0" />
+                    <div className="flex-1 px-3 py-2.5">Initiative</div>
+                    <div className="w-[145px] shrink-0 px-2 py-2.5 hidden sm:block">Owner</div>
+                    <div className="w-[105px] shrink-0 px-2 py-2.5 hidden md:block">Due Date</div>
+                    <div className="w-[90px] shrink-0 px-2 py-2.5 hidden md:block">Priority</div>
+                    <div className="w-[130px] shrink-0 px-2 py-2.5 hidden lg:block">Progress</div>
+                    <div className="w-[60px] shrink-0" />
+                  </div>
+                  {/* Task rows */}
+                  {tasks.map(t => (
+                    <TaskCard
+                      key={t.id}
+                      task={t}
+                      canEdit={canEdit}
+                      teamMembers={teamMembers}
+                      onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status, progress: status === "Completed" ? 100 : status === "Not Started" ? 0 : undefined } })}
+                      onDelete={id => deleteTaskMut.mutate(id)}
+                      onEdit={t => { setEditTaskId(t.id); setEditTaskForm({ title: t.title, description: (t as any).description || "", owner: (t as any).owner || t.assignee || "", dueDate: t.dueDate || "", status: t.status, priority: t.priority, progress: t.progress ?? 0 }); }}
+                    />
+                  ))}
+                  {canEdit && (
+                    <div className="flex items-center px-4 py-2.5 border-t border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
+                      <button
+                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1.5 transition-colors"
+                        onClick={() => setShowTaskForm(true)}
+                        data-testid="button-add-task-inline"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Initiative
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 overflow-x-auto">
