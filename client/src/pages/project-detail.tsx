@@ -18,7 +18,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Calendar, Users, Target, AlertTriangle, Edit3,
   Plus, Trash2, MessageSquare, Send, Flag, ChevronDown, ChevronRight,
-  LayoutList, LayoutGrid, Circle, CalendarDays, Pencil, CheckCircle2,
+  LayoutList, Circle, CalendarDays, Pencil, CheckCircle2,
+  Kanban, ChevronLeft, List,
 } from "lucide-react";
 import type { Project, Task, Subtask, Milestone, ProjectComment, Department, TeamMember } from "@shared/schema";
 import { formatDate } from "@/lib/utils";
@@ -587,7 +588,10 @@ export default function ProjectDetailPage() {
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState("overview");
-  const [boardView, setBoardView] = useState(false);
+  const [taskView, setTaskView] = useState<"list" | "kanban" | "calendar">("list");
+  const [taskCalMonth, setTaskCalMonth] = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
+  const [taskDragId, setTaskDragId] = useState<number | null>(null);
+  const [taskDragOverCol, setTaskDragOverCol] = useState<string | null>(null);
   const [milestoneView, setMilestoneView] = useState<"list" | "calendar">("list");
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
@@ -892,20 +896,27 @@ export default function ProjectDetailPage() {
 
         {/* ─ Initiatives ─ */}
         <TabsContent value="initiatives" className="mt-4 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex gap-2">
-              <Button
-                variant={boardView ? "ghost" : "secondary"} size="sm"
-                onClick={() => setBoardView(false)} data-testid="button-list-view"
-              >
-                <LayoutList className="h-4 w-4 mr-1" /> List
-              </Button>
-              <Button
-                variant={boardView ? "secondary" : "ghost"} size="sm"
-                onClick={() => setBoardView(true)} data-testid="button-board-view"
-              >
-                <LayoutGrid className="h-4 w-4 mr-1" /> Board
-              </Button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5">
+              {([
+                { mode: "list", icon: List, label: "List" },
+                { mode: "kanban", icon: Kanban, label: "Kanban" },
+                { mode: "calendar", icon: Calendar, label: "Calendar" },
+              ] as const).map(({ mode, icon: Icon, label }) => (
+                <button
+                  key={mode}
+                  onClick={() => setTaskView(mode)}
+                  data-testid={`button-task-view-${mode}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    taskView === mode
+                      ? "bg-background text-foreground shadow-sm border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
             </div>
             {canEdit && (
               <Button size="sm" onClick={() => setShowTaskForm(true)} data-testid="button-add-task">
@@ -916,108 +927,246 @@ export default function ProjectDetailPage() {
 
           {tasksLoading ? (
             <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20" />)}</div>
-          ) : !boardView ? (
-            <div>
-              {tasks.length === 0 ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                      <Target className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium">No initiatives yet</p>
-                      <p className="text-sm text-muted-foreground">{canEdit ? "Add initiatives to start tracking project progress." : "No initiatives have been added yet."}</p>
-                    </div>
-                    {canEdit && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Initiative</Button>}
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="rounded-xl border border-border overflow-hidden">
-                  {/* Column header row */}
-                  <div className="flex items-center bg-muted/50 border-b text-xs font-medium text-muted-foreground select-none">
-                    <div className="w-7 shrink-0" />
-                    <div className="w-7 shrink-0" />
-                    <div className="flex-1 px-3 py-2.5">Initiative</div>
-                    <div className="w-[145px] shrink-0 px-2 py-2.5 hidden sm:block">Owner</div>
-                    <div className="w-[105px] shrink-0 px-2 py-2.5 hidden md:block">Due Date</div>
-                    <div className="w-[90px] shrink-0 px-2 py-2.5 hidden md:block">Priority</div>
-                    <div className="w-[130px] shrink-0 px-2 py-2.5 hidden lg:block">Progress</div>
-                    <div className="w-[60px] shrink-0" />
-                  </div>
-                  {/* Task rows */}
-                  {tasks.map(t => (
-                    <TaskCard
-                      key={t.id}
-                      task={t}
-                      canEdit={canEdit}
-                      teamMembers={teamMembers}
-                      onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status, progress: status === "Completed" ? 100 : status === "Not Started" ? 0 : undefined } })}
-                      onDelete={id => deleteTaskMut.mutate(id)}
-                      onEdit={t => { setEditTaskId(t.id); setEditTaskForm({ title: t.title, description: (t as any).description || "", owner: (t as any).owner || t.assignee || "", dueDate: t.dueDate || "", status: t.status, priority: t.priority, progress: t.progress ?? 0 }); }}
-                    />
-                  ))}
-                  {canEdit && (
-                    <div className="flex items-center px-4 py-2.5 border-t border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
-                      <button
-                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1.5 transition-colors"
-                        onClick={() => setShowTaskForm(true)}
-                        data-testid="button-add-task-inline"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Initiative
-                      </button>
-                    </div>
-                  )}
+          ) : tasks.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <Target className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">No initiatives yet</p>
+                  <p className="text-sm text-muted-foreground">{canEdit ? "Add initiatives to start tracking project progress." : "No initiatives have been added yet."}</p>
+                </div>
+                {canEdit && <Button size="sm" onClick={() => setShowTaskForm(true)}><Plus className="h-4 w-4 mr-1" /> Add First Initiative</Button>}
+              </CardContent>
+            </Card>
+          ) : taskView === "list" ? (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="flex items-center bg-muted/50 border-b text-xs font-medium text-muted-foreground select-none">
+                <div className="w-7 shrink-0" />
+                <div className="w-7 shrink-0" />
+                <div className="flex-1 px-3 py-2.5">Initiative</div>
+                <div className="w-[145px] shrink-0 px-2 py-2.5 hidden sm:block">Owner</div>
+                <div className="w-[105px] shrink-0 px-2 py-2.5 hidden md:block">Due Date</div>
+                <div className="w-[90px] shrink-0 px-2 py-2.5 hidden md:block">Priority</div>
+                <div className="w-[130px] shrink-0 px-2 py-2.5 hidden lg:block">Progress</div>
+                <div className="w-[60px] shrink-0" />
+              </div>
+              {tasks.map(t => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  canEdit={canEdit}
+                  teamMembers={teamMembers}
+                  onStatusChange={(id, status) => updateTaskMut.mutate({ id, data: { status, progress: status === "Completed" ? 100 : status === "Not Started" ? 0 : undefined } })}
+                  onDelete={id => deleteTaskMut.mutate(id)}
+                  onEdit={t => { setEditTaskId(t.id); setEditTaskForm({ title: t.title, description: (t as any).description || "", owner: (t as any).owner || t.assignee || "", dueDate: t.dueDate || "", status: t.status, priority: t.priority, progress: t.progress ?? 0 }); }}
+                />
+              ))}
+              {canEdit && (
+                <div className="flex items-center px-4 py-2.5 border-t border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
+                  <button className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1.5 transition-colors" onClick={() => setShowTaskForm(true)} data-testid="button-add-task-inline">
+                    <Plus className="h-3.5 w-3.5" /> Add Initiative
+                  </button>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 overflow-x-auto">
-              {TASK_STATUSES.map(s => (
-                <div key={s} className="space-y-2">
-                  <div className={`text-xs font-semibold px-2 py-1 rounded-md text-center ${statusPill(s)}`}>{s} ({byStatus(s).length})</div>
-                  {byStatus(s).map(t => {
-                    const tOwner = (t as any).owner || t.assignee;
+          ) : taskView === "kanban" ? (
+            <div className="flex gap-4 min-h-[400px] overflow-x-auto pb-4" data-testid="task-kanban">
+              {TASK_STATUSES.map(col => {
+                const colTopColors: Record<string, string> = {
+                  "Not Started": "border-t-slate-400",
+                  "In Progress": "border-t-violet-500",
+                  "At Risk": "border-t-red-500",
+                  "Completed": "border-t-emerald-500",
+                };
+                const colDotColors: Record<string, string> = {
+                  "Not Started": "bg-slate-400",
+                  "In Progress": "bg-violet-500",
+                  "At Risk": "bg-red-500",
+                  "Completed": "bg-emerald-500",
+                };
+                const colItems = byStatus(col);
+                const isDragOver = taskDragOverCol === col;
+                return (
+                  <div
+                    key={col}
+                    className={`flex flex-col min-w-[240px] w-[240px] rounded-xl border-t-4 ${colTopColors[col] || "border-t-slate-400"} bg-muted/30 border transition-colors ${isDragOver ? "bg-primary/5 border-primary/30" : ""}`}
+                    onDragOver={e => { e.preventDefault(); setTaskDragOverCol(col); }}
+                    onDragLeave={() => setTaskDragOverCol(null)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setTaskDragOverCol(null);
+                      if (taskDragId !== null) {
+                        const item = tasks.find(t => t.id === taskDragId);
+                        if (item && item.status !== col) {
+                          updateTaskMut.mutate({ id: taskDragId, data: { status: col, progress: col === "Completed" ? 100 : col === "Not Started" ? 0 : undefined } });
+                        }
+                        setTaskDragId(null);
+                      }
+                    }}
+                    data-testid={`task-kanban-col-${col.toLowerCase().replace(/\s+/g, "-")}`}
+                  >
+                    <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${colDotColors[col] || "bg-slate-400"}`} />
+                        <span className="text-xs font-semibold">{col}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded-full border">{colItems.length}</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                      {colItems.length === 0 && (
+                        <div className={`flex items-center justify-center h-16 rounded-lg border-2 border-dashed text-xs text-muted-foreground transition-colors ${isDragOver ? "border-primary/40 text-primary/60" : "border-border/40"}`}>
+                          Drop here
+                        </div>
+                      )}
+                      {colItems.map(t => {
+                        const tOwner = (t as any).owner || t.assignee;
+                        const today = new Date().toISOString().split("T")[0];
+                        const isOverdue = t.dueDate && t.dueDate < today && t.status !== "Completed";
+                        const computedProgress = t.subtasks?.length > 0
+                          ? Math.round(t.subtasks.reduce((sum: number, s: any) => sum + (s.progress ?? (s.completed ? 100 : 0)), 0) / t.subtasks.length)
+                          : (t.progress ?? 0);
+                        return (
+                          <div
+                            key={t.id}
+                            draggable
+                            onDragStart={() => setTaskDragId(t.id)}
+                            onDragEnd={() => { setTaskDragId(null); setTaskDragOverCol(null); }}
+                            className={`bg-background rounded-lg border p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all select-none ${taskDragId === t.id ? "opacity-40 scale-95" : ""} ${isOverdue ? "border-red-300 dark:border-red-800" : ""}`}
+                            data-testid={`task-kanban-card-${t.id}`}
+                          >
+                            <div className="flex items-start gap-1.5 mb-2">
+                              {isOverdue && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />}
+                              <p className="text-sm font-medium leading-snug line-clamp-2">{t.title}</p>
+                            </div>
+                            <div className="flex items-center flex-wrap gap-1 mb-2">
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${priorityBg(t.priority)}`}>{t.priority}</span>
+                            </div>
+                            {computedProgress > 0 && (
+                              <div className="mb-2">
+                                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${computedProgress === 100 ? "bg-emerald-500" : "bg-violet-500"}`} style={{ width: `${computedProgress}%` }} />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 text-right">{computedProgress}%</p>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                              {tOwner ? (
+                                <div className="flex items-center gap-1">
+                                  <div className="h-4 w-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold shrink-0">
+                                    {tOwner.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                                  </div>
+                                  <span className="truncate max-w-[80px]">{tOwner}</span>
+                                </div>
+                              ) : <span />}
+                              {t.dueDate && (
+                                <span className={`shrink-0 ${isOverdue ? "text-red-500 font-semibold" : ""}`}>{formatDate(t.dueDate)}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (() => {
+            // Calendar view for initiatives
+            const year = taskCalMonth.getFullYear();
+            const month = taskCalMonth.getMonth();
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date().toISOString().split("T")[0];
+            const monthLabel = taskCalMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+            const tasksByDate: Record<string, TaskWithSubtasks[]> = {};
+            for (const t of tasks) {
+              const d = t.dueDate;
+              if (d) { tasksByDate[d] = [...(tasksByDate[d] || []), t]; }
+            }
+            const cells = Array.from({ length: firstDay }, () => null as null)
+              .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+
+            return (
+              <div data-testid="task-calendar">
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    onClick={() => setTaskCalMonth(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted/50 transition-colors"
+                    data-testid="button-task-cal-prev"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Prev
+                  </button>
+                  <h2 className="text-base font-bold">{monthLabel}</h2>
+                  <button
+                    onClick={() => setTaskCalMonth(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted/50 transition-colors"
+                    data-testid="button-task-cal-next"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1 mb-1">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+                    <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-1">{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {cells.map((day, idx) => {
+                    if (day === null) return <div key={`empty-${idx}`} />;
+                    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                    const dayTasks = tasksByDate[dateStr] || [];
+                    const isToday = dateStr === today;
+                    const isPast = dateStr < today;
                     return (
-                      <Card key={t.id} className="border" data-testid={`board-task-${t.id}`}>
-                        <CardContent className="p-3">
-                          <p className="text-xs font-medium leading-tight">{t.title}</p>
-                          {tOwner && <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><Users className="h-2.5 w-2.5" />{tOwner}</p>}
-                          {t.dueDate && <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Calendar className="h-2.5 w-2.5" />{formatDate(t.dueDate)}</p>}
-                        </CardContent>
-                      </Card>
+                      <div
+                        key={dateStr}
+                        className={`min-h-[80px] rounded-lg border p-1.5 transition-colors ${isToday ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border/60 hover:border-border bg-background"}`}
+                        data-testid={`task-cal-day-${dateStr}`}
+                      >
+                        <p className={`text-[11px] font-semibold mb-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground" : "text-foreground"}`}>{day}</p>
+                        <div className="space-y-0.5">
+                          {dayTasks.slice(0, 3).map(t => (
+                            <div key={t.id} title={t.title} className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${t.status === "Completed" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : t.status === "At Risk" ? "bg-red-500/10 text-red-700 dark:text-red-400" : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`} data-testid={`task-cal-item-${t.id}`}>
+                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(t.status)}`} />
+                              <span className="truncate">{t.title}</span>
+                            </div>
+                          ))}
+                          {dayTasks.length > 3 && <p className="text-[10px] text-muted-foreground pl-1">+{dayTasks.length - 3} more</p>}
+                        </div>
+                      </div>
                     );
                   })}
-                  {byStatus(s).length === 0 && (
-                    <div className="border border-dashed border-border rounded-lg py-4 text-center text-xs text-muted-foreground">Empty</div>
-                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            );
+          })()}
         </TabsContent>
 
         {/* ─ Milestones ─ */}
         <TabsContent value="milestones" className="mt-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-1 border rounded-md p-1">
-              <Button
-                variant={milestoneView === "list" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5"
-                onClick={() => setMilestoneView("list")}
-                data-testid="button-milestone-list-view"
-              >
-                <LayoutList className="h-3.5 w-3.5 mr-1" /> List
-              </Button>
-              <Button
-                variant={milestoneView === "calendar" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5"
-                onClick={() => setMilestoneView("calendar")}
-                data-testid="button-milestone-calendar-view"
-              >
-                <CalendarDays className="h-3.5 w-3.5 mr-1" /> Calendar
-              </Button>
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5">
+              {([
+                { mode: "list", icon: LayoutList, label: "List" },
+                { mode: "calendar", icon: CalendarDays, label: "Calendar" },
+              ] as const).map(({ mode, icon: Icon, label }) => (
+                <button
+                  key={mode}
+                  onClick={() => setMilestoneView(mode as "list" | "calendar")}
+                  data-testid={`button-milestone-${mode}-view`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    milestoneView === mode
+                      ? "bg-background text-foreground shadow-sm border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
             </div>
             {canEdit && (
               <Button size="sm" onClick={() => setShowMilestoneForm(true)} data-testid="button-add-milestone">

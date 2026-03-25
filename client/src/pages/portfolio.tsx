@@ -19,7 +19,7 @@ import { formatDate } from "@/lib/utils";
 import {
   FolderOpen, Plus, Search, CheckCircle2, AlertTriangle,
   Activity, Target, ChevronRight, Users, Calendar, Briefcase,
-  LayoutGrid, List, Trash2, TrendingUp, FileSpreadsheet,
+  List, Trash2, TrendingUp, FileSpreadsheet, Kanban, ChevronLeft,
 } from "lucide-react";
 import type { Project, Department, TeamMember } from "@shared/schema";
 
@@ -221,7 +221,10 @@ export default function PortfolioPage() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All");
   const [filterHealth, setFilterHealth] = useState("All");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">("list");
+  const [calMonth, setCalMonth] = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
     name: "", description: "", owner: "", businessUnit: "",
@@ -257,6 +260,15 @@ export default function PortfolioPage() {
       toast({ title: "Project deleted" });
     },
     onError: () => toast({ title: "Failed to delete project", variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
+      apiRequest("PATCH", `/api/projects/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/stats"] });
+    },
   });
 
   const onProjectImportSuccess = () => {
@@ -351,25 +363,26 @@ export default function PortfolioPage() {
             {["All", "Green", "Amber", "Red", "Completed"].map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-1 border rounded-md p-1 ml-auto">
-          <Button
-            variant={viewMode === "grid" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => setViewMode("grid")}
-            data-testid="button-grid-view"
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => setViewMode("list")}
-            data-testid="button-list-view"
-          >
-            <List className="h-3.5 w-3.5" />
-          </Button>
+        <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5 ml-auto shrink-0">
+          {([
+            { mode: "list", icon: List, label: "List" },
+            { mode: "kanban", icon: Kanban, label: "Kanban" },
+            { mode: "calendar", icon: Calendar, label: "Calendar" },
+          ] as const).map(({ mode, icon: Icon, label }) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              data-testid={`button-view-${mode}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                viewMode === mode
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -393,12 +406,15 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* Initiative Cards / List */}
-      {isLoading ? (
-        <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-2"}>
-          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className={viewMode === "grid" ? "h-52" : "h-20"} />)}
+      {/* ══════ Loading ══════ */}
+      {isLoading && (
+        <div className="space-y-2">
+          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-14" />)}
         </div>
-      ) : filtered.length === 0 ? (
+      )}
+
+      {/* ══════ Empty state ══════ */}
+      {!isLoading && filtered.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-20 text-center gap-4">
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
@@ -427,16 +443,12 @@ export default function PortfolioPage() {
             )}
           </CardContent>
         </Card>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(p => (
-            <InitiativeGridCard key={p.id} p={p} canEdit={canEdit} onDelete={id => deleteMutation.mutate(id)} />
-          ))}
-        </div>
-      ) : (
+      )}
+
+      {/* ══════ LIST VIEW ══════ */}
+      {!isLoading && filtered.length > 0 && viewMode === "list" && (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            {/* Table header */}
             <div className="flex items-center gap-0 border-b bg-muted/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <div className="w-1 shrink-0" />
               <div className="w-7 shrink-0" />
@@ -455,6 +467,195 @@ export default function PortfolioPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ══════ KANBAN VIEW ══════ */}
+      {!isLoading && filtered.length > 0 && viewMode === "kanban" && (() => {
+        const COLS = ["Not Started", "In Progress", "At Risk", "Delayed", "Completed"] as const;
+        const colTopColors: Record<string, string> = {
+          "Not Started": "border-t-slate-400",
+          "In Progress": "border-t-blue-500",
+          "At Risk": "border-t-red-500",
+          "Delayed": "border-t-amber-500",
+          "Completed": "border-t-emerald-500",
+        };
+        const colDotColors: Record<string, string> = {
+          "Not Started": "bg-slate-400",
+          "In Progress": "bg-blue-500",
+          "At Risk": "bg-red-500",
+          "Delayed": "bg-amber-500",
+          "Completed": "bg-emerald-500",
+        };
+        return (
+          <div className="flex gap-4 min-h-[440px] overflow-x-auto pb-4" data-testid="view-kanban">
+            {COLS.map(col => {
+              const colProjects = filtered.filter(p => (p.status || "Not Started") === col);
+              const isDragOver = dragOverCol === col;
+              return (
+                <div
+                  key={col}
+                  className={`flex flex-col min-w-[260px] w-[260px] rounded-xl border-t-4 ${colTopColors[col]} bg-muted/30 border transition-colors ${isDragOver ? "bg-primary/5 border-primary/30" : ""}`}
+                  onDragOver={e => { e.preventDefault(); setDragOverCol(col); }}
+                  onDragLeave={() => setDragOverCol(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverCol(null);
+                    if (dragId !== null) {
+                      const item = projects.find(p => p.id === dragId);
+                      if (item && item.status !== col) {
+                        updateMutation.mutate({ id: dragId, data: { status: col } });
+                      }
+                      setDragId(null);
+                    }
+                  }}
+                  data-testid={`kanban-col-${col.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${colDotColors[col]}`} />
+                      <span className="text-xs font-semibold">{col}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded-full border">{colProjects.length}</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {colProjects.length === 0 && (
+                      <div className={`flex items-center justify-center h-16 rounded-lg border-2 border-dashed text-xs text-muted-foreground transition-colors ${isDragOver ? "border-primary/40 text-primary/60" : "border-border/40"}`}>
+                        Drop here
+                      </div>
+                    )}
+                    {colProjects.map(p => (
+                      <div
+                        key={p.id}
+                        draggable
+                        onDragStart={() => setDragId(p.id)}
+                        onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
+                        className={`bg-background rounded-lg border p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all select-none ${dragId === p.id ? "opacity-40 scale-95" : ""}`}
+                        data-testid={`kanban-card-${p.id}`}
+                      >
+                        <div className="flex items-start gap-1.5 mb-2">
+                          <div className={`w-2 h-2 rounded-full shrink-0 mt-1 ${healthDot(p.health)}`} />
+                          <Link href={`/projects/${p.id}`}>
+                            <p className="text-sm font-medium leading-snug line-clamp-2 hover:text-primary transition-colors cursor-pointer">{p.name}</p>
+                          </Link>
+                        </div>
+                        <div className="flex items-center flex-wrap gap-1 mb-2">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${priorityBadge(p.priority)}`}>{p.priority}</span>
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${healthLabel(p.health)}`}>{p.health}</span>
+                        </div>
+                        {(p.progress ?? 0) > 0 && (
+                          <div className="mb-2">
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${(p.progress ?? 0) === 100 ? "bg-emerald-500" : "bg-primary"}`}
+                                style={{ width: `${p.progress ?? 0}%` }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 text-right">{p.progress ?? 0}%</p>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                          {p.owner ? (
+                            <div className="flex items-center gap-1">
+                              <div className="h-4 w-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold shrink-0">
+                                {p.owner.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                              </div>
+                              <span className="truncate max-w-[80px]">{p.owner}</span>
+                            </div>
+                          ) : <span />}
+                          {p.dueDate && <span className="shrink-0">{formatDate(p.dueDate)}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* ══════ CALENDAR VIEW ══════ */}
+      {!isLoading && filtered.length > 0 && viewMode === "calendar" && (() => {
+        const year = calMonth.getFullYear();
+        const month = calMonth.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date().toISOString().split("T")[0];
+        const monthLabel = calMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+        const projectsByDate: Record<string, ProjectWithHealth[]> = {};
+        for (const p of filtered) {
+          const d = p.dueDate;
+          if (d) { projectsByDate[d] = [...(projectsByDate[d] || []), p]; }
+        }
+
+        const cells = Array.from({ length: firstDay }, () => null as null)
+          .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+
+        return (
+          <div data-testid="view-calendar">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setCalMonth(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted/50 transition-colors"
+                data-testid="button-cal-prev"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Prev
+              </button>
+              <h2 className="text-base font-bold">{monthLabel}</h2>
+              <button
+                onClick={() => setCalMonth(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm hover:bg-muted/50 transition-colors"
+                data-testid="button-cal-next"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+                <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-1">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {cells.map((day, idx) => {
+                if (day === null) return <div key={`empty-${idx}`} />;
+                const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const dayProjects = projectsByDate[dateStr] || [];
+                const isToday = dateStr === today;
+                const isPast = dateStr < today;
+                return (
+                  <div
+                    key={dateStr}
+                    className={`min-h-[80px] rounded-lg border p-1.5 transition-colors ${
+                      isToday ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border/60 hover:border-border bg-background"
+                    }`}
+                    data-testid={`cal-day-${dateStr}`}
+                  >
+                    <p className={`text-[11px] font-semibold mb-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground" : "text-foreground"}`}>{day}</p>
+                    <div className="space-y-0.5">
+                      {dayProjects.slice(0, 3).map(p => (
+                        <div
+                          key={p.id}
+                          title={p.name}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${healthLabel(p.health)}`}
+                          data-testid={`cal-project-${p.id}`}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${healthDot(p.health)}`} />
+                          <span className="truncate">{p.name}</span>
+                        </div>
+                      ))}
+                      {dayProjects.length > 3 && (
+                        <p className="text-[10px] text-muted-foreground pl-1">+{dayProjects.length - 3} more</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Create Project Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
