@@ -129,21 +129,21 @@ export default function DashboardPage() {
   const hasKpis = (stats?.totalKpis || 0) > 0;
 
   const kpiGroup = [
-    { title: "Total KPIs", value: stats?.totalKpis || 0, icon: Target, color: "text-primary", ring: "bg-primary/10", border: "border-l-primary", pct: pctOnTrack, pctLabel: "on track", link: "/kpis", accent: "text-primary" },
-    { title: "On Track", value: stats?.onTrack || 0, icon: CheckCircle2, color: "text-emerald-600", ring: "bg-emerald-500/10", border: "border-l-emerald-500", pct: null, pctLabel: "", link: "/kpis", accent: "text-emerald-600" },
-    { title: "Below Target", value: stats?.belowTarget || 0, icon: TrendingDown, color: "text-red-500", ring: "bg-red-500/10", border: "border-l-red-500", pct: null, pctLabel: "", link: "/kpis", accent: "text-red-500" },
+    { title: "Total KPIs", value: stats?.totalKpis || 0, icon: Target, iconBg: "bg-blue-500/10", iconColor: "text-primary", topBar: "bg-gradient-to-r from-primary to-primary/60", pct: pctOnTrack, pctLabel: "on track", link: "/kpis", accent: "text-primary", progressColor: "" },
+    { title: "On Track", value: stats?.onTrack || 0, icon: CheckCircle2, iconBg: "bg-emerald-500/10", iconColor: "text-emerald-600", topBar: "bg-gradient-to-r from-emerald-500 to-emerald-400", pct: null, pctLabel: "", link: "/kpis", accent: "text-emerald-600", progressColor: "" },
+    { title: "Below Target", value: stats?.belowTarget || 0, icon: TrendingDown, iconBg: "bg-red-500/10", iconColor: "text-red-500", topBar: "bg-gradient-to-r from-red-500 to-red-400", pct: null, pctLabel: "", link: "/kpis", accent: "text-red-500", progressColor: "" },
   ];
 
   const projectGroup = [
-    { title: "Active Projects", value: portfolioStats?.active || 0, icon: Briefcase, color: "text-primary", ring: "bg-primary/10", border: "border-l-primary", pct: null, pctLabel: "", link: "/portfolio", accent: "text-primary" },
-    { title: "At Risk", value: portfolioStats?.atRisk || 0, icon: AlertTriangle, color: "text-red-500", ring: "bg-red-500/10", border: "border-l-red-500", pct: null, pctLabel: "", link: "/portfolio", accent: "text-red-500" },
-    { title: "Overdue Tasks", value: portfolioStats?.overdueTasks || 0, icon: Clock, color: "text-orange-500", ring: "bg-orange-500/10", border: "border-l-orange-500", pct: null, pctLabel: "", link: "/portfolio", accent: "text-orange-500" },
+    { title: "Active Projects", value: portfolioStats?.active || 0, icon: Briefcase, iconBg: "bg-blue-500/10", iconColor: "text-primary", topBar: "bg-gradient-to-r from-primary to-primary/60", pct: null, pctLabel: "", link: "/portfolio", accent: "text-primary", progressColor: "" },
+    { title: "At Risk", value: portfolioStats?.atRisk || 0, icon: AlertTriangle, iconBg: "bg-red-500/10", iconColor: "text-red-500", topBar: "bg-gradient-to-r from-red-500 to-red-400", pct: null, pctLabel: "", link: "/portfolio", accent: "text-red-500", progressColor: "" },
+    { title: "Overdue Tasks", value: portfolioStats?.overdueTasks || 0, icon: Clock, iconBg: "bg-orange-500/10", iconColor: "text-orange-500", topBar: "bg-gradient-to-r from-orange-500 to-amber-400", pct: null, pctLabel: "", link: "/portfolio", accent: "text-orange-500", progressColor: "" },
   ];
 
   const actionGroup = [
-    { title: "Total Actions", value: stats?.totalActions || 0, icon: ListChecks, color: "text-blue-600", ring: "bg-blue-500/10", border: "border-l-blue-500", pct: pctCompleted, pctLabel: "done", link: "/actions", accent: "text-blue-600" },
-    { title: "Overdue", value: stats?.overdueActions || 0, icon: AlertTriangle, color: "text-orange-500", ring: "bg-orange-500/10", border: "border-l-orange-500", pct: pctOverdue, pctLabel: "of total", link: "/actions", accent: "text-orange-500" },
-    { title: "Completed", value: stats?.completedActions || 0, icon: TrendingUp, color: "text-emerald-600", ring: "bg-emerald-500/10", border: "border-l-emerald-500", pct: null, pctLabel: "", link: "/actions", accent: "text-emerald-600" },
+    { title: "Total Actions", value: stats?.totalActions || 0, icon: ListChecks, iconBg: "bg-blue-500/10", iconColor: "text-blue-600", topBar: "bg-gradient-to-r from-blue-500 to-blue-400", pct: pctCompleted, pctLabel: "done", link: "/actions", accent: "text-blue-600", progressColor: "" },
+    { title: "Overdue", value: stats?.overdueActions || 0, icon: AlertTriangle, iconBg: "bg-orange-500/10", iconColor: "text-orange-500", topBar: "bg-gradient-to-r from-orange-500 to-amber-400", pct: pctOverdue, pctLabel: "of total", link: "/actions", accent: "text-orange-500", progressColor: "" },
+    { title: "Completed", value: stats?.completedActions || 0, icon: TrendingUp, iconBg: "bg-emerald-500/10", iconColor: "text-emerald-600", topBar: "bg-gradient-to-r from-emerald-500 to-emerald-400", pct: null, pctLabel: "", link: "/actions", accent: "text-emerald-600", progressColor: "" },
   ];
 
   const statCards = hasKpis
@@ -175,12 +175,16 @@ export default function DashboardPage() {
             ROW 1 — Hero Banner
         ══════════════════════════════════════════════════════════════════ */}
         <div
-          className="rounded-xl border bg-gradient-to-r from-primary/5 via-background to-background px-5 py-4 flex items-center justify-between gap-4 flex-wrap"
+          className="relative rounded-xl border overflow-hidden px-5 py-4 flex items-center justify-between gap-4 flex-wrap"
           data-testid="card-welcome-banner"
+          style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.07) 0%, hsl(var(--background)) 60%)" }}
         >
-          <div className="min-w-0">
+          {/* decorative gradient orb */}
+          <div className="pointer-events-none absolute -top-8 -left-8 h-32 w-32 rounded-full bg-primary/10 blur-2xl" />
+
+          <div className="min-w-0 relative">
             <h1 className="text-xl font-bold tracking-tight truncate" data-testid="text-welcome-title">
-              Welcome back, {user?.name || "there"} 👋
+              Welcome back, <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">{user?.name?.split(" ")[0] || "there"}</span> 👋
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
               <CalendarDays className="h-3 w-3 shrink-0" />
@@ -191,10 +195,12 @@ export default function DashboardPage() {
           {/* ── Quick stat pills ── */}
           <div className="flex items-center gap-2 flex-wrap">
             <Link href="/kpis">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all hover:scale-105 ${
-                pctOnTrack >= 80 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"
-                : pctOnTrack >= 50 ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15"
-                : "bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/15"
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer border transition-all hover:scale-105 ${
+                pctOnTrack >= 80
+                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15"
+                  : pctOnTrack >= 50
+                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/15"
+                  : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 hover:bg-red-500/15"
               }`}>
                 <Target className="h-3 w-3" />
                 {stats?.onTrack || 0}/{stats?.totalKpis || 0} KPIs on track
@@ -202,7 +208,7 @@ export default function DashboardPage() {
             </Link>
             {(stats?.overdueActions || 0) > 0 && (
               <Link href="/actions">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-600 dark:text-red-400 cursor-pointer hover:bg-red-500/15 hover:scale-105 transition-all">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 cursor-pointer hover:bg-red-500/15 hover:scale-105 transition-all">
                   <AlertTriangle className="h-3 w-3" />
                   {stats?.overdueActions} overdue
                 </span>
@@ -210,7 +216,7 @@ export default function DashboardPage() {
             )}
             {(portfolioStats?.active || 0) > 0 && (
               <Link href="/portfolio">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary cursor-pointer hover:bg-primary/15 hover:scale-105 transition-all">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 cursor-pointer hover:bg-primary/15 hover:scale-105 transition-all">
                   <Briefcase className="h-3 w-3" />
                   {portfolioStats?.active} active projects
                 </span>
@@ -219,7 +225,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ── Company + Export ── */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0 relative">
             <button
               onClick={handleDashboardPrint}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border rounded-lg px-2.5 py-1.5 hover:bg-muted/50 transition-colors"
@@ -229,11 +235,11 @@ export default function DashboardPage() {
               <span className="hidden sm:inline">Export</span>
             </button>
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                <Building2 className="h-4.5 w-4.5 text-primary" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 shrink-0">
+                <Building2 className="h-4 w-4 text-primary" />
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-semibold leading-none" data-testid="text-company-name">{companyName}</p>
+                <p className="text-sm font-bold leading-none" data-testid="text-company-name">{companyName}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{companyData?.industry || "Business"}</p>
               </div>
             </div>
@@ -241,33 +247,35 @@ export default function DashboardPage() {
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════
-            ROW 2 — 6 Stat Metric Tiles
+            ROW 2 — 6 Stat Metric Tiles (Make.com style)
         ══════════════════════════════════════════════════════════════════ */}
         <div className="grid grid-cols-3 lg:grid-cols-6 gap-3" data-testid="grid-stat-cards">
           {statCards.map(stat => (
             <Link key={stat.title} href={stat.link} data-testid={`link-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
-              <Card className={`border-l-4 ${stat.border} cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group h-full`}>
-                <CardContent className="p-3">
-                  <div className="flex items-start justify-between gap-1 mb-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors leading-none">{stat.title}</p>
-                    <div className={`flex h-6 w-6 items-center justify-center rounded-md ${stat.ring} shrink-0`}>
-                      <stat.icon className={`h-3.5 w-3.5 ${stat.color}`} />
+              <div className="relative rounded-xl border bg-card cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group h-full overflow-hidden">
+                {/* gradient top accent bar */}
+                <div className={`absolute top-0 inset-x-0 h-[3px] ${stat.topBar}`} />
+                <div className="p-3 pt-4">
+                  <div className="flex items-center justify-between gap-1 mb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 group-hover:text-muted-foreground transition-colors leading-none">{stat.title}</p>
+                    <div className={`flex h-6 w-6 items-center justify-center rounded-lg ${stat.iconBg} shrink-0`}>
+                      <stat.icon className={`h-3.5 w-3.5 ${stat.iconColor}`} />
                     </div>
                   </div>
-                  <p className={`text-2xl font-bold tabular-nums leading-none ${stat.accent}`} data-testid={`text-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                  <p className={`text-2xl font-black tabular-nums leading-none tracking-tight ${stat.accent}`} data-testid={`text-stat-${stat.title.toLowerCase().replace(/\s+/g, "-")}`}>
                     {stat.value}
                   </p>
                   {stat.pct !== null && stat.pct !== undefined && (
-                    <div className="mt-1.5">
-                      <div className="flex items-center justify-between mb-0.5">
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] text-muted-foreground">{stat.pctLabel}</span>
-                        <span className="text-[10px] font-semibold text-muted-foreground">{stat.pct}%</span>
+                        <span className={`text-[10px] font-bold ${stat.accent}`}>{stat.pct}%</span>
                       </div>
                       <Progress value={stat.pct} className="h-1" />
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </Link>
           ))}
         </div>
@@ -278,28 +286,34 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
 
           {/* ── Needs Attention (3 of 5 cols) ── */}
-          <Card className="lg:col-span-3" data-testid="section-todays-focus">
-            <CardHeader className="pb-0 pt-4 px-4">
+          <Card className="lg:col-span-3 overflow-hidden" data-testid="section-todays-focus">
+            <div className="h-[3px] bg-gradient-to-r from-amber-500 via-orange-400 to-transparent" />
+            <CardHeader className="pb-0 pt-3.5 px-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/10">
+                    <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  </div>
                   Needs Attention
                   {focusCount > 0 && (
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">{focusCount}</span>
+                    <span className="inline-flex h-5 min-w-5 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">{focusCount}</span>
                   )}
                 </CardTitle>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  {overdueActions.length > 0 && <span className="text-red-500 font-semibold">{overdueActions.length} overdue</span>}
-                  {atRiskKpis.length > 0 && <span className="text-amber-500 font-semibold">{atRiskKpis.length} at-risk KPIs</span>}
-                  {upcomingMilestones.length > 0 && <span className="text-violet-500 font-semibold">{upcomingMilestones.length} milestones</span>}
+                <div className="flex items-center gap-2 text-[10px]">
+                  {overdueActions.length > 0 && <span className="text-red-500 font-semibold bg-red-500/8 px-2 py-0.5 rounded-full">{overdueActions.length} overdue</span>}
+                  {atRiskKpis.length > 0 && <span className="text-amber-600 font-semibold bg-amber-500/8 px-2 py-0.5 rounded-full">{atRiskKpis.length} KPIs</span>}
+                  {upcomingMilestones.length > 0 && <span className="text-violet-600 font-semibold bg-violet-500/8 px-2 py-0.5 rounded-full">{upcomingMilestones.length} milestones</span>}
                 </div>
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-4 pt-3">
               {focusCount === 0 ? (
-                <div className="flex items-center gap-2 py-6 justify-center text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  Everything looks good — nothing urgent right now!
+                <div className="flex flex-col items-center gap-2 py-8 justify-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">You're all caught up!</p>
+                  <p className="text-xs text-muted-foreground">Nothing urgent needs your attention right now.</p>
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -371,11 +385,17 @@ export default function DashboardPage() {
           {/* ── Charts (2 of 5 cols) ── */}
           <div className="lg:col-span-2 grid grid-rows-2 gap-3">
             {/* KPI Health donut */}
-            <Card data-testid="card-kpi-health">
+            <Card className="overflow-hidden" data-testid="card-kpi-health">
+              <div className="h-[3px] bg-gradient-to-r from-primary to-primary/40" />
               <CardHeader className="pb-0 pt-3 px-4">
-                <CardTitle className="text-xs font-semibold flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5"><Activity className="h-3.5 w-3.5 text-primary" />KPI Health</span>
-                  <Link href="/kpis"><span className="text-[10px] font-normal text-primary hover:underline">View →</span></Link>
+                <CardTitle className="text-xs font-bold flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10">
+                      <Activity className="h-3 w-3 text-primary" />
+                    </div>
+                    KPI Health
+                  </span>
+                  <Link href="/kpis"><span className="text-[10px] font-medium text-primary hover:underline">View →</span></Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-3 pt-1">
@@ -396,11 +416,17 @@ export default function DashboardPage() {
             </Card>
 
             {/* Action Progress bar */}
-            <Card data-testid="card-action-progress">
+            <Card className="overflow-hidden" data-testid="card-action-progress">
+              <div className="h-[3px] bg-gradient-to-r from-blue-500 to-blue-400/40" />
               <CardHeader className="pb-0 pt-3 px-4">
-                <CardTitle className="text-xs font-semibold flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5"><BarChart3 className="h-3.5 w-3.5 text-primary" />Action Status</span>
-                  <Link href="/actions"><span className="text-[10px] font-normal text-primary hover:underline">View →</span></Link>
+                <CardTitle className="text-xs font-bold flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-500/10">
+                      <BarChart3 className="h-3 w-3 text-blue-600" />
+                    </div>
+                    Action Status
+                  </span>
+                  <Link href="/actions"><span className="text-[10px] font-medium text-primary hover:underline">View →</span></Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-3 pt-1">
@@ -430,11 +456,17 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
           {/* Recent Actions */}
-          <Card data-testid="card-recent-actions">
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2"><ListChecks className="h-4 w-4 text-primary" />Recent Actions</span>
-                <Link href="/actions"><span className="text-xs font-normal text-primary hover:underline">View all →</span></Link>
+          <Card className="overflow-hidden" data-testid="card-recent-actions">
+            <div className="h-[3px] bg-gradient-to-r from-blue-500 to-blue-400/40" />
+            <CardHeader className="pb-2 pt-3.5 px-4">
+              <CardTitle className="text-sm font-bold flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-500/10">
+                    <ListChecks className="h-3.5 w-3.5 text-blue-600" />
+                  </div>
+                  Recent Actions
+                </span>
+                <Link href="/actions"><span className="text-xs font-medium text-primary hover:underline">View all →</span></Link>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
@@ -468,10 +500,13 @@ export default function DashboardPage() {
           </Card>
 
           {/* Department Pulse */}
-          <Card data-testid="card-department-summary">
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-primary" />
+          <Card className="overflow-hidden" data-testid="card-department-summary">
+            <div className="h-[3px] bg-gradient-to-r from-emerald-500 to-emerald-400/40" />
+            <CardHeader className="pb-2 pt-3.5 px-4">
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+                </div>
                 Department Pulse
               </CardTitle>
             </CardHeader>
@@ -529,16 +564,19 @@ export default function DashboardPage() {
           </Card>
 
           {/* Latest Review */}
-          <Card data-testid="card-latest-review">
-            <CardHeader className="pb-2 pt-4 px-4">
+          <Card className="overflow-hidden" data-testid="card-latest-review">
+            <div className="h-[3px] bg-gradient-to-r from-violet-500 to-violet-400/40" />
+            <CardHeader className="pb-2 pt-3.5 px-4">
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <ArrowUpRight className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-500/10">
+                    <ArrowUpRight className="h-3.5 w-3.5 text-violet-600" />
+                  </div>
                   Latest Review
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {latestReview && <Badge variant="secondary" className="text-[10px]" data-testid="badge-review-month">{latestReview.reviewMonth}</Badge>}
-                  <Link href="/reviews"><span className="text-xs font-normal text-primary hover:underline">View →</span></Link>
+                  <Link href="/reviews"><span className="text-xs font-medium text-primary hover:underline">View →</span></Link>
                 </div>
               </div>
             </CardHeader>

@@ -1,5 +1,4 @@
 import type { LucideIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 interface EmptyStateProps {
@@ -15,21 +14,20 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
   return (
-    <Card>
-      <CardContent className="py-16 text-center">
-        <div className="flex justify-center mb-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-            <Icon className="h-7 w-7 text-muted-foreground" />
-          </div>
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+      <div className="relative mb-5">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent border border-primary/10 shadow-sm">
+          <Icon className="h-8 w-8 text-primary/70" />
         </div>
-        <h3 className="text-base font-medium mb-1">{title}</h3>
-        <p className="text-sm text-muted-foreground max-w-sm mx-auto">{description}</p>
-        {action && (
-          <Button className="mt-4" onClick={action.onClick} data-testid={action.testId}>
-            {action.label}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+        <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent blur-sm -z-10" />
+      </div>
+      <h3 className="text-base font-semibold mb-1.5 text-foreground">{title}</h3>
+      <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">{description}</p>
+      {action && (
+        <Button className="mt-5 shadow-sm" onClick={action.onClick} data-testid={action.testId}>
+          {action.label}
+        </Button>
+      )}
+    </div>
   );
 }
