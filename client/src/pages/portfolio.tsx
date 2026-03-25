@@ -74,20 +74,16 @@ function StatCard({ title, value, sub, icon: Icon, color, bg }: {
   title: string; value: number; sub?: string; icon: React.ElementType; color: string; bg: string;
 }) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{title}</p>
-            <p className="text-3xl font-bold mt-1.5 tabular-nums">{value}</p>
-            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-          </div>
-          <div className={`p-2.5 rounded-xl ${bg}`}>
-            <Icon className={`h-5 w-5 ${color}`} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border bg-card px-3 py-2.5 flex items-center gap-3">
+      <div className={`p-2 rounded-lg shrink-0 ${bg}`}>
+        <Icon className={`h-4 w-4 ${color}`} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground leading-none">{title}</p>
+        <p className={`text-2xl font-black tabular-nums leading-tight mt-0.5 ${color}`}>{value}</p>
+        {sub && <p className="text-[10px] text-muted-foreground leading-none mt-0.5">{sub}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -313,7 +309,7 @@ export default function PortfolioPage() {
 
       {/* Stats */}
       {stats ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard title="Total" value={stats.total} icon={Briefcase} color="text-primary" bg="bg-primary/10" />
           <StatCard title="Active" value={stats.active} sub="In progress" icon={Activity} color="text-violet-600" bg="bg-violet-100 dark:bg-violet-900/30" />
           <StatCard title="At Risk" value={stats.atRisk} sub="Red health" icon={AlertTriangle} color="text-red-600" bg="bg-red-100 dark:bg-red-900/30" />
@@ -322,8 +318,8 @@ export default function PortfolioPage() {
           <StatCard title="Milestones" value={stats.upcomingMilestones} sub="Upcoming" icon={TrendingUp} color="text-blue-600" bg="bg-blue-100 dark:bg-blue-900/30" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
-          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-24" />)}
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+          {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-16" />)}
         </div>
       )}
 
