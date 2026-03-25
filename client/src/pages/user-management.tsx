@@ -92,7 +92,17 @@ function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: C
     onError: () => toast({ title: "Failed to remove access", variant: "destructive" }),
   });
 
+  const clearAllMut = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/users/${user.id}/department-access`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "department-access"] });
+      toast({ title: "Access set to All Departments" });
+    },
+    onError: () => toast({ title: "Failed to update access", variant: "destructive" }),
+  });
+
   const availableDepts = departments.filter(d => !access.some(a => a.departmentId === d.id));
+  const isAllDepts = !isLoading && access.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -127,20 +137,43 @@ function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: C
           </div>
         ) : (
           <div className="space-y-4 py-2">
-            {access.length === 0 && !isLoading && (
-              <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                <Lock className="h-5 w-5 mx-auto mb-2 text-muted-foreground/60" />
-                No department restrictions — this user sees all departments.
-                <br />
-                <span className="text-xs">Add a department below to restrict their access.</span>
+
+            {/* All Departments toggle */}
+            <div className={`rounded-xl border-2 p-4 transition-colors ${isAllDepts ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20" : "border-muted bg-muted/30"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full ${isAllDepts ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-muted"}`}>
+                    {isAllDepts
+                      ? <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                      : <Lock className="h-5 w-5 text-muted-foreground" />}
+                  </div>
+                  <div>
+                    <p className={`text-sm font-semibold ${isAllDepts ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}>
+                      All Departments
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isAllDepts ? "Sees all departments — no restrictions" : "Currently restricted to specific departments"}
+                    </p>
+                  </div>
+                </div>
+                {!isAllDepts && !isLoading && (
+                  <Button size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
+                    onClick={() => clearAllMut.mutate()}
+                    disabled={clearAllMut.isPending}
+                    data-testid="button-grant-all-access"
+                  >
+                    {clearAllMut.isPending ? "Updating..." : "Grant All"}
+                  </Button>
+                )}
               </div>
-            )}
+            </div>
 
             {isLoading && <div className="h-16 bg-muted rounded animate-pulse" />}
 
-            {access.length > 0 && (
+            {/* Department restrictions list */}
+            {!isLoading && access.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Access</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Restricted To</p>
                 {access.map(entry => (
                   <div key={entry.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/50 border"
                     data-testid={`row-dept-access-${entry.id}`}>
@@ -162,9 +195,12 @@ function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: C
               </div>
             )}
 
+            {/* Add specific department */}
             {availableDepts.length > 0 && (
               <div className="space-y-2 border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Add Department Access</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {isAllDepts ? "Restrict to a Specific Department" : "Add Another Department"}
+                </p>
                 <div className="flex gap-2">
                   <Select value={newDeptId} onValueChange={setNewDeptId}>
                     <SelectTrigger className="flex-1" data-testid="select-new-dept">
@@ -197,13 +233,13 @@ function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: C
                   data-testid="button-add-dept-access"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  {addMut.isPending ? "Adding..." : "Add Access"}
+                  {addMut.isPending ? "Adding..." : "Add Department"}
                 </Button>
               </div>
             )}
 
             {availableDepts.length === 0 && access.length > 0 && (
-              <p className="text-xs text-muted-foreground text-center pt-1">All departments have been assigned.</p>
+              <p className="text-xs text-muted-foreground text-center pt-1">All departments assigned. Click "Grant All" above to remove restrictions.</p>
             )}
           </div>
         )}

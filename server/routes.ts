@@ -802,6 +802,16 @@ export async function registerRoutes(
     res.json(entry);
   });
 
+  app.delete("/api/users/:id/department-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id as string);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    await storage.removeDeptAccessForUser(id);
+    res.json({ ok: true });
+  });
+
   app.delete("/api/users/:id/department-access/:deptId", requireAdmin, async (req: Request, res: Response) => {
     const id = parseInt(req.params.id as string);
     const deptId = parseInt(req.params.deptId as string);
