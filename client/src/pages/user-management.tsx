@@ -398,7 +398,7 @@ export default function UserManagementPage() {
                             <span className="text-xs text-muted-foreground truncate" data-testid={`text-user-email-${u.id}`}>{u.email}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                           {!isSelf && (
                             <Select value={u.role} onValueChange={(role) => updateRoleMutation.mutate({ id: u.id, role })}>
                               <SelectTrigger className="h-8 w-32 text-xs" data-testid={`select-role-${u.id}`}><SelectValue /></SelectTrigger>
@@ -408,7 +408,7 @@ export default function UserManagementPage() {
                               </SelectContent>
                             </Select>
                           )}
-                          {!isSelf && <DeptAccessDialog user={u} departments={departments} isSelf={isSelf} />}
+                          <DeptAccessDialog user={u} departments={departments} isSelf={isSelf} triggerLabel="Dept Access" />
                           {!isSelf && (
                             <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={() => setDeleteTarget(u)} data-testid={`button-delete-user-${u.id}`}>
@@ -433,7 +433,7 @@ export default function UserManagementPage() {
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 shrink-0"><Eye className="h-4 w-4 text-amber-600" /></div>
-                  <div><p className="font-medium text-sm">Executive</p><p className="text-xs text-muted-foreground">Access depends on department assignments. Click <Building2 className="h-3 w-3 inline" /> to configure.</p></div>
+                  <div><p className="font-medium text-sm">Executive</p><p className="text-xs text-muted-foreground">Access depends on department assignments — use the "Dept Access" button on each card to configure.</p></div>
                 </div>
               </div>
             </CardContent>
@@ -462,6 +462,7 @@ export default function UserManagementPage() {
             <div className="space-y-2">
               {members.map(m => {
                 const initials = m.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                const linkedUser = m.email ? users.find(u => u.email.toLowerCase() === m.email!.toLowerCase()) : undefined;
                 return (
                   <Card key={m.id} data-testid={`card-member-${m.id}`}>
                     <CardContent className="p-4">
@@ -472,6 +473,7 @@ export default function UserManagementPage() {
                             <span className="font-medium text-sm" data-testid={`text-member-name-${m.id}`}>{m.name}</span>
                             {m.jobTitle && <Badge variant="secondary" className="font-normal text-xs">{m.jobTitle}</Badge>}
                             {m.department && <Badge variant="outline" className="font-normal text-xs">{m.department}</Badge>}
+                            {linkedUser && roleBadge(linkedUser.role)}
                           </div>
                           {m.email ? (
                             <div className="flex items-center gap-1 mt-0.5">
@@ -482,7 +484,19 @@ export default function UserManagementPage() {
                             <p className="text-xs text-muted-foreground/60 mt-0.5 italic">No email — reminders will go to admins only</p>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
+                          {linkedUser ? (
+                            <DeptAccessDialog
+                              user={linkedUser}
+                              departments={departments}
+                              isSelf={linkedUser.id === currentUser?.id}
+                              triggerLabel="Dept Access"
+                            />
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic border rounded px-2 py-1 bg-muted/40">
+                              No login account
+                            </span>
+                          )}
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditMember(m)} data-testid={`button-edit-member-${m.id}`}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
