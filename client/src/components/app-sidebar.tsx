@@ -2,7 +2,7 @@ import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
-  FolderOpen, Users2, Clock,
+  FolderOpen, Users2, Clock, Calendar,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -40,6 +40,7 @@ const executiveInsightsNav = [
 
 const executionNav = [
   { title: "Projects", url: "/projects", icon: FolderOpen },
+  { title: "Meetings", url: "/meetings", icon: Calendar },
   { title: "Workload", url: "/workload", icon: Users2 },
 ];
 
@@ -131,7 +132,7 @@ export function AppSidebar() {
                   className={`text-[9px] px-1 py-0 h-3.5 ${isAdmin ? "border-blue-400 text-blue-600 dark:text-blue-400" : "border-amber-400 text-amber-600 dark:text-amber-400"}`}
                   data-testid="badge-user-role"
                 >
-                  {isAdmin ? "Admin" : "Executive"}
+                  {isAdmin ? "Admin" : isExecutive ? "Executive" : "Team Member"}
                 </Badge>
                 <Badge
                   variant="outline"

@@ -21,6 +21,7 @@ import { Sparkles } from "lucide-react";
 import KpiBuilderPage from "@/pages/kpi-builder";
 import KpiManagementPage from "@/pages/kpi-management";
 import ActionsPage from "@/pages/actions";
+import MeetingsPage from "@/pages/meetings";
 import ReviewsPage from "@/pages/reviews";
 import PlannerPage from "@/pages/planner";
 import SettingsPage from "@/pages/settings";
@@ -50,6 +51,7 @@ function AppRouter() {
       <Route path="/login" component={DashboardPage} />
       <Route path="/kpis" component={KpiManagementPage} />
       <Route path="/actions" component={ActionsPage} />
+      <Route path="/meetings" component={MeetingsPage} />
       <Route path="/reviews" component={ReviewsPage} />
       <Route path="/projects" component={PortfolioPage} />
       <Route path="/portfolio" component={PortfolioPage} />
