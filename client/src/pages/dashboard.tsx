@@ -26,14 +26,15 @@ import type {
 /* ─── measure container width so grid knows its size ─── */
 function useContainerWidth() {
   const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth : 1200
-  );
+  // Start at 0 — avoids applying the wrong breakpoint layout before we know
+  // the actual content-area width (which is narrower than window.innerWidth
+  // once the sidebar is subtracted).
+  const [width, setWidth] = useState(0);
   useEffect(() => {
     if (!ref.current) return;
     setWidth(ref.current.offsetWidth);
     const ro = new ResizeObserver(entries => {
-      for (const entry of entries) setWidth(entry.contentRect.width);
+      for (const entry of entries) setWidth(Math.floor(entry.contentRect.width));
     });
     ro.observe(ref.current);
     return () => ro.disconnect();
@@ -42,11 +43,14 @@ function useContainerWidth() {
 }
 
 /* ─── layout storage ─── */
-const LAYOUT_KEY = "performo-dashboard-layout-v2";
+// v3: busts cached layouts from before the breakpoint fix
+const LAYOUT_KEY = "performo-dashboard-layout-v3";
 
-/* Default mirrors the pre-drag arrangement exactly:
-   Row 1 (y=0): attention (5w) | analytics (7w, h=6) + projhealth (7w, h=5)
-   Row 2 (y=11): actions (4w) | deptpulse (4w) | review (4w)
+/* Breakpoints are measured against the CONTENT-AREA width (not window width).
+   With a ~220px sidebar:
+     lg (>=1060px content) → window ~1280px+
+     md (>=720px content)  → window ~940px+ (covers most laptops)
+     sm (<720px content)   → stacked, mobile-friendly
 */
 const DEFAULT_LAYOUTS: Record<string, object[]> = {
   lg: [
@@ -57,13 +61,14 @@ const DEFAULT_LAYOUTS: Record<string, object[]> = {
     { i: "deptpulse",  x: 4, y: 11, w: 4, h: 8,  minW: 2, minH: 4 },
     { i: "review",     x: 8, y: 11, w: 4, h: 8,  minW: 2, minH: 4 },
   ],
+  // md uses same 12-col grid as lg so medium screens still show the full layout
   md: [
-    { i: "attention",  x: 0, y: 0,  w: 4, h: 11 },
-    { i: "analytics",  x: 4, y: 0,  w: 6, h: 6  },
-    { i: "projhealth", x: 4, y: 6,  w: 6, h: 5  },
-    { i: "actions",    x: 0, y: 11, w: 3, h: 8  },
-    { i: "deptpulse",  x: 3, y: 11, w: 4, h: 8  },
-    { i: "review",     x: 7, y: 11, w: 3, h: 8  },
+    { i: "attention",  x: 0, y: 0,  w: 5, h: 11, minW: 3, minH: 5 },
+    { i: "analytics",  x: 5, y: 0,  w: 7, h: 6,  minW: 3, minH: 4 },
+    { i: "projhealth", x: 5, y: 6,  w: 7, h: 5,  minW: 3, minH: 3 },
+    { i: "actions",    x: 0, y: 11, w: 4, h: 8,  minW: 2, minH: 4 },
+    { i: "deptpulse",  x: 4, y: 11, w: 4, h: 8,  minW: 2, minH: 4 },
+    { i: "review",     x: 8, y: 11, w: 4, h: 8,  minW: 2, minH: 4 },
   ],
   sm: [
     { i: "attention",  x: 0, y: 0,  w: 6, h: 10 },
@@ -330,7 +335,8 @@ export default function DashboardPage() {
 
   const activeProjects = projects.filter(p => p.status !== "Completed").slice(0, 5);
 
-  const isMobile = containerWidth > 0 && containerWidth < 640;
+  // Use 480 as the mobile cutoff (below this even the stacked sm grid is too wide)
+  const isMobile = containerWidth > 0 && containerWidth < 480;
 
   const handleDashboardPrint = () => {
     document.body.classList.add("printing-dashboard");
@@ -427,7 +433,13 @@ export default function DashboardPage() {
 
         {/* ═══ Widget grid ═══ */}
         <div ref={containerRef} className="w-full overflow-x-hidden">
-          {isMobile ? (
+          {containerWidth === 0 ? (
+            /* Width not yet measured — show a skeleton to avoid layout flash */
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3"><div className="h-64 rounded-xl bg-muted/40 animate-pulse" /><div className="h-64 rounded-xl bg-muted/40 animate-pulse" /></div>
+              <div className="grid grid-cols-3 gap-3"><div className="h-48 rounded-xl bg-muted/40 animate-pulse" /><div className="h-48 rounded-xl bg-muted/40 animate-pulse" /><div className="h-48 rounded-xl bg-muted/40 animate-pulse" /></div>
+            </div>
+          ) : isMobile ? (
             /* ── Mobile: simple CSS stack, no fixed heights ── */
             <div className="space-y-3 w-full">
               {/* Needs Attention */}
@@ -656,8 +668,8 @@ export default function DashboardPage() {
               <ResponsiveGridLayout
                 className="layout"
                 layouts={layouts as never}
-                breakpoints={{ lg: 1200, md: 900, sm: 600 }}
-                cols={{ lg: 12, md: 10, sm: 6 }}
+                breakpoints={{ lg: 1060, md: 720, sm: 400 }}
+                cols={{ lg: 12, md: 12, sm: 6 }}
                 rowHeight={30}
                 width={containerWidth}
                 margin={[10, 10]}
