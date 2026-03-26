@@ -26,15 +26,21 @@ import type {
 /* ─── measure container width so grid knows its size ─── */
 function useContainerWidth() {
   const ref = useRef<HTMLDivElement>(null);
-  // Start at 0 — avoids applying the wrong breakpoint layout before we know
-  // the actual content-area width (which is narrower than window.innerWidth
-  // once the sidebar is subtracted).
-  const [width, setWidth] = useState(0);
+  // Estimate content area on first render (window minus sidebar ≈ 220px).
+  // The ResizeObserver corrects to the exact measured value immediately after mount.
+  const [width, setWidth] = useState(() =>
+    typeof window !== "undefined" ? Math.max(600, window.innerWidth - 220) : 1200
+  );
   useEffect(() => {
     if (!ref.current) return;
-    setWidth(ref.current.offsetWidth);
+    // Measure immediately so the first grid render is correct
+    const w = ref.current.getBoundingClientRect().width;
+    if (w > 0) setWidth(Math.floor(w));
     const ro = new ResizeObserver(entries => {
-      for (const entry of entries) setWidth(Math.floor(entry.contentRect.width));
+      for (const entry of entries) {
+        const cw = Math.floor(entry.contentRect.width);
+        if (cw > 0) setWidth(cw);
+      }
     });
     ro.observe(ref.current);
     return () => ro.disconnect();
@@ -43,8 +49,8 @@ function useContainerWidth() {
 }
 
 /* ─── layout storage ─── */
-// v3: busts cached layouts from before the breakpoint fix
-const LAYOUT_KEY = "performo-dashboard-layout-v3";
+// v4: busts cached layouts from before the "no skeleton freeze" fix
+const LAYOUT_KEY = "performo-dashboard-layout-v4";
 
 /* Breakpoints are measured against the CONTENT-AREA width (not window width).
    With a ~220px sidebar:
@@ -433,13 +439,7 @@ export default function DashboardPage() {
 
         {/* ═══ Widget grid ═══ */}
         <div ref={containerRef} className="w-full overflow-x-hidden">
-          {containerWidth === 0 ? (
-            /* Width not yet measured — show a skeleton to avoid layout flash */
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3"><div className="h-64 rounded-xl bg-muted/40 animate-pulse" /><div className="h-64 rounded-xl bg-muted/40 animate-pulse" /></div>
-              <div className="grid grid-cols-3 gap-3"><div className="h-48 rounded-xl bg-muted/40 animate-pulse" /><div className="h-48 rounded-xl bg-muted/40 animate-pulse" /><div className="h-48 rounded-xl bg-muted/40 animate-pulse" /></div>
-            </div>
-          ) : isMobile ? (
+          {isMobile ? (
             /* ── Mobile: simple CSS stack, no fixed heights ── */
             <div className="space-y-3 w-full">
               {/* Needs Attention */}
