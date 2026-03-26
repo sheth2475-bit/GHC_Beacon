@@ -25,6 +25,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -159,6 +162,7 @@ export default function AnalyticsDashboardComposePage() {
   const [addInsightDialog, setAddInsightDialog] = useState(false);
   const [removeId, setRemoveId] = useState<number | null>(null);
   const [generatingNarrative, setGeneratingNarrative] = useState(false);
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
 
   const { data: dash, isLoading } = useQuery<DashboardFull>({
     queryKey: ["/api/v2/analytics/definitions", id],
@@ -223,17 +227,23 @@ export default function AnalyticsDashboardComposePage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] }),
   });
 
-  const handleNarrative = async () => {
+  const generateNarrative = async () => {
     setGeneratingNarrative(true);
     try {
       await apiRequest("POST", `/api/v2/analytics/definitions/${id}/narrative`);
-      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] });
+      setNarrativeOpen(true);
       toast({ title: "AI Narrative generated!" });
     } catch {
       toast({ title: "Narrative generation failed", variant: "destructive" });
     } finally {
       setGeneratingNarrative(false);
     }
+  };
+
+  const handleNarrative = () => {
+    if (dash?.narrativeSummary) { setNarrativeOpen(true); return; }
+    generateNarrative();
   };
 
   const handleMoveUp = (idx: number) => {
@@ -331,27 +341,18 @@ export default function AnalyticsDashboardComposePage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={handleNarrative} disabled={generatingNarrative} data-testid="button-generate-narrative">
-              {generatingNarrative ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} AI Narrative
+            <Button variant="outline" size="sm" className="gap-1.5 h-8 relative" onClick={handleNarrative} disabled={generatingNarrative} data-testid="button-generate-narrative">
+              {generatingNarrative ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-primary" />}
+              AI Summary
+              {dash.narrativeSummary && !generatingNarrative && (
+                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+              )}
             </Button>
             <Button size="sm" className="gap-1.5 h-8" onClick={() => setPublishDialog(true)} data-testid="button-publish">
               <Globe className="h-3.5 w-3.5" /> {dash.status === "published" ? "Update" : "Publish"}
             </Button>
           </div>
         </div>
-
-        {/* AI Narrative */}
-        {dash.narrativeSummary && (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <p className="text-xs font-semibold">AI Executive Summary</p>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">{dash.narrativeSummary}</p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Insights grid */}
         {dash.items.length === 0 ? (
@@ -391,6 +392,31 @@ export default function AnalyticsDashboardComposePage() {
           </>
         )}
       </div>
+
+      {/* AI Narrative Sheet */}
+      <Sheet open={narrativeOpen} onOpenChange={setNarrativeOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0">
+          <SheetHeader className="px-5 py-4 border-b">
+            <SheetTitle className="flex items-center gap-2 text-sm">
+              <Sparkles className="h-4 w-4 text-primary" /> AI Executive Summary
+            </SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {dash?.narrativeSummary ? (
+              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{dash.narrativeSummary}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">No narrative generated yet.</p>
+            )}
+          </div>
+          {dash?.narrativeSummary && (
+            <div className="border-t px-5 py-3 flex justify-end">
+              <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => { setNarrativeOpen(false); generateNarrative(); }} disabled={generatingNarrative} data-testid="button-regenerate-narrative">
+                {generatingNarrative ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Regenerate
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Publish dialog */}
       <Dialog open={publishDialog} onOpenChange={setPublishDialog}>
