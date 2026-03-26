@@ -1361,17 +1361,6 @@ export default function AuthPage() {
             </div>
           </div>
 
-          {/* Demo credentials */}
-          {isLogin && (
-            <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-4">
-              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">Try the demo</p>
-              <div className="space-y-1 text-xs text-amber-900">
-                <div className="flex items-center justify-between"><span className="font-medium">Admin</span><span className="font-mono">demo@performo.ai / demo123</span></div>
-                <div className="flex items-center justify-between"><span className="font-medium">Executive</span><span className="font-mono">exec@performo.ai / exec123</span></div>
-              </div>
-            </div>
-          )}
-
           <div className="mt-6 text-center">
             <a
               href="/owner/login"
