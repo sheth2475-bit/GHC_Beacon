@@ -164,6 +164,15 @@ function WidgetHeader({ icon: Icon, iconBg, iconColor, children, right }: {
   );
 }
 
+/* ─── mobile card wrapper (fixed height, lets inner h-full + scroll work) ─── */
+function MobileCard({ testId, minH, children }: { testId: string; minH: number; children: React.ReactNode }) {
+  return (
+    <div data-testid={testId} style={{ height: `${minH}px` }} className="w-full">
+      {children}
+    </div>
+  );
+}
+
 const tabCls = (active: boolean) =>
   `px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
     active ? "bg-background text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
@@ -294,6 +303,8 @@ export default function DashboardPage() {
 
   const activeProjects = projects.filter(p => p.status !== "Completed").slice(0, 5);
 
+  const isMobile = containerWidth > 0 && containerWidth < 640;
+
   const handleDashboardPrint = () => {
     document.body.classList.add("printing-dashboard");
     window.print();
@@ -383,28 +394,219 @@ export default function DashboardPage() {
         </div>
 
         {/* ═══ Stat tiles ═══ */}
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3" data-testid="grid-stat-cards">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="grid-stat-cards">
           {statCards.map(s => <StatTile key={s.title} {...s} />)}
         </div>
 
-        {/* ═══ Draggable grid ═══ */}
-        <div>
-          <p className="text-[10px] text-muted-foreground/40 text-right mb-1 select-none">Drag the grip icon to reorder · Drag corner to resize</p>
-          <div ref={containerRef}>
-            <ResponsiveGridLayout
-              className="layout"
-              layouts={layouts as never}
-              breakpoints={{ lg: 1200, md: 900, sm: 600 }}
-              cols={{ lg: 12, md: 10, sm: 6 }}
-              rowHeight={30}
-              width={containerWidth}
-              margin={[10, 10]}
-              containerPadding={[0, 0]}
-              draggableHandle=".drag-handle"
-              onLayoutChange={handleLayoutChange as never}
-              resizeHandles={["se"]}
-              useCSSTransforms
-            >
+        {/* ═══ Widget grid ═══ */}
+        <div ref={containerRef}>
+          {isMobile ? (
+            /* ── Mobile: simple CSS stack, no fixed heights ── */
+            <div className="space-y-3">
+              {/* Needs Attention */}
+              <MobileCard testId="section-todays-focus" minH={300}>
+                <WidgetCard accentClass="bg-gradient-to-r from-amber-500 via-orange-400 to-transparent">
+                  <WidgetHeader icon={Zap} iconBg="bg-amber-500/10" iconColor="text-amber-500"
+                    right={focusCount > 0 && <span className="inline-flex h-5 min-w-5 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">{focusCount}</span>}
+                  >Needs Attention</WidgetHeader>
+                  <div className="px-4 pb-2 shrink-0">
+                    <div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5 w-fit flex-wrap">
+                      <button className={tabCls(attentionTab === "all")} onClick={() => setAttentionTab("all")}>All</button>
+                      <button className={tabCls(attentionTab === "actions")} onClick={() => setAttentionTab("actions")}>Actions{overdueActions.length > 0 && <span className="ml-1 text-red-500">({overdueActions.length})</span>}</button>
+                      <button className={tabCls(attentionTab === "kpis")} onClick={() => setAttentionTab("kpis")}>KPIs{atRiskKpis.length > 0 && <span className="ml-1 text-amber-500">({atRiskKpis.length})</span>}</button>
+                      <button className={tabCls(attentionTab === "milestones")} onClick={() => setAttentionTab("milestones")}>Due{upcomingMilestones.length > 0 && <span className="ml-1 text-violet-500">({upcomingMilestones.length})</span>}</button>
+                    </div>
+                  </div>
+                  <CardContent className="px-4 pb-3 pt-0 flex-1 overflow-y-auto">
+                    {focusCount === 0 ? (
+                      <div className="flex flex-col items-center gap-2 py-6 justify-center">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20"><CheckCircle2 className="h-5 w-5 text-emerald-500" /></div>
+                        <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">You're all caught up!</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {showActions && overdueActions.slice(0, 3).map(a => {
+                          const eff = a.revisedDueDate || a.dueDate || "";
+                          const daysOver = eff ? Math.floor((Date.now() - new Date(eff).getTime()) / 86400000) : 0;
+                          return (
+                            <Link key={`oa-${a.id}`} href="/actions">
+                              <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-red-500/5 border border-transparent hover:border-red-200 transition-all cursor-pointer group">
+                                <span className="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded shrink-0">Action</span>
+                                <div className="flex-1 min-w-0"><p className="text-xs font-medium truncate">{a.title}</p><p className="text-[10px] text-muted-foreground">{a.ownerName || "Unassigned"}</p></div>
+                                <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded shrink-0">{daysOver}d late</span>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                        {showKpis && atRiskKpis.slice(0, 3).map(a => (
+                          <Link key={`kpi-${a.kpiId}`} href="/kpis">
+                            <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-amber-500/5 border border-transparent hover:border-amber-200 transition-all cursor-pointer group">
+                              <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded shrink-0">KPI</span>
+                              <div className="flex-1 min-w-0"><p className="text-xs font-medium truncate">{a.kpiName}</p></div>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${a.status === "Below Target" ? "text-red-600 bg-red-500/10" : "text-amber-600 bg-amber-500/10"}`}>{a.status === "Below Target" ? "Below" : "At Risk"}</span>
+                            </div>
+                          </Link>
+                        ))}
+                        {showMilestones && upcomingMilestones.slice(0, 3).map(m => {
+                          const daysLeft = m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - Date.now()) / 86400000) : 0;
+                          return (
+                            <Link key={`ms-${m.id}`} href="/portfolio">
+                              <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-violet-500/5 border border-transparent hover:border-violet-200 transition-all cursor-pointer group">
+                                <span className="text-[9px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded shrink-0">Due</span>
+                                <div className="flex-1 min-w-0"><p className="text-xs font-medium truncate">{m.title}</p></div>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${daysLeft <= 1 ? "text-red-600 bg-red-500/10" : "text-violet-600 bg-violet-500/10"}`}>{daysLeft <= 0 ? "today" : `${daysLeft}d`}</span>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </WidgetCard>
+              </MobileCard>
+
+              {/* Analytics chart */}
+              <MobileCard testId="card-analytics" minH={280}>
+                <WidgetCard accentClass={chartTab === "kpi" ? "bg-gradient-to-r from-primary to-primary/40" : "bg-gradient-to-r from-blue-500 to-blue-400/40"}>
+                  <WidgetHeader icon={chartTab === "kpi" ? Activity : BarChart3} iconBg={chartTab === "kpi" ? "bg-primary/10" : "bg-blue-500/10"} iconColor={chartTab === "kpi" ? "text-primary" : "text-blue-600"}
+                    right={<div className="flex items-center gap-1.5"><div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5"><button className={tabCls(chartTab === "kpi")} onClick={() => setChartTab("kpi")}>KPI</button><button className={tabCls(chartTab === "actions")} onClick={() => setChartTab("actions")}>Actions</button></div><Link href={chartTab === "kpi" ? "/kpis" : "/actions"}><span className="text-[10px] font-medium text-primary hover:underline">View →</span></Link></div>}
+                  >{chartTab === "kpi" ? "KPI Health" : "Action Status"}</WidgetHeader>
+                  <CardContent className="px-4 pb-3 pt-0 flex-1 min-h-0">
+                    {chartTab === "kpi" ? (
+                      kpiStatusData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart><Pie data={kpiStatusData} cx="50%" cy="45%" innerRadius="32%" outerRadius="52%" paddingAngle={3} dataKey="value" stroke="none">{kpiStatusData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}</Pie><Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} formatter={(v: number, n: string) => [`${v} KPIs`, n]} /><Legend verticalAlign="bottom" height={24} iconType="circle" iconSize={7} formatter={(v: string) => <span className="text-[10px] text-foreground">{v}</span>} /></PieChart>
+                        </ResponsiveContainer>
+                      ) : <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No KPI data yet</div>
+                    ) : (
+                      actionChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={actionChartData} barSize={32}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={20} /><Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} formatter={(v: number) => [`${v} actions`]} /><Bar dataKey="count" radius={[5, 5, 0, 0]}>{actionChartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}</Bar></BarChart>
+                        </ResponsiveContainer>
+                      ) : <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No action data yet</div>
+                    )}
+                  </CardContent>
+                </WidgetCard>
+              </MobileCard>
+
+              {/* Project Health */}
+              <MobileCard testId="card-project-health" minH={240}>
+                <WidgetCard accentClass="bg-gradient-to-r from-violet-500 to-violet-400/40">
+                  <WidgetHeader icon={Briefcase} iconBg="bg-violet-500/10" iconColor="text-violet-600" right={<Link href="/portfolio"><span className="text-[10px] font-medium text-primary hover:underline">View all →</span></Link>}>Project Health</WidgetHeader>
+                  <CardContent className="px-4 pb-3 pt-0 flex-1 overflow-y-auto">
+                    {activeProjects.length === 0 ? <p className="text-xs text-muted-foreground py-4 text-center">No active projects</p> : (
+                      <div className="space-y-2">
+                        {activeProjects.map(p => {
+                          const pct = p.progress ?? 0;
+                          const hc = p.health === "Red" ? "bg-red-500" : p.health === "Amber" ? "bg-amber-500" : "bg-emerald-500";
+                          return (
+                            <Link key={p.id} href={`/projects/${p.id}`}>
+                              <div className="group flex items-center gap-2 hover:bg-muted/30 rounded-lg px-1.5 py-1.5 transition-colors cursor-pointer">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${hc}`} />
+                                <span className="text-xs font-medium flex-1 truncate">{p.name}</span>
+                                <div className="flex items-center gap-2 shrink-0"><div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden"><div className={`h-full rounded-full ${hc}`} style={{ width: `${pct}%` }} /></div><span className="text-[10px] font-semibold text-muted-foreground w-7 text-right">{pct}%</span></div>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </WidgetCard>
+              </MobileCard>
+
+              {/* Recent Actions */}
+              <MobileCard testId="card-recent-actions" minH={260}>
+                <WidgetCard accentClass="bg-gradient-to-r from-blue-500 to-blue-400/40">
+                  <WidgetHeader icon={ListChecks} iconBg="bg-blue-500/10" iconColor="text-blue-600" right={<Link href="/actions"><span className="text-[10px] font-medium text-primary hover:underline">View all →</span></Link>}>Recent Actions</WidgetHeader>
+                  <div className="px-4 pb-2 shrink-0">
+                    <div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5 w-fit">
+                      <button className={tabCls(actionFilter === "all")} onClick={() => setActionFilter("all")}>All</button>
+                      <button className={tabCls(actionFilter === "overdue")} onClick={() => setActionFilter("overdue")}>Overdue{overdueActions.length > 0 && <span className="ml-1 text-red-500">({overdueActions.length})</span>}</button>
+                      <button className={tabCls(actionFilter === "inprogress")} onClick={() => setActionFilter("inprogress")}>In Progress</button>
+                    </div>
+                  </div>
+                  <CardContent className="px-4 pb-3 pt-0 flex-1 overflow-y-auto">
+                    {filteredActions.length === 0 ? <p className="text-sm text-muted-foreground py-6 text-center">No actions</p> : (
+                      <div className="space-y-0.5">
+                        {filteredActions.map(action => {
+                          const eff = action.revisedDueDate || action.dueDate;
+                          const isOverdue = eff && eff < today && action.status !== "Completed" && action.status !== "Cancelled";
+                          return (
+                            <Link key={action.id} href="/actions">
+                              <div className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all group ${isOverdue ? "hover:bg-red-500/5" : "hover:bg-muted/50"}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${action.status === "Completed" ? "bg-emerald-500" : isOverdue ? "bg-red-500" : action.status === "In Progress" ? "bg-blue-500" : "bg-muted-foreground/40"}`} />
+                                <div className="flex-1 min-w-0"><p className="text-xs font-medium truncate">{action.title}</p><p className="text-[10px] text-muted-foreground">{action.ownerName || "Unassigned"}</p></div>
+                                <StatusBadge status={action.status} />
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </WidgetCard>
+              </MobileCard>
+
+              {/* Department Pulse */}
+              <MobileCard testId="card-department-summary" minH={200}>
+                <WidgetCard accentClass="bg-gradient-to-r from-emerald-500 to-emerald-400/40">
+                  <WidgetHeader icon={Building2} iconBg="bg-emerald-500/10" iconColor="text-emerald-600">Department Pulse</WidgetHeader>
+                  <CardContent className="px-4 pb-3 pt-0 flex-1 overflow-y-auto">
+                    {deptSummary.length === 0 ? <p className="text-sm text-muted-foreground py-4 text-center">No departments yet</p> : (
+                      <div className="space-y-2.5">
+                        {deptSummary.map(dept => {
+                          const overdueRatio = dept.overdueCount / (dept.actionCount || 1);
+                          return (
+                            <div key={dept.id} className="space-y-1">
+                              <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold">{dept.name}</span><div className="flex items-center gap-2 text-[10px] text-muted-foreground"><span>{dept.kpiCount} KPIs</span><span>{dept.actionCount} actions</span>{dept.overdueCount > 0 && <span className="text-red-500 font-bold">{dept.overdueCount} late</span>}</div></div>
+                              <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${overdueRatio > 0.3 ? "bg-red-500" : overdueRatio > 0 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.max(8, dept.overdueCount > 0 ? overdueRatio * 100 : 100)}%` }} /></div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </WidgetCard>
+              </MobileCard>
+
+              {/* Latest Review */}
+              <MobileCard testId="card-latest-review" minH={280}>
+                <WidgetCard accentClass="bg-gradient-to-r from-violet-500 to-violet-400/40">
+                  <WidgetHeader icon={ArrowUpRight} iconBg="bg-violet-500/10" iconColor="text-violet-600" right={<div className="flex items-center gap-1.5">{latestReview && <Badge variant="secondary" className="text-[10px]">{latestReview.reviewMonth}</Badge>}<Link href="/reviews"><span className="text-[10px] font-medium text-primary hover:underline">View →</span></Link></div>}>Latest Review</WidgetHeader>
+                  <CardContent className="px-4 pb-4 pt-0 flex-1 overflow-y-auto">
+                    {latestReview ? (
+                      <div className="space-y-2">
+                        <div className="p-2.5 rounded-lg bg-muted/30 border"><p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1 text-muted-foreground"><MessageSquare className="h-3 w-3" />Executive Summary</p>{latestReview.overallSummary?.split("\n").filter(l => l.trim()).map((para, i) => (<p key={i} className="text-xs text-muted-foreground leading-relaxed mb-1 last:mb-0">{para}</p>))}</div>
+                        {latestReview.strengths && <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/15 p-2.5"><p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1.5 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Strengths</p>{latestReview.strengths.split("\n").filter(l => l.trim()).map((line, i) => (<div key={i} className="flex items-start gap-1.5 py-0.5"><span className="text-emerald-500 mt-0.5 shrink-0">•</span><span className="text-xs text-muted-foreground leading-relaxed">{line.replace(/^[-•]\s*/, "")}</span></div>))}</div>}
+                        {latestReview.gaps && <div className="rounded-lg bg-red-500/5 border border-red-500/15 p-2.5"><p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-1.5 flex items-center gap-1"><AlertCircle className="h-3 w-3" />Gaps</p>{latestReview.gaps.split("\n").filter(l => l.trim()).map((line, i) => (<div key={i} className="flex items-start gap-1.5 py-0.5"><span className="text-red-400 mt-0.5 shrink-0">•</span><span className="text-xs text-muted-foreground leading-relaxed">{line.replace(/^[-•]\s*/, "")}</span></div>))}</div>}
+                        {latestReview.recommendations && <div className="rounded-lg bg-primary/5 border border-primary/15 p-2.5"><p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1.5 flex items-center gap-1"><Lightbulb className="h-3 w-3" />Recommendations</p>{latestReview.recommendations.split("\n").filter(l => l.trim()).map((line, i) => (<div key={i} className="flex items-start gap-1.5 py-0.5"><span className="text-primary mt-0.5 shrink-0">•</span><span className="text-xs text-muted-foreground leading-relaxed">{line.replace(/^[-•]\s*/, "")}</span></div>))}</div>}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center"><Layers className="h-8 w-8 text-muted-foreground/40 mb-2" /><p className="text-sm text-muted-foreground">No reviews generated yet</p><Link href="/reviews"><span className="text-xs text-primary hover:underline mt-1">Generate one →</span></Link></div>
+                    )}
+                  </CardContent>
+                </WidgetCard>
+              </MobileCard>
+            </div>
+          ) : (
+            /* ── Desktop: draggable / resizable grid ── */
+            <>
+              <p className="text-[10px] text-muted-foreground/40 text-right mb-1 select-none">Drag the grip icon to reorder · Drag corner to resize</p>
+              <ResponsiveGridLayout
+                className="layout"
+                layouts={layouts as never}
+                breakpoints={{ lg: 1200, md: 900, sm: 600 }}
+                cols={{ lg: 12, md: 10, sm: 6 }}
+                rowHeight={30}
+                width={containerWidth}
+                margin={[10, 10]}
+                containerPadding={[0, 0]}
+                draggableHandle=".drag-handle"
+                onLayoutChange={handleLayoutChange as never}
+                resizeHandles={["se"]}
+                useCSSTransforms
+              >
 
               {/* ── Needs Attention ── */}
               <div key="attention" data-testid="section-todays-focus">
@@ -722,8 +924,9 @@ export default function DashboardPage() {
               </div>
 
             </ResponsiveGridLayout>
-          </div>
-        </div>
+          </>
+        )}
+      </div>
 
       </div>
     </div>
