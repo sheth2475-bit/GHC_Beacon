@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks, Briefcase,
-  Users, FileText, Bot, Settings2, Star, ArrowLeft, Menu, X,
+  Users, FileText, Bot, Settings2, ArrowLeft, Menu, X,
   ChevronRight, Info, ArrowRight, Database, Upload, BarChart2,
   Pin, Lightbulb, Search, RefreshCw,
 } from "lucide-react";
@@ -376,18 +376,6 @@ export default function Guide() {
             </Link>
             <span className="text-gray-300">|</span>
             <span className="font-semibold text-gray-900 text-sm">Performo AI · User Guide</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium px-2.5 py-1 rounded-full">
-              <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-              Try live: demo@performo.ai / demo123
-            </div>
-            <Link
-              href="/login"
-              className="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Open app
-            </Link>
           </div>
         </div>
       </header>
