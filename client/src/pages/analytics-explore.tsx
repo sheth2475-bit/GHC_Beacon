@@ -87,7 +87,8 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatValue(v: number) {
+function formatValue(v: number | null | undefined): string {
+  if (v === null || v === undefined || isNaN(v as number)) return "—";
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
@@ -108,17 +109,17 @@ function downloadCSV(data: { name: string; value: number }[], title: string) {
 const CHART_MARGIN = { top: 8, right: 16, left: 0, bottom: 60 };
 const CHART_HEIGHT = 300;
 
-function KpiCard({ data }: { data: { value: number; label: string; count: number } }) {
+function KpiCard({ data }: { data: { value?: number | null; label?: string; count?: number } }) {
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <div className="relative mb-2">
         <div className="absolute inset-0 blur-2xl bg-primary/10 rounded-full scale-150" />
         <p className="relative text-6xl font-black tabular-nums text-foreground tracking-tight">
-          {formatValue(data.value)}
+          {formatValue(data?.value)}
         </p>
       </div>
-      <p className="text-base text-muted-foreground font-medium mt-1">{data.label}</p>
-      <p className="text-xs text-muted-foreground/50 mt-1">{data.count?.toLocaleString()} records</p>
+      <p className="text-base text-muted-foreground font-medium mt-1">{data?.label ?? "—"}</p>
+      <p className="text-xs text-muted-foreground/50 mt-1">{data?.count?.toLocaleString()} records</p>
     </div>
   );
 }
