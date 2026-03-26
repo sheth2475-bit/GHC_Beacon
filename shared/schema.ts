@@ -193,6 +193,25 @@ export const projectComments = pgTable("project_comments", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ─── Login Logs ──────────────────────────────────────────────────────────────
+
+export const loginLogs = pgTable("login_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  companyId: integer("company_id").references(() => companies.id),
+  email: text("email").notNull(),
+  userName: text("user_name"),
+  userRole: text("user_role"),
+  planName: text("plan_name"),
+  status: text("status").notNull().default("success"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  browser: text("browser"),
+  os: text("os"),
+  deviceType: text("device_type"),
+  loginAt: timestamp("login_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ─── Platform Owner System ───────────────────────────────────────────────────
 
 export const platformOwners = pgTable("platform_owners", {
@@ -318,6 +337,7 @@ export const insertOwnerAuditLogSchema = createInsertSchema(ownerAuditLogs).omit
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, createdAt: true });
 export const insertUserDepartmentAccessSchema = createInsertSchema(userDepartmentAccess).omit({ id: true, createdAt: true });
 export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true });
+export const insertLoginLogSchema = createInsertSchema(loginLogs).omit({ id: true, loginAt: true });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -367,6 +387,8 @@ export type UserDepartmentAccess = typeof userDepartmentAccess.$inferSelect;
 export type InsertUserDepartmentAccess = z.infer<typeof insertUserDepartmentAccessSchema>;
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type LoginLog = typeof loginLogs.$inferSelect;
+export type InsertLoginLog = z.infer<typeof insertLoginLogSchema>;
 
 // ─── Analytics Studio ─────────────────────────────────────────────────────────
 

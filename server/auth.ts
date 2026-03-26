@@ -8,6 +8,59 @@ import type { Express, Request } from "express";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
+function parseUserAgent(ua: string = "") {
+  let browser = "Unknown";
+  if (ua.includes("Edg/")) browser = "Edge";
+  else if (ua.includes("Chrome/") && !ua.includes("Chromium")) browser = "Chrome";
+  else if (ua.includes("Firefox/")) browser = "Firefox";
+  else if (ua.includes("Safari/") && !ua.includes("Chrome")) browser = "Safari";
+  else if (ua.includes("OPR/") || ua.includes("Opera/")) browser = "Opera";
+
+  let os = "Unknown";
+  if (ua.includes("Windows NT")) os = "Windows";
+  else if (ua.includes("Mac OS X")) os = "macOS";
+  else if (ua.includes("Android")) os = "Android";
+  else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+  else if (ua.includes("Linux")) os = "Linux";
+
+  let deviceType = "Desktop";
+  if (ua.includes("Mobile") || ua.includes("iPhone")) deviceType = "Mobile";
+  else if (ua.includes("iPad") || ua.includes("Tablet")) deviceType = "Tablet";
+
+  return { browser, os, deviceType };
+}
+
+async function captureLoginLog(req: Request, user: Express.User | null, email: string, status: "success" | "failed") {
+  try {
+    const ua = (req.headers["user-agent"] as string) || "";
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null;
+    const { browser, os, deviceType } = parseUserAgent(ua);
+
+    let planName: string | null = null;
+    if (user?.companyId) {
+      try {
+        const sub = await storage.getSubscription(user.companyId);
+        planName = sub?.planName || "Trial";
+      } catch {}
+    }
+
+    await storage.createLoginLog({
+      userId: user?.id || null,
+      companyId: user?.companyId || null,
+      email,
+      userName: user?.name || null,
+      userRole: user?.role || null,
+      planName,
+      status,
+      ipAddress: ip,
+      userAgent: ua.slice(0, 500),
+      browser,
+      os,
+      deviceType,
+    });
+  } catch {}
+}
+
 const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string): Promise<string> {
@@ -109,11 +162,16 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/auth/login", (req, res, next) => {
+    const email = req.body?.email || "";
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
-      if (!user) return res.status(401).json({ message: info?.message || "Login failed" });
-      req.login(user, (err) => {
-        if (err) return next(err);
+      if (!user) {
+        captureLoginLog(req, null, email, "failed").catch(() => {});
+        return res.status(401).json({ message: info?.message || "Login failed" });
+      }
+      req.login(user, (loginErr) => {
+        if (loginErr) return next(loginErr);
+        captureLoginLog(req, user, email, "success").catch(() => {});
         const { passwordHash: _, ...safeUser } = user;
         res.json(safeUser);
       });

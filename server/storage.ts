@@ -178,6 +178,10 @@ export interface IStorage {
   createDocument(doc: import("@shared/schema").InsertDocument): Promise<import("@shared/schema").Document>;
   deleteDocument(id: number): Promise<void>;
   getDocument(id: number): Promise<import("@shared/schema").Document | undefined>;
+  // Login Logs
+  createLoginLog(log: import("@shared/schema").InsertLoginLog): Promise<import("@shared/schema").LoginLog>;
+  getLoginLogs(limit?: number): Promise<import("@shared/schema").LoginLog[]>;
+  getLoginLogsByCompany(companyId: number, limit?: number): Promise<import("@shared/schema").LoginLog[]>;
 
   // Platform analytics
   getAllCompanies(): Promise<Company[]>;
@@ -911,6 +915,23 @@ export class DatabaseStorage implements IStorage {
         .set({ position: i })
         .where(and(eq(analyticsDashboardItems.id, orderedIds[i]), eq(analyticsDashboardItems.dashboardId, dashboardId)));
     }
+  }
+
+  // ─── Login Logs ────────────────────────────────────────────────────────────
+  async createLoginLog(log: import("@shared/schema").InsertLoginLog) {
+    const { loginLogs } = await import("@shared/schema");
+    const [created] = await db.insert(loginLogs).values(log).returning();
+    return created;
+  }
+  async getLoginLogs(limit = 500) {
+    const { loginLogs } = await import("@shared/schema");
+    return db.select().from(loginLogs).orderBy(desc(loginLogs.loginAt)).limit(limit);
+  }
+  async getLoginLogsByCompany(companyId: number, limit = 200) {
+    const { loginLogs } = await import("@shared/schema");
+    return db.select().from(loginLogs)
+      .where(eq(loginLogs.companyId, companyId))
+      .orderBy(desc(loginLogs.loginAt)).limit(limit);
   }
 }
 
