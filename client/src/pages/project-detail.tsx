@@ -595,6 +595,7 @@ export default function ProjectDetailPage() {
 
   const [activeTab, setActiveTab] = useState("overview");
   const [taskView, setTaskView] = useState<"list" | "kanban" | "calendar">("list");
+  const [taskLevel, setTaskLevel] = useState<"initiative" | "task">("initiative");
   const [taskCalMonth, setTaskCalMonth] = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
   const [taskDragId, setTaskDragId] = useState<number | null>(null);
   const [taskDragOverCol, setTaskDragOverCol] = useState<string | null>(null);
@@ -753,6 +754,19 @@ export default function ProjectDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/comments", "project", projectId] }),
   });
 
+  const updateSubtaskStatusMut = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      apiRequest("PATCH", `/api/subtasks/${id}`, {
+        status,
+        completed: status === "Completed",
+        progress: status === "Completed" ? 100 : status === "Not Started" ? 0 : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-4 max-w-5xl mx-auto">
@@ -773,6 +787,10 @@ export default function ProjectDetailPage() {
   }
 
   const byStatus = (s: string) => tasks.filter(t => t.status === s);
+  const allSubtasks = tasks.flatMap(t =>
+    (t.subtasks || []).map(s => ({ ...s, parentTitle: t.title, parentId: t.id }))
+  );
+  const subtasksByStatus = (s: string) => allSubtasks.filter(st => (st.status || "Not Started") === s);
   const completedCount = tasks.filter(t => t.status === "Completed").length;
   const ep = project as any;
 
@@ -906,26 +924,46 @@ export default function ProjectDetailPage() {
         {/* ─ Initiatives ─ */}
         <TabsContent value="initiatives" className="mt-4 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5">
-              {([
-                { mode: "list", icon: List, label: "List" },
-                { mode: "kanban", icon: Kanban, label: "Kanban" },
-                { mode: "calendar", icon: Calendar, label: "Calendar" },
-              ] as const).map(({ mode, icon: Icon, label }) => (
-                <button
-                  key={mode}
-                  onClick={() => setTaskView(mode)}
-                  data-testid={`button-task-view-${mode}`}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    taskView === mode
-                      ? "bg-background text-foreground shadow-sm border border-border"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5">
+                {([
+                  { mode: "list", icon: List, label: "List" },
+                  { mode: "kanban", icon: Kanban, label: "Kanban" },
+                  { mode: "calendar", icon: Calendar, label: "Calendar" },
+                ] as const).map(({ mode, icon: Icon, label }) => (
+                  <button
+                    key={mode}
+                    onClick={() => setTaskView(mode)}
+                    data-testid={`button-task-view-${mode}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      taskView === mode
+                        ? "bg-background text-foreground shadow-sm border border-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {taskView !== "list" && (
+                <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5" data-testid="task-level-toggle">
+                  {(["initiative", "task"] as const).map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setTaskLevel(level)}
+                      data-testid={`button-task-level-${level}`}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all capitalize ${
+                        taskLevel === level
+                          ? "bg-background text-foreground shadow-sm border border-border"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {level === "initiative" ? "Initiatives" : "Tasks"}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {canEdit && (
               <Button size="sm" onClick={() => setShowTaskForm(true)} data-testid="button-add-task">
@@ -995,7 +1033,7 @@ export default function ProjectDetailPage() {
                   "At Risk": "bg-red-500",
                   "Completed": "bg-emerald-500",
                 };
-                const colItems = byStatus(col);
+                const colItems = taskLevel === "task" ? subtasksByStatus(col) : byStatus(col);
                 const isDragOver = taskDragOverCol === col;
                 return (
                   <div
@@ -1007,9 +1045,16 @@ export default function ProjectDetailPage() {
                       e.preventDefault();
                       setTaskDragOverCol(null);
                       if (taskDragId !== null) {
-                        const item = tasks.find(t => t.id === taskDragId);
-                        if (item && item.status !== col) {
-                          updateTaskMut.mutate({ id: taskDragId, data: { status: col, progress: col === "Completed" ? 100 : col === "Not Started" ? 0 : undefined } });
+                        if (taskLevel === "task") {
+                          const item = allSubtasks.find(s => s.id === taskDragId);
+                          if (item && (item.status || "Not Started") !== col) {
+                            updateSubtaskStatusMut.mutate({ id: taskDragId, status: col });
+                          }
+                        } else {
+                          const item = tasks.find(t => t.id === taskDragId);
+                          if (item && item.status !== col) {
+                            updateTaskMut.mutate({ id: taskDragId, data: { status: col, progress: col === "Completed" ? 100 : col === "Not Started" ? 0 : undefined } });
+                          }
                         }
                         setTaskDragId(null);
                       }
@@ -1029,8 +1074,49 @@ export default function ProjectDetailPage() {
                           Drop here
                         </div>
                       )}
-                      {colItems.map(t => {
-                        const tOwner = (t as any).owner || t.assignee;
+                      {taskLevel === "task" ? colItems.map((s: any) => {
+                        const today = new Date().toISOString().split("T")[0];
+                        const isOverdue = s.dueDate && s.dueDate < today && (s.status || "Not Started") !== "Completed";
+                        const prog = s.progress ?? (s.completed ? 100 : 0);
+                        return (
+                          <div
+                            key={s.id}
+                            draggable
+                            onDragStart={() => setTaskDragId(s.id)}
+                            onDragEnd={() => { setTaskDragId(null); setTaskDragOverCol(null); }}
+                            className={`bg-background rounded-lg border p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all select-none ${taskDragId === s.id ? "opacity-40 scale-95" : ""} ${isOverdue ? "border-red-300 dark:border-red-800" : ""}`}
+                            data-testid={`subtask-kanban-card-${s.id}`}
+                          >
+                            <p className="text-[10px] text-muted-foreground mb-1 truncate">↳ {s.parentTitle}</p>
+                            <div className="flex items-start gap-1.5 mb-2">
+                              {isOverdue && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />}
+                              <p className="text-sm font-medium leading-snug line-clamp-2">{s.title}</p>
+                            </div>
+                            {prog > 0 && (
+                              <div className="mb-2">
+                                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${prog === 100 ? "bg-emerald-500" : "bg-violet-500"}`} style={{ width: `${prog}%` }} />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 text-right">{prog}%</p>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                              {s.owner ? (
+                                <div className="flex items-center gap-1">
+                                  <div className="h-4 w-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold shrink-0">
+                                    {s.owner.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                                  </div>
+                                  <span className="truncate max-w-[80px]">{s.owner}</span>
+                                </div>
+                              ) : <span />}
+                              {s.dueDate && (
+                                <span className={`shrink-0 ${isOverdue ? "text-red-500 font-semibold" : ""}`}>{formatDate(s.dueDate)}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }) : colItems.map((t: any) => {
+                        const tOwner = t.owner || t.assignee;
                         const today = new Date().toISOString().split("T")[0];
                         const isOverdue = t.dueDate && t.dueDate < today && t.status !== "Completed";
                         const computedProgress = t.subtasks?.length > 0
@@ -1082,7 +1168,7 @@ export default function ProjectDetailPage() {
               })}
             </div>
           ) : (() => {
-            // Calendar view for initiatives
+            // Calendar view for initiatives or tasks
             const year = taskCalMonth.getFullYear();
             const month = taskCalMonth.getMonth();
             const firstDay = new Date(year, month, 1).getDay();
@@ -1090,9 +1176,10 @@ export default function ProjectDetailPage() {
             const today = new Date().toISOString().split("T")[0];
             const monthLabel = taskCalMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-            const tasksByDate: Record<string, TaskWithSubtasks[]> = {};
-            for (const t of tasks) {
-              const d = t.dueDate;
+            const tasksByDate: Record<string, any[]> = {};
+            const calItems = taskLevel === "task" ? allSubtasks : tasks;
+            for (const t of calItems) {
+              const d = (t as any).dueDate;
               if (d) { tasksByDate[d] = [...(tasksByDate[d] || []), t]; }
             }
             const cells = Array.from({ length: firstDay }, () => null as null)
@@ -1137,12 +1224,15 @@ export default function ProjectDetailPage() {
                       >
                         <p className={`text-[11px] font-semibold mb-1 ${isToday ? "text-primary" : isPast ? "text-muted-foreground" : "text-foreground"}`}>{day}</p>
                         <div className="space-y-0.5">
-                          {dayTasks.slice(0, 3).map(t => (
-                            <div key={t.id} title={t.title} className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${t.status === "Completed" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : t.status === "At Risk" ? "bg-red-500/10 text-red-700 dark:text-red-400" : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`} data-testid={`task-cal-item-${t.id}`}>
-                              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(t.status)}`} />
-                              <span className="truncate">{t.title}</span>
-                            </div>
-                          ))}
+                          {dayTasks.slice(0, 3).map((t: any) => {
+                            const status = t.status || "Not Started";
+                            return (
+                              <div key={t.id} title={taskLevel === "task" ? `${t.parentTitle} → ${t.title}` : t.title} className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${status === "Completed" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : status === "At Risk" ? "bg-red-500/10 text-red-700 dark:text-red-400" : "bg-violet-500/10 text-violet-700 dark:text-violet-400"}`} data-testid={`task-cal-item-${t.id}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot(status)}`} />
+                                <span className="truncate">{t.title}</span>
+                              </div>
+                            );
+                          })}
                           {dayTasks.length > 3 && <p className="text-[10px] text-muted-foreground pl-1">+{dayTasks.length - 3} more</p>}
                         </div>
                       </div>
