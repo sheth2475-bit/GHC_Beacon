@@ -197,7 +197,7 @@ export default function AnalyticsUploadPage() {
                 <p className="text-xs font-semibold mb-2.5 text-muted-foreground uppercase tracking-wide">Auto-detected columns</p>
                 <div className="flex flex-wrap gap-2">
                   {result.columns.map(c => (
-                    <span key={c.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${TYPE_COLORS[c.columnType]}`}>
+                    <span key={c.columnName} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${TYPE_COLORS[c.columnType]}`}>
                       {c.label}
                       <span className="opacity-60 text-[10px]">{c.columnType}</span>
                     </span>

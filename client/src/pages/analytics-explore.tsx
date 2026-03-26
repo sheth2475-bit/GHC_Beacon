@@ -211,21 +211,26 @@ function PieChartWidget({ cfg, donut }: { cfg: { data: { name: string; value: nu
   );
 }
 
-function TableWidget({ cfg }: { cfg: { rows: Record<string, unknown>[]; columns: string[] } }) {
+function TableWidget({ cfg }: { cfg: { rows?: Record<string, unknown>[]; columns?: string[] } }) {
+  const cols = cfg?.columns ?? [];
+  const rowData = cfg?.rows ?? [];
+  if (cols.length === 0 || rowData.length === 0) {
+    return <div className="flex items-center justify-center h-28 text-xs text-muted-foreground">No table data available</div>;
+  }
   return (
     <div className="overflow-auto max-h-72 rounded-lg border">
       <table className="w-full text-xs">
         <thead className="bg-muted/50 sticky top-0">
           <tr>
             <th className="text-left px-3 py-2 font-semibold text-muted-foreground w-8">#</th>
-            {cfg.columns.map(c => <th key={c} className="text-left px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap">{c}</th>)}
+            {cols.map(c => <th key={c} className="text-left px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap">{c}</th>)}
           </tr>
         </thead>
         <tbody className="divide-y">
-          {cfg.rows.map((row, i) => (
+          {rowData.map((row, i) => (
             <tr key={i} className="hover:bg-muted/20 transition-colors">
               <td className="px-3 py-1.5 text-muted-foreground/50">{i + 1}</td>
-              {cfg.columns.map(c => <td key={c} className="px-3 py-1.5 whitespace-nowrap font-medium">{String(row[c] ?? "—")}</td>)}
+              {cols.map(c => <td key={c} className="px-3 py-1.5 whitespace-nowrap font-medium">{String(row[c] ?? "—")}</td>)}
             </tr>
           ))}
         </tbody>
