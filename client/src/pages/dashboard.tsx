@@ -304,7 +304,16 @@ export default function DashboardPage() {
   /* ─── widget tab states ─── */
   const [attentionTab, setAttentionTab] = useState<"all" | "actions" | "kpis" | "milestones">("all");
   const [chartTab, setChartTab] = useState<"kpi" | "actions">("kpi");
+  const chartTabInitialized = useRef(false);
   const [actionFilter, setActionFilter] = useState<"all" | "overdue" | "inprogress">("all");
+
+  useEffect(() => {
+    if (chartTabInitialized.current || !stats) return;
+    chartTabInitialized.current = true;
+    if (kpiStatusData.length === 0 && actionChartData.length > 0) {
+      setChartTab("actions");
+    }
+  }, [stats]);
 
   const showActions = attentionTab === "all" || attentionTab === "actions";
   const showKpis = attentionTab === "all" || attentionTab === "kpis";
