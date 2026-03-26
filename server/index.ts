@@ -61,6 +61,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  const { runMigrations } = await import("./migrations");
+  await runMigrations().catch(console.error);
+
   const { seedDatabase } = await import("./seed");
   await seedDatabase().catch(console.error);
 
