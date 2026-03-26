@@ -1760,13 +1760,32 @@ You can help the user understand their data, suggest chart types, explain insigh
     };
 
     // Helper: auto-detect column types from sample data
-    function autoDetectColumnType(values: unknown[]): string {
+    function autoDetectColumnType(values: unknown[], colName?: string): string {
       const nonEmpty = values.filter(v => v !== null && v !== undefined && v !== "");
       if (nonEmpty.length === 0) return "dimension";
-      const numeric = nonEmpty.filter(v => !isNaN(Number(v)));
+
+      // Column-name heuristics — fastest signal
+      if (colName) {
+        const nameLower = colName.toLowerCase();
+        if (/\b(date|month|year|period|week|quarter|day|time|timestamp)\b/.test(nameLower)) return "date";
+      }
+
+      // Excel date cells parsed with cellDates:true arrive as JS Date objects
+      const dateObjs = nonEmpty.filter(v => v instanceof Date && !isNaN((v as Date).getTime()));
+      if (dateObjs.length / nonEmpty.length > 0.8) return "date";
+
+      // Numeric check — do this BEFORE string-date check to avoid false positives
+      const numeric = nonEmpty.filter(v => typeof v === "number" || (!isNaN(Number(v)) && String(v).trim() !== ""));
       if (numeric.length / nonEmpty.length > 0.8) return "measure";
-      const dateStr = nonEmpty.filter(v => !isNaN(Date.parse(String(v))));
+
+      // String-date check (e.g. "Jan 2024", "2024-01-15")
+      const dateStr = nonEmpty.filter(v => {
+        const s = String(v).trim();
+        if (s.length < 4) return false; // single/two-digit numbers are not dates
+        return !isNaN(Date.parse(s));
+      });
       if (dateStr.length / nonEmpty.length > 0.8) return "date";
+
       return "dimension";
     }
 
@@ -1886,11 +1905,18 @@ You can help the user understand their data, suggest chart types, explain insigh
         if (!company) return res.status(400).json({ message: "No company" });
         if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-        const wb = xlsx.read(req.file.buffer, { type: "buffer" });
+        const wb = xlsx.read(req.file.buffer, { type: "buffer", cellDates: true });
         const sheetNames = wb.SheetNames;
         const sheet = wb.Sheets[sheetNames[0]];
-        const rows = xlsx.utils.sheet_to_json(sheet, { defval: null }) as Record<string, unknown>[];
+        const rows = xlsx.utils.sheet_to_json(sheet, { defval: null, cellDates: true }) as Record<string, unknown>[];
         const columns = rows.length ? Object.keys(rows[0]) : [];
+
+        // Normalize Date objects → ISO date strings for consistent JSON storage
+        const normalizeVal = (v: unknown) =>
+          v instanceof Date ? v.toISOString().split("T")[0] : v;
+        const normalizedRows = rows.map(r =>
+          Object.fromEntries(Object.entries(r).map(([k, v]) => [k, normalizeVal(v)]))
+        );
 
         const dataset = await storage.createAnalyticsDataset({
           companyId: company.id,
@@ -1900,14 +1926,14 @@ You can help the user understand their data, suggest chart types, explain insigh
           fileName: req.file.originalname,
           sheetNames,
           rowCount: rows.length,
-          rawData: rows.slice(0, 5000) as unknown as typeof rows,
+          rawData: normalizedRows.slice(0, 5000) as unknown as typeof rows,
           status: "active",
         });
 
-        // Auto-detect columns
+        // Auto-detect columns — pass raw rows (with Date objects) and column name for best detection
         const colDefs = columns.map((col, i) => {
           const vals = rows.map(r => r[col]);
-          const type = autoDetectColumnType(vals);
+          const type = autoDetectColumnType(vals, col);
           return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
         });
         await storage.upsertAnalyticsDatasetColumns(dataset.id, colDefs);
