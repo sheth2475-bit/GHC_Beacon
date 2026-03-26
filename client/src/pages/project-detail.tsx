@@ -19,7 +19,7 @@ import {
   ArrowLeft, Calendar, Users, Target, AlertTriangle, Edit3,
   Plus, Trash2, MessageSquare, Send, Flag, ChevronDown, ChevronRight,
   LayoutList, Circle, CalendarDays, Pencil, CheckCircle2,
-  Kanban, ChevronLeft, List,
+  Kanban, ChevronLeft, List, Paperclip,
 } from "lucide-react";
 import { DocumentAttachments } from "@/components/document-attachments";
 import type { Project, Task, Subtask, Milestone, ProjectComment, Department, TeamMember } from "@shared/schema";
@@ -854,6 +854,9 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="initiatives" data-testid="tab-initiatives">Initiatives ({tasks.length})</TabsTrigger>
           <TabsTrigger value="milestones" data-testid="tab-milestones">Milestones ({milestones.length})</TabsTrigger>
           <TabsTrigger value="comments" data-testid="tab-comments">Comments ({comments.length})</TabsTrigger>
+          <TabsTrigger value="attachments" data-testid="tab-attachments" className="flex items-center gap-1.5">
+            <Paperclip className="h-3.5 w-3.5" /> Attachments
+          </TabsTrigger>
         </TabsList>
 
         {/* ─ Overview ─ */}
@@ -1323,6 +1326,20 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* ─ Attachments ─ */}
+        <TabsContent value="attachments" className="mt-4">
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold text-sm">Project Attachments</h3>
+                <p className="text-xs text-muted-foreground">Upload and manage files for this project</p>
+              </div>
+              <DocumentAttachments entityType="project" entityId={project!.id} />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
