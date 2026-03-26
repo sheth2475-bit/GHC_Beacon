@@ -16,7 +16,7 @@ import {
 import {
   BarChart, Bar, LineChart, Line, PieChart as RechartPie, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area, RadialBarChart, RadialBar,
+  AreaChart, Area, RadialBarChart, RadialBar, LabelList,
 } from "recharts";
 import type {
   AnalyticsDataset, AnalyticsDatasetColumn, AnalyticsInsight,
@@ -124,17 +124,21 @@ function KpiCard({ data }: { data: { value?: number | null; label?: string; coun
   );
 }
 
+const LABEL_STYLE = { fontSize: 10, fill: "hsl(var(--muted-foreground))", fontWeight: 500 };
+
 function BarChartWidget({ cfg, horizontal }: { cfg: { data: { name: string; value: number }[]; measureLabel?: string }; horizontal?: boolean }) {
+  const showLabels = cfg.data.length <= 15;
   if (horizontal) {
     return (
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <BarChart data={cfg.data} layout="vertical" margin={{ top: 4, right: 24, left: 4, bottom: 4 }}>
+        <BarChart data={cfg.data} layout="vertical" margin={{ top: 4, right: showLabels ? 52 : 24, left: 4, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
           <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={90} />
           <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
           <Bar dataKey="value" radius={[0, 4, 4, 0]}>
             {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            {showLabels && <LabelList dataKey="value" position="right" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -142,13 +146,14 @@ function BarChartWidget({ cfg, horizontal }: { cfg: { data: { name: string; valu
   }
   return (
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-      <BarChart data={cfg.data} margin={CHART_MARGIN}>
+      <BarChart data={cfg.data} margin={{ top: showLabels ? 22 : 8, right: 16, left: 0, bottom: 60 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
         <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -156,10 +161,12 @@ function BarChartWidget({ cfg, horizontal }: { cfg: { data: { name: string; valu
 }
 
 function LineChartWidget({ cfg, filled }: { cfg: { data: { name: string; value: number }[]; measureLabel?: string }; filled?: boolean }) {
+  const showLabels = cfg.data.length <= 15;
+  const lineMargin = { top: showLabels ? 22 : 8, right: 16, left: 0, bottom: 60 };
   if (filled) {
     return (
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-        <AreaChart data={cfg.data} margin={CHART_MARGIN}>
+        <AreaChart data={cfg.data} margin={lineMargin}>
           <defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.25} />
@@ -170,19 +177,23 @@ function LineChartWidget({ cfg, filled }: { cfg: { data: { name: string; value: 
           <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
           <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
           <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
-          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill="url(#areaGrad)" dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }} />
+          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill="url(#areaGrad)" dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
+            {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
+          </Area>
         </AreaChart>
       </ResponsiveContainer>
     );
   }
   return (
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-      <LineChart data={cfg.data} margin={CHART_MARGIN}>
+      <LineChart data={cfg.data} margin={lineMargin}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
         <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
-        <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }} />
+        <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
+          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
+        </Line>
       </LineChart>
     </ResponsiveContainer>
   );
