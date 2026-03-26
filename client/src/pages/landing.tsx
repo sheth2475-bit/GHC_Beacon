@@ -5,7 +5,7 @@ import {
   CheckCircle2, ArrowRight, Play, TrendingUp,
   Zap, Shield, Globe, Menu, X, Activity, Building2,
   Brain, LayoutDashboard, FileText, Check, BookOpen,
-  Users, Bot, Star, ChevronRight, Database, Upload,
+  Users, Bot, ChevronRight, Database, Upload,
   PieChart, LineChart, Table, Search, Pin, Lightbulb,
   BarChart2, TrendingDown, AlertTriangle, RefreshCw,
 } from "lucide-react";
@@ -346,27 +346,6 @@ const WHY_ITEMS = [
     desc: "Spreadsheets fragment accountability. Performo connects your KPIs, action items, project tasks, monthly reviews, and data analytics in a single platform — nothing falls through the cracks.",
     color: "text-violet-500",
     bg: "bg-violet-500/10",
-  },
-];
-
-const TESTIMONIALS = [
-  {
-    quote: "We used to spend 3 hours before every board meeting pulling data from 6 spreadsheets. Now it takes 10 minutes and the AI writes the summary — and the Analytics Studio does the charts.",
-    name: "Priya S.",
-    title: "CEO, Hospitality Group",
-    stars: 5,
-  },
-  {
-    quote: "The action tracker alone paid for itself. Nothing gets lost after a meeting anymore — everyone knows what they committed to.",
-    name: "David K.",
-    title: "COO, Retail Chain",
-    stars: 5,
-  },
-  {
-    quote: "I uploaded our sales data, asked 'which region is underperforming?' and got a bar chart with anomaly flags in about 4 seconds. It used to take my analyst half a day.",
-    name: "Lena M.",
-    title: "MD, Professional Services",
-    stars: 5,
   },
 ];
 
@@ -856,32 +835,6 @@ export default function LandingPage() {
                 <div>
                   <h3 className="text-base font-bold text-gray-900 mb-1.5">{w.title}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed">{w.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ TESTIMONIALS ══════════════════════════════════════════════════════ */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">What our customers say</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((t, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex flex-col">
-                <div className="flex gap-0.5 mb-4">
-                  {Array.from({ length: t.stars }).map((_, si) => (
-                    <Star key={si} className="h-4 w-4 text-amber-400 fill-amber-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-gray-700 leading-relaxed flex-1 mb-5">"{t.quote}"</p>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">{t.name}</p>
-                  <p className="text-xs text-gray-500">{t.title}</p>
                 </div>
               </div>
             ))}
