@@ -305,6 +305,158 @@ async function seedSubtasksForExistingTasks(allTasks: { id: number; title: strin
   }
 }
 
+async function seedAnalyticsData(companyId: number, userId: number) {
+  const existing = await storage.getAnalyticsDatasets(companyId);
+  if (existing.some(d => d.name === "OYO Hotel Performance Data")) return;
+
+  const PROPERTIES = ["Dubai Marina", "Abu Dhabi Airport", "Sharjah City", "Ajman Beach", "RAK Resort"];
+  const MONTH_LABELS = ["Apr 2024","May 2024","Jun 2024","Jul 2024","Aug 2024","Sep 2024","Oct 2024","Nov 2024","Dec 2024","Jan 2025","Feb 2025","Mar 2025"];
+  const PROP_BASE: Record<string, { rev: number; adr: number; occ: number; sat: number; staff: number }> = {
+    "Dubai Marina":      { rev: 2800000, adr: 380, occ: 88, sat: 4.5, staff: 950000 },
+    "Abu Dhabi Airport": { rev: 2100000, adr: 290, occ: 84, sat: 4.2, staff: 720000 },
+    "Sharjah City":      { rev: 1400000, adr: 210, occ: 79, sat: 4.0, staff: 480000 },
+    "Ajman Beach":       { rev: 1100000, adr: 185, occ: 76, sat: 4.1, staff: 390000 },
+    "RAK Resort":        { rev:  920000, adr: 165, occ: 72, sat: 4.3, staff: 320000 },
+  };
+  const SEASONAL = [0.95,1.00,0.85,0.78,0.72,0.80,0.97,1.08,1.15,1.12,1.05,1.10];
+
+  let seed = 42;
+  const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+
+  const rows: Record<string, unknown>[] = [];
+  for (let mi = 0; mi < MONTH_LABELS.length; mi++) {
+    for (const prop of PROPERTIES) {
+      const b = PROP_BASE[prop], s = SEASONAL[mi];
+      const n = () => 0.93 + rand() * 0.14;
+      const revenue = Math.round(b.rev * s * n());
+      const adr     = Math.round(b.adr * s * n() * 10) / 10;
+      const occ     = Math.round(Math.min(97, b.occ * s * n()) * 10) / 10;
+      const rooms   = Math.round(occ / 100 * 200);
+      const revpar  = Math.round(adr * occ / 100 * 10) / 10;
+      const sat     = Math.round(Math.min(5.0, Math.max(3.2, b.sat + (rand() - 0.5) * 0.4)) * 10) / 10;
+      const staff   = Math.round(b.staff * s * n());
+      const fb      = Math.round(revenue * (0.18 + rand() * 0.08));
+      const comp    = Math.round(rooms * (0.01 + rand() * 0.025));
+      const gop     = Math.round((revenue - staff - revenue * 0.28) / revenue * 100 * 10) / 10;
+      const nps     = Math.round(50 + sat * 8 + (rand() - 0.5) * 10);
+      rows.push({
+        "Month": MONTH_LABELS[mi], "Property": prop,
+        "Revenue (AED)": revenue, "Rooms Sold": rooms, "ADR (AED)": adr,
+        "Occupancy Rate (%)": occ, "RevPAR (AED)": revpar, "F&B Revenue (AED)": fb,
+        "Guest Satisfaction": sat, "NPS Score": nps, "Staff Cost (AED)": staff,
+        "Guest Complaints": comp, "GOP Margin (%)": gop,
+      });
+    }
+  }
+
+  const dataset = await storage.createAnalyticsDataset({
+    companyId, createdBy: userId,
+    name: "OYO Hotel Performance Data",
+    description: "Monthly hotel performance metrics across 5 UAE properties — Apr 2024 to Mar 2025",
+    fileName: "oyo-hotel-performance.xlsx",
+    sheetNames: ["Hotel Performance"],
+    rowCount: rows.length,
+    rawData: rows as any,
+    status: "active",
+  });
+
+  await storage.upsertAnalyticsDatasetColumns(dataset.id, [
+    { columnName: "Month",              label: "Month",              columnType: "date",      aggregation: null,  format: "text",   position: 0,  isFormula: false },
+    { columnName: "Property",           label: "Property",           columnType: "dimension", aggregation: null,  format: "text",   position: 1,  isFormula: false },
+    { columnName: "Revenue (AED)",      label: "Revenue (AED)",      columnType: "measure",   aggregation: "sum", format: "number", position: 2,  isFormula: false },
+    { columnName: "Rooms Sold",         label: "Rooms Sold",         columnType: "measure",   aggregation: "sum", format: "number", position: 3,  isFormula: false },
+    { columnName: "ADR (AED)",          label: "ADR (AED)",          columnType: "measure",   aggregation: "avg", format: "number", position: 4,  isFormula: false },
+    { columnName: "Occupancy Rate (%)", label: "Occupancy Rate (%)", columnType: "measure",   aggregation: "avg", format: "number", position: 5,  isFormula: false },
+    { columnName: "RevPAR (AED)",       label: "RevPAR (AED)",       columnType: "measure",   aggregation: "avg", format: "number", position: 6,  isFormula: false },
+    { columnName: "F&B Revenue (AED)",  label: "F&B Revenue (AED)",  columnType: "measure",   aggregation: "sum", format: "number", position: 7,  isFormula: false },
+    { columnName: "Guest Satisfaction", label: "Guest Satisfaction", columnType: "measure",   aggregation: "avg", format: "number", position: 8,  isFormula: false },
+    { columnName: "NPS Score",          label: "NPS Score",          columnType: "measure",   aggregation: "avg", format: "number", position: 9,  isFormula: false },
+    { columnName: "Staff Cost (AED)",   label: "Staff Cost (AED)",   columnType: "measure",   aggregation: "sum", format: "number", position: 10, isFormula: false },
+    { columnName: "Guest Complaints",   label: "Guest Complaints",   columnType: "measure",   aggregation: "sum", format: "number", position: 11, isFormula: false },
+    { columnName: "GOP Margin (%)",     label: "GOP Margin (%)",     columnType: "measure",   aggregation: "avg", format: "number", position: 12, isFormula: false },
+  ]);
+
+  // Build aggregated data for hardcoded insights
+  const revenueByProp: Record<string, number> = {};
+  const occupancyByProp: Record<string, number[]> = {};
+  const satisfactionByProp: Record<string, number[]> = {};
+  const gopByMonth: Record<string, number[]> = {};
+  for (const r of rows) {
+    const prop = r["Property"] as string;
+    const month = r["Month"] as string;
+    revenueByProp[prop] = (revenueByProp[prop] || 0) + (r["Revenue (AED)"] as number);
+    if (!occupancyByProp[prop]) occupancyByProp[prop] = [];
+    occupancyByProp[prop].push(r["Occupancy Rate (%)"] as number);
+    if (!satisfactionByProp[prop]) satisfactionByProp[prop] = [];
+    satisfactionByProp[prop].push(r["Guest Satisfaction"] as number);
+    if (!gopByMonth[month]) gopByMonth[month] = [];
+    gopByMonth[month].push(r["GOP Margin (%)"] as number);
+  }
+  const avg = (arr: number[]) => Math.round((arr.reduce((s,v) => s+v,0)/arr.length)*10)/10;
+
+  const revData = PROPERTIES.map(p => ({ name: p, value: revenueByProp[p] || 0 })).sort((a,b) => b.value-a.value);
+  const occData = PROPERTIES.map(p => ({ name: p, value: avg(occupancyByProp[p] || [0]) }));
+  const satData = PROPERTIES.map(p => ({ name: p, value: avg(satisfactionByProp[p] || [0]) }));
+  const gopData = MONTH_LABELS.map(m => ({ name: m, value: avg(gopByMonth[m] || [0]) }));
+
+  const insights: { title: string; question: string; chartType: string; chartConfig: any; narrative: string }[] = [
+    {
+      title: "Total Revenue by Property",
+      question: "What is the total revenue by property for the full period?",
+      chartType: "bar",
+      chartConfig: { chartType: "bar", data: { data: revData, xKey: "name", yKey: "value", measureLabel: "Revenue (AED)", dimensionLabel: "Property" }, measure: "Revenue (AED)", measureLabel: "Revenue (AED)", dimension: "Property", aggregation: "sum" },
+      narrative: `Dubai Marina leads with the highest total revenue at ${(revData[0].value/1000000).toFixed(1)}M AED, followed by Abu Dhabi Airport. RAK Resort has the lowest revenue but maintains strong margins relative to size.`,
+    },
+    {
+      title: "Average Occupancy Rate by Property",
+      question: "Which property has the highest average occupancy rate?",
+      chartType: "bar",
+      chartConfig: { chartType: "bar", data: { data: occData, xKey: "name", yKey: "value", measureLabel: "Occupancy Rate (%)", dimensionLabel: "Property" }, measure: "Occupancy Rate (%)", measureLabel: "Occupancy Rate (%)", dimension: "Property", aggregation: "avg" },
+      narrative: "Dubai Marina consistently achieves the highest occupancy across all properties, driven by its premium location and corporate demand. All properties show strong peak season performance.",
+    },
+    {
+      title: "Guest Satisfaction by Property",
+      question: "Compare guest satisfaction scores by property",
+      chartType: "bar",
+      chartConfig: { chartType: "bar", data: { data: satData, xKey: "name", yKey: "value", measureLabel: "Guest Satisfaction", dimensionLabel: "Property" }, measure: "Guest Satisfaction", measureLabel: "Guest Satisfaction", dimension: "Property", aggregation: "avg" },
+      narrative: "Guest satisfaction scores are consistently high across all properties (3.8–4.6/5.0). Dubai Marina and RAK Resort lead on guest experience, while Sharjah City shows room for improvement.",
+    },
+    {
+      title: "GOP Margin Trend Over Time",
+      question: "Show GOP Margin trend over time",
+      chartType: "line",
+      chartConfig: { chartType: "line", data: { data: gopData, xKey: "name", yKey: "value", measureLabel: "GOP Margin (%)", dimensionLabel: "Month" }, measure: "GOP Margin (%)", measureLabel: "GOP Margin (%)", dimension: "Month", aggregation: "avg" },
+      narrative: "GOP margins peak during high season (Oct–Mar) and dip in summer months (Jun–Aug) as occupancy falls. The portfolio maintains solid profitability throughout the year with margins ranging from 33% to 41%.",
+    },
+  ];
+
+  const insightIds: number[] = [];
+  for (const ins of insights) {
+    const saved = await storage.createAnalyticsInsight({
+      companyId, createdBy: userId, datasetId: dataset.id,
+      title: ins.title, question: ins.question, interpretation: ins.question,
+      chartType: ins.chartType, chartConfig: ins.chartConfig,
+      narrative: ins.narrative, status: "saved",
+    });
+    insightIds.push(saved.id);
+  }
+
+  const dashboard = await storage.createAnalyticsDashboardDefinition({
+    companyId, createdBy: userId,
+    title: "OYO Performance Analytics",
+    description: "Comprehensive hotel performance dashboard tracking revenue, occupancy, guest satisfaction, and operational margins across all 5 UAE properties.",
+    status: "published",
+    visibility: "company",
+    tags: ["hotel", "revenue", "occupancy", "performance"],
+  });
+
+  for (let i = 0; i < insightIds.length; i++) {
+    await storage.addAnalyticsDashboardItem({ dashboardId: dashboard.id, insightId: insightIds[i], position: i });
+  }
+
+  console.log(`Seed: created analytics demo dataset (${rows.length} rows), ${insightIds.length} insights, 1 dashboard`);
+}
+
 export async function seedDatabase() {
   const existing = await storage.getUserByEmail("demo@performo.ai");
 
@@ -612,6 +764,9 @@ export async function seedDatabase() {
 
   // ─── Demo Projects, Tasks, Milestones ────────────────────────────────────
   await seedProjectData(company.id);
+
+  // ─── Analytics Demo Data ──────────────────────────────────────────────
+  await seedAnalyticsData(company.id, user.id);
 
   await storage.upsertSubscription(company.id, {
     planName: "Growth",
