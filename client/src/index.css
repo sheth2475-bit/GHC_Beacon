@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── prevent ALL horizontal scroll on every page ─── */
+html, body { overflow-x: hidden; max-width: 100vw; }
+
 /* ─── react-grid-layout ─── */
 .react-grid-layout { position: relative; transition: height 200ms ease; }
 .react-grid-item { transition: all 200ms ease; transition-property: left, top, width, height; }
@@ -16,6 +19,24 @@
 .react-resizable { position: relative; }
 .react-resizable-handle { position: absolute; width: 20px; height: 20px; box-sizing: border-box; background-position: bottom right; padding: 0 3px 3px 0; }
 .react-resizable-handle-se { bottom: 0; right: 0; cursor: se-resize; }
+
+/* ─── force mobile grid to stack vertically (safety net for JS mobile detection) ─── */
+@media (max-width: 639px) {
+  .react-grid-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    gap: 12px !important;
+    overflow: hidden !important;
+  }
+  .react-grid-item {
+    position: static !important;
+    transform: none !important;
+    width: 100% !important;
+    height: 260px !important;
+  }
+  .react-resizable-handle { display: none !important; }
+}
 
 /* LIGHT MODE */
 :root {
