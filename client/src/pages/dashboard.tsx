@@ -243,7 +243,23 @@ export default function DashboardPage() {
       const eff = a.revisedDueDate || a.dueDate;
       return eff && eff < today && a.status !== "Completed" && a.status !== "Cancelled";
     });
-    return { id: dept.id, name: dept.name, kpiCount: deptKpis.length, actionCount: deptActions.length, overdueCount: overdue.length };
+    const completedActions = deptActions.filter(a => a.status === "Completed").length;
+    const activeActions = deptActions.filter(a => a.status !== "Completed" && a.status !== "Cancelled").length;
+    const kpiGreen = deptKpis.filter(k => latestActualByKpi[k.id]?.status === "Green").length;
+    const kpiAmber = deptKpis.filter(k => latestActualByKpi[k.id]?.status === "Amber").length;
+    const kpiRed = deptKpis.filter(k => latestActualByKpi[k.id]?.status === "Red").length;
+    const kpiNoData = deptKpis.filter(k => !latestActualByKpi[k.id]).length;
+    const deptProjects = (projects || []).filter(p => p.departmentId === dept.id);
+    const activeProjectCount = deptProjects.filter(p => p.status !== "Completed").length;
+    const redProjects = deptProjects.filter(p => p.health === "Red").length;
+    const amberProjects = deptProjects.filter(p => p.health === "Amber").length;
+    return {
+      id: dept.id, name: dept.name,
+      kpiCount: deptKpis.length, actionCount: deptActions.length, overdueCount: overdue.length,
+      completedActions, activeActions,
+      kpiGreen, kpiAmber, kpiRed, kpiNoData,
+      activeProjectCount, redProjects, amberProjects,
+    };
   }).filter(d => d.kpiCount > 0 || d.actionCount > 0);
 
   const pctOnTrack = stats && stats.totalKpis > 0 ? Math.round((stats.onTrack / stats.totalKpis) * 100) : 0;
@@ -556,13 +572,46 @@ export default function DashboardPage() {
                   <WidgetHeader icon={Building2} iconBg="bg-emerald-500/10" iconColor="text-emerald-600">Department Pulse</WidgetHeader>
                   <CardContent className="px-4 pb-3 pt-0 flex-1 overflow-y-auto">
                     {deptSummary.length === 0 ? <p className="text-sm text-muted-foreground py-4 text-center">No departments yet</p> : (
-                      <div className="space-y-2.5">
+                      <div className="space-y-3">
                         {deptSummary.map(dept => {
-                          const overdueRatio = dept.overdueCount / (dept.actionCount || 1);
+                          const overallHealth = dept.overdueCount > 0 || dept.kpiRed > 0 ? "red" : dept.kpiAmber > 0 || dept.amberProjects > 0 ? "amber" : "green";
                           return (
-                            <div key={dept.id} className="space-y-1">
-                              <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold">{dept.name}</span><div className="flex items-center gap-2 text-[10px] text-muted-foreground"><span>{dept.kpiCount} KPIs</span><span>{dept.actionCount} actions</span>{dept.overdueCount > 0 && <span className="text-red-500 font-bold">{dept.overdueCount} late</span>}</div></div>
-                              <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${overdueRatio > 0.3 ? "bg-red-500" : overdueRatio > 0 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.max(8, dept.overdueCount > 0 ? overdueRatio * 100 : 100)}%` }} /></div>
+                            <div key={dept.id} className="rounded-lg border bg-muted/20 p-2.5 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold">{dept.name}</span>
+                                <div className={`w-2 h-2 rounded-full ${overallHealth === "red" ? "bg-red-500" : overallHealth === "amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                              </div>
+                              <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                                <div className="rounded bg-background border px-1.5 py-1">
+                                  <p className="text-muted-foreground font-medium mb-0.5">KPIs</p>
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {dept.kpiGreen > 0 && <span className="flex items-center gap-0.5 text-emerald-600"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />{dept.kpiGreen}</span>}
+                                    {dept.kpiAmber > 0 && <span className="flex items-center gap-0.5 text-amber-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />{dept.kpiAmber}</span>}
+                                    {dept.kpiRed > 0 && <span className="flex items-center gap-0.5 text-red-600"><span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />{dept.kpiRed}</span>}
+                                    {dept.kpiNoData > 0 && <span className="text-muted-foreground">{dept.kpiNoData} N/A</span>}
+                                    {dept.kpiCount === 0 && <span className="text-muted-foreground">—</span>}
+                                  </div>
+                                </div>
+                                <div className="rounded bg-background border px-1.5 py-1">
+                                  <p className="text-muted-foreground font-medium mb-0.5">Projects</p>
+                                  {dept.activeProjectCount === 0 ? <span className="text-muted-foreground">—</span> : (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-foreground font-semibold">{dept.activeProjectCount} active</span>
+                                      {dept.redProjects > 0 && <span className="text-red-600">{dept.redProjects} red</span>}
+                                      {dept.amberProjects > 0 && !dept.redProjects && <span className="text-amber-600">{dept.amberProjects} amber</span>}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="rounded bg-background border px-1.5 py-1">
+                                  <p className="text-muted-foreground font-medium mb-0.5">Actions</p>
+                                  {dept.actionCount === 0 ? <span className="text-muted-foreground">—</span> : (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-foreground font-semibold">{dept.activeActions} active</span>
+                                      {dept.overdueCount > 0 && <span className="text-red-600 font-bold">{dept.overdueCount} overdue</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
@@ -839,24 +888,45 @@ export default function DashboardPage() {
                     {deptSummary.length === 0 ? (
                       <p className="text-sm text-muted-foreground py-4 text-center">No departments yet</p>
                     ) : (
-                      <div className="space-y-2.5">
+                      <div className="space-y-3">
                         {deptSummary.map(dept => {
-                          const overdueRatio = dept.overdueCount / (dept.actionCount || 1);
+                          const overallHealth = dept.overdueCount > 0 || dept.kpiRed > 0 ? "red" : dept.kpiAmber > 0 || dept.amberProjects > 0 ? "amber" : "green";
                           return (
-                            <div key={dept.id} className="space-y-1" data-testid={`row-department-${dept.id}`}>
-                              <div className="flex items-center justify-between gap-2">
+                            <div key={dept.id} className="rounded-lg border bg-muted/20 p-2.5 space-y-2" data-testid={`row-department-${dept.id}`}>
+                              <div className="flex items-center justify-between">
                                 <span className="text-xs font-semibold">{dept.name}</span>
-                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                                  <span>{dept.kpiCount} KPIs</span>
-                                  <span>{dept.actionCount} actions</span>
-                                  {dept.overdueCount > 0 && <span className="text-red-500 font-bold">{dept.overdueCount} late</span>}
-                                </div>
+                                <div className={`w-2 h-2 rounded-full ${overallHealth === "red" ? "bg-red-500" : overallHealth === "amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
                               </div>
-                              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-500 ${overdueRatio > 0.3 ? "bg-red-500" : overdueRatio > 0 ? "bg-amber-500" : "bg-emerald-500"}`}
-                                  style={{ width: `${Math.max(8, dept.overdueCount > 0 ? overdueRatio * 100 : 100)}%` }}
-                                />
+                              <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                                <div className="rounded bg-background border px-1.5 py-1">
+                                  <p className="text-muted-foreground font-medium mb-0.5">KPIs</p>
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {dept.kpiGreen > 0 && <span className="flex items-center gap-0.5 text-emerald-600"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />{dept.kpiGreen}</span>}
+                                    {dept.kpiAmber > 0 && <span className="flex items-center gap-0.5 text-amber-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />{dept.kpiAmber}</span>}
+                                    {dept.kpiRed > 0 && <span className="flex items-center gap-0.5 text-red-600"><span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />{dept.kpiRed}</span>}
+                                    {dept.kpiNoData > 0 && <span className="text-muted-foreground">{dept.kpiNoData} N/A</span>}
+                                    {dept.kpiCount === 0 && <span className="text-muted-foreground">—</span>}
+                                  </div>
+                                </div>
+                                <div className="rounded bg-background border px-1.5 py-1">
+                                  <p className="text-muted-foreground font-medium mb-0.5">Projects</p>
+                                  {dept.activeProjectCount === 0 ? <span className="text-muted-foreground">—</span> : (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="text-foreground font-semibold">{dept.activeProjectCount} active</span>
+                                      {dept.redProjects > 0 && <span className="text-red-600 font-semibold">{dept.redProjects} red</span>}
+                                      {dept.amberProjects > 0 && !dept.redProjects && <span className="text-amber-600">{dept.amberProjects} amber</span>}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="rounded bg-background border px-1.5 py-1">
+                                  <p className="text-muted-foreground font-medium mb-0.5">Actions</p>
+                                  {dept.actionCount === 0 ? <span className="text-muted-foreground">—</span> : (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-foreground font-semibold">{dept.activeActions} active</span>
+                                      {dept.overdueCount > 0 && <span className="text-red-600 font-bold">{dept.overdueCount} overdue</span>}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
