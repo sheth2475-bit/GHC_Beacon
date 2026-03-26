@@ -26,7 +26,9 @@ import type {
 /* ─── measure container width so grid knows its size ─── */
 function useContainerWidth() {
   const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(1200);
+  const [width, setWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
   useEffect(() => {
     if (!ref.current) return;
     setWidth(ref.current.offsetWidth);
@@ -167,7 +169,7 @@ function WidgetHeader({ icon: Icon, iconBg, iconColor, children, right }: {
 /* ─── mobile card wrapper (fixed height, lets inner h-full + scroll work) ─── */
 function MobileCard({ testId, minH, children }: { testId: string; minH: number; children: React.ReactNode }) {
   return (
-    <div data-testid={testId} style={{ height: `${minH}px` }} className="w-full">
+    <div data-testid={testId} style={{ height: `${minH}px` }} className="w-full overflow-hidden">
       {children}
     </div>
   );
@@ -330,8 +332,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="p-4 space-y-3 max-w-screen-2xl mx-auto">
+    <div className="h-full overflow-y-auto overflow-x-hidden">
+      <div className="p-4 space-y-3 max-w-screen-2xl mx-auto w-full">
 
         {/* ═══ Banner ═══ */}
         <div
@@ -399,10 +401,10 @@ export default function DashboardPage() {
         </div>
 
         {/* ═══ Widget grid ═══ */}
-        <div ref={containerRef}>
+        <div ref={containerRef} className="w-full overflow-x-hidden">
           {isMobile ? (
             /* ── Mobile: simple CSS stack, no fixed heights ── */
-            <div className="space-y-3">
+            <div className="space-y-3 w-full">
               {/* Needs Attention */}
               <MobileCard testId="section-todays-focus" minH={300}>
                 <WidgetCard accentClass="bg-gradient-to-r from-amber-500 via-orange-400 to-transparent">
