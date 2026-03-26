@@ -574,6 +574,9 @@ export async function seedDatabase() {
     // ── Ensure platform owner ───────────────────────────────────
     await seedPlatformOwner();
 
+    // ── Seed login logs if none exist ────────────────────────────
+    await seedLoginLogs(companyId, existing.id);
+
     return;
   }
 
@@ -787,4 +790,51 @@ async function seedPlatformOwner() {
   const passwordHash = await hashPassword("owner123");
   await storage.createPlatformOwner({ name: "Platform Owner", email: "owner@performo.ai", passwordHash, isActive: true });
   console.log("Seed: created platform owner → owner@performo.ai / owner123");
+}
+
+async function seedLoginLogs(companyId: number, adminUserId: number) {
+  const existing = await storage.getLoginLogs(1);
+  if (existing.length > 0) return;
+
+  const browsers = ["Chrome", "Firefox", "Safari", "Edge"];
+  const oses = ["Windows", "macOS", "Linux", "iOS", "Android"];
+  const devices = ["Desktop", "Desktop", "Desktop", "Mobile", "Tablet"];
+  const ips = ["192.168.1.10", "10.0.0.5", "203.0.113.42", "198.51.100.7", "172.16.0.33"];
+
+  const allUsers = await storage.getUsersByCompany(companyId);
+  if (allUsers.length === 0) return;
+
+  const now = new Date();
+  const entries: any[] = [];
+
+  for (let daysAgo = 30; daysAgo >= 0; daysAgo--) {
+    const dayBase = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+    const logins = Math.floor(Math.random() * 4) + 1;
+    for (let j = 0; j < logins; j++) {
+      const u = allUsers[Math.floor(Math.random() * allUsers.length)];
+      const bi = Math.floor(Math.random() * browsers.length);
+      const loginAt = new Date(dayBase.getTime() + Math.random() * 8 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000);
+      const failed = Math.random() < 0.08;
+      entries.push({
+        userId: failed ? null : u.id,
+        companyId: failed ? null : companyId,
+        email: u.email,
+        userName: failed ? null : u.name,
+        userRole: failed ? null : u.role,
+        planName: "Growth",
+        status: failed ? "failed" : "success",
+        ipAddress: ips[Math.floor(Math.random() * ips.length)],
+        browser: browsers[bi],
+        os: oses[bi < oses.length ? bi : Math.floor(Math.random() * oses.length)],
+        deviceType: devices[Math.floor(Math.random() * devices.length)],
+        loginAt,
+      });
+    }
+  }
+
+  for (const entry of entries) {
+    await storage.createLoginLog(entry);
+  }
+
+  console.log(`Seed: created ${entries.length} sample login log records`);
 }

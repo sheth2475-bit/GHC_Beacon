@@ -46,6 +46,10 @@ import OwnerKeys from "@/pages/owner-keys";
 import OwnerActivity from "@/pages/owner-activity";
 import OwnerAiUsage from "@/pages/owner-ai-usage";
 import OwnerAudit from "@/pages/owner-audit";
+import OwnerLogins from "@/pages/owner-logins";
+import OwnerUsersPage from "@/pages/owner-users";
+import OwnerFeatureUsage from "@/pages/owner-feature-usage";
+import OwnerCompanyUsage from "@/pages/owner-company-usage";
 
 function AppRouter() {
   const { isAdmin } = useAuth();
@@ -171,6 +175,10 @@ function OwnerArea() {
       <Route path="/owner/activity" component={OwnerActivity} />
       <Route path="/owner/ai-usage" component={OwnerAiUsage} />
       <Route path="/owner/audit" component={OwnerAudit} />
+      <Route path="/owner/logins" component={OwnerLogins} />
+      <Route path="/owner/users" component={OwnerUsersPage} />
+      <Route path="/owner/feature-usage" component={OwnerFeatureUsage} />
+      <Route path="/owner/company-usage" component={OwnerCompanyUsage} />
       <Route component={OwnerDashboard} />
     </Switch>
   );

@@ -1,16 +1,35 @@
 import { useLocation, Link } from "wouter";
 import { useOwnerAuth } from "@/lib/owner-auth";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Building2, Key, Activity, Bot, LogOut, FileText, Shield } from "lucide-react";
+import { LayoutDashboard, Building2, Key, Activity, Bot, LogOut, FileText, Shield, LogIn, Users, BarChart2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
-  { href: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/owner/companies", label: "Companies", icon: Building2 },
-  { href: "/owner/keys", label: "Activation Keys", icon: Key },
-  { href: "/owner/activity", label: "User Activity", icon: Activity },
-  { href: "/owner/ai-usage", label: "AI Usage", icon: Bot },
-  { href: "/owner/audit", label: "Audit Log", icon: FileText },
+const navGroups = [
+  {
+    label: "Overview",
+    items: [
+      { href: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/owner/companies", label: "Companies", icon: Building2 },
+      { href: "/owner/keys", label: "Activation Keys", icon: Key },
+    ],
+  },
+  {
+    label: "Analytics",
+    items: [
+      { href: "/owner/logins", label: "Login Analytics", icon: LogIn },
+      { href: "/owner/users", label: "All Users", icon: Users },
+      { href: "/owner/activity", label: "User Activity", icon: Activity },
+      { href: "/owner/feature-usage", label: "Feature Usage", icon: BarChart2 },
+      { href: "/owner/company-usage", label: "Company Usage", icon: TrendingUp },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { href: "/owner/ai-usage", label: "AI Usage", icon: Bot },
+      { href: "/owner/audit", label: "Audit Log", icon: FileText },
+    ],
+  },
 ];
 
 export function OwnerLayout({ children }: { children: React.ReactNode }) {
@@ -32,19 +51,26 @@ export function OwnerLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href}>
-              <a className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
-                location === href || location.startsWith(href + "/")
-                  ? "bg-blue-600/20 text-blue-400 font-medium"
-                  : "text-gray-400 hover:text-white hover:bg-white/5",
-              )}>
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                {label}
-              </a>
-            </Link>
+        <nav className="flex-1 p-3 overflow-y-auto">
+          {navGroups.map(group => (
+            <div key={group.label} className="mb-4">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider px-3 mb-1">{group.label}</p>
+              <div className="space-y-0.5">
+                {group.items.map(({ href, label, icon: Icon }) => (
+                  <Link key={href} href={href}>
+                    <a className={cn(
+                      "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
+                      location === href || location.startsWith(href + "/")
+                        ? "bg-blue-600/20 text-blue-400 font-medium"
+                        : "text-gray-400 hover:text-white hover:bg-white/5",
+                    )}>
+                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      {label}
+                    </a>
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 

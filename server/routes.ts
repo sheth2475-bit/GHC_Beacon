@@ -202,6 +202,7 @@ export async function registerRoutes(
     const company = await getCompanyForUser(req);
     if (!company) return res.status(400).json({ message: "No company profile" });
     const kpi = await storage.createKpi({ ...req.body, companyId: company.id });
+    logActivity(req.user!.id, company.id, "create_kpi", "kpis", `Created KPI: ${kpi.kpiName}`).catch(() => {});
     res.status(201).json(kpi);
   });
 
@@ -209,6 +210,7 @@ export async function registerRoutes(
     const id = parseInt(req.params.id as string);
     if (!(await verifyKpiOwnership(req, id))) return res.status(404).json({ message: "Not found" });
     const kpi = await storage.updateKpi(id, req.body);
+    logActivity(req.user!.id, req.user!.companyId, "update_kpi", "kpis", `Updated KPI #${id}: ${kpi.kpiName}`).catch(() => {});
     res.json(kpi);
   });
 
@@ -216,6 +218,7 @@ export async function registerRoutes(
     const id = parseInt(req.params.id as string);
     if (!(await verifyKpiOwnership(req, id))) return res.status(404).json({ message: "Not found" });
     await storage.deleteKpi(id);
+    logActivity(req.user!.id, req.user!.companyId, "delete_kpi", "kpis", `Deleted KPI #${id}`).catch(() => {});
     res.json({ ok: true });
   });
 
@@ -266,6 +269,7 @@ export async function registerRoutes(
     const company = await getCompanyForUser(req);
     if (!company) return res.status(400).json({ message: "No company profile" });
     const item = await storage.createActionItem({ ...req.body, companyId: company.id });
+    logActivity(req.user!.id, company.id, "create_action", "actions", `Created action: ${item.title}`).catch(() => {});
     res.status(201).json(item);
   });
 
@@ -276,6 +280,7 @@ export async function registerRoutes(
     const item = await storage.getActionItem(id);
     if (!item || item.companyId !== company.id) return res.status(404).json({ message: "Not found" });
     const updated = await storage.updateActionItem(id, req.body);
+    if (req.body.status) logActivity(req.user!.id, company.id, "update_action", "actions", `Updated action "${item.title}" status → ${req.body.status}`).catch(() => {});
     res.json(updated);
   });
 
@@ -846,6 +851,7 @@ export async function registerRoutes(
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
     const project = await storage.createProject({ ...req.body, companyId: company.id });
+    logActivity(req.user!.id, company.id, "create_project", "initiatives", `Created initiative: ${project.name}`).catch(() => {});
     res.json(project);
   });
 
@@ -857,6 +863,7 @@ export async function registerRoutes(
     if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
     const { createdAt, health, taskCount, completedTaskCount, tasks, milestones, ...safeBody } = req.body;
     const updated = await storage.updateProject(id, safeBody);
+    logActivity(req.user!.id, company.id, "update_project", "initiatives", `Updated initiative: ${existing.name}${req.body.status ? ` → ${req.body.status}` : ""}`).catch(() => {});
     res.json(updated);
   });
 
@@ -867,6 +874,7 @@ export async function registerRoutes(
     const existing = await storage.getProject(id);
     if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
     await storage.deleteProject(id);
+    logActivity(req.user!.id, company.id, "delete_project", "initiatives", `Deleted initiative: ${existing.name}`).catch(() => {});
     res.json({ ok: true });
   });
 
@@ -896,6 +904,7 @@ export async function registerRoutes(
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
     const task = await storage.createTask({ ...req.body, companyId: company.id });
+    logActivity(req.user!.id, company.id, "create_task", "initiatives", `Created task: ${task.title}`).catch(() => {});
     res.json(task);
   });
 
@@ -906,6 +915,7 @@ export async function registerRoutes(
     const existing = await storage.getTask(id);
     if (!existing || existing.companyId !== company.id) return res.status(404).json({ message: "Not found" });
     const updated = await storage.updateTask(id, req.body);
+    if (req.body.status) logActivity(req.user!.id, company.id, "update_task", "initiatives", `Task "${existing.title}" → ${req.body.status}`).catch(() => {});
     res.json(updated);
   });
 
