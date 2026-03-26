@@ -98,86 +98,87 @@ const GUIDE_STEPS = [
   {
     step: "01",
     icon: Building2,
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
+    color: "text-blue-400",
+    bg: "bg-blue-500/20",
+    borderColor: "border-blue-500/30",
+    stat: "< 3 min",
+    statLabel: "to set up",
     title: "Set up your company profile",
     desc: "Enter your company name, industry, and departments. Performo pre-populates common department structures for your sector.",
-    example: {
-      label: "Example from demo",
-      content: "OYO Hospitality set up 4 departments: Sales & Revenue, Operations, HR & Admin, and Finance — in under 3 minutes.",
-    },
+    example: "OYO Hospitality: 4 departments — Sales & Revenue, Operations, HR & Admin, Finance.",
   },
   {
     step: "02",
     icon: Target,
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/20",
+    borderColor: "border-emerald-500/30",
+    stat: "12 KPIs",
+    statLabel: "AI-generated",
     title: "Build your KPI library",
-    desc: "Use AI to generate a full KPI library tailored to your industry, or add your own manually. Set targets, tracking frequency, and owners.",
-    example: {
-      label: "Example from demo",
-      content: "The AI generated 12 KPIs for OYO including Monthly Revenue (Target: AED 4.8M), Occupancy Rate (Target: 82%), NPS Score (Target: 72), and Cost Per Available Room (Target: AED 185).",
-    },
+    desc: "AI generates a full KPI library for your industry in seconds. Set targets, tracking frequency, and owners for each metric.",
+    example: "OYO: Revenue (AED 4.8M target), Occupancy Rate (82%), NPS (72), Cost Per Room (AED 185).",
   },
   {
     step: "03",
     icon: CalendarDays,
-    color: "text-violet-500",
-    bg: "bg-violet-500/10",
+    color: "text-violet-400",
+    bg: "bg-violet-500/20",
+    borderColor: "border-violet-500/30",
+    stat: "4 actions",
+    statLabel: "logged & owned",
     title: "Run meetings and log actions",
-    desc: "After each meeting, log what was discussed and assign action items with owners, due dates, and priorities. Everything becomes trackable.",
-    example: {
-      label: "Example from demo",
-      content: "After the Monthly CEO Review, Dharmesh logged 4 actions: finalise loyalty programme vendor (High), submit F&B menu redesign by 15th, and update occupancy forecast.",
-    },
+    desc: "After each meeting, assign action items with owners, due dates, and priorities. Everything becomes trackable — nothing slips.",
+    example: "After the Monthly CEO Review: finalise loyalty vendor, submit F&B redesign, update occupancy forecast.",
   },
   {
     step: "04",
     icon: Briefcase,
-    color: "text-pink-500",
-    bg: "bg-pink-500/10",
+    color: "text-pink-400",
+    bg: "bg-pink-500/20",
+    borderColor: "border-pink-500/30",
+    stat: "3 projects",
+    statLabel: "with live health scores",
     title: "Track strategic projects",
     desc: "Create projects, break them into tasks and milestones, and monitor health scores (Green / Amber / Red) across your portfolio.",
-    example: {
-      label: "Example from demo",
-      content: "OYO is running 3 projects: Loyalty Program Launch (55% complete, Green), F&B Menu Overhaul (40%, Amber), and Staff Retention Initiative (30%, Red — behind schedule).",
-    },
+    example: "OYO: Loyalty Program (55%, Green), F&B Overhaul (40%, Amber), Staff Retention (30%, Red).",
   },
   {
     step: "05",
     icon: Upload,
-    color: "text-indigo-500",
-    bg: "bg-indigo-500/10",
+    color: "text-indigo-400",
+    bg: "bg-indigo-500/20",
+    borderColor: "border-indigo-500/30",
+    stat: "3 seconds",
+    statLabel: "to get a chart",
     title: "Upload data & ask questions",
-    desc: "Drop any Excel or CSV file into Analytics Studio, then ask natural-language questions. The AI picks the best chart, detects trends, and flags anomalies — automatically.",
-    example: {
-      label: "Example from demo",
-      content: "OYO uploaded 12 months of hotel performance data across 5 properties. Asked: \"Which property has the highest revenue?\" — got a bar chart in 3 seconds with trend badges and a top performer callout.",
-    },
+    desc: "Drop any Excel or CSV into Analytics Studio and ask questions in plain English. AI picks the best chart, detects trends, flags anomalies.",
+    example: "\"Which property has the highest revenue?\" → bar chart with trend badges and top performer callout.",
+    isNew: true,
   },
   {
     step: "06",
     icon: FileText,
-    color: "text-teal-500",
-    bg: "bg-teal-500/10",
+    color: "text-teal-400",
+    bg: "bg-teal-500/20",
+    borderColor: "border-teal-500/30",
+    stat: "8 seconds",
+    statLabel: "full review written",
     title: "Generate monthly performance reviews",
-    desc: "At month-end, hit 'Generate Review' and Performo AI writes a structured performance narrative — strengths, gaps, and recommendations — ready to share with your board.",
-    example: {
-      label: "Example from demo",
-      content: "Performo generated OYO's March review in 8 seconds: highlighted +12% revenue vs target, flagged Occupancy Rate at 74% (below 82% target), and recommended focusing F&B cost reduction.",
-    },
+    desc: "At month-end, hit Generate Review. Performo AI writes a structured narrative — strengths, gaps, and recommendations — board-ready.",
+    example: "OYO March review: +12% revenue highlighted, Occupancy Rate at 74% flagged, F&B cost reduction recommended.",
   },
   {
     step: "07",
     icon: Bot,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
+    color: "text-amber-400",
+    bg: "bg-amber-500/20",
+    borderColor: "border-amber-500/30",
+    stat: "3 KPIs",
+    statLabel: "flagged instantly",
     title: "Ask the AI assistant anything",
-    desc: "Open the AI assistant and ask natural-language questions about your data. It reads your KPIs, actions, projects, and reviews to give grounded answers.",
-    example: {
-      label: "Example from demo",
-      content: "Dharmesh asked: \"Which KPIs are below target this month?\" — Performo replied: \"3 KPIs are off-target: Occupancy Rate (74% vs 82%), NPS (64 vs 72), and Cost Per Room (AED 210 vs AED 185).\"",
-    },
+    desc: "Open the AI assistant and ask anything about your data. It reads your KPIs, actions, projects, and reviews to give grounded answers.",
+    example: "\"Which KPIs are below target?\" → Occupancy (74% vs 82%), NPS (64 vs 72), Cost Per Room (AED 210 vs 185).",
   },
 ];
 
@@ -766,47 +767,127 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══ GUIDE ═════════════════════════════════════════════════════════════ */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ══ GUIDE — INFOGRAPHIC ════════════════════════════════════════════════ */}
+      <section className="py-24 bg-slate-900 relative overflow-hidden">
+        {/* Background glows */}
+        <div className="absolute top-0 left-1/4 w-[600px] h-[400px] bg-blue-600/10 rounded-full blur-3xl -translate-y-1/2" />
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[400px] bg-violet-600/10 rounded-full blur-3xl translate-y-1/3" />
+        <div className="absolute top-1/2 left-0 w-72 h-72 bg-emerald-600/8 rounded-full blur-3xl" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          {/* Header */}
           <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 text-blue-600 text-sm font-semibold uppercase tracking-wider mb-3">
-              <span className="h-px w-8 bg-blue-300" /> Step-by-step playbook <span className="h-px w-8 bg-blue-300" />
+            <div className="inline-flex items-center gap-2 text-blue-400 text-sm font-semibold uppercase tracking-wider mb-3">
+              <span className="h-px w-8 bg-blue-400/40" />
+              Step-by-step playbook
+              <span className="h-px w-8 bg-blue-400/40" />
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">How teams use Performo</h2>
-            <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto">
-              From first login to board-ready analytics — here's the full workflow with real examples from our OYO Hospitality demo.
+            <h2 className="text-3xl sm:text-4xl font-bold text-white">How teams use Performo</h2>
+            <p className="mt-3 text-lg text-slate-400 max-w-2xl mx-auto">
+              Seven steps from first login to board-ready analytics — with real results from the OYO Hospitality demo.
             </p>
           </div>
 
-          <div className="space-y-6 max-w-4xl mx-auto">
-            {GUIDE_STEPS.map((step, i) => (
-              <div key={step.step} className="flex gap-5 bg-white rounded-2xl border border-gray-100 p-6 hover:shadow-sm transition-shadow">
-                <div className="flex-none">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${step.bg}`}>
-                    <step.icon className={`h-6 w-6 ${step.color}`} />
+          {/* ── Row 1: Steps 01–04 ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            {GUIDE_STEPS.slice(0, 4).map((step, i) => (
+              <div key={step.step} className="relative group">
+                <div className={`h-full bg-white/5 border ${step.borderColor} rounded-2xl p-5 flex flex-col gap-3 hover:bg-white/8 hover:border-white/25 transition-all duration-200 overflow-hidden`}>
+                  {/* Watermark number */}
+                  <span className="absolute -top-2 -right-1 text-8xl font-black text-white/[0.04] leading-none select-none pointer-events-none">{step.step}</span>
+                  {/* Step pill */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black text-white/25 uppercase tracking-widest">Step {step.step}</span>
                   </div>
+                  {/* Icon */}
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${step.bg} shrink-0`}>
+                    <step.icon className={`h-5 w-5 ${step.color}`} />
+                  </div>
+                  {/* Title + desc */}
+                  <div className="flex-1">
+                    <h3 className="text-sm font-bold text-white mb-1.5 leading-snug">{step.title}</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">{step.desc}</p>
+                  </div>
+                  {/* Divider */}
+                  <div className={`h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent`} />
+                  {/* Stat */}
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-xl font-black ${step.color}`}>{step.stat}</span>
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wide font-semibold leading-tight">{step.statLabel}</span>
+                  </div>
+                  {/* Example */}
+                  <p className="text-[10px] text-slate-500 leading-relaxed italic border-l-2 border-white/10 pl-2">{step.example}</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-1 flex-wrap">
-                    <span className="text-xs font-black text-gray-300">STEP {step.step}</span>
-                    {step.step === "05" && (
-                      <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">New</span>
-                    )}
+                {/* Arrow connector — desktop only, not last card */}
+                {i < 3 && (
+                  <div className="hidden lg:flex absolute top-1/2 -right-[1.375rem] -translate-y-1/2 z-10 h-7 w-7 items-center justify-center rounded-full bg-slate-800 border border-slate-600 shadow-lg">
+                    <ArrowRight className="h-3 w-3 text-slate-400" />
                   </div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1.5">{step.title}</h3>
-                  <p className="text-sm text-gray-600 leading-relaxed mb-3">{step.desc}</p>
-                  <div className="bg-gray-50 border border-gray-100 rounded-lg p-3">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{step.example.label}</p>
-                    <p className="text-xs text-gray-600 leading-relaxed">{step.example.content}</p>
-                  </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
 
-          <div className="text-center mt-10">
-            <a href="/guide" className="inline-flex items-center gap-2 text-blue-600 font-semibold text-sm hover:underline">
+          {/* ── Row connector ── */}
+          <div className="hidden lg:flex items-center gap-3 my-1 px-1">
+            <div className="flex-[3] h-px bg-transparent" />
+            <div className="flex-1 flex flex-col items-end gap-0 pr-[12.5%]">
+              <div className="h-3 w-full border-r-2 border-b-2 border-slate-700 rounded-br-lg" />
+            </div>
+          </div>
+          <div className="hidden lg:flex items-center gap-3 mb-1 px-1">
+            <div className="flex-1 flex flex-col items-start gap-0 pl-[0%]">
+              <div className="h-3 w-[calc(100%/3+0.5rem)] border-l-2 border-t-2 border-slate-700 rounded-tl-lg" />
+            </div>
+            <div className="flex-[3] h-px bg-transparent" />
+          </div>
+
+          {/* ── Row 2: Steps 05–07 ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {GUIDE_STEPS.slice(4).map((step, i) => (
+              <div key={step.step} className="relative group">
+                <div className={`h-full bg-white/5 border ${step.borderColor} rounded-2xl p-5 flex flex-col gap-3 hover:bg-white/8 hover:border-white/25 transition-all duration-200 overflow-hidden`}>
+                  {/* Watermark number */}
+                  <span className="absolute -top-2 -right-1 text-8xl font-black text-white/[0.04] leading-none select-none pointer-events-none">{step.step}</span>
+                  {/* Step pill + New badge */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black text-white/25 uppercase tracking-widest">Step {step.step}</span>
+                    {(step as any).isNew && (
+                      <span className="text-[9px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full leading-none">New</span>
+                    )}
+                  </div>
+                  {/* Icon */}
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${step.bg} shrink-0`}>
+                    <step.icon className={`h-5 w-5 ${step.color}`} />
+                  </div>
+                  {/* Title + desc */}
+                  <div className="flex-1">
+                    <h3 className="text-sm font-bold text-white mb-1.5 leading-snug">{step.title}</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">{step.desc}</p>
+                  </div>
+                  {/* Divider */}
+                  <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                  {/* Stat */}
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-xl font-black ${step.color}`}>{step.stat}</span>
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wide font-semibold leading-tight">{step.statLabel}</span>
+                  </div>
+                  {/* Example */}
+                  <p className="text-[10px] text-slate-500 leading-relaxed italic border-l-2 border-white/10 pl-2">{step.example}</p>
+                </div>
+                {/* Arrow connector — desktop only, not last card */}
+                {i < 2 && (
+                  <div className="hidden lg:flex absolute top-1/2 -right-[1.375rem] -translate-y-1/2 z-10 h-7 w-7 items-center justify-center rounded-full bg-slate-800 border border-slate-600 shadow-lg">
+                    <ArrowRight className="h-3 w-3 text-slate-400" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="text-center mt-12">
+            <a href="/guide" className="inline-flex items-center gap-2 text-blue-400 font-semibold text-sm hover:text-blue-300 transition-colors">
               Open the full interactive guide <ChevronRight className="h-4 w-4" />
             </a>
           </div>
