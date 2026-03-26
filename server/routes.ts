@@ -1959,6 +1959,72 @@ You can help the user understand their data, suggest chart types, explain insigh
       res.json(updated);
     });
 
+    // Replace dataset file — re-parses the file, preserves column config for matching columns
+    app.post("/api/v2/analytics/datasets/:id/replace", requireAuth, v2Upload.single("file"), async (req: Request, res: Response) => {
+      try {
+        const datasetId = Number(req.params.id);
+        if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+        const ds = await storage.getAnalyticsDataset(datasetId);
+        if (!ds) return res.status(404).json({ message: "Dataset not found" });
+
+        // Parse new file
+        const wb = xlsx.read(req.file.buffer, { type: "buffer", cellDates: true });
+        const sheetNames = wb.SheetNames;
+        const sheet = wb.Sheets[sheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(sheet, { defval: null, cellDates: true }) as Record<string, unknown>[];
+        const newColumns = rows.length ? Object.keys(rows[0]) : [];
+
+        const normalizeVal = (v: unknown) =>
+          v instanceof Date ? v.toISOString().split("T")[0] : v;
+        const normalizedRows = rows.map(r =>
+          Object.fromEntries(Object.entries(r).map(([k, v]) => [k, normalizeVal(v)]))
+        );
+
+        // Update raw data on the dataset
+        await storage.updateAnalyticsDataset(datasetId, {
+          fileName: req.file.originalname,
+          sheetNames,
+          rowCount: rows.length,
+          rawData: normalizedRows.slice(0, 5000) as unknown as Record<string, unknown>[],
+        });
+
+        // Get existing column config so we can preserve labels/types for matching columns
+        const existingCols = await storage.getAnalyticsDatasetColumns(datasetId);
+        const existingMap = new Map(existingCols.map(c => [c.columnName, c]));
+
+        const colDefs = newColumns.map((col, i) => {
+          const existing = existingMap.get(col);
+          if (existing) {
+            // Preserve existing configuration
+            return {
+              columnName: col,
+              label: existing.label,
+              columnType: existing.columnType,
+              aggregation: existing.aggregation,
+              format: existing.format || "number",
+              dateFormat: existing.dateFormat || null,
+              dateGrains: existing.dateGrains || [],
+              isFormula: existing.isFormula || false,
+              formulaExpression: existing.formulaExpression || null,
+              position: i,
+            };
+          }
+          // New column — auto-detect
+          const vals = rows.map(r => r[col]);
+          const type = autoDetectColumnType(vals, col);
+          return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
+        });
+
+        const savedCols = await storage.upsertAnalyticsDatasetColumns(datasetId, colDefs);
+        const updated = await storage.getAnalyticsDataset(datasetId);
+        res.json({ ...updated, columns: savedCols, rowCount: rows.length });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Replace failed" });
+      }
+    });
+
     app.delete("/api/v2/analytics/datasets/:id", requireAuth, async (req: Request, res: Response) => {
       await storage.deleteAnalyticsDataset(Number(req.params.id));
       res.json({ ok: true });

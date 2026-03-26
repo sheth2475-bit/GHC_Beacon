@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, ArrowRight, Loader2, Database, Save, CheckCircle2,
   Info, Sparkles, Settings2, Hash, Calendar, AlignLeft, EyeOff,
+  Upload, FileSpreadsheet, RefreshCw, ChevronDown, ChevronUp, X,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsDatasetColumn } from "@shared/schema";
 
@@ -63,6 +64,48 @@ export default function AnalyticsConfigurePage() {
   });
 
   const [cols, setCols] = useState<ColState[]>([]);
+
+  // Replace data state
+  const [replaceOpen, setReplaceOpen] = useState(false);
+  const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [replaceDragOver, setReplaceDragOver] = useState(false);
+  const replaceFileRef = useRef<HTMLInputElement>(null);
+
+  const handleReplaceFile = useCallback((f: File) => {
+    if (!f.name.match(/\.(xlsx|xls|csv)$/i)) {
+      toast({ title: "Invalid file", description: "Please upload an Excel (.xlsx, .xls) or CSV file.", variant: "destructive" });
+      return;
+    }
+    setReplaceFile(f);
+  }, [toast]);
+
+  const replaceMutation = useMutation({
+    mutationFn: async (f: File) => {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch(`/api/v2/analytics/datasets/${id}/replace`, {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Replace failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/datasets", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/datasets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/dashboards"] });
+      setReplaceFile(null);
+      setReplaceOpen(false);
+      toast({ title: "Data replaced!", description: `${data.rowCount?.toLocaleString()} rows loaded. Dashboards and insights will reflect the updated data.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Replace failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     if (ds?.columns) {
@@ -168,6 +211,96 @@ export default function AnalyticsConfigurePage() {
             </span>
           )}
         </div>
+
+        {/* Replace Data Panel */}
+        <Card className="border-dashed">
+          <CardContent className="p-0">
+            <button
+              onClick={() => setReplaceOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/30 transition-colors rounded-xl"
+              data-testid="button-toggle-replace"
+            >
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                <span>Replace Data File</span>
+                <span className="text-xs text-muted-foreground font-normal">— upload a new version of this dataset</span>
+              </div>
+              {replaceOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {replaceOpen && (
+              <div className="px-4 pb-4 space-y-3">
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2.5 flex items-start gap-2">
+                  <Info className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Column labels and types will be preserved for any columns that exist in both files. New columns will be auto-detected. All dashboards and insights will update automatically.
+                  </p>
+                </div>
+
+                {/* Current file info */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  <span>Current file: <span className="font-medium text-foreground">{ds.fileName}</span></span>
+                  <span>·</span>
+                  <span>{ds.rowCount?.toLocaleString()} rows</span>
+                </div>
+
+                {/* Drop zone */}
+                {!replaceFile ? (
+                  <div
+                    onDragOver={e => { e.preventDefault(); setReplaceDragOver(true); }}
+                    onDragLeave={() => setReplaceDragOver(false)}
+                    onDrop={e => { e.preventDefault(); setReplaceDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleReplaceFile(f); }}
+                    onClick={() => replaceFileRef.current?.click()}
+                    className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed py-8 cursor-pointer transition-colors ${replaceDragOver ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40 hover:bg-muted/20"}`}
+                    data-testid="dropzone-replace"
+                  >
+                    <Upload className="h-7 w-7 text-muted-foreground/50" />
+                    <div className="text-center">
+                      <p className="text-sm font-medium">Drop your updated file here</p>
+                      <p className="text-xs text-muted-foreground">or click to browse · .xlsx, .xls, .csv</p>
+                    </div>
+                    <input
+                      ref={replaceFileRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleReplaceFile(f); }}
+                      data-testid="input-replace-file"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+                    <FileSpreadsheet className="h-5 w-5 text-emerald-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{replaceFile.name}</p>
+                      <p className="text-xs text-muted-foreground">{(replaceFile.size / 1024).toFixed(1)} KB · Ready to upload</p>
+                    </div>
+                    <button onClick={() => setReplaceFile(null)} className="text-muted-foreground hover:text-foreground" data-testid="button-clear-replace-file">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
+                {replaceFile && (
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setReplaceFile(null)} data-testid="button-cancel-replace">Cancel</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => replaceMutation.mutate(replaceFile)}
+                      disabled={replaceMutation.isPending}
+                      className="gap-1.5"
+                      data-testid="button-confirm-replace"
+                    >
+                      {replaceMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      Replace Data
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Legend */}
         <Card className="bg-muted/30">
