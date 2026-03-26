@@ -1132,13 +1132,29 @@ export async function registerRoutes(
   app.get("/api/workload", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
-    const allTasks = await storage.getTasks(company.id);
+
+    const [allTasks, allActionItems] = await Promise.all([
+      storage.getTasks(company.id),
+      storage.getActionItems(company.id),
+    ]);
+
     const today = new Date().toISOString().split("T")[0];
-    const byAssignee: Record<string, { name: string; total: number; notStarted: number; inProgress: number; completed: number; overdue: number; tasks: typeof allTasks }> = {};
+
+    type WorkloadEntry = {
+      name: string; total: number; notStarted: number; inProgress: number;
+      completed: number; overdue: number; tasks: typeof allTasks;
+    };
+    const byAssignee: Record<string, WorkloadEntry> = {};
+
+    const ensure = (name: string) => {
+      if (!byAssignee[name]) byAssignee[name] = { name, total: 0, notStarted: 0, inProgress: 0, completed: 0, overdue: 0, tasks: [] };
+      return byAssignee[name];
+    };
+
+    // Aggregate project tasks
     for (const task of allTasks) {
       const name = task.assignee || "Unassigned";
-      if (!byAssignee[name]) byAssignee[name] = { name, total: 0, notStarted: 0, inProgress: 0, completed: 0, overdue: 0, tasks: [] };
-      const a = byAssignee[name];
+      const a = ensure(name);
       a.total++;
       a.tasks.push(task);
       if (task.status === "Completed") a.completed++;
@@ -1146,6 +1162,22 @@ export async function registerRoutes(
       else a.notStarted++;
       if (task.dueDate && task.dueDate < today && task.status !== "Completed") a.overdue++;
     }
+
+    // Aggregate action items — strip role/title suffixes from owner names like "Ghadir (PMO Secretary)"
+    for (const action of allActionItems) {
+      const rawName = action.ownerName || "Unassigned";
+      // Remove parenthetical role suffixes: "Fatima Al Rashid (HR Manager)" → "Fatima Al Rashid"
+      const name = rawName.replace(/\s*\(.*?\)\s*$/, "").trim() || "Unassigned";
+      const a = ensure(name);
+      a.total++;
+      const status = action.status || "Not Started";
+      if (status === "Completed") a.completed++;
+      else if (status === "In Progress" || status === "Delayed") a.inProgress++;
+      else a.notStarted++;
+      const dueDate = action.revisedDueDate || action.dueDate;
+      if (dueDate && dueDate < today && status !== "Completed") a.overdue++;
+    }
+
     res.json(Object.values(byAssignee).sort((a, b) => b.total - a.total));
   });
 
