@@ -1846,6 +1846,34 @@ You can help the user understand their data, suggest chart types, explain insigh
     }
 
     // Helper: aggregate data for chart
+    // Evaluates formula columns (isFormula=true) and augments each row with computed values
+    function applyFormulaColumns(
+      rows: Record<string, unknown>[],
+      columns: { columnName: string; label: string; isFormula?: boolean | null; formulaExpression?: string | null }[]
+    ): Record<string, unknown>[] {
+      const formulaCols = columns.filter(c => c.isFormula && c.formulaExpression);
+      if (!formulaCols.length) return rows;
+      return rows.map(row => {
+        const out = { ...row };
+        for (const col of formulaCols) {
+          try {
+            let expr = col.formulaExpression!;
+            for (const c of columns.filter(x => !x.isFormula)) {
+              const labelRe = new RegExp(`\\[${c.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`, "g");
+              const nameRe  = new RegExp(`\\[${c.columnName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`, "g");
+              const val = String(Number(row[c.columnName]) || 0);
+              expr = expr.replace(labelRe, val).replace(nameRe, val);
+            }
+            expr = expr.replace(/\[[^\]]+\]/g, "0"); // safety: replace any remaining [refs] with 0
+            // eslint-disable-next-line no-new-func
+            const result = new Function(`"use strict"; return (${expr})`)();
+            out[col.columnName] = typeof result === "number" && isFinite(result) ? Math.round(result * 1000) / 1000 : 0;
+          } catch { out[col.columnName] = 0; }
+        }
+        return out;
+      });
+    }
+
     function aggregateData(
       rows: Record<string, unknown>[],
       measure: string,
@@ -2102,7 +2130,9 @@ You can help the user understand their data, suggest chart types, explain insigh
         if (!ds || !company) return res.status(404).json({ message: "Not found" });
 
         const columns = await storage.getAnalyticsDatasetColumns(ds.id);
-        const rows = (ds.rawData as Record<string, unknown>[]) || [];
+        const rawRows = (ds.rawData as Record<string, unknown>[]) || [];
+        // Augment rows with computed formula column values
+        const rows = applyFormulaColumns(rawRows, columns);
         const { question, chartTypeOverride, previousQuestion, previousResult } = req.body as {
           question: string;
           chartTypeOverride?: string;
@@ -2341,7 +2371,8 @@ IMPORTANT:
         if (!ds || !company) return res.status(404).json({ message: "Not found" });
 
         const columns = await storage.getAnalyticsDatasetColumns(ds.id);
-        const rows = (ds.rawData as Record<string, unknown>[]) || [];
+        const rawRows = (ds.rawData as Record<string, unknown>[]) || [];
+        const rows = applyFormulaColumns(rawRows, columns);
         const measures = columns.filter(c => c.columnType === "measure");
         const dimensions = columns.filter(c => c.columnType === "dimension");
 
@@ -2480,7 +2511,8 @@ Return a JSON object with key "insights" containing an array:
           if (!cfg.measure) continue;
           const ds = await storage.getAnalyticsDataset(insight.datasetId);
           if (!ds) continue;
-          const rows = (ds.rawData as Record<string, unknown>[]) || [];
+          const dsColumns = await storage.getAnalyticsDatasetColumns(insight.datasetId);
+          const rows = applyFormulaColumns((ds.rawData as Record<string, unknown>[]) || [], dsColumns);
           if (!rows.length) continue;
           const agg = cfg.aggregation || "sum";
           const measure = cfg.measure;

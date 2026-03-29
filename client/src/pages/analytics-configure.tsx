@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -12,6 +13,7 @@ import {
   ArrowLeft, ArrowRight, Loader2, Database, Save, CheckCircle2,
   Info, Sparkles, Settings2, Hash, Calendar, AlignLeft, EyeOff,
   Upload, FileSpreadsheet, RefreshCw, ChevronDown, ChevronUp, X,
+  Plus, Sigma, Trash2, FlaskConical, AlertCircle,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsDatasetColumn } from "@shared/schema";
 
@@ -64,6 +66,89 @@ export default function AnalyticsConfigurePage() {
   });
 
   const [cols, setCols] = useState<ColState[]>([]);
+
+  // Custom Measures state
+  const [measuresOpen, setMeasuresOpen] = useState(true);
+  const [addingMeasure, setAddingMeasure] = useState(false);
+  const [editingMeasureIdx, setEditingMeasureIdx] = useState<number | null>(null);
+  const [newMeasureName, setNewMeasureName] = useState("");
+  const [newMeasureFormula, setNewMeasureFormula] = useState("");
+  const [newMeasureAgg, setNewMeasureAgg] = useState("sum");
+  const [newMeasureFormat, setNewMeasureFormat] = useState("number");
+  const [previewResult, setPreviewResult] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const formulaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Insert [Label] at cursor in formula textarea
+  const insertColRef = useCallback((label: string) => {
+    const ta = formulaRef.current;
+    if (!ta) { setNewMeasureFormula(f => f + `[${label}]`); return; }
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    const insert = `[${label}]`;
+    const next = ta.value.slice(0, start) + insert + ta.value.slice(end);
+    setNewMeasureFormula(next);
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(start + insert.length, start + insert.length); }, 0);
+  }, []);
+
+  // Evaluate formula against first raw row for preview
+  const previewFormula = useCallback(() => {
+    const rawRows = (ds as any)?.rawData as Record<string, unknown>[] | undefined;
+    if (!rawRows?.length || !newMeasureFormula.trim()) { setPreviewResult(null); return; }
+    const baseRow = rawRows[0];
+    try {
+      let expr = newMeasureFormula;
+      for (const c of cols.filter(x => !x.isFormula)) {
+        const labelRe = new RegExp(`\\[${c.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`, "g");
+        const nameRe  = new RegExp(`\\[${c.columnName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`, "g");
+        const val = String(Number(baseRow[c.columnName]) || 0);
+        expr = expr.replace(labelRe, val).replace(nameRe, val);
+      }
+      expr = expr.replace(/\[[^\]]+\]/g, "0");
+      // eslint-disable-next-line no-new-func
+      const result = new Function(`"use strict"; return (${expr})`)();
+      setPreviewResult(typeof result === "number" && isFinite(result) ? String(Math.round(result * 1000) / 1000) : "Error");
+      setPreviewError(null);
+    } catch (e: any) {
+      setPreviewResult(null);
+      setPreviewError(e.message || "Invalid formula");
+    }
+  }, [newMeasureFormula, cols, ds]);
+
+  const resetMeasureForm = () => {
+    setAddingMeasure(false); setEditingMeasureIdx(null);
+    setNewMeasureName(""); setNewMeasureFormula(""); setNewMeasureAgg("sum"); setNewMeasureFormat("number");
+    setPreviewResult(null); setPreviewError(null);
+  };
+
+  const addMeasure = () => {
+    if (!newMeasureName.trim() || !newMeasureFormula.trim()) return;
+    const colName = `__formula_${newMeasureName.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`;
+    const newCol: ColState = {
+      id: -Date.now(), columnName: colName, label: newMeasureName.trim(),
+      columnType: "measure", aggregation: newMeasureAgg, format: newMeasureFormat,
+      dateFormat: "", dateGrains: [], position: cols.length,
+      isFormula: true, formulaExpression: newMeasureFormula.trim(),
+    };
+    if (editingMeasureIdx !== null) {
+      setCols(prev => prev.map((c, i) => i === editingMeasureIdx ? { ...c, label: newMeasureName.trim(), formulaExpression: newMeasureFormula.trim(), aggregation: newMeasureAgg, format: newMeasureFormat } : c));
+    } else {
+      setCols(prev => [...prev, newCol]);
+    }
+    resetMeasureForm();
+  };
+
+  const startEditMeasure = (idx: number) => {
+    const c = cols[idx];
+    setNewMeasureName(c.label); setNewMeasureFormula(c.formulaExpression); setNewMeasureAgg(c.aggregation); setNewMeasureFormat(c.format);
+    setEditingMeasureIdx(idx); setAddingMeasure(true); setPreviewResult(null); setPreviewError(null);
+  };
+
+  const deleteMeasure = (idx: number) => setCols(prev => prev.filter((_, i) => i !== idx));
+
+  // Source columns (non-formula) for chips
+  const sourceCols = cols.filter(c => !c.isFormula && c.columnType !== "ignore");
+  const formulaCols = cols.filter(c => c.isFormula);
 
   // Replace data state
   const [replaceOpen, setReplaceOpen] = useState(false);
@@ -334,6 +419,7 @@ export default function AnalyticsConfigurePage() {
           </div>
           <div className="divide-y">
             {cols.map((col, idx) => {
+              if (col.isFormula) return null; // formula cols managed in Custom Measures section
               const Icon = TYPE_ICONS[col.columnType] || AlignLeft;
               return (
                 <div key={col.columnName} className={`grid grid-cols-[1fr_140px_120px_120px] items-center px-4 py-2.5 hover:bg-muted/20 transition-colors ${col.columnType === "ignore" ? "opacity-50" : ""}`} data-testid={`col-row-${idx}`}>
@@ -408,6 +494,208 @@ export default function AnalyticsConfigurePage() {
             })}
           </div>
         </div>
+
+        {/* ═══════ Custom Measures ═══════ */}
+        <Card>
+          <CardContent className="p-0">
+            {/* Section header */}
+            <button
+              onClick={() => setMeasuresOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/30 transition-colors rounded-xl"
+              data-testid="button-toggle-measures"
+            >
+              <div className="flex items-center gap-2">
+                <Sigma className="h-4 w-4 text-purple-600" />
+                <span>Custom Measures</span>
+                {formulaCols.length > 0 && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 border border-purple-500/20">
+                    {formulaCols.length}
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground font-normal">— calculated fields built from existing columns</span>
+              </div>
+              {measuresOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {measuresOpen && (
+              <div className="px-4 pb-4 space-y-3">
+                {/* How it works banner */}
+                <div className="rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 px-3 py-2.5 flex items-start gap-2">
+                  <FlaskConical className="h-3.5 w-3.5 text-purple-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-purple-700 dark:text-purple-400">
+                    Custom measures work like Power BI's calculated columns. Write formulas using <code className="bg-purple-100 dark:bg-purple-900 px-1 rounded">[Column Name]</code> references (e.g. <code className="bg-purple-100 dark:bg-purple-900 px-1 rounded">[Revenue] / [Rooms]</code>). They appear as regular measures in all charts and analyses.
+                  </p>
+                </div>
+
+                {/* Existing formula measures */}
+                {formulaCols.length > 0 && (
+                  <div className="space-y-2">
+                    {formulaCols.map((col) => {
+                      const globalIdx = cols.findIndex(c => c.columnName === col.columnName);
+                      return (
+                        <div key={col.columnName} className="flex items-start gap-3 rounded-lg border bg-muted/20 px-3 py-2.5" data-testid={`measure-row-${col.columnName}`}>
+                          <Sigma className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-sm">{col.label}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">{col.aggregation}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border">{col.format}</span>
+                            </div>
+                            <code className="text-[11px] text-muted-foreground font-mono block mt-0.5 truncate">{col.formulaExpression}</code>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={() => startEditMeasure(globalIdx)} className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground" data-testid={`button-edit-measure-${col.columnName}`}>
+                              <Settings2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => deleteMeasure(globalIdx)} className="h-6 w-6 flex items-center justify-center rounded hover:bg-red-500/10 hover:text-red-500 text-muted-foreground" data-testid={`button-delete-measure-${col.columnName}`}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {formulaCols.length === 0 && !addingMeasure && (
+                  <div className="flex flex-col items-center py-6 text-center rounded-lg border-2 border-dashed">
+                    <Sigma className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                    <p className="text-sm font-medium text-muted-foreground mb-1">No custom measures yet</p>
+                    <p className="text-xs text-muted-foreground max-w-xs">Create calculated fields like RevPAR, Cost per Unit, or Margin %</p>
+                  </div>
+                )}
+
+                {/* Add Measure form */}
+                {addingMeasure ? (
+                  <div className="rounded-xl border bg-background shadow-sm p-4 space-y-3" data-testid="add-measure-form">
+                    <div className="flex items-center gap-2">
+                      <Sigma className="h-4 w-4 text-purple-600" />
+                      <span className="text-sm font-bold">{editingMeasureIdx !== null ? "Edit Measure" : "New Custom Measure"}</span>
+                    </div>
+
+                    {/* Measure Name */}
+                    <div>
+                      <label className="text-xs font-semibold mb-1 block">Measure Name *</label>
+                      <Input
+                        value={newMeasureName}
+                        onChange={e => setNewMeasureName(e.target.value)}
+                        placeholder="e.g. RevPAR, Profit Margin, Cost per Room"
+                        className="h-8 text-sm"
+                        data-testid="input-measure-name"
+                      />
+                    </div>
+
+                    {/* Formula */}
+                    <div>
+                      <label className="text-xs font-semibold mb-1 block">Formula *</label>
+                      <Textarea
+                        ref={formulaRef}
+                        value={newMeasureFormula}
+                        onChange={e => setNewMeasureFormula(e.target.value)}
+                        placeholder="e.g. [Total Revenue] / [Available Rooms]"
+                        className="text-sm font-mono resize-none min-h-[60px]"
+                        rows={2}
+                        data-testid="input-measure-formula"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">Operators: + − * / ( )  |  Reference columns with [Column Name]</p>
+                    </div>
+
+                    {/* Column chips */}
+                    {sourceCols.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Click a column to insert it:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {sourceCols.map(c => (
+                            <button
+                              key={c.columnName}
+                              onClick={() => insertColRef(c.label)}
+                              className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border bg-muted/30 hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors"
+                              data-testid={`chip-col-${c.columnName}`}
+                            >
+                              <Hash className="h-2.5 w-2.5 text-emerald-600" />
+                              {c.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Agg + Format */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Aggregation</label>
+                        <Select value={newMeasureAgg} onValueChange={setNewMeasureAgg}>
+                          <SelectTrigger className="h-8 text-xs" data-testid="select-measure-agg">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sum">Sum</SelectItem>
+                            <SelectItem value="avg">Average</SelectItem>
+                            <SelectItem value="min">Min</SelectItem>
+                            <SelectItem value="max">Max</SelectItem>
+                            <SelectItem value="count">Count</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Format</label>
+                        <Select value={newMeasureFormat} onValueChange={setNewMeasureFormat}>
+                          <SelectTrigger className="h-8 text-xs" data-testid="select-measure-format">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="number">Number</SelectItem>
+                            <SelectItem value="currency">Currency</SelectItem>
+                            <SelectItem value="percentage">Percentage</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Preview */}
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={previewFormula} data-testid="button-preview-formula">
+                        <FlaskConical className="h-3 w-3" /> Preview (row 1)
+                      </Button>
+                      {previewResult !== null && (
+                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">= {previewResult}</span>
+                      )}
+                      {previewError && (
+                        <span className="flex items-center gap-1 text-xs text-red-600"><AlertCircle className="h-3 w-3" />{previewError}</span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between pt-1 border-t">
+                      <button onClick={resetMeasureForm} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                      <Button
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={addMeasure}
+                        disabled={!newMeasureName.trim() || !newMeasureFormula.trim()}
+                        data-testid="button-add-measure"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {editingMeasureIdx !== null ? "Update Measure" : "Add Measure"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8 w-full border-dashed text-purple-700 border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/20"
+                    onClick={() => { setNewMeasureName(""); setNewMeasureFormula(""); setNewMeasureAgg("sum"); setNewMeasureFormat("number"); setPreviewResult(null); setPreviewError(null); setEditingMeasureIdx(null); setAddingMeasure(true); }}
+                    data-testid="button-new-measure"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> New Custom Measure
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Info */}
         <div className="flex items-start gap-2 rounded-lg bg-muted/30 border p-3">
