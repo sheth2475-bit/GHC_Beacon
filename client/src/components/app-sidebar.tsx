@@ -14,21 +14,32 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
 
-const mainNav = [
+const overviewNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
+];
+
+const executiveOverviewNav = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
+];
+
+const actionNav = [
+  { title: "Action Tracker", url: "/actions", icon: ListChecks },
+];
+
+const executionNav = [
+  { title: "Projects", url: "/projects", icon: FolderOpen },
+  { title: "Workload", url: "/workload", icon: Users2 },
 ];
 
 const adminPerformanceNav = [
-  { title: "KPI Builder", url: "/kpi-builder", icon: Sparkles },
   { title: "KPI Management", url: "/kpis", icon: Target },
-  { title: "Action Tracker", url: "/actions", icon: ListChecks },
-  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
+  { title: "KPI Builder", url: "/kpi-builder", icon: Sparkles },
 ];
 
 const executivePerformanceNav = [
   { title: "KPI Management", url: "/kpis", icon: Target },
-  { title: "Action Tracker", url: "/actions", icon: ListChecks },
-  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
 ];
 
 const adminAnalyticsNav = [
@@ -38,11 +49,6 @@ const adminAnalyticsNav = [
 
 const executiveAnalyticsNav = [
   { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
-];
-
-const executionNav = [
-  { title: "Projects", url: "/projects", icon: FolderOpen },
-  { title: "Workload", url: "/workload", icon: Users2 },
 ];
 
 const planBadgeClass: Record<string, string> = {
@@ -74,7 +80,7 @@ export function AppSidebar() {
   const isActive = (url: string) =>
     url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
 
-  const renderGroup = (label: string, items: typeof mainNav) => (
+  const renderGroup = (label: string, items: typeof overviewNav) => (
     <SidebarGroup className="py-1">
       <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground/50 px-3 mb-0.5">{label}</SidebarGroupLabel>
       <SidebarGroupContent>
@@ -106,6 +112,7 @@ export function AppSidebar() {
     </SidebarGroup>
   );
 
+  const currentOverviewNav = isAdmin ? overviewNav : executiveOverviewNav;
   const performanceNav = isAdmin ? adminPerformanceNav : executivePerformanceNav;
   const analyticsNav = isAdmin ? adminAnalyticsNav : executiveAnalyticsNav;
 
@@ -129,9 +136,10 @@ export function AppSidebar() {
 
       {/* ── Navigation ── */}
       <SidebarContent className="px-2 py-1 gap-0">
-        {renderGroup("Overview", mainNav)}
-        {renderGroup("Performance", performanceNav)}
+        {renderGroup("Overview", currentOverviewNav)}
+        {renderGroup("Action Notes from Meeting", actionNav)}
         {renderGroup("Projects", executionNav)}
+        {renderGroup("Performance", performanceNav)}
         {renderGroup("Analytics", analyticsNav)}
         {isAdmin && renderGroup("Admin", [
           { title: "People", url: "/users", icon: Users },
