@@ -14,9 +14,10 @@ import {
   ArrowLeft, Loader2, LayoutDashboard, Plus, Trash2, Sparkles,
   Globe, Lock, Building2, Edit2, CheckCircle2, Pin,
   X, ArrowUp, ArrowDown,
-  AlertTriangle, Lightbulb, ChevronRight,
-  RefreshCw, SlidersHorizontal,
+  AlertTriangle, Lightbulb, ChevronRight, ChevronDown, ChevronUp,
+  RefreshCw, SlidersHorizontal, Filter, Search,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart, Bar, LineChart, Line, PieChart as RechartPie, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
@@ -220,8 +221,10 @@ export default function AnalyticsDashboardComposePage() {
   const [removeId, setRemoveId] = useState<number | null>(null);
   const [generatingNarrative, setGeneratingNarrative] = useState(false);
   const [narrativeOpen, setNarrativeOpen] = useState(false);
-  const [filterCol, setFilterCol] = useState<string>("");
-  const [filterVal, setFilterVal] = useState<string>("");
+  const [filterPaneOpen, setFilterPaneOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
 
   const { data: dash, isLoading } = useQuery<DashboardFull>({
     queryKey: ["/api/v2/analytics/definitions", id],
@@ -342,24 +345,45 @@ export default function AnalyticsDashboardComposePage() {
 
   const VisIcon = dash?.visibility === "company" ? Globe : dash?.visibility === "department" ? Building2 : Lock;
 
-  // Filter/filter computations from primary dataset
+  // Power BI-style filter pane computations
   const rawRows: Record<string, unknown>[] = primaryDataset?.rawData || [];
+
+  // Detect categorical (non-numeric) columns suitable for filtering
   const categoryCols: string[] = rawRows.length
     ? Object.keys(rawRows[0]).filter(col => {
         const vals = rawRows.map(r => r[col]);
         const numericCount = vals.filter(v => v !== null && v !== "" && !isNaN(Number(v))).length;
         const unique = new Set(vals.map(v => String(v)));
-        return numericCount / vals.length < 0.8 && unique.size >= 2 && unique.size <= 50;
+        return numericCount / vals.length < 0.8 && unique.size >= 2 && unique.size <= 100;
       })
     : [];
-  const colValues: string[] = filterCol
-    ? [...new Set(rawRows.map(r => String(r[filterCol] ?? "")).filter(Boolean))].sort()
-    : [];
-  const filteredRows: Record<string, unknown>[] = filterCol && filterVal
-    ? rawRows.filter(r => String(r[filterCol] ?? "") === filterVal)
-    : rawRows;
-  const isFiltered = !!(filterCol && filterVal);
-  const hasFilter = categoryCols.length > 0 || isFiltered;
+
+  // Unique values per column (for checkboxes)
+  const colValueMap: Record<string, string[]> = {};
+  for (const col of categoryCols) {
+    colValueMap[col] = [...new Set(rawRows.map(r => String(r[col] ?? "")).filter(Boolean))].sort();
+  }
+
+  // Apply all active filters (AND logic: row must pass every column's filter)
+  const filteredRows: Record<string, unknown>[] = rawRows.filter(row =>
+    Object.entries(activeFilters).every(([col, vals]) => vals.length === 0 || vals.includes(String(row[col] ?? "")))
+  );
+
+  const isFiltered = Object.values(activeFilters).some(v => v.length > 0);
+  const activeFilterCount = Object.values(activeFilters).filter(v => v.length > 0).length;
+
+  // Helpers for filter pane interactions
+  const toggleFilterValue = (col: string, val: string) => {
+    setActiveFilters(prev => {
+      const curr = prev[col] || [];
+      const next = curr.includes(val) ? curr.filter(v => v !== val) : [...curr, val];
+      return { ...prev, [col]: next };
+    });
+  };
+  const clearColFilter = (col: string) => setActiveFilters(prev => ({ ...prev, [col]: [] }));
+  const clearAllFilters = () => setActiveFilters({});
+  const toggleSection = (col: string) => setExpandedSections(prev => ({ ...prev, [col]: !prev[col] }));
+  const isSectionExpanded = (col: string) => expandedSections[col] !== false; // default expanded
 
   // New dashboard creation screen
   if (isNew) {
@@ -409,125 +433,261 @@ export default function AnalyticsDashboardComposePage() {
   }
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="p-5 max-w-screen-xl mx-auto space-y-5">
+    <div className="h-full flex overflow-hidden">
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/analytics")} className="gap-1.5 h-8 text-muted-foreground" data-testid="button-back">
-              <ArrowLeft className="h-3.5 w-3.5" /> Analytics Studio
-            </Button>
-            <span className="text-muted-foreground/40">/</span>
-            {editingTitle ? (
-              <div className="flex items-center gap-2">
-                <Input value={dash.title} onChange={e => updateMutation.mutate({ title: e.target.value })} className="h-8 text-sm font-bold w-56" data-testid="input-title-edit" />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingTitle(false)}>
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      {/* ── Main scrollable area ── */}
+      <div className="flex-1 overflow-auto min-w-0">
+        <div className="p-5 space-y-5">
+
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button variant="ghost" size="sm" onClick={() => navigate("/analytics")} className="gap-1.5 h-8 text-muted-foreground" data-testid="button-back">
+                <ArrowLeft className="h-3.5 w-3.5" /> Analytics Studio
+              </Button>
+              <span className="text-muted-foreground/40">/</span>
+              {editingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input value={dash.title} onChange={e => updateMutation.mutate({ title: e.target.value })} className="h-8 text-sm font-bold w-56" data-testid="input-title-edit" />
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingTitle(false)}>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  </Button>
+                </div>
+              ) : (
+                <button className="flex items-center gap-1.5 group" onClick={() => setEditingTitle(true)}>
+                  <h1 className="text-lg font-black">{dash.title}</h1>
+                  <Edit2 className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                </button>
+              )}
+              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${dash.status === "published" ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" : "bg-muted text-muted-foreground border-border"}`}>
+                {dash.status === "published" ? <><Globe className="h-2.5 w-2.5" /> Published</> : "Draft"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} data-testid="button-refresh-charts">
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              {categoryCols.length > 0 && (
+                <Button
+                  variant={filterPaneOpen ? "default" : "outline"}
+                  size="sm"
+                  className="gap-1.5 h-8 relative"
+                  onClick={() => setFilterPaneOpen(o => !o)}
+                  data-testid="button-filters"
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-orange-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 relative" onClick={handleNarrative} disabled={generatingNarrative} data-testid="button-generate-narrative">
+                {generatingNarrative ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-primary" />}
+                AI Summary
+                {dash.narrativeSummary && !generatingNarrative && (
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+                )}
+              </Button>
+              <Button size="sm" className="gap-1.5 h-8" onClick={() => setPublishDialog(true)} data-testid="button-publish">
+                <Globe className="h-3.5 w-3.5" /> {dash.status === "published" ? "Update" : "Publish"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Active filter summary bar */}
+          {isFiltered && (
+            <div className="flex flex-wrap items-center gap-2" data-testid="active-filter-summary">
+              {Object.entries(activeFilters).filter(([, vals]) => vals.length > 0).map(([col, vals]) => (
+                vals.map(val => (
+                  <span key={`${col}-${val}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    <span className="text-muted-foreground">{col}:</span> {val}
+                    <button onClick={() => toggleFilterValue(col, val)} className="hover:text-primary/70 ml-0.5"><X className="h-2.5 w-2.5" /></button>
+                  </span>
+                ))
+              ))}
+              <span className="text-xs text-muted-foreground">{filteredRows.length} of {rawRows.length} rows</span>
+              <button onClick={clearAllFilters} className="text-xs text-muted-foreground underline hover:text-foreground">Clear all</button>
+            </div>
+          )}
+
+          {/* Insights grid */}
+          {dash.items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border-2 border-dashed border-border">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/5 border border-primary/10 mb-4">
+                <Pin className="h-7 w-7 text-primary/40" />
+              </div>
+              <p className="text-base font-semibold mb-1">No insights pinned yet</p>
+              <p className="text-sm text-muted-foreground max-w-xs mb-4">Save insights from the Explore view and pin them here to build your dashboard.</p>
+              <div className="flex gap-3">
+                <Button variant="outline" size="sm" onClick={() => setAddInsightDialog(true)} disabled={allInsights.length === 0} className="gap-1.5" data-testid="button-add-insight">
+                  <Plus className="h-3.5 w-3.5" /> Add Saved Insight
                 </Button>
               </div>
-            ) : (
-              <button className="flex items-center gap-1.5 group" onClick={() => setEditingTitle(true)}>
-                <h1 className="text-lg font-black">{dash.title}</h1>
-                <Edit2 className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100" />
-              </button>
-            )}
-            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${dash.status === "published" ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" : "bg-muted text-muted-foreground border-border"}`}>
-              {dash.status === "published" ? <><Globe className="h-2.5 w-2.5" /> Published</> : "Draft"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} data-testid="button-refresh-charts">
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
-              Refresh Charts
-            </Button>
-            <Button variant="outline" size="sm" className="gap-1.5 h-8 relative" onClick={handleNarrative} disabled={generatingNarrative} data-testid="button-generate-narrative">
-              {generatingNarrative ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-primary" />}
-              AI Summary
-              {dash.narrativeSummary && !generatingNarrative && (
-                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-muted-foreground">{dash.items.length} insight{dash.items.length !== 1 ? "s" : ""}</p>
+                <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setAddInsightDialog(true)} disabled={unpinnedInsights.length === 0} data-testid="button-add-more">
+                  <Plus className="h-3.5 w-3.5" /> Add Insight
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {dash.items.map((item, idx) => {
+                  const overrideData = isFiltered ? computeFilteredData(filteredRows, item.insight) : undefined;
+                  return (
+                    <InsightCard
+                      key={item.id}
+                      item={item}
+                      idx={idx}
+                      total={dash.items.length}
+                      onRemove={() => setRemoveId(item.id)}
+                      onMoveUp={() => handleMoveUp(idx)}
+                      onMoveDown={() => handleMoveDown(idx)}
+                      filteredData={overrideData}
+                    />
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Power BI-style Filter Pane ── */}
+      {filterPaneOpen && categoryCols.length > 0 && (
+        <div className="w-72 border-l bg-background shrink-0 flex flex-col overflow-hidden" data-testid="filter-pane">
+          {/* Pane header */}
+          <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
+            <span className="font-bold text-sm flex items-center gap-2">
+              <Filter className="h-3.5 w-3.5 text-primary" /> Filters
+              {activeFilterCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground">{activeFilterCount} active</span>
               )}
-            </Button>
-            <Button size="sm" className="gap-1.5 h-8" onClick={() => setPublishDialog(true)} data-testid="button-publish">
-              <Globe className="h-3.5 w-3.5" /> {dash.status === "published" ? "Update" : "Publish"}
-            </Button>
+            </span>
+            <div className="flex items-center gap-1">
+              {isFiltered && (
+                <button onClick={clearAllFilters} className="text-[11px] text-muted-foreground hover:text-foreground underline mr-1">Clear all</button>
+              )}
+              <button onClick={() => setFilterPaneOpen(false)} className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted/60 text-muted-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Filter sections */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            {categoryCols.map(col => {
+              const selected = activeFilters[col] || [];
+              const expanded = isSectionExpanded(col);
+              const search = filterSearch[col] || "";
+              const allVals = colValueMap[col] || [];
+              const visibleVals = search ? allVals.filter(v => v.toLowerCase().includes(search.toLowerCase())) : allVals;
+
+              return (
+                <div key={col} className="rounded-lg border overflow-hidden" data-testid={`filter-section-${col}`}>
+                  {/* Section header */}
+                  <button
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+                    onClick={() => toggleSection(col)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-semibold truncate">{col}</span>
+                      {selected.length > 0 && (
+                        <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground">{selected.length}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {selected.length > 0 && (
+                        <button
+                          onClick={e => { e.stopPropagation(); clearColFilter(col); }}
+                          className="text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                      {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </div>
+                  </button>
+
+                  {/* Section body */}
+                  {expanded && (
+                    <div className="bg-background">
+                      {/* Search within values */}
+                      {allVals.length > 6 && (
+                        <div className="px-3 pt-2 pb-1">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                            <input
+                              className="w-full pl-6 pr-2 py-1 text-xs border rounded bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                              placeholder="Search…"
+                              value={search}
+                              onChange={e => setFilterSearch(prev => ({ ...prev, [col]: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Select all / Deselect all */}
+                      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-muted/30">
+                        <button
+                          className="text-[11px] text-primary hover:underline"
+                          onClick={() => setActiveFilters(prev => ({ ...prev, [col]: [...allVals] }))}
+                        >Select all</button>
+                        <span className="text-muted-foreground text-[10px]">·</span>
+                        <button
+                          className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                          onClick={() => clearColFilter(col)}
+                        >Clear</button>
+                      </div>
+
+                      {/* Value checkboxes */}
+                      <div className="max-h-48 overflow-y-auto px-3 py-1.5 space-y-1">
+                        {visibleVals.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground py-1">No matches</p>
+                        ) : (
+                          visibleVals.map(val => {
+                            const checked = selected.includes(val);
+                            const rowCount = rawRows.filter(r => String(r[col] ?? "") === val).length;
+                            return (
+                              <label
+                                key={val}
+                                className="flex items-center gap-2.5 py-1 cursor-pointer group rounded hover:bg-muted/30 -mx-1 px-1"
+                                data-testid={`filter-val-${col}-${val}`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => toggleFilterValue(col, val)}
+                                  className="h-3.5 w-3.5 shrink-0"
+                                />
+                                <span className={`text-xs truncate flex-1 ${checked ? "font-semibold text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}>{val}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">{rowCount}</span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer: row count */}
+          <div className="px-4 py-2.5 border-t text-[11px] text-muted-foreground shrink-0">
+            {isFiltered ? (
+              <span className="text-foreground font-medium">{filteredRows.length} of {rawRows.length} rows match</span>
+            ) : (
+              <span>{rawRows.length} rows total</span>
+            )}
           </div>
         </div>
-
-        {/* Filter bar — only shown when dataset has categorical columns */}
-        {hasFilter && dash.items.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border bg-muted/30" data-testid="filter-bar">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <Select value={filterCol} onValueChange={v => { setFilterCol(v); setFilterVal(""); }} data-testid="select-filter-col">
-              <SelectTrigger className="h-7 text-xs w-40 bg-background">
-                <SelectValue placeholder="Filter by column…" />
-              </SelectTrigger>
-              <SelectContent>
-                {categoryCols.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {filterCol && (
-              <Select value={filterVal} onValueChange={setFilterVal} data-testid="select-filter-val">
-                <SelectTrigger className="h-7 text-xs w-44 bg-background">
-                  <SelectValue placeholder="Select value…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {colValues.map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-            {isFiltered && (
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20" data-testid="filter-pill">
-                {filteredRows.length} rows · {filterCol} = {filterVal}
-                <button onClick={() => { setFilterCol(""); setFilterVal(""); }} className="hover:text-primary/70"><X className="h-3 w-3" /></button>
-              </span>
-            )}
-            {!filterCol && <span className="text-xs text-muted-foreground">Choose a column to filter all charts</span>}
-          </div>
-        )}
-
-        {/* Insights grid */}
-        {dash.items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border-2 border-dashed border-border">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/5 border border-primary/10 mb-4">
-              <Pin className="h-7 w-7 text-primary/40" />
-            </div>
-            <p className="text-base font-semibold mb-1">No insights pinned yet</p>
-            <p className="text-sm text-muted-foreground max-w-xs mb-4">Save insights from the Explore view and pin them here to build your dashboard.</p>
-            <div className="flex gap-3">
-              <Button variant="outline" size="sm" onClick={() => setAddInsightDialog(true)} disabled={allInsights.length === 0} className="gap-1.5" data-testid="button-add-insight">
-                <Plus className="h-3.5 w-3.5" /> Add Saved Insight
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-muted-foreground">{dash.items.length} insight{dash.items.length !== 1 ? "s" : ""}</p>
-              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setAddInsightDialog(true)} disabled={unpinnedInsights.length === 0} data-testid="button-add-more">
-                <Plus className="h-3.5 w-3.5" /> Add Insight
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dash.items.map((item, idx) => {
-                const overrideData = isFiltered ? computeFilteredData(filteredRows, item.insight) : undefined;
-                return (
-                  <InsightCard
-                    key={item.id}
-                    item={item}
-                    idx={idx}
-                    total={dash.items.length}
-                    onRemove={() => setRemoveId(item.id)}
-                    onMoveUp={() => handleMoveUp(idx)}
-                    onMoveDown={() => handleMoveDown(idx)}
-                    filteredData={overrideData}
-                  />
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
+      )}
 
       {/* AI Narrative Sheet */}
       <Sheet open={narrativeOpen} onOpenChange={setNarrativeOpen}>
