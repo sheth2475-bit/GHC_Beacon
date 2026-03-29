@@ -2579,6 +2579,178 @@ Return a JSON object:
     });
   }
 
+  // ─── Workflow Center ───────────────────────────────────────────────────────
+
+  function generateRefNumber(type: string): string {
+    const prefix: Record<string, string> = {
+      recurring_task: "RT",
+      service_ticket: "TKT",
+      license: "LIC",
+      certificate: "CERT",
+      custom: "WF",
+    };
+    const p = prefix[type] || "WF";
+    return `${p}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+  }
+
+  // Templates
+  app.get("/api/workflow/templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const templates = await storage.getWorkflowTemplates(user.companyId);
+      res.json(templates);
+    } catch { res.status(500).json({ message: "Failed to get templates" }); }
+  });
+
+  app.post("/api/workflow/templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const t = await storage.createWorkflowTemplate({ ...req.body, companyId: user.companyId, createdBy: user.id });
+      res.json(t);
+    } catch { res.status(500).json({ message: "Failed to create template" }); }
+  });
+
+  app.patch("/api/workflow/templates/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const t = await storage.updateWorkflowTemplate(Number(req.params.id), req.body);
+      res.json(t);
+    } catch { res.status(500).json({ message: "Failed to update template" }); }
+  });
+
+  app.delete("/api/workflow/templates/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWorkflowTemplate(Number(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch { res.status(500).json({ message: "Failed to delete template" }); }
+  });
+
+  // Submissions — list
+  app.get("/api/workflow/submissions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { workflowType, status, mine } = req.query as Record<string, string>;
+      const filters: { workflowType?: string; status?: string; createdBy?: number } = {};
+      if (workflowType) filters.workflowType = workflowType;
+      if (status) filters.status = status;
+      if (mine === "true") filters.createdBy = user.id;
+      const submissions = await storage.getWorkflowSubmissions(user.companyId, filters);
+      res.json(submissions);
+    } catch { res.status(500).json({ message: "Failed to get submissions" }); }
+  });
+
+  // Submissions — create
+  app.post("/api/workflow/submissions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const referenceNumber = generateRefNumber(req.body.workflowType || "custom");
+      const submission = await storage.createWorkflowSubmission({
+        ...req.body,
+        companyId: user.companyId,
+        createdBy: user.id,
+        referenceNumber,
+        requesterName: req.body.requesterName || user.name,
+      });
+      await storage.createWorkflowActivity({
+        submissionId: submission.id,
+        companyId: user.companyId,
+        userId: user.id,
+        actorName: user.name,
+        action: "created",
+        newValue: submission.status,
+        field: "status",
+      });
+      res.json(submission);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ message: "Failed to create submission" });
+    }
+  });
+
+  // Submissions — single
+  app.get("/api/workflow/submissions/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const submission = await storage.getWorkflowSubmission(Number(req.params.id));
+      if (!submission) return res.status(404).json({ message: "Not found" });
+      const [comments, activity] = await Promise.all([
+        storage.getWorkflowComments(submission.id),
+        storage.getWorkflowActivity(submission.id),
+      ]);
+      res.json({ ...submission, comments, activity });
+    } catch { res.status(500).json({ message: "Failed to get submission" }); }
+  });
+
+  // Submissions — update
+  app.patch("/api/workflow/submissions/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const id = Number(req.params.id);
+      const old = await storage.getWorkflowSubmission(id);
+      const updated = await storage.updateWorkflowSubmission(id, req.body);
+      if (old && req.body.status && old.status !== req.body.status) {
+        await storage.createWorkflowActivity({
+          submissionId: id, companyId: user.companyId, userId: user.id,
+          actorName: user.name, action: "status_changed", field: "status",
+          oldValue: old.status, newValue: req.body.status,
+        });
+      }
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Failed to update submission" }); }
+  });
+
+  // Submissions — delete
+  app.delete("/api/workflow/submissions/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWorkflowSubmission(Number(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch { res.status(500).json({ message: "Failed to delete" }); }
+  });
+
+  // Comments
+  app.post("/api/workflow/submissions/:id/comments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const submissionId = Number(req.params.id);
+      const submission = await storage.getWorkflowSubmission(submissionId);
+      if (!submission) return res.status(404).json({ message: "Submission not found" });
+      const comment = await storage.createWorkflowComment({
+        submissionId, companyId: user.companyId, userId: user.id,
+        authorName: user.name, content: req.body.content,
+        isInternal: req.body.isInternal ?? false,
+      });
+      await storage.createWorkflowActivity({
+        submissionId, companyId: user.companyId, userId: user.id,
+        actorName: user.name, action: "commented",
+      });
+      res.json(comment);
+    } catch { res.status(500).json({ message: "Failed to add comment" }); }
+  });
+
+  // Analytics summary
+  app.get("/api/workflow/analytics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const all = await storage.getWorkflowSubmissions(user.companyId);
+      const today = new Date().toISOString().slice(0, 10);
+      const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
+      const byType: Record<string, number> = {};
+      const byStatus: Record<string, number> = {};
+      const byPriority: Record<string, number> = {};
+      let overdue = 0, expiringSoon = 0, open = 0;
+
+      for (const s of all) {
+        byType[s.workflowType] = (byType[s.workflowType] || 0) + 1;
+        byStatus[s.status] = (byStatus[s.status] || 0) + 1;
+        byPriority[s.priority || "Medium"] = (byPriority[s.priority || "Medium"] || 0) + 1;
+        if (s.dueDate && s.dueDate < today && !["Completed", "Resolved", "Closed", "Renewed"].includes(s.status)) overdue++;
+        if (s.expiryDate && s.expiryDate >= today && s.expiryDate <= in30) expiringSoon++;
+        if (!["Completed", "Resolved", "Closed", "Renewed", "Expired"].includes(s.status)) open++;
+      }
+
+      res.json({ total: all.length, open, overdue, expiringSoon, byType, byStatus, byPriority });
+    } catch { res.status(500).json({ message: "Failed to get analytics" }); }
+  });
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });

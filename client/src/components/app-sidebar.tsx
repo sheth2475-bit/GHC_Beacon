@@ -2,7 +2,7 @@ import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
-  FolderOpen, Users2, Clock, ChevronRight,
+  FolderOpen, Users2, Clock, ChevronRight, Workflow,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -115,6 +115,7 @@ export function AppSidebar() {
   const currentOverviewNav = isAdmin ? overviewNav : executiveOverviewNav;
   const performanceNav = isAdmin ? adminPerformanceNav : executivePerformanceNav;
   const analyticsNav = isAdmin ? adminAnalyticsNav : executiveAnalyticsNav;
+  const operationsNav = [{ title: "Workflow Center", url: "/workflow", icon: Workflow }];
 
   return (
     <Sidebar>
@@ -141,6 +142,7 @@ export function AppSidebar() {
         {renderGroup("Projects", executionNav)}
         {renderGroup("Performance", performanceNav)}
         {renderGroup("Analytics", analyticsNav)}
+        {renderGroup("Operations", operationsNav)}
         {isAdmin && renderGroup("Admin", [
           { title: "People", url: "/users", icon: Users },
           { title: "Settings", url: "/settings", icon: Settings },

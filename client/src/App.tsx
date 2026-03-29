@@ -39,6 +39,7 @@ import AnalyticsExplorePage from "@/pages/analytics-explore";
 import AnalyticsDashboardComposePage from "@/pages/analytics-dashboard-compose";
 
 import GuidePage from "@/pages/guide";
+import WorkflowCenterPage from "@/pages/workflow-center";
 import OwnerLogin from "@/pages/owner-login";
 import OwnerDashboard from "@/pages/owner-dashboard";
 import OwnerCompanies from "@/pages/owner-companies";
@@ -81,6 +82,7 @@ function AppRouter() {
       {isAdmin && <Route path="/planner" component={PlannerPage} />}
       {isAdmin && <Route path="/settings" component={SettingsPage} />}
       {isAdmin && <Route path="/users" component={UserManagementPage} />}
+      <Route path="/workflow" component={WorkflowCenterPage} />
       <Route component={DashboardPage} />
     </Switch>
   );

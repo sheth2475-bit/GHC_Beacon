@@ -390,6 +390,97 @@ export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type LoginLog = typeof loginLogs.$inferSelect;
 export type InsertLoginLog = z.infer<typeof insertLoginLogSchema>;
 
+// ─── Workflow Center ──────────────────────────────────────────────────────────
+
+export const workflowTemplates = pgTable("workflow_templates", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  workflowType: text("workflow_type").notNull(), // recurring_task | service_ticket | license | certificate | custom
+  category: text("category"),
+  fields: jsonb("fields").default(sql`'[]'::jsonb`), // custom field definitions
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const workflowSubmissions = pgTable("workflow_submissions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  templateId: integer("template_id").references(() => workflowTemplates.id),
+  workflowType: text("workflow_type").notNull(), // recurring_task | service_ticket | license | certificate
+  referenceNumber: text("reference_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  departmentId: integer("department_id").references(() => departments.id),
+  departmentName: text("department_name"),
+  ownerName: text("owner_name"),
+  assignedTo: text("assigned_to"),
+  requesterName: text("requester_name"),
+  priority: text("priority").default("Medium"), // Low | Medium | High | Critical
+  status: text("status").notNull().default("New"),
+  category: text("category"),
+  startDate: text("start_date"),
+  dueDate: text("due_date"),
+  expiryDate: text("expiry_date"),
+  renewalDate: text("renewal_date"),
+  nextOccurrence: text("next_occurrence"),
+  recurrenceType: text("recurrence_type"), // daily | weekly | monthly | quarterly | yearly
+  reminderDays: integer("reminder_days").default(7),
+  vendorName: text("vendor_name"),
+  issueAuthority: text("issue_authority"),
+  licenseType: text("license_type"),
+  holderName: text("holder_name"),
+  slaTarget: text("sla_target"),
+  customFields: jsonb("custom_fields").default(sql`'{}'::jsonb`),
+  tags: text("tags").array().default(sql`ARRAY[]::text[]`),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const workflowComments = pgTable("workflow_comments", {
+  id: serial("id").primaryKey(),
+  submissionId: integer("submission_id").notNull().references(() => workflowSubmissions.id),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  authorName: text("author_name").notNull(),
+  content: text("content").notNull(),
+  isInternal: boolean("is_internal").default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const workflowActivity = pgTable("workflow_activity", {
+  id: serial("id").primaryKey(),
+  submissionId: integer("submission_id").notNull().references(() => workflowSubmissions.id),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  userId: integer("user_id").references(() => users.id),
+  actorName: text("actor_name").notNull(),
+  action: text("action").notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  field: text("field"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertWorkflowTemplateSchema = createInsertSchema(workflowTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWorkflowSubmissionSchema = createInsertSchema(workflowSubmissions).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export const insertWorkflowCommentSchema = createInsertSchema(workflowComments).omit({ id: true, createdAt: true });
+export const insertWorkflowActivitySchema = createInsertSchema(workflowActivity).omit({ id: true, createdAt: true });
+
+export type WorkflowTemplate = typeof workflowTemplates.$inferSelect;
+export type InsertWorkflowTemplate = z.infer<typeof insertWorkflowTemplateSchema>;
+export type WorkflowSubmission = typeof workflowSubmissions.$inferSelect;
+export type InsertWorkflowSubmission = z.infer<typeof insertWorkflowSubmissionSchema>;
+export type WorkflowComment = typeof workflowComments.$inferSelect;
+export type InsertWorkflowComment = z.infer<typeof insertWorkflowCommentSchema>;
+export type WorkflowActivity = typeof workflowActivity.$inferSelect;
+export type InsertWorkflowActivity = z.infer<typeof insertWorkflowActivitySchema>;
+
 // ─── Analytics Studio ─────────────────────────────────────────────────────────
 
 export const analyticsDashboards = pgTable("analytics_dashboards", {

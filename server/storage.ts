@@ -223,6 +223,28 @@ export interface IStorage {
   addAnalyticsDashboardItem(data: InsertAnalyticsDashboardItem): Promise<AnalyticsDashboardItem>;
   removeAnalyticsDashboardItem(id: number): Promise<void>;
   reorderAnalyticsDashboardItems(dashboardId: number, orderedIds: number[]): Promise<void>;
+
+  // Workflow Center — Templates
+  getWorkflowTemplates(companyId: number): Promise<import("@shared/schema").WorkflowTemplate[]>;
+  getWorkflowTemplate(id: number): Promise<import("@shared/schema").WorkflowTemplate | undefined>;
+  createWorkflowTemplate(data: import("@shared/schema").InsertWorkflowTemplate): Promise<import("@shared/schema").WorkflowTemplate>;
+  updateWorkflowTemplate(id: number, data: Partial<import("@shared/schema").InsertWorkflowTemplate>): Promise<import("@shared/schema").WorkflowTemplate>;
+  deleteWorkflowTemplate(id: number): Promise<void>;
+
+  // Workflow Center — Submissions
+  getWorkflowSubmissions(companyId: number, filters?: { workflowType?: string; status?: string; createdBy?: number }): Promise<import("@shared/schema").WorkflowSubmission[]>;
+  getWorkflowSubmission(id: number): Promise<import("@shared/schema").WorkflowSubmission | undefined>;
+  createWorkflowSubmission(data: import("@shared/schema").InsertWorkflowSubmission): Promise<import("@shared/schema").WorkflowSubmission>;
+  updateWorkflowSubmission(id: number, data: Partial<import("@shared/schema").InsertWorkflowSubmission>): Promise<import("@shared/schema").WorkflowSubmission>;
+  deleteWorkflowSubmission(id: number): Promise<void>;
+
+  // Workflow Center — Comments
+  getWorkflowComments(submissionId: number): Promise<import("@shared/schema").WorkflowComment[]>;
+  createWorkflowComment(data: import("@shared/schema").InsertWorkflowComment): Promise<import("@shared/schema").WorkflowComment>;
+
+  // Workflow Center — Activity
+  getWorkflowActivity(submissionId: number): Promise<import("@shared/schema").WorkflowActivity[]>;
+  createWorkflowActivity(data: import("@shared/schema").InsertWorkflowActivity): Promise<import("@shared/schema").WorkflowActivity>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -932,6 +954,92 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(loginLogs)
       .where(eq(loginLogs.companyId, companyId))
       .orderBy(desc(loginLogs.loginAt)).limit(limit);
+  }
+
+  // ─── Workflow Center — Templates ───────────────────────────────────────────
+  async getWorkflowTemplates(companyId: number) {
+    const { workflowTemplates } = await import("@shared/schema");
+    return db.select().from(workflowTemplates)
+      .where(and(eq(workflowTemplates.companyId, companyId), eq(workflowTemplates.isActive, true)))
+      .orderBy(desc(workflowTemplates.createdAt));
+  }
+  async getWorkflowTemplate(id: number) {
+    const { workflowTemplates } = await import("@shared/schema");
+    const [row] = await db.select().from(workflowTemplates).where(eq(workflowTemplates.id, id));
+    return row;
+  }
+  async createWorkflowTemplate(data: import("@shared/schema").InsertWorkflowTemplate) {
+    const { workflowTemplates } = await import("@shared/schema");
+    const [row] = await db.insert(workflowTemplates).values(data).returning();
+    return row;
+  }
+  async updateWorkflowTemplate(id: number, data: Partial<import("@shared/schema").InsertWorkflowTemplate>) {
+    const { workflowTemplates } = await import("@shared/schema");
+    const [row] = await db.update(workflowTemplates).set({ ...data, updatedAt: new Date() }).where(eq(workflowTemplates.id, id)).returning();
+    return row;
+  }
+  async deleteWorkflowTemplate(id: number) {
+    const { workflowTemplates } = await import("@shared/schema");
+    await db.delete(workflowTemplates).where(eq(workflowTemplates.id, id));
+  }
+
+  // ─── Workflow Center — Submissions ─────────────────────────────────────────
+  async getWorkflowSubmissions(companyId: number, filters?: { workflowType?: string; status?: string; createdBy?: number }) {
+    const { workflowSubmissions } = await import("@shared/schema");
+    const conditions = [eq(workflowSubmissions.companyId, companyId)];
+    if (filters?.workflowType) conditions.push(eq(workflowSubmissions.workflowType, filters.workflowType));
+    if (filters?.status) conditions.push(eq(workflowSubmissions.status, filters.status));
+    if (filters?.createdBy) conditions.push(eq(workflowSubmissions.createdBy, filters.createdBy));
+    return db.select().from(workflowSubmissions)
+      .where(and(...conditions))
+      .orderBy(desc(workflowSubmissions.createdAt));
+  }
+  async getWorkflowSubmission(id: number) {
+    const { workflowSubmissions } = await import("@shared/schema");
+    const [row] = await db.select().from(workflowSubmissions).where(eq(workflowSubmissions.id, id));
+    return row;
+  }
+  async createWorkflowSubmission(data: import("@shared/schema").InsertWorkflowSubmission) {
+    const { workflowSubmissions } = await import("@shared/schema");
+    const [row] = await db.insert(workflowSubmissions).values(data).returning();
+    return row;
+  }
+  async updateWorkflowSubmission(id: number, data: Partial<import("@shared/schema").InsertWorkflowSubmission>) {
+    const { workflowSubmissions } = await import("@shared/schema");
+    const [row] = await db.update(workflowSubmissions).set({ ...data, updatedAt: new Date() }).where(eq(workflowSubmissions.id, id)).returning();
+    return row;
+  }
+  async deleteWorkflowSubmission(id: number) {
+    const { workflowSubmissions, workflowComments, workflowActivity } = await import("@shared/schema");
+    await db.delete(workflowComments).where(eq(workflowComments.submissionId, id));
+    await db.delete(workflowActivity).where(eq(workflowActivity.submissionId, id));
+    await db.delete(workflowSubmissions).where(eq(workflowSubmissions.id, id));
+  }
+
+  // ─── Workflow Center — Comments ────────────────────────────────────────────
+  async getWorkflowComments(submissionId: number) {
+    const { workflowComments } = await import("@shared/schema");
+    return db.select().from(workflowComments)
+      .where(eq(workflowComments.submissionId, submissionId))
+      .orderBy(workflowComments.createdAt);
+  }
+  async createWorkflowComment(data: import("@shared/schema").InsertWorkflowComment) {
+    const { workflowComments } = await import("@shared/schema");
+    const [row] = await db.insert(workflowComments).values(data).returning();
+    return row;
+  }
+
+  // ─── Workflow Center — Activity ─────────────────────────────────────────────
+  async getWorkflowActivity(submissionId: number) {
+    const { workflowActivity } = await import("@shared/schema");
+    return db.select().from(workflowActivity)
+      .where(eq(workflowActivity.submissionId, submissionId))
+      .orderBy(desc(workflowActivity.createdAt));
+  }
+  async createWorkflowActivity(data: import("@shared/schema").InsertWorkflowActivity) {
+    const { workflowActivity } = await import("@shared/schema");
+    const [row] = await db.insert(workflowActivity).values(data).returning();
+    return row;
   }
 }
 

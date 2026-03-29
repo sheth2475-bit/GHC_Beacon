@@ -775,6 +775,9 @@ export async function seedDatabase() {
   // ─── Analytics Demo Data ──────────────────────────────────────────────
   await seedAnalyticsData(company.id, user.id);
 
+  // ─── Workflow Center Demo Data ────────────────────────────────────────
+  await seedWorkflowData(company.id, user.id);
+
   await storage.upsertSubscription(company.id, {
     planName: "Growth",
     status: "Active",
@@ -786,6 +789,167 @@ export async function seedDatabase() {
   await seedPlatformOwner();
 
   console.log("Seed data created: 12 KPIs, 10 action items, 4 projects, 17 tasks, 7 milestones, admin + executive + team_member users + platform owner");
+}
+
+async function seedWorkflowData(companyId: number, userId: number) {
+  const existing = await storage.getWorkflowSubmissions(companyId);
+  if (existing.length > 0) return;
+
+  const today = new Date();
+  const d = (offset: number) => {
+    const dt = new Date(today);
+    dt.setDate(dt.getDate() + offset);
+    return dt.toISOString().slice(0, 10);
+  };
+
+  type Sub = {
+    workflowType: "recurring_task" | "service_ticket" | "license" | "certificate";
+    title: string; description: string; status: string; priority: string;
+    ownerName: string; departmentName: string; category: string;
+    dueDate?: string; expiryDate?: string; recurrenceType?: string;
+    vendorName?: string; issueAuthority?: string; licenseType?: string;
+    holderName?: string; slaTarget?: string; referenceNumber: string;
+  };
+
+  const submissions: Sub[] = [
+    // ── Recurring Tasks ───────────────────────────────────────────────────
+    {
+      workflowType: "recurring_task", title: "Monthly P&L Review", category: "Finance",
+      description: "Review profit & loss statements with department heads and update forecasting models.",
+      status: "Due Soon", priority: "High", ownerName: "Dharmesh Sheth", departmentName: "Finance",
+      dueDate: d(3), recurrenceType: "Monthly", referenceNumber: "RT-LMNO99-PLR",
+    },
+    {
+      workflowType: "recurring_task", title: "Weekly Safety Walkthrough", category: "Operations",
+      description: "Inspect all public and back-of-house areas for safety compliance and record findings.",
+      status: "Scheduled", priority: "Medium", ownerName: "Khalid Mansoor", departmentName: "Operations",
+      dueDate: d(7), recurrenceType: "Weekly", referenceNumber: "RT-WKS22-SFY",
+    },
+    {
+      workflowType: "recurring_task", title: "Quarterly Staff Performance Review", category: "HR",
+      description: "Conduct 1-on-1 performance appraisals for all department heads. Update scorecards in the system.",
+      status: "Scheduled", priority: "High", ownerName: "Priya Sharma", departmentName: "Human Resources",
+      dueDate: d(21), recurrenceType: "Quarterly", referenceNumber: "RT-QRT55-PRV",
+    },
+    {
+      workflowType: "recurring_task", title: "Monthly Guest Satisfaction Report", category: "Guest Experience",
+      description: "Compile and analyse guest feedback scores from OTAs, on-property surveys, and review platforms.",
+      status: "Overdue", priority: "High", ownerName: "Sarah Johnson", departmentName: "Guest Experience",
+      dueDate: d(-5), recurrenceType: "Monthly", referenceNumber: "RT-GST01-MRP",
+    },
+    // ── Service Tickets ───────────────────────────────────────────────────
+    {
+      workflowType: "service_ticket", title: "PMS Integration Failure — Booking Feed", category: "IT",
+      description: "Opera PMS is not syncing with OTA channels. Bookings made after 18:00 are not reflecting in the system. Urgently impacting front desk operations.",
+      status: "In Progress", priority: "Critical", ownerName: "Noura Bin Rashid", departmentName: "Information Technology",
+      dueDate: d(1), slaTarget: "4 hours", referenceNumber: "TKT-IT001-PMS",
+    },
+    {
+      workflowType: "service_ticket", title: "Air Conditioning Unit — Room 412", category: "Engineering",
+      description: "Guest reported A/C unit making loud noise and blowing warm air. Room taken offline pending engineer inspection.",
+      status: "Assigned", priority: "High", ownerName: "Khalid Mansoor", departmentName: "Engineering",
+      dueDate: d(0), slaTarget: "2 hours", referenceNumber: "TKT-ENG12-ACA",
+    },
+    {
+      workflowType: "service_ticket", title: "F&B POS Terminal Replacement", category: "IT",
+      description: "POS terminal at Pool Bar is unresponsive. Temporary workaround in place. Requires replacement hardware.",
+      status: "Pending", priority: "Medium", ownerName: "Noura Bin Rashid", departmentName: "Food & Beverage",
+      dueDate: d(5), slaTarget: "1 day", referenceNumber: "TKT-FB033-POS",
+    },
+    {
+      workflowType: "service_ticket", title: "Staff Access Card System Malfunction", category: "Security",
+      description: "Access cards for levels B1 and B2 car park are not reading. Security team using manual override.",
+      status: "Resolved", priority: "High", ownerName: "Khalid Mansoor", departmentName: "Security",
+      dueDate: d(-2), slaTarget: "4 hours", referenceNumber: "TKT-SEC07-ACC",
+    },
+    {
+      workflowType: "service_ticket", title: "Update Brand Guidelines on Intranet", category: "Marketing",
+      description: "New brand identity assets need uploading to the intranet and Teams channels. Coordinate with Corporate.",
+      status: "New", priority: "Low", ownerName: "Omar Khalil", departmentName: "Marketing",
+      dueDate: d(14), slaTarget: "3 days", referenceNumber: "TKT-MKT88-BRD",
+    },
+    // ── Licenses ──────────────────────────────────────────────────────────
+    {
+      workflowType: "license", title: "Annual Trade License — OYO Grand Hotel", category: "Legal & Compliance",
+      description: "Dubai Department of Economic Development trade license. Must be renewed 45 days before expiry.",
+      status: "Active", priority: "Critical", ownerName: "Dharmesh Sheth", departmentName: "Finance",
+      expiryDate: d(38), licenseType: "Trade License", vendorName: "DED — Dubai Dept. of Economic Development",
+      holderName: "OYO Grand Hotel LLC", referenceNumber: "LIC-DED01-TRD",
+    },
+    {
+      workflowType: "license", title: "Liquor License — F&B Outlets", category: "Legal & Compliance",
+      description: "Dubai Tourism liquor license covering all F&B outlets on property. Includes pool bar, lobby bar and rooftop.",
+      status: "Expiring Soon", priority: "Critical", ownerName: "Dharmesh Sheth", departmentName: "Food & Beverage",
+      expiryDate: d(14), licenseType: "Liquor License", vendorName: "Dubai Tourism & Commerce Marketing",
+      holderName: "OYO Grand Hotel LLC", referenceNumber: "LIC-DTM02-LQR",
+    },
+    {
+      workflowType: "license", title: "Oracle OPERA PMS — Annual Subscription", category: "IT",
+      description: "Annual software subscription for Oracle OPERA Property Management System. Covers all modules.",
+      status: "Active", priority: "High", ownerName: "Noura Bin Rashid", departmentName: "Information Technology",
+      expiryDate: d(95), licenseType: "Software License", vendorName: "Oracle Hospitality",
+      holderName: "OYO Grand Hotel", referenceNumber: "LIC-ORC03-PMS",
+    },
+    {
+      workflowType: "license", title: "Food Hygiene License — Main Kitchen", category: "Legal & Compliance",
+      description: "Dubai Municipality food hygiene permit for the main kitchen facility. Annual inspection required.",
+      status: "Active", priority: "High", ownerName: "Khalid Mansoor", departmentName: "Food & Beverage",
+      expiryDate: d(180), licenseType: "Food Hygiene Permit", vendorName: "Dubai Municipality",
+      holderName: "OYO Grand Hotel — Main Kitchen", referenceNumber: "LIC-DXM04-FHY",
+    },
+    // ── Certificates ──────────────────────────────────────────────────────
+    {
+      workflowType: "certificate", title: "Fire Safety Certificate — Main Building", category: "Safety & Compliance",
+      description: "Annual fire safety inspection certificate for the main hotel building. Issued by Civil Defence.",
+      status: "Active", priority: "Critical", ownerName: "Khalid Mansoor", departmentName: "Engineering",
+      expiryDate: d(72), issueAuthority: "Dubai Civil Defence", licenseType: "Fire Safety Certificate",
+      holderName: "OYO Grand Hotel — Main Building", referenceNumber: "CERT-CDF01-FSC",
+    },
+    {
+      workflowType: "certificate", title: "HACCP Certification — Kitchen Operations", category: "Food Safety",
+      description: "HACCP certification for kitchen food safety management system. Renewal requires 3rd-party audit.",
+      status: "Expiring Soon", priority: "High", ownerName: "Khalid Mansoor", departmentName: "Food & Beverage",
+      expiryDate: d(22), issueAuthority: "Bureau Veritas", licenseType: "HACCP Certificate",
+      holderName: "OYO Grand Hotel F&B Team", referenceNumber: "CERT-BVC02-HCP",
+    },
+    {
+      workflowType: "certificate", title: "ISO 14001 Environmental Management", category: "Sustainability",
+      description: "ISO 14001 certification for environmental management system. Demonstrates commitment to sustainability targets.",
+      status: "Active", priority: "Medium", ownerName: "Priya Sharma", departmentName: "Operations",
+      expiryDate: d(210), issueAuthority: "SGS International", licenseType: "ISO 14001",
+      holderName: "OYO Grand Hotel", referenceNumber: "CERT-SGS03-ENV",
+    },
+    {
+      workflowType: "certificate", title: "Ravi Mehta — Certified Hospitality Manager (CHM)", category: "HR",
+      description: "Professional certification for General Manager. Renewal requires 40 CPD hours documentation.",
+      status: "Active", priority: "Medium", ownerName: "Ravi Mehta", departmentName: "General Management",
+      expiryDate: d(310), issueAuthority: "American Hotel & Lodging Educational Institute",
+      licenseType: "Professional Certification", holderName: "Ravi Mehta", referenceNumber: "CERT-AHL04-CHM",
+    },
+    {
+      workflowType: "certificate", title: "Elevator Safety Certificate — All Lifts", category: "Safety & Compliance",
+      description: "Annual safety inspection certificate for all 4 passenger lifts and 2 service lifts on property.",
+      status: "Expired", priority: "Critical", ownerName: "Khalid Mansoor", departmentName: "Engineering",
+      expiryDate: d(-8), issueAuthority: "Dubai Municipality — Buildings Dept.",
+      licenseType: "Elevator Safety Certificate", holderName: "OYO Grand Hotel", referenceNumber: "CERT-DXM05-ELV",
+    },
+  ];
+
+  for (const s of submissions) {
+    await storage.createWorkflowSubmission({
+      companyId, createdBy: userId,
+      workflowType: s.workflowType, title: s.title, description: s.description,
+      status: s.status, priority: s.priority, ownerName: s.ownerName,
+      departmentName: s.departmentName, category: s.category,
+      dueDate: s.dueDate, expiryDate: s.expiryDate,
+      recurrenceType: s.recurrenceType, vendorName: s.vendorName,
+      issueAuthority: s.issueAuthority, licenseType: s.licenseType,
+      holderName: s.holderName, slaTarget: s.slaTarget,
+      referenceNumber: s.referenceNumber, requesterName: "Dharmesh Sheth",
+    });
+  }
+
+  console.log(`Seed: created ${submissions.length} workflow submissions for demo company`);
 }
 
 async function seedPlatformOwner() {
