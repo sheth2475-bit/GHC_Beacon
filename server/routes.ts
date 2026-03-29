@@ -1680,6 +1680,20 @@ Keep it practical: 5-12 columns. Include columns for dates, key metrics, dimensi
       }
     });
 
+    // POST regenerate widgets from latest upload data
+    app.post("/api/analytics/dashboards/:id/regenerate", requireAuth, async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const dash = await storage.getAnalyticsDashboard(id);
+      if (!dash) return res.status(404).json({ message: "Not found" });
+      const uploads = await storage.getAnalyticsDashboardUploads(id);
+      const latest = uploads[0];
+      if (!latest) return res.status(400).json({ message: "No data uploaded yet" });
+      const rows = (latest.data || []) as Record<string, unknown>[];
+      const widgets = buildWidgetsFromData(rows, dash.config as Record<string, unknown>);
+      await storage.upsertAnalyticsDashboardWidgets(id, widgets);
+      res.json({ ok: true, widgetCount: widgets.length });
+    });
+
     // POST generate AI narrative
     app.post("/api/analytics/dashboards/:id/narrative", requireAuth, async (req: Request, res: Response) => {
       const id = Number(req.params.id);

@@ -13,7 +13,7 @@ import {
   BarChart3, ArrowLeft, Sparkles, Globe, Lock, Building2, Upload,
   RefreshCw, Send, Loader2, Download, TrendingUp, AlertCircle,
   CheckCircle2, Lightbulb, MessageSquare, FileSpreadsheet, Clock,
-  Check, Archive, Eye, MoreHorizontal, BookOpen,
+  Check, Archive, Eye, MoreHorizontal, BookOpen, SlidersHorizontal, X as XIcon,
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
@@ -25,6 +25,53 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16"];
+
+function buildClientWidgets(rows: Record<string, unknown>[]): Partial<AnalyticsDashboardWidget>[] {
+  if (!rows.length) return [];
+  const cols = Object.keys(rows[0]);
+  const numericCols = cols.filter(c => rows.every(r => r[c] !== null && r[c] !== "" && !isNaN(Number(r[c]))));
+  const textCols = cols.filter(c => !numericCols.includes(c));
+  const timeCol = cols.find(c => /date|month|period|week|year|quarter/i.test(c));
+  const categoryCol = textCols.find(c => c !== timeCol) || textCols[0];
+  const widgets: Partial<AnalyticsDashboardWidget>[] = [];
+  let pos = 0;
+
+  for (const col of numericCols.slice(0, 4)) {
+    const vals = rows.map(r => Number(r[col])).filter(v => !isNaN(v));
+    const total = vals.reduce((a, b) => a + b, 0);
+    const avg = vals.length ? total / vals.length : 0;
+    widgets.push({ id: -(pos + 1), widgetType: "kpi_card", title: col.replace(/_/g, " "), config: { metric: col, value: avg, total, count: vals.length, label: col.replace(/_/g, " ") }, position: pos++ });
+  }
+
+  if (timeCol && numericCols.length > 0) {
+    const metric = numericCols[0];
+    const grouped: Record<string, number> = {};
+    for (const r of rows) { const k = String(r[timeCol] || ""); grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0); }
+    const chartData = Object.entries(grouped).map(([k, v]) => ({ [timeCol]: k, [metric]: Math.round(v * 100) / 100 }));
+    widgets.push({ id: -(pos + 1), widgetType: "line_chart", title: `${metric.replace(/_/g, " ")} over time`, config: { data: chartData, xKey: timeCol, yKey: metric, color: "#3b82f6" }, position: pos++ });
+  }
+
+  if (categoryCol && numericCols.length > 0) {
+    const metric = numericCols[0];
+    const grouped: Record<string, number> = {};
+    for (const r of rows) { const k = String(r[categoryCol] || "Other"); grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0); }
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const chartData = sorted.map(([k, v]) => ({ [categoryCol]: k, [metric]: Math.round(v * 100) / 100 }));
+    widgets.push({ id: -(pos + 1), widgetType: "bar_chart", title: `${metric.replace(/_/g, " ")} by ${categoryCol.replace(/_/g, " ")}`, config: { data: chartData, xKey: categoryCol, yKey: metric, color: "#8b5cf6" }, position: pos++ });
+  }
+
+  if (categoryCol && numericCols.length >= 2) {
+    const metric = numericCols[1];
+    const grouped: Record<string, number> = {};
+    for (const r of rows) { const k = String(r[categoryCol] || "Other"); grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0); }
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const pieData = sorted.map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
+    widgets.push({ id: -(pos + 1), widgetType: "pie_chart", title: `${metric.replace(/_/g, " ")} distribution`, config: { data: pieData }, position: pos++ });
+  }
+
+  widgets.push({ id: -(pos + 1), widgetType: "table", title: "Data Table", config: { columns: cols, rows: rows.slice(0, 100) }, position: pos++ });
+  return widgets;
+}
 
 type DashboardFull = AnalyticsDashboard & {
   widgets: AnalyticsDashboardWidget[];
@@ -212,6 +259,9 @@ export default function AnalyticsStudioViewPage() {
   const [chatInput, setChatInput] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [filterCol, setFilterCol] = useState<string>("");
+  const [filterVal, setFilterVal] = useState<string>("");
+  const [refreshing, setRefreshing] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data: dash, isLoading } = useQuery<DashboardFull>({ queryKey: ["/api/analytics/dashboards", id], queryFn: () => fetch(`/api/analytics/dashboards/${id}`).then(r => r.json()) });
@@ -254,9 +304,21 @@ export default function AnalyticsStudioViewPage() {
       await fetch(`/api/analytics/dashboards/${id}/upload`, { method: "POST", body: fd });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards", id] });
       setUploadFile(null);
+      setFilterCol(""); setFilterVal("");
       toast({ title: "Data refreshed successfully" });
     } catch { toast({ title: "Upload failed", variant: "destructive" }); }
     finally { setUploading(false); }
+  };
+
+  const handleRefreshCharts = async () => {
+    setRefreshing(true);
+    try {
+      await fetch(`/api/analytics/dashboards/${id}/regenerate`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards", id] });
+      setFilterCol(""); setFilterVal("");
+      toast({ title: "Charts refreshed", description: "All widgets updated from latest uploaded data." });
+    } catch { toast({ title: "Refresh failed", variant: "destructive" }); }
+    finally { setRefreshing(false); }
   };
 
   useEffect(() => {
@@ -278,10 +340,27 @@ export default function AnalyticsStudioViewPage() {
     </div>
   );
 
-  const kpiWidgets = dash.widgets.filter(w => w.widgetType === "kpi_card");
-  const chartWidgets = dash.widgets.filter(w => ["bar_chart", "line_chart", "area_chart"].includes(w.widgetType));
-  const pieWidgets = dash.widgets.filter(w => w.widgetType === "pie_chart");
-  const tableWidgets = dash.widgets.filter(w => w.widgetType === "table");
+  // ── Filter & active widget derivation ──────────────────────────────────────
+  const rawRows = (dash.uploads?.[0]?.data || []) as Record<string, unknown>[];
+  const allCols = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+  const numericOnly = allCols.filter(c => rawRows.every(r => r[c] !== null && r[c] !== "" && !isNaN(Number(r[c]))));
+  const categoryCols = allCols.filter(c => !numericOnly.includes(c));
+  const colValues = filterCol
+    ? [...new Set(rawRows.map(r => String(r[filterCol] ?? "")).filter(Boolean))].sort()
+    : [];
+  const filteredRows = (filterCol && filterVal)
+    ? rawRows.filter(r => String(r[filterCol] ?? "") === filterVal)
+    : rawRows;
+  const filterActive = !!(filterCol && filterVal);
+  // When filter active, compute widgets client-side from filtered data
+  const activeWidgets: AnalyticsDashboardWidget[] = filterActive && filteredRows.length > 0
+    ? (buildClientWidgets(filteredRows) as unknown as AnalyticsDashboardWidget[])
+    : dash.widgets;
+
+  const kpiWidgets = activeWidgets.filter(w => w.widgetType === "kpi_card");
+  const chartWidgets = activeWidgets.filter(w => ["bar_chart", "line_chart", "area_chart"].includes(w.widgetType));
+  const pieWidgets = activeWidgets.filter(w => w.widgetType === "pie_chart");
+  const tableWidgets = activeWidgets.filter(w => w.widgetType === "table");
   const hasData = dash.widgets.length > 0;
   const latestUpload = dash.uploads?.[0];
   const VisIcon = dash.visibility === "company" ? Globe : dash.visibility === "department" ? Building2 : Lock;
@@ -354,10 +433,20 @@ export default function AnalyticsStudioViewPage() {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setActiveTab("uploads")} className="gap-2">
-                    <RefreshCw className="h-3.5 w-3.5" />Refresh Data
+                    <Upload className="h-3.5 w-3.5" />Upload New Data
                   </DropdownMenuItem>
+                  {dash.uploads?.length > 0 && (
+                    <DropdownMenuItem onClick={handleRefreshCharts} disabled={refreshing} className="gap-2">
+                      <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />Refresh Charts from Data
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              {dash.uploads?.length > 0 && (
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleRefreshCharts} disabled={refreshing} data-testid="button-refresh-charts">
+                  {refreshing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Refreshing…</> : <><RefreshCw className="h-3.5 w-3.5" />Refresh Charts</>}
+                </Button>
+              )}
               {dash.status !== "published" && (
                 <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => updateMutation.mutate({ status: "published" })} data-testid="button-publish-dashboard">
                   <Globe className="h-3.5 w-3.5" />Publish
@@ -397,6 +486,54 @@ export default function AnalyticsStudioViewPage() {
               </div>
             ) : (
               <>
+                {/* ── Global filter bar ── */}
+                {rawRows.length > 0 && categoryCols.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap p-3 rounded-xl border bg-muted/30" data-testid="dashboard-filter-bar">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground shrink-0">
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      Filter Dashboard
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                      <Select value={filterCol} onValueChange={v => { setFilterCol(v); setFilterVal(""); }} data-testid="select-filter-column">
+                        <SelectTrigger className="h-7 text-xs w-44 bg-background">
+                          <SelectValue placeholder="Select column…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categoryCols.map(c => (
+                            <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {filterCol && (
+                        <Select value={filterVal} onValueChange={setFilterVal} data-testid="select-filter-value">
+                          <SelectTrigger className="h-7 text-xs w-48 bg-background">
+                            <SelectValue placeholder="Select value…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {colValues.map(v => (
+                              <SelectItem key={v} value={v}>{v}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {filterActive && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded-full font-semibold border border-primary/20">
+                            {filteredRows.length} rows · {filterCol.replace(/_/g, " ")} = {filterVal}
+                          </span>
+                          <button
+                            onClick={() => { setFilterCol(""); setFilterVal(""); }}
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-muted hover:bg-muted/70 transition-colors"
+                            data-testid="button-clear-filter"
+                          >
+                            <XIcon className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* KPI cards */}
                 {kpiWidgets.length > 0 && (
                   <div className={`grid gap-3 ${kpiWidgets.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : kpiWidgets.length === 3 ? "grid-cols-3" : kpiWidgets.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
