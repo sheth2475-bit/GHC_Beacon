@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart, Bar, LineChart, Line, PieChart as RechartPie, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
+  LabelList, Legend,
 } from "recharts";
 import type { AnalyticsDashboardDefinition, AnalyticsDashboardItem, AnalyticsInsight } from "@shared/schema";
 import {
@@ -181,42 +182,86 @@ function buildDateHierarchy(rows: Record<string, unknown>[], col: string): DateH
   return h;
 }
 
+// Shorten axis labels: "Jan 2023" → "Jan '23", long strings get truncated
+function shortLabel(name: string, maxLen = 8): string {
+  const m = name.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (m) return `${m[1]} '${m[2].slice(2)}`;
+  return name.length > maxLen ? name.slice(0, maxLen - 1) + "…" : name;
+}
+
 function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filteredData?: unknown }) {
   const baseCfg = insight.chartConfig as Record<string, unknown> | null;
   const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
-  if (!cfg) return <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
+  if (!cfg) return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
   const { chartType } = insight;
   const data = cfg.data as Record<string, unknown>;
 
   if (chartType === "kpi" && data) {
     const kpi = data as { value: number; label: string };
     return (
-      <div className="flex flex-col items-center justify-center h-32">
-        <div className="text-3xl font-black">{formatValue(kpi.value)}</div>
-        <p className="text-xs text-muted-foreground mt-1">{kpi.label}</p>
+      <div className="flex flex-col items-center justify-center h-40">
+        <div className="text-4xl font-black tracking-tight">{formatValue(kpi.value)}</div>
+        <p className="text-xs text-muted-foreground mt-1.5 text-center px-2">{kpi.label}</p>
       </div>
     );
   }
 
   if ((chartType === "bar" || chartType === "line") && data) {
     const chartData = (data as { data?: { name: string; value: number }[] }).data || [];
+    const displayData = chartData.slice(0, 10).map(d => ({ ...d, shortName: shortLabel(d.name) }));
+    const hasMany = displayData.length > 6;
+
     if (chartType === "bar") return (
-      <ResponsiveContainer width="100%" height={128}>
-        <BarChart data={chartData.slice(0, 8)} margin={{ top: 2, right: 2, left: -20, bottom: 20 }}>
-          <XAxis dataKey="name" tick={{ fontSize: 8 }} angle={-30} textAnchor="end" />
-          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} />
-          <Tooltip formatter={v => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 10 }} />
-          <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[2, 2, 0, 0]} />
+      <ResponsiveContainer width="100%" height={170}>
+        <BarChart data={displayData} margin={{ top: 18, right: 6, left: -18, bottom: hasMany ? 32 : 24 }}>
+          <XAxis
+            dataKey="shortName"
+            tick={{ fontSize: hasMany ? 7 : 8, fill: "currentColor" }}
+            angle={hasMany ? -40 : -25}
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={42} />
+          <Tooltip
+            formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
+            contentStyle={{ fontSize: 11, borderRadius: 6 }}
+            labelFormatter={() => ""}
+          />
+          <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[3, 3, 0, 0]}>
+            <LabelList
+              dataKey="value"
+              position="top"
+              formatter={(v: number) => formatValue(v)}
+              style={{ fontSize: 8, fill: "currentColor", fontWeight: 600 }}
+            />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     );
     return (
-      <ResponsiveContainer width="100%" height={128}>
-        <AreaChart data={chartData.slice(0, 20)} margin={{ top: 2, right: 2, left: -20, bottom: 20 }}>
-          <XAxis dataKey="name" tick={{ fontSize: 8 }} angle={-30} textAnchor="end" />
-          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} />
-          <Tooltip formatter={v => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 10 }} />
-          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={1.5} fill={CHART_COLORS[0] + "20"} />
+      <ResponsiveContainer width="100%" height={170}>
+        <AreaChart data={displayData} margin={{ top: 18, right: 6, left: -18, bottom: hasMany ? 32 : 24 }}>
+          <XAxis
+            dataKey="shortName"
+            tick={{ fontSize: hasMany ? 7 : 8, fill: "currentColor" }}
+            angle={hasMany ? -40 : -25}
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={42} />
+          <Tooltip
+            formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
+            contentStyle={{ fontSize: 11, borderRadius: 6 }}
+            labelFormatter={() => ""}
+          />
+          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={{ r: 2.5, fill: CHART_COLORS[0] }}>
+            <LabelList
+              dataKey="value"
+              position="top"
+              formatter={(v: number) => formatValue(v)}
+              style={{ fontSize: 8, fill: "currentColor", fontWeight: 600 }}
+            />
+          </Area>
         </AreaChart>
       </ResponsiveContainer>
     );
@@ -224,34 +269,69 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
 
   if (chartType === "pie" && data) {
     const pieData = (data as { data?: { name: string; value: number }[] }).data || [];
+    const slices = pieData.slice(0, 7);
+    const total = slices.reduce((s, d) => s + d.value, 0);
     return (
-      <ResponsiveContainer width="100%" height={128}>
-        <RechartPie>
-          <Pie data={pieData.slice(0, 8)} cx="50%" cy="50%" outerRadius={55} dataKey="value">
-            {pieData.slice(0, 8).map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-          </Pie>
-          <Tooltip formatter={v => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 10 }} />
-        </RechartPie>
-      </ResponsiveContainer>
+      <div className="flex flex-col gap-1">
+        <ResponsiveContainer width="100%" height={140}>
+          <RechartPie>
+            <Pie
+              data={slices}
+              cx="50%"
+              cy="50%"
+              outerRadius={58}
+              innerRadius={22}
+              dataKey="value"
+              paddingAngle={2}
+              label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                if (percent < 0.07) return null;
+                const RADIAN = Math.PI / 180;
+                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                return (
+                  <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 9, fontWeight: 700 }}>
+                    {`${(percent * 100).toFixed(0)}%`}
+                  </text>
+                );
+              }}
+              labelLine={false}
+            >
+              {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <Tooltip formatter={(v) => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+          </RechartPie>
+        </ResponsiveContainer>
+        {/* Compact legend */}
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
+          {slices.map((d, i) => (
+            <div key={i} className="flex items-center gap-1 min-w-0">
+              <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={d.name}>{d.name}</span>
+              <span className="text-[9px] font-semibold shrink-0">{total ? `${((d.value / total) * 100).toFixed(0)}%` : ""}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 
   if (chartType === "table" && data) {
     const tableData = data as { rows?: Record<string, unknown>[]; columns?: string[] };
-    const rows = tableData.rows?.slice(0, 3) || [];
-    const cols = tableData.columns?.slice(0, 3) || [];
+    const rows = tableData.rows?.slice(0, 4) || [];
+    const cols = tableData.columns?.slice(0, 4) || [];
     return (
       <div className="overflow-hidden rounded border">
         <table className="w-full text-[10px]">
-          <thead className="bg-muted/50"><tr>{cols.map(c => <th key={c} className="px-2 py-1 text-left font-medium">{c}</th>)}</tr></thead>
-          <tbody>{rows.map((r, i) => <tr key={i}>{cols.map(c => <td key={c} className="px-2 py-1 truncate max-w-[80px]">{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
+          <thead className="bg-muted/50"><tr>{cols.map(c => <th key={c} className="px-2 py-1 text-left font-medium truncate max-w-[90px]">{c}</th>)}</tr></thead>
+          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50">{cols.map(c => <td key={c} className="px-2 py-1 truncate max-w-[90px]">{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
         </table>
-        {(tableData.rows?.length || 0) > 3 && <p className="text-[9px] text-center text-muted-foreground py-1">+{(tableData.rows?.length || 0) - 3} more rows</p>}
+        {(tableData.rows?.length || 0) > 4 && <p className="text-[9px] text-center text-muted-foreground py-1">+{(tableData.rows?.length || 0) - 4} more rows</p>}
       </div>
     );
   }
 
-  return <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">Preview unavailable</div>;
+  return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">Preview unavailable</div>;
 }
 
 function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filteredData }: {
@@ -266,7 +346,7 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0">
-            <h4 className="font-bold text-sm truncate">{item.titleOverride || item.insight.title}</h4>
+            <h4 className="font-bold text-sm leading-snug line-clamp-2">{item.titleOverride || item.insight.title}</h4>
             <span className="text-[10px] text-muted-foreground">{chartLabel[item.insight.chartType] || item.insight.chartType}</span>
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
