@@ -372,14 +372,14 @@ export default function AnalyticsDashboardComposePage() {
   };
 
   const handleMoveUp = (idx: number) => {
-    if (!dash) return;
+    if (!dash || !dash.items) return;
     const items = [...dash.items];
     [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]];
     reorderMutation.mutate(items.map(i => i.id));
   };
 
   const handleMoveDown = (idx: number) => {
-    if (!dash) return;
+    if (!dash || !dash.items) return;
     const items = [...dash.items];
     [items[idx], items[idx + 1]] = [items[idx + 1], items[idx]];
     reorderMutation.mutate(items.map(i => i.id));
@@ -638,7 +638,7 @@ export default function AnalyticsDashboardComposePage() {
           )}
 
           {/* Insights grid */}
-          {dash.items.length === 0 ? (
+          {(dash.items?.length ?? 0) === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border-2 border-dashed border-border">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/5 border border-primary/10 mb-4">
                 <Pin className="h-7 w-7 text-primary/40" />
@@ -654,20 +654,20 @@ export default function AnalyticsDashboardComposePage() {
           ) : (
             <>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-muted-foreground">{dash.items.length} insight{dash.items.length !== 1 ? "s" : ""}</p>
+                <p className="text-sm font-semibold text-muted-foreground">{dash.items?.length ?? 0} insight{(dash.items?.length ?? 0) !== 1 ? "s" : ""}</p>
                 <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setAddInsightDialog(true)} disabled={unpinnedInsights.length === 0} data-testid="button-add-more">
                   <Plus className="h-3.5 w-3.5" /> Add Insight
                 </Button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {dash.items.map((item, idx) => {
+                {(dash.items ?? []).map((item, idx) => {
                   const overrideData = isFiltered ? computeFilteredData(filteredRows, item.insight) : undefined;
                   return (
                     <InsightCard
                       key={item.id}
                       item={item}
                       idx={idx}
-                      total={dash.items.length}
+                      total={dash.items?.length ?? 0}
                       onRemove={() => setRemoveId(item.id)}
                       onMoveUp={() => handleMoveUp(idx)}
                       onMoveDown={() => handleMoveDown(idx)}
@@ -729,9 +729,9 @@ export default function AnalyticsDashboardComposePage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {activeDateCount > 0 && (
-                        <button onClick={e => { e.stopPropagation(); clearDateColFilter(col); }} className="text-[10px] text-muted-foreground hover:text-foreground">
+                        <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); clearDateColFilter(col); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clearDateColFilter(col); }}} className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer">
                           <X className="h-3 w-3" />
-                        </button>
+                        </span>
                       )}
                       {sectionExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                     </div>
@@ -838,12 +838,15 @@ export default function AnalyticsDashboardComposePage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {selected.length > 0 && (
-                        <button
+                        <span
+                          role="button"
+                          tabIndex={0}
                           onClick={e => { e.stopPropagation(); clearColFilter(col); }}
-                          className="text-[10px] text-muted-foreground hover:text-foreground"
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clearColFilter(col); }}}
+                          className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
                         >
                           <X className="h-3 w-3" />
-                        </button>
+                        </span>
                       )}
                       {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                     </div>

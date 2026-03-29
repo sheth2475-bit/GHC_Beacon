@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,8 @@ export default function AnalyticsUploadPage() {
     },
     onSuccess: (data) => {
       setResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/datasets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/insights"] });
       toast({ title: "Dataset uploaded!", description: `${data.rowCount?.toLocaleString()} rows detected across ${data.sheetNames?.length || 1} sheet(s).` });
     },
     onError: (err: Error) => {
