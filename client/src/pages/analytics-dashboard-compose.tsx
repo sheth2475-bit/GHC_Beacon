@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -133,6 +133,42 @@ function clientAggregateData(
     result.sort((a, b) => b.value - a.value);
   }
   return result;
+}
+
+// Mirrors server-side applyFormulaColumns — evaluates formula expressions on the client
+// Also stores results by label ("Net Sales") so measure lookups in computeFilteredData work
+type DatasetColumnLike = { columnName: string; label: string; isFormula?: boolean | null; formulaExpression?: string | null };
+function applyFormulaColumnsClient(
+  rows: Record<string, unknown>[],
+  columns: DatasetColumnLike[]
+): Record<string, unknown>[] {
+  const formulaCols = columns.filter(c => c.isFormula && c.formulaExpression);
+  if (!formulaCols.length) return rows;
+  const baseCols = columns.filter(c => !c.isFormula);
+  return rows.map(row => {
+    const out = { ...row };
+    for (const col of formulaCols) {
+      try {
+        let expr = col.formulaExpression!;
+        for (const c of baseCols) {
+          const labelRe = new RegExp(`\\[${c.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`, "g");
+          const nameRe  = new RegExp(`\\[${c.columnName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`, "g");
+          const val = String(Number(row[c.columnName]) || 0);
+          expr = expr.replace(labelRe, val).replace(nameRe, val);
+        }
+        expr = expr.replace(/\[[^\]]+\]/g, "0");
+        // eslint-disable-next-line no-new-func
+        const result = new Function(`"use strict"; return (${expr})`)();
+        const computed = typeof result === "number" && isFinite(result) ? Math.round(result * 1000) / 1000 : 0;
+        out[col.columnName] = computed; // store by internal name
+        out[col.label] = computed;     // also store by label so insight measure lookups work
+      } catch {
+        out[col.columnName] = 0;
+        out[col.label] = 0;
+      }
+    }
+    return out;
+  });
 }
 
 function computeFilteredData(rows: Record<string, unknown>[], insight: AnalyticsInsight): unknown {
@@ -395,12 +431,16 @@ export default function AnalyticsDashboardComposePage() {
   const [generatingNarrative, setGeneratingNarrative] = useState(false);
   const [narrativeOpen, setNarrativeOpen] = useState(false);
   const [filterPaneOpen, setFilterPaneOpen] = useState(false);
+  // Pending = what user is editing in the pane (not yet applied to charts)
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+  // Applied = what actually drives chart computation (updated only on Apply)
+  const [appliedFilters, setAppliedFilters] = useState<Record<string, string[]>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
   // Date hierarchy filter state: col → { years, quarters ("2023|Q1"), months ("2023|Jan") }
   type DateColFilter = { years: string[]; quarters: string[]; months: string[] };
-  const [dateFilters, setDateFilters] = useState<Record<string, DateColFilter>>({});
+  const [dateFilters, setDateFilters] = useState<Record<string, DateColFilter>>({});     // pending
+  const [appliedDateFilters, setAppliedDateFilters] = useState<Record<string, DateColFilter>>({}); // applied
   const [expandedDateYears, setExpandedDateYears] = useState<Record<string, Record<string, boolean>>>({});
   const [expandedDateQuarters, setExpandedDateQuarters] = useState<Record<string, Record<string, boolean>>>({});
 
@@ -542,20 +582,24 @@ export default function AnalyticsDashboardComposePage() {
 
   // Detect date columns from dataset column config
   const datasetCols = primaryDataset?.columns || [];
+  // Apply formula columns on the client so measure lookups ("Net Sales") work correctly
+  const computedRows: Record<string, unknown>[] = applyFormulaColumnsClient(rawRows, datasetCols);
+
   const dateColNames = new Set(datasetCols.filter(c => c.columnType === "date").map(c => c.columnName));
   const dateColLabels: Record<string, string> = Object.fromEntries(datasetCols.filter(c => c.columnType === "date").map(c => [c.columnName, c.label]));
 
   // Build date hierarchies
   const dateHierarchies: Record<string, DateHierarchy> = {};
   for (const col of dateColNames) {
-    dateHierarchies[col] = buildDateHierarchy(rawRows, col);
+    dateHierarchies[col] = buildDateHierarchy(computedRows, col);
   }
 
-  // Detect categorical (non-numeric) columns — EXCLUDING date columns
-  const categoryCols: string[] = rawRows.length
-    ? Object.keys(rawRows[0]).filter(col => {
+  // Detect categorical (non-numeric) columns — EXCLUDING date columns and formula internal names
+  const categoryCols: string[] = computedRows.length
+    ? Object.keys(computedRows[0]).filter(col => {
         if (dateColNames.has(col)) return false; // date columns handled separately
-        const vals = rawRows.map(r => r[col]);
+        if (col.startsWith("__formula_")) return false; // skip internal formula column keys
+        const vals = computedRows.map(r => r[col]);
         const numericCount = vals.filter(v => v !== null && v !== "" && !isNaN(Number(v))).length;
         const unique = new Set(vals.map(v => String(v)));
         return numericCount / vals.length < 0.8 && unique.size >= 2 && unique.size <= 100;
@@ -565,30 +609,49 @@ export default function AnalyticsDashboardComposePage() {
   // Unique values per column (for checkboxes)
   const colValueMap: Record<string, string[]> = {};
   for (const col of categoryCols) {
-    colValueMap[col] = [...new Set(rawRows.map(r => String(r[col] ?? "")).filter(Boolean))].sort();
+    colValueMap[col] = [...new Set(computedRows.map(r => String(r[col] ?? "")).filter(Boolean))].sort();
   }
 
-  // Apply all active filters (categorical AND date, AND logic across columns)
-  const filteredRows: Record<string, unknown>[] = rawRows.filter(row => {
-    // Categorical filters
-    if (!Object.entries(activeFilters).every(([col, vals]) => vals.length === 0 || vals.includes(String(row[col] ?? "")))) return false;
-    // Date hierarchy filters
-    for (const [col, df] of Object.entries(dateFilters)) {
+  // Sync pending filter state when filter pane opens
+  useEffect(() => {
+    if (filterPaneOpen) {
+      setActiveFilters({ ...appliedFilters });
+      setDateFilters({ ...appliedDateFilters });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterPaneOpen]);
+
+  // Apply PENDING filters to charts — called by the Apply button
+  const applyPendingFilters = () => {
+    setAppliedFilters({ ...activeFilters });
+    setAppliedDateFilters({ ...dateFilters });
+  };
+
+  const hasPendingChanges =
+    JSON.stringify(activeFilters) !== JSON.stringify(appliedFilters) ||
+    JSON.stringify(dateFilters) !== JSON.stringify(appliedDateFilters);
+
+  // Apply APPLIED filters (not pending) to rows for chart computation
+  const filteredRows: Record<string, unknown>[] = computedRows.filter(row => {
+    // Categorical filters (applied)
+    if (!Object.entries(appliedFilters).every(([col, vals]) => vals.length === 0 || vals.includes(String(row[col] ?? "")))) return false;
+    // Date hierarchy filters (applied)
+    for (const [col, df] of Object.entries(appliedDateFilters)) {
       const hasFilter = df.years.length > 0 || df.quarters.length > 0 || df.months.length > 0;
       if (!hasFilter) continue;
       const parts = parseDateParts(row[col]);
-      if (!parts) continue; // can't parse date — keep row (don't exclude on parse failure)
+      if (!parts) continue; // can't parse date — keep row
       const passes = df.years.includes(parts.year) || df.quarters.includes(parts.quarter) || df.months.includes(parts.month);
       if (!passes) return false;
     }
     return true;
   });
 
-  const activeDateFilterCount = Object.values(dateFilters).filter(df => df.years.length > 0 || df.quarters.length > 0 || df.months.length > 0).length;
-  const isFiltered = Object.values(activeFilters).some(v => v.length > 0) || activeDateFilterCount > 0;
-  const activeFilterCount = Object.values(activeFilters).filter(v => v.length > 0).length + activeDateFilterCount;
+  const activeDateFilterCount = Object.values(appliedDateFilters).filter(df => df.years.length > 0 || df.quarters.length > 0 || df.months.length > 0).length;
+  const isFiltered = Object.values(appliedFilters).some(v => v.length > 0) || activeDateFilterCount > 0;
+  const activeFilterCount = Object.values(appliedFilters).filter(v => v.length > 0).length + activeDateFilterCount;
 
-  // Categorical filter helpers
+  // Categorical filter helpers (update PENDING state only — require Apply)
   const toggleFilterValue = (col: string, val: string) => {
     setActiveFilters(prev => {
       const curr = prev[col] || [];
@@ -597,7 +660,13 @@ export default function AnalyticsDashboardComposePage() {
     });
   };
   const clearColFilter = (col: string) => setActiveFilters(prev => ({ ...prev, [col]: [] }));
-  const clearAllFilters = () => { setActiveFilters({}); setDateFilters({}); };
+  // Clear all: resets both pending and applied immediately
+  const clearAllFilters = () => {
+    setActiveFilters({});
+    setDateFilters({});
+    setAppliedFilters({});
+    setAppliedDateFilters({});
+  };
   const toggleSection = (col: string) => setExpandedSections(prev => {
     const current = prev[col] === true; // default false (collapsed)
     return { ...prev, [col]: !current };
@@ -751,41 +820,57 @@ export default function AnalyticsDashboardComposePage() {
             </div>
           </div>
 
-          {/* Active filter summary bar */}
+          {/* Active filter summary bar — shows APPLIED filters only */}
           {isFiltered && (
             <div className="flex flex-wrap items-center gap-2" data-testid="active-filter-summary">
-              {Object.entries(activeFilters).filter(([, vals]) => vals.length > 0).map(([col, vals]) => (
+              {Object.entries(appliedFilters).filter(([, vals]) => vals.length > 0).map(([col, vals]) => (
                 vals.map(val => (
                   <span key={`${col}-${val}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
                     <span className="text-muted-foreground">{col}:</span> {val}
-                    <button onClick={() => toggleFilterValue(col, val)} className="hover:text-primary/70 ml-0.5"><X className="h-2.5 w-2.5" /></button>
+                    <button onClick={() => {
+                      const updated = { ...appliedFilters, [col]: (appliedFilters[col] || []).filter(v => v !== val) };
+                      setAppliedFilters(updated);
+                      setActiveFilters(updated);
+                    }} className="hover:text-primary/70 ml-0.5"><X className="h-2.5 w-2.5" /></button>
                   </span>
                 ))
               ))}
-              {Object.entries(dateFilters).flatMap(([col, df]) => {
+              {Object.entries(appliedDateFilters).flatMap(([col, df]) => {
                 const label = dateColLabels[col] || col;
                 const pills: JSX.Element[] = [];
+                const removeYear = (y: string) => {
+                  const upd = { ...appliedDateFilters, [col]: { ...df, years: df.years.filter(x => x !== y) } };
+                  setAppliedDateFilters(upd); setDateFilters(upd);
+                };
+                const removeQuarter = (qk: string) => {
+                  const upd = { ...appliedDateFilters, [col]: { ...df, quarters: df.quarters.filter(x => x !== qk) } };
+                  setAppliedDateFilters(upd); setDateFilters(upd);
+                };
+                const removeMonth = (mk: string) => {
+                  const upd = { ...appliedDateFilters, [col]: { ...df, months: df.months.filter(x => x !== mk) } };
+                  setAppliedDateFilters(upd); setDateFilters(upd);
+                };
                 df.years.forEach(y => pills.push(
                   <span key={`${col}-y-${y}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20">
                     <Calendar className="h-2.5 w-2.5" /><span className="text-muted-foreground">{label}:</span> {y}
-                    <button onClick={() => toggleDateYear(col, y)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
+                    <button onClick={() => removeYear(y)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
                   </span>
                 ));
                 df.quarters.forEach(qk => pills.push(
                   <span key={`${col}-q-${qk}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20">
                     <Calendar className="h-2.5 w-2.5" /><span className="text-muted-foreground">{label}:</span> {qk.replace("|", " ")}
-                    <button onClick={() => toggleDateQuarter(col, qk)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
+                    <button onClick={() => removeQuarter(qk)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
                   </span>
                 ));
                 df.months.forEach(mk => pills.push(
                   <span key={`${col}-m-${mk}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20">
                     <Calendar className="h-2.5 w-2.5" /><span className="text-muted-foreground">{label}:</span> {mk.replace("|", " ")}
-                    <button onClick={() => toggleDateMonth(col, mk)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
+                    <button onClick={() => removeMonth(mk)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
                   </span>
                 ));
                 return pills;
               })}
-              <span className="text-xs text-muted-foreground">{filteredRows.length} of {rawRows.length} rows</span>
+              <span className="text-xs text-muted-foreground">{filteredRows.length} of {computedRows.length} rows</span>
               <button onClick={clearAllFilters} className="text-xs text-muted-foreground underline hover:text-foreground">Clear all</button>
             </div>
           )}
@@ -814,7 +899,7 @@ export default function AnalyticsDashboardComposePage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(dash.items ?? []).map((item, idx) => {
-                  const overrideData = (isFiltered && rawRows.length > 0) ? computeFilteredData(filteredRows, item.insight) : undefined;
+                  const overrideData = (isFiltered && computedRows.length > 0) ? computeFilteredData(filteredRows, item.insight) : undefined;
                   return (
                     <InsightCard
                       key={item.id}
@@ -1045,7 +1130,7 @@ export default function AnalyticsDashboardComposePage() {
                         ) : (
                           visibleVals.map(val => {
                             const checked = selected.includes(val);
-                            const rowCount = rawRows.filter(r => String(r[col] ?? "") === val).length;
+                            const rowCount = computedRows.filter(r => String(r[col] ?? "") === val).length;
                             return (
                               <label
                                 key={val}
@@ -1071,13 +1156,28 @@ export default function AnalyticsDashboardComposePage() {
             })}
           </div>
 
-          {/* Footer: row count */}
-          <div className="px-4 py-2.5 border-t text-[11px] text-muted-foreground shrink-0">
-            {isFiltered ? (
-              <span className="text-foreground font-medium">{filteredRows.length} of {rawRows.length} rows match</span>
-            ) : (
-              <span>{rawRows.length} rows total</span>
-            )}
+          {/* Footer: Apply button + row count */}
+          <div className="px-3 py-3 border-t shrink-0 space-y-2">
+            <Button
+              size="sm"
+              className="w-full h-9 font-semibold gap-1.5"
+              onClick={applyPendingFilters}
+              disabled={!hasPendingChanges}
+              data-testid="button-apply-filters"
+            >
+              Apply Filters
+              {hasPendingChanges && (
+                <span className="text-[10px] opacity-80 font-normal">
+                  ({Object.values(activeFilters).filter(v => v.length > 0).length + Object.values(dateFilters).filter(d => d.years.length + d.quarters.length + d.months.length > 0).length} selected)
+                </span>
+              )}
+            </Button>
+            <p className="text-[10px] text-muted-foreground text-center">
+              {isFiltered
+                ? <><span className="font-semibold text-foreground">{filteredRows.length}</span> of {computedRows.length} rows (applied)</>
+                : <>{computedRows.length} rows total</>
+              }
+            </p>
           </div>
         </div>
       )}
