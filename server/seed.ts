@@ -571,6 +571,13 @@ export async function seedDatabase() {
       console.log("Seed: created Growth subscription for demo company");
     }
 
+    // ── Ensure analytics V2 datasets, insights, definitions ─────
+    const existingDatasets = await storage.getAnalyticsDatasets(companyId);
+    if (existingDatasets.length === 0) {
+      await seedAnalyticsData(companyId, existing.id);
+      console.log("Seed: restored analytics V2 data (datasets, insights, definitions)");
+    }
+
     // ── Ensure platform owner ───────────────────────────────────
     await seedPlatformOwner();
 
