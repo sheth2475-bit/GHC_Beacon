@@ -48,6 +48,50 @@ function formatValue(v: number) {
   return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
 }
 
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// Parse a date value into UTC-based parts (avoids timezone shift bugs)
+function parseUtcDate(val: unknown): Date | null {
+  const str = String(val ?? "").trim();
+  if (!str) return null;
+
+  // Try native parsing first (handles ISO "2024-04-01", "2024-04", etc.)
+  let d = new Date(str);
+
+  // "Apr 2024" / "April 2024"
+  if (isNaN(d.getTime())) {
+    const m = str.match(/^([A-Za-z]+)\s+(\d{4})$/);
+    if (m) d = new Date(`${m[1]} 1, ${m[2]}`);
+  }
+
+  // "YYYY-MM"
+  if (isNaN(d.getTime())) {
+    const m = str.match(/^(\d{4})-(\d{2})$/);
+    if (m) d = new Date(`${m[1]}-${m[2]}-01`);
+  }
+
+  // "MM/YYYY" or "M/YYYY"
+  if (isNaN(d.getTime())) {
+    const m = str.match(/^(\d{1,2})\/(\d{4})$/);
+    if (m) d = new Date(`${m[2]}-${m[1].padStart(2,"0")}-01`);
+  }
+
+  if (isNaN(d.getTime())) return null;
+
+  // For ISO-style dates (YYYY-MM-DD), use UTC to avoid timezone shift
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return new Date(str + (str.length === 10 ? "T00:00:00Z" : ""));
+  }
+  return d;
+}
+
+function utcMonthLabel(d: Date): string {
+  // Use UTC year/month to avoid timezone-shifting dates by one month
+  const iso = d.toISOString(); // always UTC
+  const [yearStr, monStr] = iso.split("-");
+  return `${MONTH_NAMES[Number(monStr) - 1]} ${yearStr}`;
+}
+
 // Client-side re-implementation of server aggregateData — used for live filtering
 function clientAggregateData(
   rows: Record<string, unknown>[],
@@ -64,9 +108,9 @@ function clientAggregateData(
   for (const row of rows) {
     const rawKey = row[dimension];
     let key: string;
-    const parsed = rawKey ? new Date(String(rawKey)) : null;
-    if (parsed && !isNaN(parsed.getTime()) && String(rawKey).length >= 6) {
-      key = parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const parsed = parseUtcDate(rawKey);
+    if (parsed) {
+      key = utcMonthLabel(parsed);
     } else {
       key = String(rawKey ?? "Unknown").trim() || "Unknown";
     }
@@ -80,7 +124,10 @@ function clientAggregateData(
   });
   const isDimDate = /month|date|year|period|quarter|week/i.test(dimension);
   if (isDimDate) {
-    result.sort((a, b) => { const da = new Date(a.name), db = new Date(b.name); return !isNaN(da.getTime()) && !isNaN(db.getTime()) ? da.getTime() - db.getTime() : 0; });
+    result.sort((a, b) => {
+      const da = new Date(a.name), db = new Date(b.name);
+      return !isNaN(da.getTime()) && !isNaN(db.getTime()) ? da.getTime() - db.getTime() : 0;
+    });
   } else {
     result.sort((a, b) => b.value - a.value);
   }
@@ -107,11 +154,15 @@ const QUARTERS: Record<string, string> = { Jan: "Q1", Feb: "Q1", Mar: "Q1", Apr:
 const MONTH_ORDER: Record<string, number> = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
 
 function parseDateParts(val: unknown): { year: string; quarter: string; month: string } | null {
-  const d = new Date(String(val ?? ""));
-  if (isNaN(d.getTime())) return null;
-  const year = String(d.getFullYear());
-  const month = d.toLocaleDateString("en-US", { month: "short" });
-  const q = `Q${Math.ceil((d.getMonth() + 1) / 3)}`;
+  const d = parseUtcDate(val);
+  if (!d) return null;
+  // Always use UTC to avoid timezone-shifted month/year
+  const iso = d.toISOString();
+  const yearNum = Number(iso.slice(0, 4));
+  const monIdx = Number(iso.slice(5, 7)) - 1; // 0-indexed
+  const year = String(yearNum);
+  const month = MONTH_NAMES[monIdx];
+  const q = `Q${Math.ceil((monIdx + 1) / 3)}`;
   return { year, quarter: `${year}|${q}`, month: `${year}|${month}` };
 }
 
@@ -433,7 +484,7 @@ export default function AnalyticsDashboardComposePage() {
       const hasFilter = df.years.length > 0 || df.quarters.length > 0 || df.months.length > 0;
       if (!hasFilter) continue;
       const parts = parseDateParts(row[col]);
-      if (!parts) return false;
+      if (!parts) continue; // can't parse date — keep row (don't exclude on parse failure)
       const passes = df.years.includes(parts.year) || df.quarters.includes(parts.quarter) || df.months.includes(parts.month);
       if (!passes) return false;
     }
@@ -454,7 +505,10 @@ export default function AnalyticsDashboardComposePage() {
   };
   const clearColFilter = (col: string) => setActiveFilters(prev => ({ ...prev, [col]: [] }));
   const clearAllFilters = () => { setActiveFilters({}); setDateFilters({}); };
-  const toggleSection = (col: string) => setExpandedSections(prev => ({ ...prev, [col]: !prev[col] }));
+  const toggleSection = (col: string) => setExpandedSections(prev => {
+    const current = prev[col] !== false; // default is true (expanded)
+    return { ...prev, [col]: !current };
+  });
   const isSectionExpanded = (col: string) => expandedSections[col] !== false; // default expanded
 
   // Date hierarchy filter helpers
@@ -481,9 +535,12 @@ export default function AnalyticsDashboardComposePage() {
   };
   const clearDateColFilter = (col: string) => setDateFilters(prev => ({ ...prev, [col]: { years: [], quarters: [], months: [] } }));
   const toggleDateYear_expand = (col: string, year: string) => setExpandedDateYears(prev => ({ ...prev, [col]: { ...(prev[col] || {}), [year]: !(prev[col]?.[year] ?? true) } }));
-  const toggleDateQuarter_expand = (col: string, qKey: string) => setExpandedDateQuarters(prev => ({ ...prev, [col]: { ...(prev[col] || {}), [qKey]: !(prev[col]?.[qKey] ?? false) } }));
+  const toggleDateQuarter_expand = (col: string, qKey: string) => setExpandedDateQuarters(prev => {
+    const current = prev[col]?.[qKey] !== false; // default true (expanded)
+    return { ...prev, [col]: { ...(prev[col] || {}), [qKey]: !current } };
+  });
   const isDateYearExpanded = (col: string, year: string) => expandedDateYears[col]?.[year] !== false;
-  const isDateQuarterExpanded = (col: string, qKey: string) => expandedDateQuarters[col]?.[qKey] === true;
+  const isDateQuarterExpanded = (col: string, qKey: string) => expandedDateQuarters[col]?.[qKey] !== false; // default expanded
 
   // New dashboard creation screen
   if (isNew) {
@@ -661,7 +718,7 @@ export default function AnalyticsDashboardComposePage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(dash.items ?? []).map((item, idx) => {
-                  const overrideData = isFiltered ? computeFilteredData(filteredRows, item.insight) : undefined;
+                  const overrideData = (isFiltered && rawRows.length > 0) ? computeFilteredData(filteredRows, item.insight) : undefined;
                   return (
                     <InsightCard
                       key={item.id}
