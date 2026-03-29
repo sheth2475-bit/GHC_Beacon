@@ -15,7 +15,7 @@ import {
   Globe, Lock, Building2, Edit2, CheckCircle2, Pin,
   X, ArrowUp, ArrowDown,
   AlertTriangle, Lightbulb, ChevronRight, ChevronDown, ChevronUp,
-  RefreshCw, SlidersHorizontal, Filter, Search,
+  RefreshCw, SlidersHorizontal, Filter, Search, Calendar, Database,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -100,6 +100,34 @@ function computeFilteredData(rows: Record<string, unknown>[], insight: Analytics
   }
   const aggData = clientAggregateData(rows, measure, dimension, agg);
   return { data: aggData, xKey: "name", yKey: "value", measureLabel: cfg.measureLabel, dimensionLabel: cfg.dimensionLabel };
+}
+
+// ── Date Hierarchy Helpers ──────────────────────────────────────────────────
+const QUARTERS: Record<string, string> = { Jan: "Q1", Feb: "Q1", Mar: "Q1", Apr: "Q2", May: "Q2", Jun: "Q2", Jul: "Q3", Aug: "Q3", Sep: "Q3", Oct: "Q4", Nov: "Q4", Dec: "Q4" };
+const MONTH_ORDER: Record<string, number> = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6, Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12 };
+
+function parseDateParts(val: unknown): { year: string; quarter: string; month: string } | null {
+  const d = new Date(String(val ?? ""));
+  if (isNaN(d.getTime())) return null;
+  const year = String(d.getFullYear());
+  const month = d.toLocaleDateString("en-US", { month: "short" });
+  const q = `Q${Math.ceil((d.getMonth() + 1) / 3)}`;
+  return { year, quarter: `${year}|${q}`, month: `${year}|${month}` };
+}
+
+type DateHierarchy = Record<string, Record<string, Record<string, number>>>; // year → quarter → month → count
+function buildDateHierarchy(rows: Record<string, unknown>[], col: string): DateHierarchy {
+  const h: DateHierarchy = {};
+  for (const row of rows) {
+    const parts = parseDateParts(row[col]);
+    if (!parts) continue;
+    const mon = parts.month.split("|")[1];
+    const q = QUARTERS[mon] || "Q?";
+    if (!h[parts.year]) h[parts.year] = {};
+    if (!h[parts.year][q]) h[parts.year][q] = {};
+    h[parts.year][q][mon] = (h[parts.year][q][mon] || 0) + 1;
+  }
+  return h;
 }
 
 function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filteredData?: unknown }) {
@@ -219,12 +247,18 @@ export default function AnalyticsDashboardComposePage() {
   const [publishVisibility, setPublishVisibility] = useState("company");
   const [addInsightDialog, setAddInsightDialog] = useState(false);
   const [removeId, setRemoveId] = useState<number | null>(null);
+  const [deleteInsightId, setDeleteInsightId] = useState<number | null>(null);
   const [generatingNarrative, setGeneratingNarrative] = useState(false);
   const [narrativeOpen, setNarrativeOpen] = useState(false);
   const [filterPaneOpen, setFilterPaneOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
+  // Date hierarchy filter state: col → { years, quarters ("2023|Q1"), months ("2023|Jan") }
+  type DateColFilter = { years: string[]; quarters: string[]; months: string[] };
+  const [dateFilters, setDateFilters] = useState<Record<string, DateColFilter>>({});
+  const [expandedDateYears, setExpandedDateYears] = useState<Record<string, Record<string, boolean>>>({});
+  const [expandedDateQuarters, setExpandedDateQuarters] = useState<Record<string, Record<string, boolean>>>({});
 
   const { data: dash, isLoading } = useQuery<DashboardFull>({
     queryKey: ["/api/v2/analytics/definitions", id],
@@ -239,7 +273,7 @@ export default function AnalyticsDashboardComposePage() {
   // Get primary dataset id from the first insight that has one
   const primaryDatasetId = dash?.items?.[0]?.insight?.datasetId ?? null;
 
-  const { data: primaryDataset } = useQuery<{ id: number; name: string; rawData: Record<string, unknown>[] }>({
+  const { data: primaryDataset } = useQuery<{ id: number; name: string; rawData: Record<string, unknown>[]; columns: { columnName: string; label: string; columnType: string }[] }>({
     queryKey: ["/api/v2/analytics/datasets", primaryDatasetId],
     queryFn: () => fetch(`/api/v2/analytics/datasets/${primaryDatasetId}`, { credentials: "include" }).then(r => r.json()),
     enabled: !!primaryDatasetId && !isNew,
@@ -302,6 +336,17 @@ export default function AnalyticsDashboardComposePage() {
     },
   });
 
+  const deleteInsightMutation = useMutation({
+    mutationFn: (insightId: number) => apiRequest("DELETE", `/api/v2/analytics/insights/${insightId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/insights"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] });
+      setDeleteInsightId(null);
+      toast({ title: "Insight deleted permanently" });
+    },
+    onError: () => toast({ title: "Failed to delete insight", variant: "destructive" }),
+  });
+
   const reorderMutation = useMutation({
     mutationFn: (orderedIds: number[]) => apiRequest("POST", `/api/v2/analytics/definitions/${id}/reorder`, { orderedIds }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] }),
@@ -342,15 +387,30 @@ export default function AnalyticsDashboardComposePage() {
 
   const pinnedInsightIds = new Set((dash?.items ?? []).map(i => i.insightId));
   const unpinnedInsights = allInsights.filter(i => !pinnedInsightIds.has(i.id));
+  // Group insights for "Add" dialog: current dataset first, then others
+  const currentDatasetInsights = unpinnedInsights.filter(i => i.datasetId === primaryDatasetId);
+  const otherInsights = unpinnedInsights.filter(i => i.datasetId !== primaryDatasetId);
 
   const VisIcon = dash?.visibility === "company" ? Globe : dash?.visibility === "department" ? Building2 : Lock;
 
   // Power BI-style filter pane computations
   const rawRows: Record<string, unknown>[] = primaryDataset?.rawData || [];
 
-  // Detect categorical (non-numeric) columns suitable for filtering
+  // Detect date columns from dataset column config
+  const datasetCols = primaryDataset?.columns || [];
+  const dateColNames = new Set(datasetCols.filter(c => c.columnType === "date").map(c => c.columnName));
+  const dateColLabels: Record<string, string> = Object.fromEntries(datasetCols.filter(c => c.columnType === "date").map(c => [c.columnName, c.label]));
+
+  // Build date hierarchies
+  const dateHierarchies: Record<string, DateHierarchy> = {};
+  for (const col of dateColNames) {
+    dateHierarchies[col] = buildDateHierarchy(rawRows, col);
+  }
+
+  // Detect categorical (non-numeric) columns — EXCLUDING date columns
   const categoryCols: string[] = rawRows.length
     ? Object.keys(rawRows[0]).filter(col => {
+        if (dateColNames.has(col)) return false; // date columns handled separately
         const vals = rawRows.map(r => r[col]);
         const numericCount = vals.filter(v => v !== null && v !== "" && !isNaN(Number(v))).length;
         const unique = new Set(vals.map(v => String(v)));
@@ -364,15 +424,27 @@ export default function AnalyticsDashboardComposePage() {
     colValueMap[col] = [...new Set(rawRows.map(r => String(r[col] ?? "")).filter(Boolean))].sort();
   }
 
-  // Apply all active filters (AND logic: row must pass every column's filter)
-  const filteredRows: Record<string, unknown>[] = rawRows.filter(row =>
-    Object.entries(activeFilters).every(([col, vals]) => vals.length === 0 || vals.includes(String(row[col] ?? "")))
-  );
+  // Apply all active filters (categorical AND date, AND logic across columns)
+  const filteredRows: Record<string, unknown>[] = rawRows.filter(row => {
+    // Categorical filters
+    if (!Object.entries(activeFilters).every(([col, vals]) => vals.length === 0 || vals.includes(String(row[col] ?? "")))) return false;
+    // Date hierarchy filters
+    for (const [col, df] of Object.entries(dateFilters)) {
+      const hasFilter = df.years.length > 0 || df.quarters.length > 0 || df.months.length > 0;
+      if (!hasFilter) continue;
+      const parts = parseDateParts(row[col]);
+      if (!parts) return false;
+      const passes = df.years.includes(parts.year) || df.quarters.includes(parts.quarter) || df.months.includes(parts.month);
+      if (!passes) return false;
+    }
+    return true;
+  });
 
-  const isFiltered = Object.values(activeFilters).some(v => v.length > 0);
-  const activeFilterCount = Object.values(activeFilters).filter(v => v.length > 0).length;
+  const activeDateFilterCount = Object.values(dateFilters).filter(df => df.years.length > 0 || df.quarters.length > 0 || df.months.length > 0).length;
+  const isFiltered = Object.values(activeFilters).some(v => v.length > 0) || activeDateFilterCount > 0;
+  const activeFilterCount = Object.values(activeFilters).filter(v => v.length > 0).length + activeDateFilterCount;
 
-  // Helpers for filter pane interactions
+  // Categorical filter helpers
   const toggleFilterValue = (col: string, val: string) => {
     setActiveFilters(prev => {
       const curr = prev[col] || [];
@@ -381,9 +453,37 @@ export default function AnalyticsDashboardComposePage() {
     });
   };
   const clearColFilter = (col: string) => setActiveFilters(prev => ({ ...prev, [col]: [] }));
-  const clearAllFilters = () => setActiveFilters({});
+  const clearAllFilters = () => { setActiveFilters({}); setDateFilters({}); };
   const toggleSection = (col: string) => setExpandedSections(prev => ({ ...prev, [col]: !prev[col] }));
   const isSectionExpanded = (col: string) => expandedSections[col] !== false; // default expanded
+
+  // Date hierarchy filter helpers
+  const toggleDateYear = (col: string, year: string) => {
+    setDateFilters(prev => {
+      const df = prev[col] || { years: [], quarters: [], months: [] };
+      const years = df.years.includes(year) ? df.years.filter(y => y !== year) : [...df.years, year];
+      return { ...prev, [col]: { ...df, years } };
+    });
+  };
+  const toggleDateQuarter = (col: string, qKey: string) => { // qKey = "2023|Q1"
+    setDateFilters(prev => {
+      const df = prev[col] || { years: [], quarters: [], months: [] };
+      const quarters = df.quarters.includes(qKey) ? df.quarters.filter(q => q !== qKey) : [...df.quarters, qKey];
+      return { ...prev, [col]: { ...df, quarters } };
+    });
+  };
+  const toggleDateMonth = (col: string, mKey: string) => { // mKey = "2023|Jan"
+    setDateFilters(prev => {
+      const df = prev[col] || { years: [], quarters: [], months: [] };
+      const months = df.months.includes(mKey) ? df.months.filter(m => m !== mKey) : [...df.months, mKey];
+      return { ...prev, [col]: { ...df, months } };
+    });
+  };
+  const clearDateColFilter = (col: string) => setDateFilters(prev => ({ ...prev, [col]: { years: [], quarters: [], months: [] } }));
+  const toggleDateYear_expand = (col: string, year: string) => setExpandedDateYears(prev => ({ ...prev, [col]: { ...(prev[col] || {}), [year]: !(prev[col]?.[year] ?? true) } }));
+  const toggleDateQuarter_expand = (col: string, qKey: string) => setExpandedDateQuarters(prev => ({ ...prev, [col]: { ...(prev[col] || {}), [qKey]: !(prev[col]?.[qKey] ?? false) } }));
+  const isDateYearExpanded = (col: string, year: string) => expandedDateYears[col]?.[year] !== false;
+  const isDateQuarterExpanded = (col: string, qKey: string) => expandedDateQuarters[col]?.[qKey] === true;
 
   // New dashboard creation screen
   if (isNew) {
@@ -468,7 +568,7 @@ export default function AnalyticsDashboardComposePage() {
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-              {categoryCols.length > 0 && (
+              {(categoryCols.length > 0 || dateColNames.size > 0) && (
                 <Button
                   variant={filterPaneOpen ? "default" : "outline"}
                   size="sm"
@@ -509,6 +609,29 @@ export default function AnalyticsDashboardComposePage() {
                   </span>
                 ))
               ))}
+              {Object.entries(dateFilters).flatMap(([col, df]) => {
+                const label = dateColLabels[col] || col;
+                const pills: JSX.Element[] = [];
+                df.years.forEach(y => pills.push(
+                  <span key={`${col}-y-${y}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                    <Calendar className="h-2.5 w-2.5" /><span className="text-muted-foreground">{label}:</span> {y}
+                    <button onClick={() => toggleDateYear(col, y)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
+                  </span>
+                ));
+                df.quarters.forEach(qk => pills.push(
+                  <span key={`${col}-q-${qk}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                    <Calendar className="h-2.5 w-2.5" /><span className="text-muted-foreground">{label}:</span> {qk.replace("|", " ")}
+                    <button onClick={() => toggleDateQuarter(col, qk)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
+                  </span>
+                ));
+                df.months.forEach(mk => pills.push(
+                  <span key={`${col}-m-${mk}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                    <Calendar className="h-2.5 w-2.5" /><span className="text-muted-foreground">{label}:</span> {mk.replace("|", " ")}
+                    <button onClick={() => toggleDateMonth(col, mk)} className="ml-0.5 hover:text-amber-500"><X className="h-2.5 w-2.5" /></button>
+                  </span>
+                ));
+                return pills;
+              })}
               <span className="text-xs text-muted-foreground">{filteredRows.length} of {rawRows.length} rows</span>
               <button onClick={clearAllFilters} className="text-xs text-muted-foreground underline hover:text-foreground">Clear all</button>
             </div>
@@ -559,7 +682,7 @@ export default function AnalyticsDashboardComposePage() {
       </div>
 
       {/* ── Power BI-style Filter Pane ── */}
-      {filterPaneOpen && categoryCols.length > 0 && (
+      {filterPaneOpen && (categoryCols.length > 0 || dateColNames.size > 0) && (
         <div className="w-72 border-l bg-background shrink-0 flex flex-col overflow-hidden" data-testid="filter-pane">
           {/* Pane header */}
           <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
@@ -581,6 +704,118 @@ export default function AnalyticsDashboardComposePage() {
 
           {/* Filter sections */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
+
+            {/* ── Date Hierarchy sections (Power BI style) ── */}
+            {[...dateColNames].map(col => {
+              const label = dateColLabels[col] || col;
+              const hierarchy = dateHierarchies[col] || {};
+              const df = dateFilters[col] || { years: [], quarters: [], months: [] };
+              const activeDateCount = df.years.length + df.quarters.length + df.months.length;
+              const sectionExpanded = isSectionExpanded(`__date__${col}`);
+
+              return (
+                <div key={`date-${col}`} className="rounded-lg border overflow-hidden" data-testid={`filter-section-date-${col}`}>
+                  {/* Date section header */}
+                  <button
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-950/40 transition-colors text-left"
+                    onClick={() => toggleSection(`__date__${col}`)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Calendar className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span className="text-xs font-semibold truncate">{label}</span>
+                      {activeDateCount > 0 && (
+                        <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{activeDateCount}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {activeDateCount > 0 && (
+                        <button onClick={e => { e.stopPropagation(); clearDateColFilter(col); }} className="text-[10px] text-muted-foreground hover:text-foreground">
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                      {sectionExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </div>
+                  </button>
+
+                  {sectionExpanded && (
+                    <div className="bg-background px-2 py-2 space-y-0.5">
+                      {Object.keys(hierarchy).sort((a, b) => Number(b) - Number(a)).map(year => {
+                        const yearExpanded = isDateYearExpanded(col, year);
+                        const yearActive = df.years.includes(year);
+                        const yearRowCount = Object.values(hierarchy[year]).flatMap(q => Object.values(q)).reduce((s, n) => s + n, 0);
+
+                        return (
+                          <div key={year}>
+                            {/* Year row */}
+                            <div className="flex items-center gap-1 rounded hover:bg-muted/30 -mx-1 px-1 py-1 group">
+                              <button onClick={() => toggleDateYear_expand(col, year)} className="text-muted-foreground hover:text-foreground">
+                                {yearExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              </button>
+                              <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                                <Checkbox checked={yearActive} onCheckedChange={() => toggleDateYear(col, year)} className="h-3.5 w-3.5 shrink-0" data-testid={`date-year-${col}-${year}`} />
+                                <span className={`text-xs font-bold ${yearActive ? "text-foreground" : "text-muted-foreground"}`}>{year}</span>
+                                <span className="text-[10px] text-muted-foreground ml-auto">{yearRowCount}</span>
+                              </label>
+                            </div>
+
+                            {/* Quarter + Month sub-tree */}
+                            {yearExpanded && (
+                              <div className="ml-5 space-y-0.5 border-l border-border pl-2 pb-1">
+                                {["Q1", "Q2", "Q3", "Q4"].filter(q => hierarchy[year][q]).map(q => {
+                                  const qKey = `${year}|${q}`;
+                                  const qActive = df.quarters.includes(qKey);
+                                  const qExpanded = isDateQuarterExpanded(col, qKey);
+                                  const qRowCount = Object.values(hierarchy[year][q]).reduce((s, n) => s + n, 0);
+                                  const qMonths = hierarchy[year][q];
+
+                                  return (
+                                    <div key={q}>
+                                      {/* Quarter row */}
+                                      <div className="flex items-center gap-1 rounded hover:bg-muted/30 -mx-1 px-1 py-0.5 group">
+                                        <button onClick={() => toggleDateQuarter_expand(col, qKey)} className="text-muted-foreground hover:text-foreground">
+                                          {qExpanded ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+                                        </button>
+                                        <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                                          <Checkbox checked={qActive} onCheckedChange={() => toggleDateQuarter(col, qKey)} className="h-3 w-3 shrink-0" data-testid={`date-quarter-${col}-${qKey}`} />
+                                          <span className={`text-[11px] font-semibold ${qActive ? "text-amber-700" : "text-muted-foreground"}`}>{q}</span>
+                                          <span className="text-[10px] text-muted-foreground ml-auto">{qRowCount}</span>
+                                        </label>
+                                      </div>
+
+                                      {/* Month rows */}
+                                      {qExpanded && (
+                                        <div className="ml-4 space-y-0.5 border-l border-border pl-2">
+                                          {Object.keys(qMonths).sort((a, b) => (MONTH_ORDER[a] || 0) - (MONTH_ORDER[b] || 0)).map(mon => {
+                                            const mKey = `${year}|${mon}`;
+                                            const mActive = df.months.includes(mKey);
+                                            return (
+                                              <label key={mon} className="flex items-center gap-2 py-0.5 cursor-pointer rounded hover:bg-muted/30 -mx-1 px-1">
+                                                <Checkbox checked={mActive} onCheckedChange={() => toggleDateMonth(col, mKey)} className="h-3 w-3 shrink-0" data-testid={`date-month-${col}-${mKey}`} />
+                                                <span className={`text-[11px] ${mActive ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{mon}</span>
+                                                <span className="text-[10px] text-muted-foreground ml-auto">{qMonths[mon]}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {Object.keys(hierarchy).length === 0 && (
+                        <p className="text-[11px] text-muted-foreground py-1 px-1">No valid dates found</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* ── Categorical filter sections ── */}
             {categoryCols.map(col => {
               const selected = activeFilters[col] || [];
               const expanded = isSectionExpanded(col);
@@ -744,42 +979,121 @@ export default function AnalyticsDashboardComposePage() {
 
       {/* Add insight dialog */}
       <Dialog open={addInsightDialog} onOpenChange={setAddInsightDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Lightbulb className="h-4 w-4 text-primary" /> Add Insight to Dashboard</DialogTitle>
           </DialogHeader>
-          <div className="max-h-72 overflow-y-auto space-y-2 py-2">
+          <div className="max-h-[420px] overflow-y-auto py-2 space-y-3">
             {unpinnedInsights.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No saved insights available. Create insights from the Explore screen first.</p>
             ) : (
-              unpinnedInsights.map(ins => (
-                <button key={ins.id} onClick={() => addItemMutation.mutate(ins.id)}
-                  className="w-full text-left flex items-start gap-3 p-3 rounded-xl border bg-card hover:bg-muted/30 transition-colors"
-                  disabled={addItemMutation.isPending}
-                  data-testid={`select-insight-${ins.id}`}>
-                  <Lightbulb className="h-4 w-4 text-purple-500 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm truncate">{ins.title}</p>
-                    <p className="text-xs text-muted-foreground italic truncate">"{ins.question}"</p>
+              <>
+                {/* Current dataset insights */}
+                {currentDatasetInsights.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 px-1">
+                      <Database className="h-3.5 w-3.5 text-emerald-600" />
+                      <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">From Current Dataset</span>
+                      <div className="flex-1 h-px bg-emerald-500/20" />
+                    </div>
+                    {currentDatasetInsights.map(ins => (
+                      <div key={ins.id} className="flex items-center gap-2" data-testid={`insight-row-${ins.id}`}>
+                        <button onClick={() => addItemMutation.mutate(ins.id)}
+                          className="flex-1 text-left flex items-start gap-3 p-3 rounded-xl border bg-card hover:bg-muted/30 transition-colors"
+                          disabled={addItemMutation.isPending}
+                          data-testid={`select-insight-${ins.id}`}>
+                          <Lightbulb className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">{ins.title}</p>
+                            <p className="text-xs text-muted-foreground italic truncate">"{ins.question}"</p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteInsightId(ins.id)}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg border hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-500 text-muted-foreground transition-colors shrink-0"
+                          title="Delete insight"
+                          data-testid={`delete-insight-${ins.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                </button>
-              ))
+                )}
+
+                {/* Other insights */}
+                {otherInsights.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 px-1">
+                      <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                        {currentDatasetInsights.length > 0 ? "Other Saved Insights" : "All Saved Insights"}
+                      </span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    {otherInsights.map(ins => (
+                      <div key={ins.id} className="flex items-center gap-2" data-testid={`insight-row-${ins.id}`}>
+                        <button onClick={() => addItemMutation.mutate(ins.id)}
+                          className="flex-1 text-left flex items-start gap-3 p-3 rounded-xl border bg-card hover:bg-muted/30 transition-colors"
+                          disabled={addItemMutation.isPending}
+                          data-testid={`select-insight-${ins.id}`}>
+                          <Lightbulb className="h-4 w-4 text-purple-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">{ins.title}</p>
+                            <p className="text-xs text-muted-foreground italic truncate">"{ins.question}"</p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteInsightId(ins.id)}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg border hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-500 text-muted-foreground transition-colors shrink-0"
+                          title="Delete insight"
+                          data-testid={`delete-insight-${ins.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Remove confirm */}
+      {/* Remove from dashboard confirm */}
       <AlertDialog open={removeId !== null} onOpenChange={() => setRemoveId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" />Remove Insight</AlertDialogTitle>
-            <AlertDialogDescription>Remove this insight from the dashboard? The insight itself will not be deleted.</AlertDialogDescription>
+            <AlertDialogDescription>Remove this insight from the dashboard? The insight itself will not be deleted — you can re-add it later.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (removeId) { removeItemMutation.mutate(removeId); setRemoveId(null); } }}>Remove</AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (removeId) { removeItemMutation.mutate(removeId); setRemoveId(null); } }}>Remove from Dashboard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete insight permanently confirm */}
+      <AlertDialog open={deleteInsightId !== null} onOpenChange={() => setDeleteInsightId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><Trash2 className="h-4 w-4 text-red-500" />Delete Insight Permanently</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete this insight and remove it from any dashboard it's pinned to. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (deleteInsightId) deleteInsightMutation.mutate(deleteInsightId); }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              data-testid="confirm-delete-insight"
+            >
+              {deleteInsightMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Delete Permanently
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
