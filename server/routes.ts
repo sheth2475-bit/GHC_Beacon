@@ -2466,6 +2466,47 @@ Return a JSON object with key "insights" containing an array:
       res.json(updated);
     });
 
+    // POST refresh all insights in a dashboard from their latest dataset data
+    app.post("/api/v2/analytics/definitions/:id/refresh", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const def = await storage.getAnalyticsDashboardDefinition(Number(req.params.id));
+        if (!def) return res.status(404).json({ message: "Not found" });
+        const items = await storage.getAnalyticsDashboardItems(def.id);
+        let refreshed = 0;
+        for (const item of items) {
+          const insight = item.insight;
+          if (!insight?.chartConfig) continue;
+          const cfg = insight.chartConfig as { measure?: string; dimension?: string | null; aggregation?: string; chartType?: string; measureLabel?: string; dimensionLabel?: string };
+          if (!cfg.measure) continue;
+          const ds = await storage.getAnalyticsDataset(insight.datasetId);
+          if (!ds) continue;
+          const rows = (ds.rawData as Record<string, unknown>[]) || [];
+          if (!rows.length) continue;
+          const agg = cfg.aggregation || "sum";
+          const measure = cfg.measure;
+          const dimension = cfg.dimension || null;
+          const chartType = insight.chartType;
+          let chartData: unknown;
+          if (chartType === "kpi") {
+            const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
+            const value = agg === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1) : agg === "count" ? vals.length : agg === "min" ? Math.min(...vals) : agg === "max" ? Math.max(...vals) : vals.reduce((a, b) => a + b, 0);
+            chartData = { value: Math.round(value * 100) / 100, label: cfg.measureLabel || measure, count: vals.length };
+          } else {
+            const isDimDate = dimension && /month|date|year|period|quarter|week/i.test(dimension);
+            const aggData = aggregateData(rows, measure, dimension, agg, undefined, !!isDimDate);
+            chartData = { data: aggData, xKey: "name", yKey: "value", measureLabel: cfg.measureLabel, dimensionLabel: cfg.dimensionLabel };
+          }
+          const newConfig = { ...cfg, data: chartData };
+          await storage.updateAnalyticsInsight(insight.id, { chartConfig: newConfig });
+          refreshed++;
+        }
+        res.json({ ok: true, refreshed });
+      } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ message: err.message || "Refresh failed" });
+      }
+    });
+
     // Generate dashboard narrative
     app.post("/api/v2/analytics/definitions/:id/narrative", requireAuth, async (req: Request, res: Response) => {
       try {

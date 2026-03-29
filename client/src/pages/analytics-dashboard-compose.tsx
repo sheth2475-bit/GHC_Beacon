@@ -12,9 +12,10 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Loader2, LayoutDashboard, Plus, Trash2, Sparkles,
-  Globe, Lock, Building2, Edit2, Save, CheckCircle2, Pin,
-  TrendingUp, BarChart2, PieChart, Table2, Hash, X, ArrowUp, ArrowDown,
-  AlertTriangle, Eye, Lightbulb, ChevronRight, Send,
+  Globe, Lock, Building2, Edit2, CheckCircle2, Pin,
+  X, ArrowUp, ArrowDown,
+  AlertTriangle, Lightbulb, ChevronRight,
+  RefreshCw, SlidersHorizontal,
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, PieChart as RechartPie, Pie, Cell,
@@ -46,8 +47,63 @@ function formatValue(v: number) {
   return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
 }
 
-function MiniChart({ insight }: { insight: AnalyticsInsight }) {
-  const cfg = insight.chartConfig as Record<string, unknown> | null;
+// Client-side re-implementation of server aggregateData — used for live filtering
+function clientAggregateData(
+  rows: Record<string, unknown>[],
+  measure: string,
+  dimension: string | null,
+  aggregation: string = "sum"
+): { name: string; value: number }[] {
+  if (!dimension) {
+    const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
+    const total = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1) : aggregation === "count" ? vals.length : aggregation === "min" ? Math.min(...vals) : aggregation === "max" ? Math.max(...vals) : vals.reduce((a, b) => a + b, 0);
+    return [{ name: measure, value: Math.round(total * 100) / 100 }];
+  }
+  const groups: Record<string, number[]> = {};
+  for (const row of rows) {
+    const rawKey = row[dimension];
+    let key: string;
+    const parsed = rawKey ? new Date(String(rawKey)) : null;
+    if (parsed && !isNaN(parsed.getTime()) && String(rawKey).length >= 6) {
+      key = parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    } else {
+      key = String(rawKey ?? "Unknown").trim() || "Unknown";
+    }
+    if (!groups[key]) groups[key] = [];
+    const val = Number(row[measure]);
+    if (!isNaN(val)) groups[key].push(val);
+  }
+  const result = Object.entries(groups).map(([name, vals]) => {
+    const value = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1) : aggregation === "count" ? vals.length : aggregation === "min" ? Math.min(...vals) : aggregation === "max" ? Math.max(...vals) : vals.reduce((a, b) => a + b, 0);
+    return { name, value: Math.round(value * 100) / 100 };
+  });
+  const isDimDate = /month|date|year|period|quarter|week/i.test(dimension);
+  if (isDimDate) {
+    result.sort((a, b) => { const da = new Date(a.name), db = new Date(b.name); return !isNaN(da.getTime()) && !isNaN(db.getTime()) ? da.getTime() - db.getTime() : 0; });
+  } else {
+    result.sort((a, b) => b.value - a.value);
+  }
+  return result;
+}
+
+function computeFilteredData(rows: Record<string, unknown>[], insight: AnalyticsInsight): unknown {
+  const cfg = insight.chartConfig as { measure?: string; dimension?: string | null; aggregation?: string; measureLabel?: string; dimensionLabel?: string } | null;
+  if (!cfg?.measure) return null;
+  const measure = cfg.measure;
+  const dimension = cfg.dimension || null;
+  const agg = cfg.aggregation || "sum";
+  if (insight.chartType === "kpi") {
+    const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
+    const value = agg === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1) : agg === "count" ? vals.length : agg === "min" ? Math.min(...vals) : agg === "max" ? Math.max(...vals) : vals.reduce((a, b) => a + b, 0);
+    return { value: Math.round(value * 100) / 100, label: cfg.measureLabel || measure, count: vals.length };
+  }
+  const aggData = clientAggregateData(rows, measure, dimension, agg);
+  return { data: aggData, xKey: "name", yKey: "value", measureLabel: cfg.measureLabel, dimensionLabel: cfg.dimensionLabel };
+}
+
+function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filteredData?: unknown }) {
+  const baseCfg = insight.chartConfig as Record<string, unknown> | null;
+  const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
   if (!cfg) return <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
   const { chartType } = insight;
   const data = cfg.data as Record<string, unknown>;
@@ -118,9 +174,10 @@ function MiniChart({ insight }: { insight: AnalyticsInsight }) {
   return <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">Preview unavailable</div>;
 }
 
-function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown }: {
+function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filteredData }: {
   item: InsightFull; idx: number; total: number;
   onRemove: () => void; onMoveUp: () => void; onMoveDown: () => void;
+  filteredData?: unknown;
 }) {
   const chartLabel: Record<string, string> = { kpi: "KPI Card", bar: "Bar", line: "Line", pie: "Pie", table: "Table" };
   return (
@@ -138,7 +195,7 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown }: {
             <button onClick={onRemove} className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-500/10 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
           </div>
         </div>
-        <MiniChart insight={item.insight} />
+        <MiniChart insight={item.insight} filteredData={filteredData} />
         {item.insight.narrative && (
           <p className="text-[11px] text-muted-foreground line-clamp-2 mt-2">{item.insight.narrative}</p>
         )}
@@ -163,6 +220,8 @@ export default function AnalyticsDashboardComposePage() {
   const [removeId, setRemoveId] = useState<number | null>(null);
   const [generatingNarrative, setGeneratingNarrative] = useState(false);
   const [narrativeOpen, setNarrativeOpen] = useState(false);
+  const [filterCol, setFilterCol] = useState<string>("");
+  const [filterVal, setFilterVal] = useState<string>("");
 
   const { data: dash, isLoading } = useQuery<DashboardFull>({
     queryKey: ["/api/v2/analytics/definitions", id],
@@ -172,6 +231,24 @@ export default function AnalyticsDashboardComposePage() {
 
   const { data: allInsights = [] } = useQuery<AnalyticsInsight[]>({
     queryKey: ["/api/v2/analytics/insights"],
+  });
+
+  // Get primary dataset id from the first insight that has one
+  const primaryDatasetId = dash?.items?.[0]?.insight?.datasetId ?? null;
+
+  const { data: primaryDataset } = useQuery<{ id: number; name: string; rawData: Record<string, unknown>[] }>({
+    queryKey: ["/api/v2/analytics/datasets", primaryDatasetId],
+    queryFn: () => fetch(`/api/v2/analytics/datasets/${primaryDatasetId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!primaryDatasetId && !isNew,
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/v2/analytics/definitions/${id}/refresh`).then(r => r.json()),
+    onSuccess: (data: { refreshed: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] });
+      toast({ title: `Charts refreshed! (${data.refreshed} insight${data.refreshed !== 1 ? "s" : ""} updated)` });
+    },
+    onError: () => toast({ title: "Refresh failed", variant: "destructive" }),
   });
 
   const createMutation = useMutation({
@@ -265,6 +342,25 @@ export default function AnalyticsDashboardComposePage() {
 
   const VisIcon = dash?.visibility === "company" ? Globe : dash?.visibility === "department" ? Building2 : Lock;
 
+  // Filter/filter computations from primary dataset
+  const rawRows: Record<string, unknown>[] = primaryDataset?.rawData || [];
+  const categoryCols: string[] = rawRows.length
+    ? Object.keys(rawRows[0]).filter(col => {
+        const vals = rawRows.map(r => r[col]);
+        const numericCount = vals.filter(v => v !== null && v !== "" && !isNaN(Number(v))).length;
+        const unique = new Set(vals.map(v => String(v)));
+        return numericCount / vals.length < 0.8 && unique.size >= 2 && unique.size <= 50;
+      })
+    : [];
+  const colValues: string[] = filterCol
+    ? [...new Set(rawRows.map(r => String(r[filterCol] ?? "")).filter(Boolean))].sort()
+    : [];
+  const filteredRows: Record<string, unknown>[] = filterCol && filterVal
+    ? rawRows.filter(r => String(r[filterCol] ?? "") === filterVal)
+    : rawRows;
+  const isFiltered = !!(filterCol && filterVal);
+  const hasFilter = categoryCols.length > 0 || isFiltered;
+
   // New dashboard creation screen
   if (isNew) {
     return (
@@ -341,6 +437,10 @@ export default function AnalyticsDashboardComposePage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} data-testid="button-refresh-charts">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+              Refresh Charts
+            </Button>
             <Button variant="outline" size="sm" className="gap-1.5 h-8 relative" onClick={handleNarrative} disabled={generatingNarrative} data-testid="button-generate-narrative">
               {generatingNarrative ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-primary" />}
               AI Summary
@@ -353,6 +453,38 @@ export default function AnalyticsDashboardComposePage() {
             </Button>
           </div>
         </div>
+
+        {/* Filter bar — only shown when dataset has categorical columns */}
+        {hasFilter && dash.items.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border bg-muted/30" data-testid="filter-bar">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Select value={filterCol} onValueChange={v => { setFilterCol(v); setFilterVal(""); }} data-testid="select-filter-col">
+              <SelectTrigger className="h-7 text-xs w-40 bg-background">
+                <SelectValue placeholder="Filter by column…" />
+              </SelectTrigger>
+              <SelectContent>
+                {categoryCols.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {filterCol && (
+              <Select value={filterVal} onValueChange={setFilterVal} data-testid="select-filter-val">
+                <SelectTrigger className="h-7 text-xs w-44 bg-background">
+                  <SelectValue placeholder="Select value…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {colValues.map(v => <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {isFiltered && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20" data-testid="filter-pill">
+                {filteredRows.length} rows · {filterCol} = {filterVal}
+                <button onClick={() => { setFilterCol(""); setFilterVal(""); }} className="hover:text-primary/70"><X className="h-3 w-3" /></button>
+              </span>
+            )}
+            {!filterCol && <span className="text-xs text-muted-foreground">Choose a column to filter all charts</span>}
+          </div>
+        )}
 
         {/* Insights grid */}
         {dash.items.length === 0 ? (
@@ -377,17 +509,21 @@ export default function AnalyticsDashboardComposePage() {
               </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {dash.items.map((item, idx) => (
-                <InsightCard
-                  key={item.id}
-                  item={item}
-                  idx={idx}
-                  total={dash.items.length}
-                  onRemove={() => setRemoveId(item.id)}
-                  onMoveUp={() => handleMoveUp(idx)}
-                  onMoveDown={() => handleMoveDown(idx)}
-                />
-              ))}
+              {dash.items.map((item, idx) => {
+                const overrideData = isFiltered ? computeFilteredData(filteredRows, item.insight) : undefined;
+                return (
+                  <InsightCard
+                    key={item.id}
+                    item={item}
+                    idx={idx}
+                    total={dash.items.length}
+                    onRemove={() => setRemoveId(item.id)}
+                    onMoveUp={() => handleMoveUp(idx)}
+                    onMoveDown={() => handleMoveDown(idx)}
+                    filteredData={overrideData}
+                  />
+                );
+              })}
             </div>
           </>
         )}
