@@ -208,20 +208,29 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
 
   if ((chartType === "bar" || chartType === "line") && data) {
     const chartData = (data as { data?: { name: string; value: number }[] }).data || [];
-    const displayData = chartData.slice(0, 10).map(d => ({ ...d, shortName: shortLabel(d.name) }));
-    const hasMany = displayData.length > 6;
+    // Show up to 20 bars; auto-scale height based on count
+    const maxItems = chartType === "bar" ? 20 : 30;
+    const displayData = chartData.slice(0, maxItems).map(d => ({ ...d, shortName: shortLabel(d.name) }));
+    const count = displayData.length;
+    const hasMany = count > 8;
+    const hasTons = count > 15;
+    // Adaptive height: more data → taller chart so bars + labels have room
+    const chartH = hasTons ? 240 : hasMany ? 210 : count > 5 ? 185 : 165;
+    const bottomMargin = hasTons ? 44 : hasMany ? 36 : 26;
+    const labelAngle = hasTons ? -50 : hasMany ? -35 : -20;
+    const tickSize = hasTons ? 7 : hasMany ? 7.5 : 8;
 
     if (chartType === "bar") return (
-      <ResponsiveContainer width="100%" height={170}>
-        <BarChart data={displayData} margin={{ top: 18, right: 6, left: -18, bottom: hasMany ? 32 : 24 }}>
+      <ResponsiveContainer width="100%" height={chartH}>
+        <BarChart data={displayData} margin={{ top: 20, right: 6, left: -16, bottom: bottomMargin }}>
           <XAxis
             dataKey="shortName"
-            tick={{ fontSize: hasMany ? 7 : 8, fill: "currentColor" }}
-            angle={hasMany ? -40 : -25}
+            tick={{ fontSize: tickSize, fill: "currentColor" }}
+            angle={labelAngle}
             textAnchor="end"
             interval={0}
           />
-          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={42} />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={44} />
           <Tooltip
             formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
             contentStyle={{ fontSize: 11, borderRadius: 6 }}
@@ -232,35 +241,37 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
               dataKey="value"
               position="top"
               formatter={(v: number) => formatValue(v)}
-              style={{ fontSize: 8, fill: "currentColor", fontWeight: 600 }}
+              style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
             />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
     );
     return (
-      <ResponsiveContainer width="100%" height={170}>
-        <AreaChart data={displayData} margin={{ top: 18, right: 6, left: -18, bottom: hasMany ? 32 : 24 }}>
+      <ResponsiveContainer width="100%" height={chartH}>
+        <AreaChart data={displayData} margin={{ top: 20, right: 6, left: -16, bottom: bottomMargin }}>
           <XAxis
             dataKey="shortName"
-            tick={{ fontSize: hasMany ? 7 : 8, fill: "currentColor" }}
-            angle={hasMany ? -40 : -25}
+            tick={{ fontSize: tickSize, fill: "currentColor" }}
+            angle={labelAngle}
             textAnchor="end"
             interval={0}
           />
-          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={42} />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={44} />
           <Tooltip
             formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
             contentStyle={{ fontSize: 11, borderRadius: 6 }}
             labelFormatter={() => ""}
           />
-          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={{ r: 2.5, fill: CHART_COLORS[0] }}>
-            <LabelList
-              dataKey="value"
-              position="top"
-              formatter={(v: number) => formatValue(v)}
-              style={{ fontSize: 8, fill: "currentColor", fontWeight: 600 }}
-            />
+          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 20 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
+            {count <= 16 && (
+              <LabelList
+                dataKey="value"
+                position="top"
+                formatter={(v: number) => formatValue(v)}
+                style={{ fontSize: 8, fill: "currentColor", fontWeight: 600 }}
+              />
+            )}
           </Area>
         </AreaChart>
       </ResponsiveContainer>
@@ -357,7 +368,9 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
         </div>
         <MiniChart insight={item.insight} filteredData={filteredData} />
         {item.insight.narrative && (
-          <p className="text-[11px] text-muted-foreground line-clamp-2 mt-2">{item.insight.narrative}</p>
+          <div className="mt-3 pt-2.5 border-t border-border/50">
+            <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-4">{item.insight.narrative}</p>
+          </div>
         )}
       </div>
     </div>
@@ -586,10 +599,10 @@ export default function AnalyticsDashboardComposePage() {
   const clearColFilter = (col: string) => setActiveFilters(prev => ({ ...prev, [col]: [] }));
   const clearAllFilters = () => { setActiveFilters({}); setDateFilters({}); };
   const toggleSection = (col: string) => setExpandedSections(prev => {
-    const current = prev[col] !== false; // default is true (expanded)
+    const current = prev[col] === true; // default false (collapsed)
     return { ...prev, [col]: !current };
   });
-  const isSectionExpanded = (col: string) => expandedSections[col] !== false; // default expanded
+  const isSectionExpanded = (col: string) => expandedSections[col] === true; // default COLLAPSED
 
   // Date hierarchy filter helpers
   const toggleDateYear = (col: string, year: string) => {
@@ -614,13 +627,16 @@ export default function AnalyticsDashboardComposePage() {
     });
   };
   const clearDateColFilter = (col: string) => setDateFilters(prev => ({ ...prev, [col]: { years: [], quarters: [], months: [] } }));
-  const toggleDateYear_expand = (col: string, year: string) => setExpandedDateYears(prev => ({ ...prev, [col]: { ...(prev[col] || {}), [year]: !(prev[col]?.[year] ?? true) } }));
+  const toggleDateYear_expand = (col: string, year: string) => setExpandedDateYears(prev => {
+    const current = prev[col]?.[year] === true; // default false (collapsed)
+    return { ...prev, [col]: { ...(prev[col] || {}), [year]: !current } };
+  });
   const toggleDateQuarter_expand = (col: string, qKey: string) => setExpandedDateQuarters(prev => {
-    const current = prev[col]?.[qKey] !== false; // default true (expanded)
+    const current = prev[col]?.[qKey] === true; // default false (collapsed)
     return { ...prev, [col]: { ...(prev[col] || {}), [qKey]: !current } };
   });
-  const isDateYearExpanded = (col: string, year: string) => expandedDateYears[col]?.[year] !== false;
-  const isDateQuarterExpanded = (col: string, qKey: string) => expandedDateQuarters[col]?.[qKey] !== false; // default expanded
+  const isDateYearExpanded = (col: string, year: string) => expandedDateYears[col]?.[year] === true; // default COLLAPSED
+  const isDateQuarterExpanded = (col: string, qKey: string) => expandedDateQuarters[col]?.[qKey] === true; // default COLLAPSED
 
   // New dashboard creation screen
   if (isNew) {
@@ -840,7 +856,7 @@ export default function AnalyticsDashboardComposePage() {
           </div>
 
           {/* Filter sections */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
 
             {/* ── Date Hierarchy sections (Power BI style) ── */}
             {[...dateColNames].map(col => {
@@ -851,26 +867,28 @@ export default function AnalyticsDashboardComposePage() {
               const sectionExpanded = isSectionExpanded(`__date__${col}`);
 
               return (
-                <div key={`date-${col}`} className="rounded-lg border overflow-hidden" data-testid={`filter-section-date-${col}`}>
+                <div key={`date-${col}`} className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 overflow-hidden bg-amber-50/40 dark:bg-amber-950/10" data-testid={`filter-section-date-${col}`}>
                   {/* Date section header */}
                   <button
-                    className="w-full flex items-center justify-between px-3 py-2.5 bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-950/40 transition-colors text-left"
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-amber-100/50 dark:hover:bg-amber-950/30 transition-colors text-left"
                     onClick={() => toggleSection(`__date__${col}`)}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Calendar className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      <span className="text-xs font-semibold truncate">{label}</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md bg-amber-100 dark:bg-amber-900/60 border border-amber-300/60 dark:border-amber-700/60">
+                        <Calendar className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                      </span>
+                      <span className="text-xs font-semibold text-foreground truncate">{label}</span>
                       {activeDateCount > 0 && (
                         <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">{activeDateCount}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {activeDateCount > 0 && (
-                        <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); clearDateColFilter(col); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clearDateColFilter(col); }}} className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer">
+                        <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); clearDateColFilter(col); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clearDateColFilter(col); }}} className="text-muted-foreground hover:text-foreground cursor-pointer p-0.5 rounded hover:bg-muted/40">
                           <X className="h-3 w-3" />
                         </span>
                       )}
-                      {sectionExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${sectionExpanded ? "rotate-180" : ""}`} />
                     </div>
                   </button>
 
@@ -961,14 +979,14 @@ export default function AnalyticsDashboardComposePage() {
               const visibleVals = search ? allVals.filter(v => v.toLowerCase().includes(search.toLowerCase())) : allVals;
 
               return (
-                <div key={col} className="rounded-lg border overflow-hidden" data-testid={`filter-section-${col}`}>
+                <div key={col} className="rounded-lg border border-border/70 overflow-hidden bg-background" data-testid={`filter-section-${col}`}>
                   {/* Section header */}
                   <button
-                    className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors text-left"
                     onClick={() => toggleSection(col)}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-semibold truncate">{col}</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-xs font-semibold text-foreground truncate">{col}</span>
                       {selected.length > 0 && (
                         <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground">{selected.length}</span>
                       )}
@@ -980,12 +998,12 @@ export default function AnalyticsDashboardComposePage() {
                           tabIndex={0}
                           onClick={e => { e.stopPropagation(); clearColFilter(col); }}
                           onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clearColFilter(col); }}}
-                          className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
+                          className="text-muted-foreground hover:text-foreground cursor-pointer p-0.5 rounded hover:bg-muted/40"
                         >
                           <X className="h-3 w-3" />
                         </span>
                       )}
-                      {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
                     </div>
                   </button>
 
