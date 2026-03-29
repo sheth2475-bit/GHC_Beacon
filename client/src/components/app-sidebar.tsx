@@ -22,20 +22,22 @@ const adminPerformanceNav = [
   { title: "KPI Builder", url: "/kpi-builder", icon: Sparkles },
   { title: "KPI Management", url: "/kpis", icon: Target },
   { title: "Action Tracker", url: "/actions", icon: ListChecks },
+  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
 ];
 
 const executivePerformanceNav = [
   { title: "KPI Management", url: "/kpis", icon: Target },
   { title: "Action Tracker", url: "/actions", icon: ListChecks },
+  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
 ];
 
-const adminInsightsNav = [
-  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
+const adminAnalyticsNav = [
+  { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
   { title: "Dashboard Planner", url: "/planner", icon: LayoutTemplate },
 ];
 
-const executiveInsightsNav = [
-  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
+const executiveAnalyticsNav = [
+  { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
 ];
 
 const executionNav = [
@@ -105,7 +107,7 @@ export function AppSidebar() {
   );
 
   const performanceNav = isAdmin ? adminPerformanceNav : executivePerformanceNav;
-  const insightsNav = isAdmin ? adminInsightsNav : executiveInsightsNav;
+  const analyticsNav = isAdmin ? adminAnalyticsNav : executiveAnalyticsNav;
 
   return (
     <Sidebar>
@@ -130,10 +132,7 @@ export function AppSidebar() {
         {renderGroup("Overview", mainNav)}
         {renderGroup("Performance", performanceNav)}
         {renderGroup("Projects", executionNav)}
-        {renderGroup("AI Insights", insightsNav)}
-        {renderGroup("Analytics", [
-          { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
-        ])}
+        {renderGroup("Analytics", analyticsNav)}
         {isAdmin && renderGroup("Admin", [
           { title: "People", url: "/users", icon: Users },
           { title: "Settings", url: "/settings", icon: Settings },
