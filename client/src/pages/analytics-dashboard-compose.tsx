@@ -225,6 +225,105 @@ function shortLabel(name: string, maxLen = 8): string {
   return name.length > maxLen ? name.slice(0, maxLen - 1) + "…" : name;
 }
 
+// ── Smart narrative generator — context-aware insights for CEO / manager ────
+function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknown): string | null {
+  const cfg = insight.chartConfig as {
+    data?: unknown;
+    measure?: string;
+    measureLabel?: string;
+    dimension?: string | null;
+    dimensionLabel?: string;
+    aggregation?: string;
+  } | null;
+  if (!cfg) return null;
+
+  const chartType = insight.chartType;
+  const measureLabel = cfg.measureLabel || cfg.measure || "Value";
+  const dimLabel = cfg.dimensionLabel || cfg.dimension || "";
+
+  // Prefer live filtered data over stored snapshot
+  const activeData = filteredData != null
+    ? (filteredData as Record<string, unknown>)
+    : (cfg.data as Record<string, unknown> | null);
+  if (!activeData) return null;
+
+  // ── KPI Card ─────────────────────────────────────────────────────────────
+  if (chartType === "kpi") {
+    const kpi = activeData as { value?: number; count?: number };
+    if (kpi.value == null) return null;
+    const val = kpi.value;
+    const count = kpi.count;
+    const formatted = formatValue(val);
+    const agg = cfg.aggregation || "sum";
+    const recordCtx = count ? ` (${count.toLocaleString()} records)` : "";
+    if (agg === "avg") {
+      return `Average ${measureLabel} is ${formatted}${recordCtx}. Values well above or below this mean warrant investigation — they may signal seasonal spikes, underperformers, or data anomalies.`;
+    }
+    if (agg === "count") {
+      return `${formatted} total ${measureLabel}${recordCtx}. Monitor this volume over time — a declining count can signal reduced activity, while a surge may require operational scaling.`;
+    }
+    // sum / default
+    return `Total ${measureLabel}: ${formatted}${recordCtx}. This is the cumulative figure for the selected scope. Compare month-over-month or filter by segment to identify growth drivers or gaps.`;
+  }
+
+  // ── Bar / Line / Area (time series or categorical) ───────────────────────
+  if (chartType === "bar" || chartType === "line") {
+    const seriesData = (activeData as { data?: { name: string; value: number }[] }).data;
+    if (!seriesData || seriesData.length === 0) return null;
+
+    const values = seriesData.map(d => d.value).filter(v => isFinite(v));
+    if (!values.length) return null;
+    const total = values.reduce((a, b) => a + b, 0);
+    const avg = total / values.length;
+    const maxItem = seriesData.reduce((a, b) => (b.value > a.value ? b : a));
+    const minItem = seriesData.reduce((a, b) => (b.value < a.value ? b : a));
+    const isTimeSeries = /month|date|year|period|quarter|week/i.test(dimLabel) ||
+      /^[A-Za-z]{3}\s+'\d{2}/.test(seriesData[0]?.name || "") ||
+      /^\d{4}$/.test(seriesData[0]?.name || "") ||
+      /^Q[1-4]/.test(seriesData[0]?.name || "");
+
+    if (isTimeSeries && seriesData.length >= 3) {
+      const recentN = Math.max(1, Math.floor(seriesData.length / 5));
+      const recentSlice = seriesData.slice(-recentN);
+      const recentAvg = recentSlice.reduce((a, b) => a + b.value, 0) / recentSlice.length;
+      const trendPct = avg > 0 ? Math.round(((recentAvg - avg) / avg) * 100) : 0;
+      const trendWord = trendPct > 5 ? "trending up" : trendPct < -5 ? "trending down" : "holding steady";
+      const swing = minItem.value > 0 ? Math.round(((maxItem.value - minItem.value) / minItem.value) * 100) : 0;
+
+      return `Average ${measureLabel} per period: ${formatValue(Math.round(avg))}. Peak was ${maxItem.name} (${formatValue(maxItem.value)}); trough was ${minItem.name} (${formatValue(minItem.value)}) — a ${swing}% swing. Recent performance is ${trendWord} (${trendPct > 0 ? "+" : ""}${trendPct}% vs overall avg). ${trendPct > 10 ? "Positive momentum — consider accelerating investment." : trendPct < -10 ? "Declining trend — investigate root cause before next review." : "Performance is consistent — look for opportunities to break the ceiling."}`;
+    }
+
+    // Categorical bar narrative
+    const sorted = [...seriesData].sort((a, b) => b.value - a.value);
+    const top = sorted[0];
+    const bottom = sorted[sorted.length - 1];
+    const topN = sorted.slice(0, Math.min(3, sorted.length));
+    const topNShare = total > 0 ? Math.round(topN.reduce((a, b) => a + b.value, 0) / total * 100) : 0;
+    const gapPct = bottom.value > 0 ? Math.round(((top.value - bottom.value) / bottom.value) * 100) : 0;
+
+    return `${top.name} leads with ${formatValue(top.value)}, ${Math.round(((top.value / avg) - 1) * 100)}% above average. ${bottom.name} trails at ${formatValue(bottom.value)} — a ${gapPct}% gap from the top. Top ${topN.length} (${topN.map(d => d.name).join(", ")}) account for ${topNShare}% of total ${measureLabel}. ${gapPct > 100 ? "Large gap between top and bottom — focus on closing underperformers or doubling down on leaders." : "Performance is relatively balanced across segments."}`;
+  }
+
+  // ── Pie chart ────────────────────────────────────────────────────────────
+  if (chartType === "pie") {
+    const seriesData = (activeData as { data?: { name: string; value: number }[] }).data;
+    if (!seriesData || seriesData.length === 0) return null;
+
+    const total = seriesData.reduce((a, b) => a + b.value, 0);
+    if (!total) return null;
+    const sorted = [...seriesData].sort((a, b) => b.value - a.value);
+    const top = sorted[0];
+    const second = sorted[1];
+    const topPct = Math.round((top.value / total) * 100);
+    const top2Pct = second ? Math.round(((top.value + second.value) / total) * 100) : topPct;
+    const concentration = topPct > 50 ? "highly concentrated" : topPct > 35 ? "moderately concentrated" : "evenly distributed";
+
+    return `${top.name} is the largest segment at ${topPct}% of total ${measureLabel} (${formatValue(top.value)}).${second ? ` Combined with ${second.name}, the top 2 account for ${top2Pct}%.` : ""} Distribution is ${concentration} across ${sorted.length} segments. ${topPct > 50 ? "Heavy reliance on a single segment — diversification may reduce risk." : "Healthy spread — no single segment is a critical dependency."}`;
+  }
+
+  return null;
+}
+
 function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filteredData?: unknown }) {
   const baseCfg = insight.chartConfig as Record<string, unknown> | null;
   const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
@@ -403,11 +502,16 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
           </div>
         </div>
         <MiniChart insight={item.insight} filteredData={filteredData} />
-        {item.insight.narrative && (
-          <div className="mt-3 pt-2.5 border-t border-border/50">
-            <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-4">{item.insight.narrative}</p>
-          </div>
-        )}
+        {(() => {
+          const smartNarrative = generateSmartNarrative(item.insight, filteredData);
+          const text = smartNarrative || item.insight.narrative;
+          if (!text) return null;
+          return (
+            <div className="mt-3 pt-2.5 border-t border-border/50">
+              <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-4">{text}</p>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
