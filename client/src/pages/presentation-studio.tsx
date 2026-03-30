@@ -22,7 +22,9 @@ import {
 type SlideType = "title" | "agenda" | "content" | "two-column" | "data" | "quote" | "section" | "closing";
 type Theme = "executive-dark" | "clean-light" | "bold-purple" | "fresh-teal" | "minimal-gray" | "warm-amber";
 type SourceType = "kpis" | "projects" | "workflow" | "reviews" | "analytics";
-type View = "home" | "outline" | "generating" | "editor";
+type View = "home" | "questions" | "outline" | "generating" | "editor";
+
+interface AiQuestion { id: string; question: string; placeholder: string; why: string; }
 
 interface Slide {
   id: string; type: SlideType; title: string;
@@ -446,6 +448,95 @@ function ThemePicker({ value, onChange }: { value: Theme; onChange: (t: Theme) =
           <span className="text-[10px] text-muted-foreground">{v.label}</span>
         </button>
       ))}
+    </div>
+  );
+}
+
+// ── Questions View ────────────────────────────────────────────────────────────
+function QuestionsView({
+  prompt, questions, answers, isLoading,
+  onAnswer, onSkip, onGenerate, onBack,
+}: {
+  prompt: string;
+  questions: AiQuestion[];
+  answers: Record<string, string>;
+  isLoading: boolean;
+  onAnswer: (id: string, val: string) => void;
+  onSkip: () => void;
+  onGenerate: () => void;
+  onBack: () => void;
+}) {
+  const answeredCount = questions.filter(q => answers[q.id]?.trim()).length;
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div className="max-w-2xl mx-auto w-full px-6 py-8 space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" data-testid="btn-questions-back">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div>
+            <h2 className="font-semibold text-base">A few quick questions</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Help me tailor the presentation to your exact needs</p>
+          </div>
+        </div>
+
+        {/* Prompt recap */}
+        <div className="bg-muted/40 rounded-xl p-4 border border-border/50">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">Your request</p>
+          <p className="text-sm text-foreground leading-relaxed">{prompt}</p>
+        </div>
+
+        {/* Questions */}
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="rounded-xl border p-5 space-y-3 animate-pulse">
+                <div className="h-3 bg-muted rounded w-3/4" />
+                <div className="h-2.5 bg-muted rounded w-1/2 opacity-60" />
+                <div className="h-9 bg-muted rounded" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {questions.map((q, i) => (
+              <div key={q.id} className="rounded-xl border bg-card p-5 space-y-3 transition-all hover:border-primary/30" data-testid={`question-card-${i}`}>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[10px] font-bold text-primary">{i + 1}</span>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-snug">{q.question}</p>
+                    <p className="text-[11px] text-muted-foreground">{q.why}</p>
+                  </div>
+                </div>
+                <Textarea
+                  value={answers[q.id] || ""}
+                  onChange={e => onAnswer(q.id, e.target.value)}
+                  placeholder={q.placeholder}
+                  className="min-h-[64px] text-sm resize-none"
+                  data-testid={`answer-input-${i}`}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        {!isLoading && (
+          <div className="flex items-center justify-between pt-2">
+            <button onClick={onSkip} className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2" data-testid="btn-skip-questions">
+              Skip and generate anyway
+            </button>
+            <Button onClick={onGenerate} className="gap-2" data-testid="btn-generate-from-answers">
+              <Sparkles className="h-4 w-4" />
+              Generate Outline
+              {answeredCount > 0 && <span className="ml-1 text-xs opacity-75">({answeredCount} answered)</span>}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1070,6 +1161,9 @@ export default function PresentationStudioPage() {
   const [generateProgress, setGenerateProgress] = useState(0);
   const [generateLabel, setGenerateLabel] = useState("Preparing…");
   const [pendingCreate, setPendingCreate] = useState<any>(null);
+  const [aiQuestions, setAiQuestions] = useState<AiQuestion[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   const { data: presentations = [], isLoading } = useQuery<PresentationRecord[]>({
     queryKey: ["/api/presentations"],
@@ -1090,7 +1184,7 @@ export default function PresentationStudioPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/presentations"] }); toast({ title: "Presentation deleted" }); },
   });
 
-  // Step 1: Generate outline from prompt
+  // Step 1a: Ask AI clarifying questions
   const handleGenerate = async (opts: { prompt: string; sources: SourceType[]; fileText: string | null; fileName: string | null; slideCount: number; theme: Theme }) => {
     const brief = {
       title: opts.prompt.slice(0, 80),
@@ -1103,19 +1197,52 @@ export default function PresentationStudioPage() {
       instructions: opts.fileName ? `Source file: ${opts.fileName}` : "",
       prompt: opts.prompt,
     };
-
     const sourceData: any = {};
     if (opts.fileText) sourceData.fileContent = opts.fileText;
 
     setPendingCreate({ brief, sources: opts.sources, theme: opts.theme, sourceData });
-    setOutlineLoading(true);
-    setView("outline");
-    setOutline([]);
+    setAnswers({});
+    setAiQuestions([]);
+    setQuestionsLoading(true);
+    setView("questions");
 
     try {
+      const resp = await fetch("/api/presentations/generate-questions", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ prompt: opts.prompt, sources: opts.sources }),
+      });
+      if (!resp.ok) {
+        // If questions fail, go straight to outline
+        setView("outline");
+        await generateOutline(brief, sourceData, opts.sources, {});
+        return;
+      }
+      const data = await resp.json();
+      setAiQuestions(data.questions || []);
+    } catch {
+      // On any error, skip questions and go straight to outline
+      setView("outline");
+      await generateOutline(brief, sourceData, opts.sources, {});
+    } finally {
+      setQuestionsLoading(false);
+    }
+  };
+
+  // Step 1b: Generate outline (called from both questions view and direct)
+  const generateOutline = async (brief: any, sourceData: any, sources: SourceType[], answersMap: Record<string, string>) => {
+    setOutlineLoading(true);
+    setOutline([]);
+    try {
+      const answeredPairs = Object.entries(answersMap)
+        .filter(([, v]) => v.trim())
+        .map(([id, answer]) => {
+          const q = aiQuestions.find(q => q.id === id);
+          return { question: q?.question || id, answer };
+        });
+
       const resp = await fetch("/api/presentations/generate-outline", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ brief, sourceData }),
+        body: JSON.stringify({ brief, sourceData, sources, answers: answeredPairs }),
       });
       if (!resp.ok) throw new Error((await resp.json()).message || "Outline generation failed");
       const data = await resp.json();
@@ -1128,18 +1255,16 @@ export default function PresentationStudioPage() {
     }
   };
 
+  // Step 1c: Handle "Generate" from questions view
+  const handleGenerateFromQuestions = async () => {
+    if (!pendingCreate) return;
+    setView("outline");
+    await generateOutline(pendingCreate.brief, pendingCreate.sourceData, pendingCreate.sources, answers);
+  };
+
   const handleRegenerate = () => {
     if (!pendingCreate) return;
-    setOutlineLoading(true);
-    setOutline([]);
-    fetch("/api/presentations/generate-outline", {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ brief: pendingCreate.brief, sourceData: pendingCreate.sourceData }),
-    })
-      .then(r => r.json())
-      .then(data => setOutline(data.outline || []))
-      .catch(err => toast({ title: "Regeneration failed", description: err.message, variant: "destructive" }))
-      .finally(() => setOutlineLoading(false));
+    generateOutline(pendingCreate.brief, pendingCreate.sourceData, pendingCreate.sources, answers);
   };
 
   // Step 2: Build slides from outline
@@ -1169,7 +1294,7 @@ export default function PresentationStudioPage() {
       // Generate slides
       const resp = await fetch(`/api/presentations/${created.id}/generate-slides`, {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ outline, brief: pendingCreate.brief, sourceData: pendingCreate.sourceData }),
+        body: JSON.stringify({ outline, brief: pendingCreate.brief, sourceData: pendingCreate.sourceData, sources: pendingCreate.sources }),
       });
       const data = await resp.json();
       clearInterval(interval);
@@ -1191,6 +1316,23 @@ export default function PresentationStudioPage() {
     saveMutation.mutate({ id: activePres.id, data: { ...data, saveVersion } });
     setActivePres(prev => prev ? { ...prev, ...data } : prev);
   };
+
+  if (view === "questions") {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <QuestionsView
+          prompt={pendingCreate?.brief?.prompt || ""}
+          questions={aiQuestions}
+          answers={answers}
+          isLoading={questionsLoading}
+          onAnswer={(id, val) => setAnswers(prev => ({ ...prev, [id]: val }))}
+          onSkip={handleGenerateFromQuestions}
+          onGenerate={handleGenerateFromQuestions}
+          onBack={() => setView("home")}
+        />
+      </div>
+    );
+  }
 
   if (view === "outline") {
     return (

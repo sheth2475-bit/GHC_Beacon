@@ -2980,48 +2980,150 @@ Return a JSON object:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // ── AI: Generate Outline ──────────────────────────────────────────────────
+  // ── AI: Generate Clarifying Questions ───────────────────────────────────────
+  app.post("/api/presentations/generate-questions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { getOaiV2 } = await import("./ai");
+      const oai = getOaiV2();
+      const { prompt, sources } = req.body;
+
+      const completion = await oai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert presentation consultant. Given a presentation request, ask 2-3 targeted, specific clarifying questions that will help you create a significantly better, more tailored presentation.
+
+Return ONLY valid JSON — an array of 2-3 question objects. No markdown fences.
+
+Each question object must have:
+- id: string (e.g. "q1")
+- question: string (the specific question, max 20 words)
+- placeholder: string (a helpful example answer, max 15 words)
+- why: string (one short sentence explaining why this matters for the presentation, max 12 words)
+
+Focus on questions about: specific metrics/data to highlight, key decisions the audience needs to make, controversial or sensitive areas to avoid, desired outcomes or calls-to-action, and specific time periods or comparisons to include. Avoid generic questions.`
+          },
+          {
+            role: "user",
+            content: `Presentation request: "${prompt}"
+Data sources selected: ${sources?.length ? sources.join(", ") : "none"}
+
+Ask the most impactful 2-3 clarifying questions now:`
+          }
+        ],
+        temperature: 0.6,
+        max_tokens: 600,
+      });
+
+      const raw = completion.choices[0].message.content || "[]";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const questions = JSON.parse(cleaned);
+      res.json({ questions });
+    } catch (err: any) { res.status(500).json({ message: err.message || "Question generation failed" }); }
+  });
+
+  // ── AI: Generate Outline (with deep research) ─────────────────────────────
   app.post("/api/presentations/generate-outline", requireAuth, async (req: Request, res: Response) => {
     try {
       const { getOaiV2 } = await import("./ai");
       const oai = getOaiV2();
-      const { brief, sourceData } = req.body;
+      const { brief, sourceData, sources, answers } = req.body;
       const targetSlides = Number(brief?.targetSlides) || 10;
+      const user = (req as any).user;
+      const companyId = user?.companyId;
 
-      const systemPrompt = `You are an expert business presentation strategist. Given a presentation brief and any source data, generate a crisp slide outline. Return ONLY valid JSON — an array of slide outline objects. No markdown fences.
+      // ── Deep research: fetch real Performo data ──────────────────────────
+      const researchChunks: string[] = [];
+      if (companyId && Array.isArray(sources) && sources.length > 0) {
+        try {
+          if (sources.includes("kpis")) {
+            const kpis = await storage.getKpis(companyId);
+            const allActuals: any[] = [];
+            for (const k of kpis.slice(0, 10)) {
+              const acts = await storage.getKpiActuals(k.id);
+              allActuals.push(...acts);
+            }
+            if (kpis.length) {
+              researchChunks.push(`KPI PERFORMANCE DATA:\n${kpis.slice(0, 8).map(k => {
+                const latest = allActuals.filter((a: any) => a.kpiId === k.id).sort((a: any, b: any) => b.reviewMonth.localeCompare(a.reviewMonth))[0];
+                return `• ${k.kpiName}: target=${k.targetValue}${k.unit}, latest=${latest?.actualValue ?? "N/A"}${k.unit} (${latest?.status ?? "N/A"}) — ${latest?.commentary || ""}`;
+              }).join("\n")}`);
+            }
+          }
+          if (sources.includes("projects")) {
+            const projects = await storage.getProjects(companyId);
+            if (projects.length) {
+              researchChunks.push(`ACTIVE PROJECTS:\n${projects.slice(0, 6).map(p =>
+                `• ${p.name} — ${p.status}, ${p.progress}% complete, owner: ${p.owner}, due: ${p.dueDate}`
+              ).join("\n")}`);
+            }
+          }
+          if (sources.includes("reviews")) {
+            const reviews = await storage.getMonthlyReviews(companyId);
+            if (reviews.length) {
+              const latest = reviews[0];
+              researchChunks.push(`LATEST MONTHLY REVIEW (${latest.reviewMonth}):\nSummary: ${latest.overallSummary?.slice(0, 500)}\nStrengths: ${latest.strengths?.slice(0, 300)}\nGaps: ${latest.gaps?.slice(0, 300)}\nRecommendations: ${latest.recommendations?.slice(0, 300)}`);
+            }
+          }
+          if (sources.includes("workflow")) {
+            const actions = await storage.getActionItems(companyId);
+            if (actions.length) {
+              researchChunks.push(`ACTION ITEMS:\n${actions.slice(0, 8).map(a =>
+                `• [${a.status}] ${a.title} — owner: ${a.ownerName}, due: ${a.dueDate}`
+              ).join("\n")}`);
+            }
+          }
+        } catch (fetchErr) {
+          // Non-fatal — continue with whatever data was collected
+        }
+      }
+
+      const platformData = researchChunks.length > 0
+        ? `\n\nPERFORMO PLATFORM DATA (use specific numbers and names from this):\n${researchChunks.join("\n\n")}`
+        : "";
+
+      const answersSection = Array.isArray(answers) && answers.length > 0
+        ? `\n\nCLARIFYING ANSWERS FROM PRESENTER:\n${answers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n")}`
+        : "";
+
+      const fileSection = sourceData?.fileContent
+        ? `\n\nATTACHED FILE CONTENT:\n${String(sourceData.fileContent).slice(0, 3000)}`
+        : "";
+
+      const systemPrompt = `You are an expert business presentation strategist. Generate a tailored, data-driven slide outline. Return ONLY valid JSON — an array of slide outline objects. No markdown fences.
 
 Each object must have:
 - id: string (e.g. "slide-1")
 - type: one of ["title", "agenda", "content", "two-column", "data", "quote", "section", "closing"]
-- title: string (the slide title)
-- description: string (one sentence describing what goes on this slide)
+- title: string (concise slide title, max 8 words)
+- description: string (one specific sentence — mention actual metrics, names, or decisions where relevant)
 
 Rules:
-- First slide must be type "title"  
-- Last slide must be type "closing"
-- Include an "agenda" slide as slide 2 or 3
-- Match the number of slides to targetSlides (${targetSlides})
-- Keep titles concise (max 8 words)`;
+- First slide: "title" type  
+- Second or third slide: "agenda" type
+- Last slide: "closing" type
+- Use "data" slides for KPI performance, financial metrics, or statistics
+- Use "two-column" for comparisons, pros/cons, or before/after
+- Use "section" to divide major themes
+- Match exactly ${targetSlides} slides
+- Make it SPECIFIC to the actual data provided — avoid generic placeholder descriptions`;
 
-      const userPrompt = `Brief:
+      const userPrompt = `Presentation brief:
 Title: ${brief?.title || "Business Presentation"}
 Audience: ${brief?.audience || "Senior leadership"}
 Objective: ${brief?.objective || "Inform and align"}
 Tone: ${brief?.tone || "Executive"}
 Deck Type: ${brief?.deckType || "Strategy"}
-Target Slides: ${targetSlides}
-Design Style: ${brief?.designStyle || "Clean"}
-Instructions: ${brief?.instructions || ""}
-
-Source Data Summary: ${sourceData ? JSON.stringify(sourceData).slice(0, 2000) : "No additional source data provided."}
+Target Slides: ${targetSlides}${answersSection}${platformData}${fileSection}
 
 Generate the outline now:`;
 
       const completion = await oai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        temperature: 0.7,
-        max_tokens: 2000,
+        temperature: 0.6,
+        max_tokens: 2500,
       });
 
       const raw = completion.choices[0].message.content || "[]";
@@ -3036,7 +3138,66 @@ Generate the outline now:`;
     try {
       const { getOaiV2 } = await import("./ai");
       const oai = getOaiV2();
-      const { outline, brief, sourceData } = req.body;
+      const { outline, brief, sourceData, sources } = req.body;
+      const user = (req as any).user;
+      const companyId = user?.companyId;
+
+      // ── Deep research: pull real Performo data ───────────────────────────
+      const researchChunks: string[] = [];
+      if (companyId && Array.isArray(sources) && sources.length > 0) {
+        try {
+          if (sources.includes("kpis")) {
+            const kpis = await storage.getKpis(companyId);
+            const allActuals2: any[] = [];
+            for (const k of kpis.slice(0, 10)) {
+              const acts = await storage.getKpiActuals(k.id);
+              allActuals2.push(...acts);
+            }
+            if (kpis.length) {
+              researchChunks.push(`REAL KPI DATA (use these exact values in data slides):\n${kpis.slice(0, 10).map(k => {
+                const latest = allActuals2.filter((a: any) => a.kpiId === k.id).sort((a: any, b: any) => b.reviewMonth.localeCompare(a.reviewMonth))[0];
+                const pctOfTarget = latest?.actualValue && k.targetValue
+                  ? Math.round((parseFloat(latest.actualValue) / parseFloat(k.targetValue)) * 100) : null;
+                return `• ${k.kpiName}: target=${k.targetValue}${k.unit}, actual=${latest?.actualValue ?? "?"}${k.unit}, status=${latest?.status ?? "?"}, %target=${pctOfTarget ?? "?"}%${latest?.commentary ? `, note: ${latest.commentary}` : ""}`;
+              }).join("\n")}`);
+            }
+          }
+          if (sources.includes("projects")) {
+            const projects = await storage.getProjects(companyId);
+            const actions = await storage.getActionItems(companyId);
+            if (projects.length) {
+              researchChunks.push(`REAL PROJECT DATA:\n${projects.slice(0, 6).map(p =>
+                `• ${p.name}: ${p.status}, ${p.progress}% complete, health=${(p as any).health ?? "?"}, owner=${p.owner}, due=${p.dueDate}`
+              ).join("\n")}`);
+            }
+            const overdue = actions.filter(a => a.dueDate && a.dueDate < new Date().toISOString().slice(0, 10) && a.status !== "Completed");
+            if (overdue.length) researchChunks.push(`OVERDUE ACTIONS (${overdue.length} total):\n${overdue.slice(0, 5).map(a => `• [OVERDUE] ${a.title} — ${a.ownerName}`).join("\n")}`);
+          }
+          if (sources.includes("reviews")) {
+            const reviews = await storage.getMonthlyReviews(companyId);
+            if (reviews.length) {
+              const latest = reviews[0];
+              researchChunks.push(`LATEST REVIEW (${latest.reviewMonth}):\n${latest.overallSummary?.slice(0, 600)}\n\nKey gaps:\n${latest.gaps?.slice(0, 300)}\n\nRecommendations:\n${latest.recommendations?.slice(0, 300)}`);
+            }
+          }
+          if (sources.includes("workflow")) {
+            const actions = await storage.getActionItems(companyId);
+            if (actions.length) {
+              researchChunks.push(`ACTION ITEMS:\n${actions.slice(0, 8).map(a =>
+                `• [${a.status}] ${a.title} — ${a.ownerName}, due ${a.dueDate ?? "TBD"}`
+              ).join("\n")}`);
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      const platformContext = researchChunks.length > 0
+        ? `\n\nREAL PLATFORM DATA — incorporate these specific numbers and names directly into slide content:\n${researchChunks.join("\n\n")}`
+        : "";
+
+      const fileContext = sourceData?.fileContent
+        ? `\n\nATTACHED DOCUMENT:\n${String(sourceData.fileContent).slice(0, 3000)}`
+        : "";
 
       const systemPrompt = `You are an expert business presentation designer and writer. Given a slide outline and context, generate full rich slide content for each slide. Return ONLY valid JSON — an array of slide content objects. No markdown fences, no extra text.
 
@@ -3065,13 +3226,12 @@ Design rules:
 
       const userPrompt = `Presentation: "${brief?.title || "Business Presentation"}"
 Objective: ${brief?.objective || ""}
-Instructions: ${brief?.instructions || ""}
-Source Data: ${sourceData ? JSON.stringify(sourceData).slice(0, 2000) : "None"}
+Instructions: ${brief?.instructions || ""}${platformContext}${fileContext}
 
 Outline to expand:
 ${JSON.stringify(outline, null, 2)}
 
-Generate full slide content now:`;
+Generate full slide content now — use real data values from above wherever available:`;
 
       const completion = await oai.chat.completions.create({
         model: "gpt-4o",
