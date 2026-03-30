@@ -27,8 +27,11 @@ type View = "home" | "outline" | "generating" | "editor";
 interface Slide {
   id: string; type: SlideType; title: string;
   subtitle?: string; bullets?: string[];
-  stat?: { value: string; label: string; change?: string }[];
+  stat?: { value: string; label: string; change?: string; trend?: "up" | "down" | "flat"; pct?: number; color?: "green" | "amber" | "red" }[];
+  chartData?: { label: string; value: number; color?: string }[];
   quote?: string; notes?: string; emphasis?: string;
+  colorCode?: "green" | "amber" | "red";
+  icon?: string;
 }
 
 interface OutlineItem {
@@ -86,143 +89,332 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     background: t.bg, width: "100%", aspectRatio: "16/9",
     fontFamily: "'Inter', system-ui, sans-serif", position: "relative", overflow: "hidden",
   };
-  const bar: React.CSSProperties = { position: "absolute", left: 0, top: 0, bottom: 0, width: "4px", background: t.accent };
-  const logo = <div style={{ position: "absolute", bottom: "4%", right: "4%", fontSize: "8px", color: t.subtleColor, fontWeight: 600, letterSpacing: "0.08em", opacity: 0.5 }}>PERFORMO AI</div>;
 
+  const Logo = () => (
+    <div style={{ position: "absolute", bottom: "3%", right: "4%", display: "flex", alignItems: "center", gap: "2%", opacity: 0.35 }}>
+      <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={t.accent}/></svg>
+      <span style={{ fontSize: "clamp(5px,0.7vw,7px)", color: t.subtleColor, fontWeight: 700, letterSpacing: "0.12em" }}>PERFORMO AI</span>
+    </div>
+  );
+
+  const TrendArrow = ({ trend, color }: { trend?: string; color?: string }) => {
+    if (!trend || trend === "flat") return <span style={{ color: "#94a3b8", fontSize: "clamp(6px,0.9vw,9px)" }}>→</span>;
+    return trend === "up"
+      ? <span style={{ color: color === "red" ? "#ef4444" : "#22c55e", fontSize: "clamp(6px,0.9vw,9px)" }}>▲</span>
+      : <span style={{ color: color === "green" ? "#22c55e" : "#ef4444", fontSize: "clamp(6px,0.9vw,9px)" }}>▼</span>;
+  };
+
+  const MiniBar = ({ pct, statColor }: { pct?: number; statColor?: string }) => {
+    const val = Math.min(Math.max(pct ?? 70, 0), 100);
+    const barColor = statColor === "green" ? "#22c55e" : statColor === "red" ? "#ef4444" : statColor === "amber" ? "#f59e0b" : t.accent;
+    return (
+      <div style={{ marginTop: "4%", height: "clamp(2px,0.4vw,3px)", background: `${t.borderColor}60`, borderRadius: "2px", overflow: "hidden" }}>
+        <div style={{ width: `${val}%`, height: "100%", background: barColor, borderRadius: "2px", transition: "width 0.5s ease" }} />
+      </div>
+    );
+  };
+
+  const InlineBarChart = ({ data }: { data: { label: string; value: number; color?: string }[] }) => {
+    const max = Math.max(...data.map(d => d.value), 1);
+    const colors = [t.accent, `${t.accent}aa`, `${t.accent}66`, `${t.accent}44`];
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "3%", height: "100%" }}>
+        {data.slice(0, 5).map((d, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: "3%" }}>
+            <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.75vw,7px)", width: "28%", textAlign: "right", opacity: 0.8, flexShrink: 0 }}>{d.label}</div>
+            <div style={{ flex: 1, height: "clamp(6px,1.2vw,10px)", background: `${t.borderColor}40`, borderRadius: "2px", overflow: "hidden" }}>
+              <div style={{ width: `${(d.value / max) * 100}%`, height: "100%", background: d.color || colors[i % colors.length], borderRadius: "2px" }} />
+            </div>
+            <div style={{ color: t.accent, fontSize: "clamp(5px,0.75vw,7px)", width: "12%", fontWeight: 700, flexShrink: 0 }}>{d.value}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── TITLE SLIDE ──
   if (slide.type === "title") return (
     <div style={base}>
-      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg,${t.bg} 0%,${t.cardBg} 100%)` }} />
-      <div style={{ position: "absolute", top: "8%", left: "8%", right: "8%", height: "3px", background: t.accent, borderRadius: "2px" }} />
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "8%", textAlign: "center" }}>
-        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(14px,3vw,28px)", lineHeight: 1.1, marginBottom: "3%" }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(9px,1.5vw,14px)", opacity: 0.75 }}>{slide.subtitle}</div>}
-        {slide.emphasis && <div style={{ marginTop: "5%", padding: "1.5% 4%", border: `1px solid ${t.accent}`, borderRadius: "4px", color: t.accent, fontSize: "clamp(7px,1.2vw,11px)", letterSpacing: "0.1em" }}>{slide.emphasis}</div>}
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="tg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={t.bg}/>
+            <stop offset="100%" stopColor={t.cardBg}/>
+          </linearGradient>
+        </defs>
+        <rect width="640" height="360" fill="url(#tg)"/>
+        <circle cx="580" cy="60" r="140" fill={t.accent} fillOpacity="0.08"/>
+        <circle cx="560" cy="20" r="80" fill={t.accent} fillOpacity="0.06"/>
+        <circle cx="80" cy="320" r="100" fill={t.accent} fillOpacity="0.05"/>
+        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+        <rect x="60" y="340" width="520" height="1.5" fill={t.accent} fillOpacity="0.25"/>
+        <rect x="60" y="20" width="200" height="1.5" fill={t.accent} fillOpacity="0.2"/>
+      </svg>
+      <div style={{ position: "absolute", top: "7%", left: "5%", display: "flex", alignItems: "center", gap: "1.5%" }}>
+        <div style={{ width: "clamp(4px,0.8vw,6px)", height: "clamp(4px,0.8vw,6px)", borderRadius: "50%", background: t.accent }} />
+        <span style={{ color: t.subtleColor, fontSize: "clamp(5px,0.75vw,7px)", letterSpacing: "0.15em", fontWeight: 600 }}>PERFORMO AI</span>
       </div>
-      {logo}
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", padding: "8% 8% 10% 8%" }}>
+        {slide.emphasis && (
+          <div style={{ marginBottom: "3%", padding: "0.8% 2.5%", background: `${t.accent}20`, border: `1px solid ${t.accent}40`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.85vw,8px)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{slide.emphasis}</div>
+        )}
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3.2vw,30px)", lineHeight: 1.1, marginBottom: "3%", maxWidth: "75%" }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.4vw,13px)", opacity: 0.75, maxWidth: "65%", lineHeight: 1.4 }}>{slide.subtitle}</div>}
+        <div style={{ position: "absolute", bottom: "8%", left: "8%", display: "flex", alignItems: "center", gap: "1.5%", opacity: 0.45 }}>
+          <div style={{ width: "clamp(3px,0.5vw,4px)", height: "clamp(3px,0.5vw,4px)", borderRadius: "50%", background: t.accent }} />
+          <span style={{ color: t.subtleColor, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.08em" }}>CONFIDENTIAL</span>
+        </div>
+      </div>
     </div>
   );
 
-  if (slide.type === "quote") return (
-    <div style={base}>
-      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg,${t.cardBg} 0%,${t.bg} 100%)` }} />
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "8% 14%", textAlign: "center" }}>
-        <div style={{ color: t.accent, fontSize: "clamp(20px,5vw,48px)", lineHeight: 0.8, marginBottom: "3%", opacity: 0.5 }}>"</div>
-        <div style={{ color: t.bodyColor, fontSize: "clamp(9px,1.6vw,16px)", fontStyle: "italic", lineHeight: 1.5 }}>{slide.quote || slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.accent, fontSize: "clamp(7px,1vw,10px)", marginTop: "4%", letterSpacing: "0.1em" }}>— {slide.subtitle}</div>}
-      </div>
-      {logo}
-    </div>
-  );
-
-  if (slide.type === "section") return (
-    <div style={base}>
-      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg,${t.accent}20 0%,${t.bg} 60%)` }} />
-      <div style={bar} />
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "8% 10%" }}>
-        <div style={{ color: t.accent, fontSize: "clamp(7px,1vw,10px)", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "2%", fontWeight: 600 }}>SECTION</div>
-        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(14px,3vw,28px)" }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.2vw,12px)", marginTop: "2%", opacity: 0.7 }}>{slide.subtitle}</div>}
-      </div>
-      {logo}
-    </div>
-  );
-
-  if (slide.type === "data") {
-    const stats = slide.stat?.length ? slide.stat : [{ value: "—", label: "Metric" }, { value: "—", label: "Metric" }, { value: "—", label: "Metric" }];
+  // ── AGENDA SLIDE ──
+  if (slide.type === "agenda") {
+    const items = (slide.bullets || []).slice(0, 6);
     return (
       <div style={base}>
-        <div style={bar} />
-        <div style={{ position: "absolute", inset: 0, padding: "5% 7%" }}>
-          <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(10px,1.8vw,18px)", marginBottom: "4%", paddingLeft: "3%" }}>{slide.title}</div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(stats.length, 3)}, 1fr)`, gap: "3%", marginBottom: "3%" }}>
-            {stats.slice(0, 3).map((s, i) => (
-              <div key={i} style={{ background: t.cardBg, borderRadius: "4px", padding: "4%", border: `1px solid ${t.borderColor}` }}>
-                <div style={{ color: t.accent, fontSize: "clamp(12px,2.2vw,22px)", fontWeight: 700 }}>{s.value}</div>
-                <div style={{ color: t.bodyColor, fontSize: "clamp(6px,0.9vw,9px)", marginTop: "3%", opacity: 0.7 }}>{s.label}</div>
-                {s.change && <div style={{ color: s.change.startsWith("+") ? "#22c55e" : "#ef4444", fontSize: "clamp(5px,0.8vw,8px)", marginTop: "1%" }}>{s.change}</div>}
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+          <rect width="640" height="360" fill={t.bg}/>
+          <rect x="0" y="0" width="220" height="360" fill={t.accent} fillOpacity="0.04"/>
+          <rect x="0" y="0" width="5" height="360" fill={t.accent}/>
+          <circle cx="580" cy="320" r="80" fill={t.accent} fillOpacity="0.05"/>
+        </svg>
+        <div style={{ position: "absolute", inset: 0, padding: "6% 6% 6% 5%" }}>
+          <div style={{ paddingLeft: "2.5%", marginBottom: "5%" }}>
+            <div style={{ color: t.accent, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600, marginBottom: "1.5%" }}>AGENDA</div>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(10px,1.9vw,18px)" }}>{slide.title}</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.8%" }}>
+            {items.map((b, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "2.5%", padding: "1.5% 2.5%", background: `${t.cardBg}cc`, borderRadius: "4px", border: `1px solid ${t.borderColor}30` }}>
+                <div style={{ width: "clamp(12px,2vw,18px)", height: "clamp(12px,2vw,18px)", borderRadius: "50%", background: `${t.accent}20`, border: `1px solid ${t.accent}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ color: t.accent, fontWeight: 700, fontSize: "clamp(6px,0.9vw,8px)" }}>{String(i + 1).padStart(2, "0")}</span>
+                </div>
+                <span style={{ color: t.bodyColor, fontSize: "clamp(7px,1vw,9px)", lineHeight: 1.3, fontWeight: i === 0 ? 600 : 400 }}>{b}</span>
+                <div style={{ marginLeft: "auto", width: "clamp(20px,3vw,28px)", height: "1px", background: `${t.accent}20`, flexShrink: 0 }} />
               </div>
             ))}
           </div>
-          {(slide.bullets || []).slice(0, 2).map((b, i) => (
-            <div key={i} style={{ display: "flex", gap: "2%", color: t.bodyColor, fontSize: "clamp(7px,0.9vw,9px)", marginBottom: "1.5%", paddingLeft: "3%" }}>
-              <span style={{ color: t.accent, flexShrink: 0 }}>▪</span><span>{b}</span>
-            </div>
-          ))}
         </div>
-        {logo}
+        <Logo />
       </div>
     );
   }
 
-  if (slide.type === "two-column") {
-    const half = Math.ceil((slide.bullets || []).length / 2);
+  // ── SECTION SLIDE ──
+  if (slide.type === "section") {
     return (
       <div style={base}>
-        <div style={bar} />
-        <div style={{ position: "absolute", inset: 0, padding: "5% 7%" }}>
-          <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(10px,1.8vw,18px)", marginBottom: "4%", paddingLeft: "3%" }}>{slide.title}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3%", height: "72%" }}>
-            {[(slide.bullets||[]).slice(0, half), (slide.bullets||[]).slice(half)].map((col, ci) => (
-              <div key={ci} style={{ background: t.cardBg, borderRadius: "4px", padding: "4%", border: `1px solid ${t.borderColor}20` }}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+          <rect width="640" height="360" fill={t.bg}/>
+          <rect x="0" y="0" width="260" height="360" fill={t.accent} fillOpacity="0.12"/>
+          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+          <circle cx="200" cy="180" r="120" fill={t.accent} fillOpacity="0.06"/>
+          <circle cx="550" cy="280" r="60" fill={t.accent} fillOpacity="0.04"/>
+          <rect x="260" y="155" width="320" height="1.5" fill={t.accent} fillOpacity="0.15"/>
+          <rect x="260" y="205" width="200" height="1.5" fill={t.accent} fillOpacity="0.1"/>
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "8% 10%" }}>
+          <div style={{ color: t.accent, fontSize: "clamp(28px,5vw,48px)", fontWeight: 900, opacity: 0.12, lineHeight: 1, marginBottom: "-1%" }}>§</div>
+          <div style={{ color: t.accent, fontSize: "clamp(5px,0.75vw,7px)", letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700, marginBottom: "2%" }}>SECTION</div>
+          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3vw,26px)", lineHeight: 1.15 }}>{slide.title}</div>
+          {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.2vw,11px)", marginTop: "2.5%", opacity: 0.7, lineHeight: 1.4 }}>{slide.subtitle}</div>}
+        </div>
+        <Logo />
+      </div>
+    );
+  }
+
+  // ── DATA / KPI SLIDE ──
+  if (slide.type === "data") {
+    const stats = slide.stat?.length ? slide.stat : [
+      { value: "—", label: "Metric A", trend: "flat" as const },
+      { value: "—", label: "Metric B", trend: "flat" as const },
+      { value: "—", label: "Metric C", trend: "flat" as const },
+    ];
+    const hasChart = slide.chartData && slide.chartData.length > 0;
+    return (
+      <div style={base}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+          <rect width="640" height="360" fill={t.bg}/>
+          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+          <rect x="0" y="0" width="640" height="40" fill={t.cardBg} fillOpacity="0.5"/>
+          <rect x="0" y="40" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
+          <circle cx="600" cy="310" r="70" fill={t.accent} fillOpacity="0.04"/>
+        </svg>
+        <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
+          <div style={{ height: "12%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.7vw,16px)" }}>{slide.title}</div>
+            {slide.emphasis && <div style={{ marginLeft: "2%", padding: "0.5% 2%", background: `${t.accent}20`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.7vw,7px)", fontWeight: 600 }}>{slide.emphasis}</div>}
+          </div>
+          <div style={{ display: hasChart ? "grid" : "flex", gridTemplateColumns: hasChart ? "1fr 1fr" : undefined, flexDirection: hasChart ? undefined : "column", gap: "2.5%", height: "78%" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2.5%", justifyContent: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(stats.length, 3)}, 1fr)`, gap: "2.5%" }}>
+                {stats.slice(0, 3).map((s, i) => {
+                  const bColor = s.color === "green" ? "#22c55e" : s.color === "red" ? "#ef4444" : s.color === "amber" ? "#f59e0b" : t.borderColor;
+                  return (
+                    <div key={i} style={{ background: t.cardBg, borderRadius: "5px", padding: "5% 5% 4%", border: `1px solid ${t.borderColor}60`, borderTop: `3px solid ${bColor}`, display: "flex", flexDirection: "column" }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: "4%", marginBottom: "2%" }}>
+                        <div style={{ color: t.accent, fontSize: "clamp(11px,2.1vw,20px)", fontWeight: 800, lineHeight: 1 }}>{s.value}</div>
+                        <TrendArrow trend={s.trend} color={s.color} />
+                      </div>
+                      <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.8vw,7.5px)", opacity: 0.75, lineHeight: 1.3 }}>{s.label}</div>
+                      {s.change && <div style={{ marginTop: "3%", color: s.trend === "up" ? (s.color === "red" ? "#ef4444" : "#22c55e") : "#ef4444", fontSize: "clamp(5px,0.7vw,6.5px)", fontWeight: 600 }}>{s.change}</div>}
+                      <MiniBar pct={s.pct} statColor={s.color} />
+                    </div>
+                  );
+                })}
+              </div>
+              {(slide.bullets || []).slice(0, 2).map((b, i) => (
+                <div key={i} style={{ display: "flex", gap: "1.5%", color: t.bodyColor, fontSize: "clamp(6px,0.85vw,8px)", alignItems: "flex-start" }}>
+                  <span style={{ color: t.accent, flexShrink: 0 }}>▪</span><span style={{ lineHeight: 1.3 }}>{b}</span>
+                </div>
+              ))}
+            </div>
+            {hasChart && (
+              <div style={{ background: t.cardBg, borderRadius: "5px", padding: "5%", border: `1px solid ${t.borderColor}40`, display: "flex", flexDirection: "column" }}>
+                <div style={{ color: t.subtleColor, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "6%", fontWeight: 600 }}>BREAKDOWN</div>
+                <InlineBarChart data={slide.chartData!} />
+              </div>
+            )}
+          </div>
+        </div>
+        <Logo />
+      </div>
+    );
+  }
+
+  // ── TWO-COLUMN SLIDE ──
+  if (slide.type === "two-column") {
+    const bullets = slide.bullets || [];
+    const mid = Math.ceil(bullets.length / 2);
+    const colA = bullets.slice(0, mid);
+    const colB = bullets.slice(mid);
+    return (
+      <div style={base}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+          <rect width="640" height="360" fill={t.bg}/>
+          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+          <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.6"/>
+          <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
+        </svg>
+        <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
+          <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.7vw,16px)" }}>{slide.title}</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3%", height: "83%" }}>
+            {([colA, colB] as string[][]).map((col, ci) => (
+              <div key={ci} style={{ background: ci === 0 ? `${t.cardBg}` : `${t.cardBg}80`, borderRadius: "5px", padding: "5% 5%", border: `1px solid ${t.borderColor}50`, borderTop: `3px solid ${ci === 0 ? t.accent : `${t.accent}60`}` }}>
+                <div style={{ color: t.accent, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.12em", fontWeight: 700, marginBottom: "5%", textTransform: "uppercase" }}>
+                  {ci === 0 ? (slide.emphasis || "Overview") : "Details"}
+                </div>
                 {col.map((b, i) => (
-                  <div key={i} style={{ display: "flex", gap: "2%", marginBottom: "3%", color: t.bodyColor, fontSize: "clamp(7px,0.9vw,9px)", alignItems: "flex-start" }}>
-                    <span style={{ color: t.accent, flexShrink: 0 }}>▸</span><span>{b}</span>
+                  <div key={i} style={{ display: "flex", gap: "3%", marginBottom: "4%", alignItems: "flex-start" }}>
+                    <svg width="6" height="6" viewBox="0 0 6 6" style={{ flexShrink: 0, marginTop: "0.15em" }}>
+                      <polygon points="0,0 6,3 0,6" fill={t.accent}/>
+                    </svg>
+                    <span style={{ color: t.bodyColor, fontSize: "clamp(6.5px,0.9vw,8.5px)", lineHeight: 1.4 }}>{b}</span>
                   </div>
                 ))}
               </div>
             ))}
           </div>
         </div>
-        {logo}
+        <Logo />
       </div>
     );
   }
 
-  if (slide.type === "agenda") return (
+  // ── QUOTE SLIDE ──
+  if (slide.type === "quote") return (
     <div style={base}>
-      <div style={bar} />
-      <div style={{ position: "absolute", inset: 0, padding: "5% 7%" }}>
-        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(10px,1.8vw,18px)", marginBottom: "5%", paddingLeft: "3%" }}>{slide.title}</div>
-        {(slide.bullets || []).slice(0, 5).map((b, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "3%", padding: "1.5% 3%", background: t.cardBg, borderRadius: "3px", marginBottom: "2%", border: `1px solid ${t.borderColor}30` }}>
-            <span style={{ color: t.accent, fontWeight: 700, fontSize: "clamp(9px,1.3vw,13px)", width: "6%", flexShrink: 0 }}>0{i + 1}</span>
-            <span style={{ color: t.bodyColor, fontSize: "clamp(7px,0.9vw,9px)" }}>{b}</span>
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="qg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={t.cardBg}/>
+            <stop offset="100%" stopColor={t.bg}/>
+          </linearGradient>
+        </defs>
+        <rect width="640" height="360" fill="url(#qg)"/>
+        <text x="40" y="200" fontSize="220" fontWeight="900" fill={t.accent} fillOpacity="0.06" fontFamily="serif">"</text>
+        <rect x="200" y="330" width="240" height="2" fill={t.accent} fillOpacity="0.3"/>
+        <circle cx="580" cy="50" r="60" fill={t.accent} fillOpacity="0.05"/>
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12% 16%", textAlign: "center" }}>
+        <div style={{ color: t.bodyColor, fontSize: "clamp(9px,1.6vw,15px)", fontStyle: "italic", lineHeight: 1.6, fontWeight: 400 }}>{slide.quote || slide.title}</div>
+        {slide.subtitle && (
+          <div style={{ marginTop: "6%", display: "flex", alignItems: "center", gap: "2%" }}>
+            <div style={{ width: "clamp(12px,2vw,20px)", height: "1px", background: t.accent }} />
+            <span style={{ color: t.accent, fontSize: "clamp(6px,0.85vw,8px)", fontWeight: 600, letterSpacing: "0.08em" }}>{slide.subtitle}</span>
           </div>
-        ))}
+        )}
       </div>
-      {logo}
+      <Logo />
     </div>
   );
 
+  // ── CLOSING SLIDE ──
   if (slide.type === "closing") return (
     <div style={base}>
-      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg,${t.accent}20 0%,${t.bg} 100%)` }} />
-      <div style={{ position: "absolute", top: "8%", left: "8%", right: "8%", height: "2px", background: `${t.accent}40` }} />
-      <div style={{ position: "absolute", bottom: "8%", left: "8%", right: "8%", height: "2px", background: `${t.accent}40` }} />
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={t.bg}/>
+            <stop offset="100%" stopColor={t.cardBg}/>
+          </linearGradient>
+        </defs>
+        <rect width="640" height="360" fill="url(#cg)"/>
+        <circle cx="320" cy="180" r="200" fill={t.accent} fillOpacity="0.04"/>
+        <circle cx="320" cy="180" r="150" fill={t.accent} fillOpacity="0.03"/>
+        <circle cx="320" cy="180" r="100" fill={t.accent} fillOpacity="0.03"/>
+        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+        <rect x="634" y="0" width="6" height="360" fill={t.accent} fillOpacity="0.4"/>
+        <rect x="60" y="30" width="520" height="1.5" fill={t.accent} fillOpacity="0.2"/>
+        <rect x="60" y="328" width="520" height="1.5" fill={t.accent} fillOpacity="0.2"/>
+      </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "8%", textAlign: "center" }}>
-        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(14px,3vw,28px)", marginBottom: "3%" }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.accent, fontSize: "clamp(8px,1.2vw,12px)", letterSpacing: "0.05em" }}>{slide.subtitle}</div>}
-        {slide.bullets?.[0] && <div style={{ marginTop: "5%", padding: "1.5% 5%", background: t.accent, borderRadius: "4px", color: t.bg, fontSize: "clamp(7px,1.1vw,11px)", fontWeight: 600 }}>{slide.bullets[0]}</div>}
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3vw,28px)", marginBottom: "3%", lineHeight: 1.1 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.2vw,11px)", opacity: 0.7, marginBottom: "5%" }}>{slide.subtitle}</div>}
+        {slide.bullets?.[0] && (
+          <div style={{ padding: "1.5% 5%", background: t.accent, borderRadius: "4px", color: t.bg, fontSize: "clamp(7px,1.1vw,10px)", fontWeight: 700, letterSpacing: "0.05em" }}>
+            {slide.bullets[0]}
+          </div>
+        )}
+        {slide.bullets?.[1] && <div style={{ marginTop: "2.5%", color: t.bodyColor, fontSize: "clamp(6px,0.9vw,8px)", opacity: 0.55 }}>{slide.bullets[1]}</div>}
       </div>
-      {logo}
+      <Logo />
     </div>
   );
 
-  // content (default)
+  // ── CONTENT SLIDE (default) ──
   return (
     <div style={base}>
-      <div style={bar} />
-      <div style={{ position: "absolute", inset: 0, padding: "5% 7%" }}>
-        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(10px,1.8vw,18px)", marginBottom: "4%", paddingLeft: "3%" }}>{slide.title}</div>
-        {slide.emphasis && <div style={{ color: t.accent, fontSize: "clamp(8px,1.1vw,11px)", fontWeight: 600, paddingLeft: "3%", marginBottom: "2%" }}>{slide.emphasis}</div>}
-        {(slide.bullets || []).slice(0, 5).map((b, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "2.5%", padding: "1% 2.5%", color: t.bodyColor, fontSize: "clamp(7px,0.9vw,9px)" }}>
-            <span style={{ color: t.accent, flexShrink: 0, marginTop: "0.1em" }}>●</span>
-            <span style={{ lineHeight: 1.4 }}>{b}</span>
-          </div>
-        ))}
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+        <rect width="640" height="360" fill={t.bg}/>
+        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+        <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.55"/>
+        <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
+        <circle cx="580" cy="310" r="65" fill={t.accent} fillOpacity="0.04"/>
+      </svg>
+      <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
+        <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
+          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.7vw,16px)" }}>{slide.title}</div>
+        </div>
+        {slide.emphasis && (
+          <div style={{ marginBottom: "2%", paddingLeft: "2%", paddingRight: "2%", padding: "1.5% 2.5%", background: `${t.accent}15`, borderLeft: `3px solid ${t.accent}`, borderRadius: "0 3px 3px 0", color: t.accent, fontSize: "clamp(6.5px,0.95vw,9px)", fontWeight: 600, lineHeight: 1.3 }}>{slide.emphasis}</div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5%", paddingLeft: "2%" }}>
+          {(slide.bullets || []).slice(0, 5).map((b, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "2%", padding: "1.5% 2%", background: i % 2 === 0 ? `${t.cardBg}40` : "transparent", borderRadius: "3px" }}>
+              <svg width="7" height="7" viewBox="0 0 7 7" style={{ flexShrink: 0, marginTop: "0.2em" }}>
+                <circle cx="3.5" cy="3.5" r="3" fill={t.accent} fillOpacity="0.9"/>
+              </svg>
+              <span style={{ color: t.bodyColor, fontSize: "clamp(7px,0.95vw,9px)", lineHeight: 1.4 }}>{b}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      {logo}
+      <Logo />
     </div>
   );
 }

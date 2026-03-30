@@ -3038,22 +3038,30 @@ Generate the outline now:`;
       const oai = getOaiV2();
       const { outline, brief, sourceData } = req.body;
 
-      const systemPrompt = `You are an expert business presentation writer. Given a slide outline and context, generate full slide content for each slide. Return ONLY valid JSON — an array of slide content objects. No markdown fences.
+      const systemPrompt = `You are an expert business presentation designer and writer. Given a slide outline and context, generate full rich slide content for each slide. Return ONLY valid JSON — an array of slide content objects. No markdown fences, no extra text.
 
-Each slide object must have:
-- id: string (match the outline id)
-- type: string (match the outline type)
-- title: string (slide title)
-- subtitle: string (optional subtitle, for title/section slides)
-- bullets: string[] (3-5 bullet points for content slides, empty for others)
-- stat: { value: string, label: string, change: string }[] (for data slides, up to 3 stats)
-- quote: string (for quote slides)
-- notes: string (speaker notes, 1-2 sentences)
-- emphasis: string (optional single highlighted phrase or number)
+Each slide object MUST include:
+- id: string (match the outline id exactly)
+- type: string (match the outline type exactly)
+- title: string (concise slide title)
+- subtitle: string (optional — for title/closing/section slides only)
+- bullets: string[] (3–5 bullet points for content/agenda/two-column slides; keep each under 12 words; empty array for data/quote slides)
+- stat: array of up to 3 KPI/metric objects for "data" slides — each with:
+    { value: string, label: string, change: string, trend: "up"|"down"|"flat", pct: number (0-100 representing % of target), color: "green"|"amber"|"red" }
+- chartData: array of 4–6 bar chart entries for "data" slides with relevant breakdown — each: { label: string, value: number }
+- quote: string (for quote slides — a compelling quote relevant to the topic)
+- emphasis: string (optional — one punchy phrase, a key number, or a callout for any slide type)
+- colorCode: "green"|"amber"|"red" (optional — overall health status for data slides)
+- notes: string (speaker notes, 2–3 sentences)
 
-Tone: ${brief?.tone || "Executive"}
-Audience: ${brief?.audience || "Senior leadership"}
-Style: Keep bullets short (max 10 words each). Be data-driven where possible.`;
+Design rules:
+- Tone: ${brief?.tone || "Executive"}
+- Audience: ${brief?.audience || "Senior leadership"}
+- Keep bullets SHORT (max 10 words each) — this is a slide, not a document
+- For data slides: always populate stat AND chartData with plausible business metrics from the context
+- For title slides: write a compelling subtitle and an emphasis tag (e.g. "Q2 2026 BOARD REVIEW")
+- For closing slides: bullets[0] = clear call-to-action, bullets[1] = contact or next step
+- Be specific with numbers wherever the source data provides them`;
 
       const userPrompt = `Presentation: "${brief?.title || "Business Presentation"}"
 Objective: ${brief?.objective || ""}
