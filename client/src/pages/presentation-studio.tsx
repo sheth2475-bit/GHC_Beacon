@@ -551,151 +551,201 @@ function exportToPdf(slides: Slide[], theme: Theme, title: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MODULE 2 + 4 + 5 + 6 + 7 + 8: LAYOUT ENGINE, SHAPE, CHART, TABLE, NARRATIVE, VISUAL
+// SLIDE NATIVE RESOLUTION — everything renders at 960×540, then CSS-scaled
+// ═══════════════════════════════════════════════════════════════════════════════
+const SLIDE_W = 960;
+const SLIDE_H = 540;
+
+function ScaledSlide({ slide, theme }: { slide: Slide; theme: Theme }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.getBoundingClientRect().width;
+        if (w > 0) setScale(w / SLIDE_W);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={containerRef} style={{ width: "100%", position: "relative", paddingBottom: `${(SLIDE_H / SLIDE_W) * 100}%`, overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: SLIDE_W, height: SLIDE_H, transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" }}>
+          <SlideCanvas slide={slide} theme={theme} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 2 + 4 + 5 + 6 + 7 + 8: LAYOUT ENGINE — all px values for 960×540
 // ═══════════════════════════════════════════════════════════════════════════════
 function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
   const t = THEMES[theme] || THEMES["executive-dark"];
   const base: React.CSSProperties = {
-    background: t.bg, width: "100%", aspectRatio: "16/9",
+    background: t.bg, width: SLIDE_W, height: SLIDE_H,
     fontFamily: "'Inter', system-ui, sans-serif", position: "relative", overflow: "hidden",
   };
 
+  // ── Shared sub-components — fixed px sizes for 960×540 canvas ──────────────
+
   const Logo = () => (
-    <div style={{ position: "absolute", bottom: "3%", right: "4%", display: "flex", alignItems: "center", gap: "2%", opacity: 0.32 }}>
+    <div style={{ position: "absolute", bottom: 14, right: 22, display: "flex", alignItems: "center", gap: 5, opacity: 0.28 }}>
       <svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={t.accent}/></svg>
-      <span style={{ fontSize: "clamp(4px,0.6vw,6px)", color: t.subtleColor, fontWeight: 700, letterSpacing: "0.12em" }}>PERFORMO AI</span>
+      <span style={{ fontSize: 8, color: t.subtleColor, fontWeight: 700, letterSpacing: "0.12em" }}>PERFORMO AI</span>
     </div>
   );
 
-  const TrendArrow = ({ trend, color }: { trend?: string; color?: string }) => {
-    if (!trend || trend === "flat") return <span style={{ color: "#94a3b8", fontSize: "clamp(6px,0.9vw,9px)" }}>→</span>;
-    return trend === "up"
-      ? <span style={{ color: color === "red" ? "#ef4444" : "#22c55e", fontSize: "clamp(6px,0.9vw,9px)" }}>▲</span>
-      : <span style={{ color: color === "green" ? "#22c55e" : "#ef4444", fontSize: "clamp(6px,0.9vw,9px)" }}>▼</span>;
-  };
-
-  const MiniBar = ({ pct, statColor }: { pct?: number; statColor?: string }) => {
-    const val = Math.min(Math.max(pct ?? 70, 0), 100);
-    const barColor = statColor === "green" ? "#22c55e" : statColor === "red" ? "#ef4444" : statColor === "amber" ? "#f59e0b" : t.accent;
+  const TrendBadge = ({ s }: { s: { value: string; label: string; change?: string; trend?: string; color?: string; pct?: number } }) => {
+    const bColor = s.color === "green" ? "#22c55e" : s.color === "red" ? "#ef4444" : s.color === "amber" ? "#f59e0b" : t.accent;
+    const arrow = s.trend === "up" ? "▲" : s.trend === "down" ? "▼" : "→";
+    const arrowColor = s.trend === "up" ? (s.color === "red" ? "#ef4444" : "#22c55e") : s.trend === "down" ? (s.color === "green" ? "#22c55e" : "#ef4444") : "#94a3b8";
+    const pct = Math.min(Math.max(s.pct ?? 75, 0), 100);
     return (
-      <div style={{ marginTop: "4%", height: "clamp(2px,0.4vw,3px)", background: `${t.borderColor}60`, borderRadius: "2px", overflow: "hidden" }}>
-        <div style={{ width: `${val}%`, height: "100%", background: barColor, borderRadius: "2px" }} />
+      <div style={{ background: t.cardBg, borderRadius: 8, padding: "14px 18px 12px", display: "flex", flexDirection: "column", borderTop: `4px solid ${bColor}`, borderRight: `1px solid ${t.borderColor}50`, borderBottom: `1px solid ${t.borderColor}50`, borderLeft: `1px solid ${t.borderColor}50` }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+          <div style={{ color: t.accent, fontSize: 46, fontWeight: 800, lineHeight: 1 }}>{s.value}</div>
+          <span style={{ color: arrowColor, fontSize: 14, fontWeight: 700 }}>{arrow}</span>
+        </div>
+        <div style={{ color: t.bodyColor, fontSize: 13, opacity: 0.82, lineHeight: 1.3, marginBottom: 6 }}>{s.label}</div>
+        {s.change && <div style={{ color: arrowColor, fontSize: 11, fontWeight: 700, marginBottom: 5 }}>{s.change}</div>}
+        <div style={{ height: 6, background: `${t.borderColor}50`, borderRadius: 3, overflow: "hidden", marginTop: "auto" }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: bColor, borderRadius: 3 }} />
+        </div>
+        <div style={{ fontSize: 10, color: t.subtleColor, marginTop: 4, opacity: 0.7 }}>{pct}% of target</div>
       </div>
     );
   };
 
-  // MODULE 5: Chart Rendering
-  const InlineBarChart = ({ data }: { data: { label: string; value: number; color?: string }[] }) => {
+  // Horizontal bar chart — rendered at fixed px for 960×540
+  const BarChart = ({ data }: { data: { label: string; value: number; color?: string }[] }) => {
     const max = Math.max(...data.map(d => d.value), 1);
-    const colors = [t.accent, `${t.accent}bb`, `${t.accent}77`, `${t.accent}55`, "#22c55e", "#f59e0b"];
+    const colors = [t.accent, "#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a78bfa"];
+    const rows = data.slice(0, 6);
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "5%", height: "100%" }}>
-        {data.slice(0, 5).map((d, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "3%" }}>
-            <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.72vw,7px)", width: "28%", textAlign: "right", opacity: 0.8, flexShrink: 0, lineHeight: 1.2 }}>{d.label}</div>
-            <div style={{ flex: 1, height: "clamp(6px,1.1vw,9px)", background: `${t.borderColor}40`, borderRadius: "2px", overflow: "hidden" }}>
-              <div style={{ width: `${(d.value / max) * 100}%`, height: "100%", background: d.color || colors[i % colors.length], borderRadius: "2px" }} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%", justifyContent: "center" }}>
+        {rows.map((d, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 130, color: t.bodyColor, fontSize: 12, textAlign: "right", opacity: 0.85, lineHeight: 1.2, flexShrink: 0 }}>{d.label}</div>
+            <div style={{ flex: 1, height: 18, background: `${t.borderColor}35`, borderRadius: 4, overflow: "hidden", position: "relative" }}>
+              <div style={{ width: `${(d.value / max) * 100}%`, height: "100%", background: d.color || colors[i % colors.length], borderRadius: 4, minWidth: 4 }} />
             </div>
-            <div style={{ color: t.accent, fontSize: "clamp(5px,0.72vw,7px)", width: "12%", fontWeight: 700, flexShrink: 0, textAlign: "right" }}>{d.value}</div>
+            <div style={{ width: 48, color: t.accent, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{d.value}</div>
           </div>
         ))}
       </div>
     );
   };
 
-  // Donut / Pie Chart
+  // Donut chart with legend
   const DonutChart = ({ data }: { data: { label: string; value: number; color?: string }[] }) => {
     const total = data.reduce((s, d) => s + d.value, 0) || 1;
     const colors = [t.accent, "#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a78bfa"];
     let startAngle = -90;
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const polar = (cx: number, cy: number, r: number, deg: number) => ({
-      x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)),
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const polar = (cx: number, cy: number, r: number, deg: number) => ({ x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)) });
+    const cx = 75; const cy = 75; const R = 62; const IR = 36;
+    const slices = data.slice(0, 5).map((d, i) => {
+      const angle = (d.value / total) * 360;
+      const end = startAngle + angle;
+      const s1 = polar(cx, cy, R, startAngle); const e1 = polar(cx, cy, R, end);
+      const s2 = polar(cx, cy, IR, end);       const e2 = polar(cx, cy, IR, startAngle);
+      const large = angle > 180 ? 1 : 0;
+      const path = `M${s1.x} ${s1.y} A${R} ${R} 0 ${large} 1 ${e1.x} ${e1.y} L${s2.x} ${s2.y} A${IR} ${IR} 0 ${large} 0 ${e2.x} ${e2.y}Z`;
+      startAngle = end;
+      return { path, color: d.color || colors[i % colors.length], label: d.label, value: d.value, pct: Math.round((d.value / total) * 100) };
     });
-    const cx = 50; const cy = 50; const R = 42; const IR = 24;
-
     return (
-      <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%" }}>
-        {data.slice(0, 5).map((d, i) => {
-          const angle = (d.value / total) * 360;
-          const endAngle = startAngle + angle;
-          const s1 = polar(cx, cy, R, startAngle); const e1 = polar(cx, cy, R, endAngle);
-          const s2 = polar(cx, cy, IR, endAngle); const e2 = polar(cx, cy, IR, startAngle);
-          const large = angle > 180 ? 1 : 0;
-          const path = `M ${s1.x} ${s1.y} A ${R} ${R} 0 ${large} 1 ${e1.x} ${e1.y} L ${s2.x} ${s2.y} A ${IR} ${IR} 0 ${large} 0 ${e2.x} ${e2.y} Z`;
-          startAngle = endAngle;
-          return <path key={i} d={path} fill={d.color || colors[i % colors.length]} opacity={0.9} />;
-        })}
-        <circle cx={cx} cy={cy} r={IR - 1} fill={t.cardBg} />
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={t.accent} fontSize="10" fontWeight="700">{data[0]?.value}</text>
-      </svg>
+      <div style={{ display: "flex", alignItems: "center", gap: 18, height: "100%" }}>
+        <svg viewBox="0 0 150 150" width={150} height={150} style={{ flexShrink: 0 }}>
+          {slices.map((s, i) => <path key={i} d={s.path} fill={s.color} opacity={0.92} />)}
+          <circle cx={cx} cy={cy} r={IR - 2} fill={t.cardBg} />
+          <text x={cx} y={cy - 6} textAnchor="middle" fill={t.accent} fontSize="14" fontWeight="700">{data[0]?.value}</text>
+          <text x={cx} y={cy + 10} textAnchor="middle" fill={t.subtleColor} fontSize="8">{data[0]?.label?.slice(0, 10)}</text>
+        </svg>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {slices.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+              <div style={{ fontSize: 11, color: t.bodyColor, flex: 1, lineHeight: 1.2 }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, flexShrink: 0 }}>{s.pct}%</div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   };
 
-  // ── TITLE SLIDE ──
+  // ── TITLE SLIDE ──────────────────────────────────────────────────────────────
   if (slide.type === "title") return (
     <div style={base}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
         <defs>
           <linearGradient id="tg" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={t.bg}/><stop offset="100%" stopColor={t.cardBg}/>
           </linearGradient>
-          <linearGradient id="tg2" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={t.accent} stopOpacity="0.18"/><stop offset="100%" stopColor={t.accent} stopOpacity="0.02"/>
+          <linearGradient id="tg2" x1="1" y1="0" x2="0.6" y2="1">
+            <stop offset="0%" stopColor={t.accent} stopOpacity="0.14"/><stop offset="100%" stopColor={t.accent} stopOpacity="0.01"/>
           </linearGradient>
         </defs>
-        <rect width="640" height="360" fill="url(#tg)"/>
-        <circle cx="590" cy="55" r="160" fill={t.accent} fillOpacity="0.07"/>
-        <circle cx="565" cy="15" r="90" fill={t.accent} fillOpacity="0.05"/>
-        <circle cx="70" cy="330" r="110" fill={t.accent} fillOpacity="0.04"/>
-        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-        <rect x="55" y="340" width="530" height="1.5" fill={t.accent} fillOpacity="0.2"/>
-        <rect x="55" y="18" width="210" height="1.5" fill={t.accent} fillOpacity="0.15"/>
-        <rect x="420" y="0" width="220" height="360" fill="url(#tg2)"/>
+        <rect width="960" height="540" fill="url(#tg)"/>
+        <circle cx="820" cy="80" r="280" fill={t.accent} fillOpacity="0.065"/>
+        <circle cx="790" cy="20" r="160" fill={t.accent} fillOpacity="0.05"/>
+        <circle cx="95" cy="500" r="180" fill={t.accent} fillOpacity="0.04"/>
+        <rect x="580" y="0" width="380" height="540" fill="url(#tg2)"/>
+        <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
+        <rect x="76" y="510" width="830" height="2" fill={t.accent} fillOpacity="0.18"/>
+        <rect x="76" y="26" width="340" height="2" fill={t.accent} fillOpacity="0.14"/>
       </svg>
-      <div style={{ position: "absolute", top: "7%", left: "5%", display: "flex", alignItems: "center", gap: "1.5%" }}>
-        <div style={{ width: "clamp(5px,0.8vw,7px)", height: "clamp(5px,0.8vw,7px)", borderRadius: "50%", background: t.accent }} />
-        <span style={{ color: t.subtleColor, fontSize: "clamp(5px,0.75vw,7px)", letterSpacing: "0.15em", fontWeight: 600 }}>PERFORMO AI</span>
+      <div style={{ position: "absolute", top: 18, left: 20, display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ width: 7, height: 7, borderRadius: "50%", background: t.accent }} />
+        <span style={{ color: t.subtleColor, fontSize: 9, letterSpacing: "0.15em", fontWeight: 600 }}>PERFORMO AI</span>
       </div>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", padding: "8% 8% 10% 8%" }}>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", padding: "60px 64px 80px" }}>
         {slide.emphasis && (
-          <div style={{ marginBottom: "3%", padding: "0.8% 2.5%", background: `${t.accent}1e`, border: `1px solid ${t.accent}40`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.85vw,8px)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{slide.emphasis}</div>
+          <div style={{ marginBottom: 18, padding: "5px 16px", background: `${t.accent}20`, border: `1px solid ${t.accent}45`, borderRadius: 4, color: t.accent, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>{slide.emphasis}</div>
         )}
-        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3.2vw,30px)", lineHeight: 1.1, marginBottom: "3%", maxWidth: "72%" }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.35vw,13px)", opacity: 0.72, maxWidth: "62%", lineHeight: 1.45 }}>{slide.subtitle}</div>}
-        <div style={{ position: "absolute", bottom: "8%", left: "8%", display: "flex", alignItems: "center", gap: "1.5%", opacity: 0.4 }}>
-          <div style={{ width: "clamp(3px,0.5vw,4px)", height: "clamp(3px,0.5vw,4px)", borderRadius: "50%", background: t.accent }} />
-          <span style={{ color: t.subtleColor, fontSize: "clamp(5px,0.65vw,6px)", letterSpacing: "0.08em" }}>CONFIDENTIAL</span>
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 52, lineHeight: 1.1, marginBottom: 20, maxWidth: 620 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: 18, opacity: 0.72, maxWidth: 560, lineHeight: 1.55 }}>{slide.subtitle}</div>}
+        <div style={{ position: "absolute", bottom: 22, left: 64, display: "flex", alignItems: "center", gap: 6, opacity: 0.38 }}>
+          <div style={{ width: 4, height: 4, borderRadius: "50%", background: t.accent }} />
+          <span style={{ color: t.subtleColor, fontSize: 9, letterSpacing: "0.1em" }}>CONFIDENTIAL</span>
         </div>
       </div>
     </div>
   );
 
-  // ── AGENDA SLIDE ──
+  // ── AGENDA SLIDE ─────────────────────────────────────────────────────────────
   if (slide.type === "agenda") {
     const items = (slide.bullets || []).slice(0, 7);
+    const rowH = Math.min(58, Math.floor((440 - (items.length - 1) * 6) / Math.max(items.length, 1)));
     return (
       <div style={base}>
-        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-          <rect width="640" height="360" fill={t.bg}/>
-          <rect x="0" y="0" width="220" height="360" fill={t.accent} fillOpacity="0.04"/>
-          <rect x="0" y="0" width="5" height="360" fill={t.accent}/>
-          <circle cx="580" cy="320" r="80" fill={t.accent} fillOpacity="0.05"/>
-          <circle cx="590" cy="30" r="40" fill={t.accent} fillOpacity="0.04"/>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
+          <rect width="960" height="540" fill={t.bg}/>
+          <rect x="0" y="0" width="300" height="540" fill={t.accent} fillOpacity="0.04"/>
+          <rect x="0" y="0" width="7" height="540" fill={t.accent}/>
+          <circle cx="880" cy="480" r="120" fill={t.accent} fillOpacity="0.05"/>
+          <circle cx="900" cy="40" r="60" fill={t.accent} fillOpacity="0.04"/>
         </svg>
-        <div style={{ position: "absolute", inset: 0, padding: "5% 5% 5% 5%" }}>
-          <div style={{ paddingLeft: "2.5%", marginBottom: "4%" }}>
-            <div style={{ color: t.accent, fontSize: "clamp(5px,0.7vw,6.5px)", letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 600, marginBottom: "1.5%" }}>AGENDA</div>
-            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(10px,1.85vw,17px)" }}>{slide.title}</div>
+        <div style={{ position: "absolute", inset: 0, padding: "28px 32px 24px 32px" }}>
+          <div style={{ paddingLeft: 12, marginBottom: 20 }}>
+            <div style={{ color: t.accent, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 700, marginBottom: 5 }}>AGENDA</div>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 28, lineHeight: 1.1 }}>{slide.title}</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5%" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {items.map((b, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "2.5%", padding: "1.4% 2.5%", background: `${t.cardBg}cc`, borderRadius: "4px", border: `1px solid ${t.borderColor}25` }}>
-                <div style={{ width: "clamp(11px,1.8vw,16px)", height: "clamp(11px,1.8vw,16px)", borderRadius: "50%", background: `${t.accent}1e`, border: `1.5px solid ${t.accent}55`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ color: t.accent, fontWeight: 700, fontSize: "clamp(5px,0.8vw,7.5px)" }}>{String(i + 1).padStart(2, "0")}</span>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, height: rowH, padding: "0 18px", background: `${t.cardBg}dd`, borderRadius: 6, border: `1px solid ${t.borderColor}28` }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${t.accent}1e`, border: `2px solid ${t.accent}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ color: t.accent, fontWeight: 800, fontSize: 13 }}>{String(i + 1).padStart(2, "0")}</span>
                 </div>
-                <span style={{ color: t.bodyColor, fontSize: "clamp(6.5px,0.9vw,8.5px)", lineHeight: 1.3, fontWeight: i === 0 ? 600 : 400 }}>{b}</span>
-                <div style={{ marginLeft: "auto", width: "clamp(16px,2.5vw,24px)", height: "1px", background: `${t.accent}20`, flexShrink: 0 }} />
+                <span style={{ color: t.bodyColor, fontSize: 17, lineHeight: 1.35, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{b}</span>
+                <div style={{ width: 28, height: 1, background: `${t.accent}25`, flexShrink: 0 }} />
               </div>
             ))}
           </div>
@@ -705,29 +755,29 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     );
   }
 
-  // ── SECTION SLIDE ──
+  // ── SECTION SLIDE ────────────────────────────────────────────────────────────
   if (slide.type === "section") return (
     <div style={base}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-        <rect width="640" height="360" fill={t.bg}/>
-        <rect x="0" y="0" width="270" height="360" fill={t.accent} fillOpacity="0.1"/>
-        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-        <circle cx="200" cy="180" r="130" fill={t.accent} fillOpacity="0.05"/>
-        <circle cx="560" cy="280" r="65" fill={t.accent} fillOpacity="0.04"/>
-        <rect x="270" y="152" width="330" height="1.5" fill={t.accent} fillOpacity="0.12"/>
-        <rect x="270" y="208" width="210" height="1.5" fill={t.accent} fillOpacity="0.08"/>
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
+        <rect width="960" height="540" fill={t.bg}/>
+        <rect x="0" y="0" width="380" height="540" fill={t.accent} fillOpacity="0.1"/>
+        <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
+        <circle cx="270" cy="270" r="200" fill={t.accent} fillOpacity="0.055"/>
+        <circle cx="820" cy="420" r="95" fill={t.accent} fillOpacity="0.04"/>
+        <rect x="390" y="224" width="520" height="2" fill={t.accent} fillOpacity="0.12"/>
+        <rect x="390" y="310" width="340" height="2" fill={t.accent} fillOpacity="0.08"/>
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "8% 10%" }}>
-        <div style={{ color: t.accent, fontSize: "clamp(28px,5vw,48px)", fontWeight: 900, opacity: 0.1, lineHeight: 1, marginBottom: "-1.5%" }}>§</div>
-        <div style={{ color: t.accent, fontSize: "clamp(5px,0.75vw,7px)", letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700, marginBottom: "2%" }}>SECTION</div>
-        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(13px,2.9vw,25px)", lineHeight: 1.15 }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.15vw,10.5px)", marginTop: "2.5%", opacity: 0.68, lineHeight: 1.4 }}>{slide.subtitle}</div>}
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "60px 72px" }}>
+        <div style={{ color: t.accent, fontSize: 72, fontWeight: 900, opacity: 0.08, lineHeight: 1, marginBottom: -12 }}>§</div>
+        <div style={{ color: t.accent, fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", fontWeight: 700, marginBottom: 14 }}>SECTION</div>
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 46, lineHeight: 1.12, marginBottom: 14 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: 16, opacity: 0.7, lineHeight: 1.5, maxWidth: 580 }}>{slide.subtitle}</div>}
       </div>
       <Logo />
     </div>
   );
 
-  // ── DATA / KPI SLIDE ──
+  // ── DATA / KPI SLIDE ─────────────────────────────────────────────────────────
   if (slide.type === "data") {
     const stats = slide.stat?.length ? slide.stat : [
       { value: "—", label: "Metric A", trend: "flat" as const },
@@ -736,52 +786,40 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     ];
     const hasChart = slide.chartData && slide.chartData.length > 0;
     const chartType = slide.chartData && slide.chartData.length <= 3 ? "donut" : "bar";
+    const statCount = Math.min(stats.length, hasChart ? 3 : 4);
     return (
       <div style={base}>
-        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-          <rect width="640" height="360" fill={t.bg}/>
-          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-          <rect x="0" y="0" width="640" height="40" fill={t.cardBg} fillOpacity="0.5"/>
-          <rect x="0" y="40" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
-          <circle cx="600" cy="310" r="75" fill={t.accent} fillOpacity="0.04"/>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
+          <rect width="960" height="540" fill={t.bg}/>
+          <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
+          <rect x="0" y="0" width="960" height="56" fill={t.cardBg} fillOpacity="0.5"/>
+          <rect x="0" y="56" width="960" height="1.5" fill={t.borderColor} fillOpacity="0.4"/>
+          <circle cx="880" cy="460" r="110" fill={t.accent} fillOpacity="0.04"/>
         </svg>
-        <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
-          <div style={{ height: "12%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
-            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
-            {slide.emphasis && <div style={{ marginLeft: "2%", padding: "0.5% 2%", background: `${t.accent}1e`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.68vw,6.5px)", fontWeight: 600 }}>{slide.emphasis}</div>}
+        <div style={{ position: "absolute", inset: 0, padding: "0 24px 18px 24px" }}>
+          <div style={{ height: 56, display: "flex", alignItems: "center", paddingLeft: 14 }}>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 26 }}>{slide.title}</div>
+            {slide.emphasis && <div style={{ marginLeft: 14, padding: "3px 12px", background: `${t.accent}1e`, borderRadius: 4, color: t.accent, fontSize: 11, fontWeight: 600, letterSpacing: "0.06em" }}>{slide.emphasis}</div>}
           </div>
-          <div style={{ display: hasChart ? "grid" : "flex", gridTemplateColumns: hasChart ? "1fr 0.9fr" : undefined, flexDirection: hasChart ? undefined : "column", gap: "2.5%", height: "80%" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "2.5%", justifyContent: "center" }}>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(stats.length, 3)}, 1fr)`, gap: "2.5%" }}>
-                {stats.slice(0, 3).map((s, i) => {
-                  const bColor = s.color === "green" ? "#22c55e" : s.color === "red" ? "#ef4444" : s.color === "amber" ? "#f59e0b" : t.borderColor;
-                  return (
-                    <div key={i} style={{ background: t.cardBg, borderRadius: "5px", padding: "5% 5% 4%", borderTop: `3px solid ${bColor}`, borderRight: `1px solid ${t.borderColor}50`, borderBottom: `1px solid ${t.borderColor}50`, borderLeft: `1px solid ${t.borderColor}50`, display: "flex", flexDirection: "column" }}>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: "4%", marginBottom: "2%" }}>
-                        <div style={{ color: t.accent, fontSize: "clamp(11px,2.1vw,20px)", fontWeight: 800, lineHeight: 1 }}>{s.value}</div>
-                        <TrendArrow trend={s.trend} color={s.color} />
-                      </div>
-                      <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.78vw,7px)", opacity: 0.75, lineHeight: 1.3 }}>{s.label}</div>
-                      {s.change && <div style={{ marginTop: "3%", color: s.trend === "up" ? (s.color === "red" ? "#ef4444" : "#22c55e") : "#ef4444", fontSize: "clamp(4.5px,0.68vw,6.5px)", fontWeight: 600 }}>{s.change}</div>}
-                      <MiniBar pct={s.pct} statColor={s.color} />
-                    </div>
-                  );
-                })}
+          <div style={{ display: "grid", gridTemplateColumns: hasChart ? "1fr 340px" : "1fr", gap: 16, height: "calc(100% - 56px - 18px)" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, justifyContent: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${statCount}, 1fr)`, gap: 12 }}>
+                {stats.slice(0, statCount).map((s, i) => <TrendBadge key={i} s={s} />)}
               </div>
               {(slide.bullets || []).slice(0, 2).map((b, i) => (
-                <div key={i} style={{ display: "flex", gap: "1.5%", color: t.bodyColor, fontSize: "clamp(6px,0.83vw,7.5px)", alignItems: "flex-start" }}>
-                  <span style={{ color: t.accent, flexShrink: 0 }}>▪</span><span style={{ lineHeight: 1.3 }}>{b}</span>
+                <div key={i} style={{ display: "flex", gap: 8, color: t.bodyColor, fontSize: 13, alignItems: "flex-start", lineHeight: 1.45 }}>
+                  <span style={{ color: t.accent, flexShrink: 0, marginTop: 1 }}>▪</span><span>{b}</span>
                 </div>
               ))}
             </div>
             {hasChart && (
-              <div style={{ background: t.cardBg, borderRadius: "5px", padding: "5%", border: `1px solid ${t.borderColor}40`, display: "flex", flexDirection: "column" }}>
-                <div style={{ color: t.subtleColor, fontSize: "clamp(4.5px,0.65vw,6.5px)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "5%", fontWeight: 600 }}>
+              <div style={{ background: t.cardBg, borderRadius: 8, padding: 18, border: `1px solid ${t.borderColor}40`, display: "flex", flexDirection: "column" }}>
+                <div style={{ color: t.subtleColor, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 14, fontWeight: 600 }}>
                   {chartType === "donut" ? "DISTRIBUTION" : "BREAKDOWN"}
                 </div>
-                {chartType === "donut"
-                  ? <DonutChart data={slide.chartData!} />
-                  : <InlineBarChart data={slide.chartData!} />}
+                <div style={{ flex: 1 }}>
+                  {chartType === "donut" ? <DonutChart data={slide.chartData!} /> : <BarChart data={slide.chartData!} />}
+                </div>
               </div>
             )}
           </div>
@@ -791,7 +829,7 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     );
   }
 
-  // ── TWO-COLUMN SLIDE ──
+  // ── TWO-COLUMN SLIDE ─────────────────────────────────────────────────────────
   if (slide.type === "two-column") {
     const bullets = slide.bullets || [];
     const mid = Math.ceil(bullets.length / 2);
@@ -799,26 +837,26 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     const colB = bullets.slice(mid);
     return (
       <div style={base}>
-        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-          <rect width="640" height="360" fill={t.bg}/>
-          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-          <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.55"/>
-          <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
+          <rect width="960" height="540" fill={t.bg}/>
+          <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
+          <rect x="0" y="0" width="960" height="58" fill={t.cardBg} fillOpacity="0.55"/>
+          <rect x="0" y="58" width="960" height="1.5" fill={t.borderColor} fillOpacity="0.4"/>
         </svg>
-        <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
-          <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
-            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
+        <div style={{ position: "absolute", inset: 0, padding: "0 24px 18px 24px" }}>
+          <div style={{ height: 58, display: "flex", alignItems: "center", paddingLeft: 14 }}>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 26 }}>{slide.title}</div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3%", height: "83%" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, height: "calc(100% - 58px - 18px)" }}>
             {([colA, colB] as string[][]).map((col, ci) => (
-              <div key={ci} style={{ background: ci === 0 ? t.cardBg : `${t.cardBg}80`, borderRadius: "5px", padding: "5% 5%", borderTop: `3px solid ${ci === 0 ? t.accent : `${t.accent}60`}`, borderRight: `1px solid ${t.borderColor}50`, borderBottom: `1px solid ${t.borderColor}50`, borderLeft: `1px solid ${t.borderColor}50` }}>
-                <div style={{ color: t.accent, fontSize: "clamp(4.5px,0.68vw,6.5px)", letterSpacing: "0.12em", fontWeight: 700, marginBottom: "5%", textTransform: "uppercase" }}>
+              <div key={ci} style={{ background: ci === 0 ? t.cardBg : `${t.cardBg}80`, borderRadius: 8, padding: "20px 22px", borderTop: `4px solid ${ci === 0 ? t.accent : `${t.accent}60`}`, borderRight: `1px solid ${t.borderColor}50`, borderBottom: `1px solid ${t.borderColor}50`, borderLeft: `1px solid ${t.borderColor}50` }}>
+                <div style={{ color: t.accent, fontSize: 10, letterSpacing: "0.14em", fontWeight: 700, marginBottom: 16, textTransform: "uppercase" }}>
                   {ci === 0 ? (slide.emphasis || "Overview") : "Details"}
                 </div>
                 {col.map((b, i) => (
-                  <div key={i} style={{ display: "flex", gap: "3%", marginBottom: "4%", alignItems: "flex-start" }}>
-                    <svg width="6" height="6" viewBox="0 0 6 6" style={{ flexShrink: 0, marginTop: "0.15em" }}><polygon points="0,0 6,3 0,6" fill={t.accent}/></svg>
-                    <span style={{ color: t.bodyColor, fontSize: "clamp(6.5px,0.88vw,8px)", lineHeight: 1.4 }}>{b}</span>
+                  <div key={i} style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "flex-start" }}>
+                    <svg width="8" height="8" viewBox="0 0 8 8" style={{ flexShrink: 0, marginTop: 4 }}><polygon points="0,0 8,4 0,8" fill={t.accent}/></svg>
+                    <span style={{ color: t.bodyColor, fontSize: 15, lineHeight: 1.5 }}>{b}</span>
                   </div>
                 ))}
               </div>
@@ -830,26 +868,27 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     );
   }
 
-  // ── QUOTE SLIDE ──
+  // ── QUOTE SLIDE ──────────────────────────────────────────────────────────────
   if (slide.type === "quote") return (
     <div style={base}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
         <defs>
           <linearGradient id="qg" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={t.cardBg}/><stop offset="100%" stopColor={t.bg}/>
           </linearGradient>
         </defs>
-        <rect width="640" height="360" fill="url(#qg)"/>
-        <text x="38" y="200" fontSize="220" fontWeight="900" fill={t.accent} fillOpacity="0.07" fontFamily="Georgia,serif">"</text>
-        <rect x="200" y="328" width="240" height="2" fill={t.accent} fillOpacity="0.28"/>
-        <circle cx="580" cy="48" r="65" fill={t.accent} fillOpacity="0.04"/>
+        <rect width="960" height="540" fill="url(#qg)"/>
+        <text x="42" y="320" fontSize="420" fontWeight="900" fill={t.accent} fillOpacity="0.055" fontFamily="Georgia,serif">"</text>
+        <rect x="300" y="494" width="360" height="3" fill={t.accent} fillOpacity="0.26"/>
+        <circle cx="870" cy="70" r="95" fill={t.accent} fillOpacity="0.04"/>
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12% 16%", textAlign: "center" }}>
-        <div style={{ color: t.bodyColor, fontSize: "clamp(8.5px,1.55vw,14.5px)", fontStyle: "italic", lineHeight: 1.65, fontWeight: 400 }}>{slide.quote || slide.title}</div>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "70px 110px", textAlign: "center" }}>
+        <div style={{ color: t.bodyColor, fontSize: 24, fontStyle: "italic", lineHeight: 1.65, fontWeight: 400, maxWidth: 700 }}>{slide.quote || slide.title}</div>
         {slide.subtitle && (
-          <div style={{ marginTop: "6%", display: "flex", alignItems: "center", gap: "2%" }}>
-            <div style={{ width: "clamp(12px,2vw,20px)", height: "1px", background: t.accent }} />
-            <span style={{ color: t.accent, fontSize: "clamp(6px,0.82vw,7.5px)", fontWeight: 600, letterSpacing: "0.08em" }}>{slide.subtitle}</span>
+          <div style={{ marginTop: 32, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 28, height: 2, background: t.accent }} />
+            <span style={{ color: t.accent, fontSize: 13, fontWeight: 600, letterSpacing: "0.08em" }}>{slide.subtitle}</span>
+            <div style={{ width: 28, height: 2, background: t.accent }} />
           </div>
         )}
       </div>
@@ -857,155 +896,135 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     </div>
   );
 
-  // ── CLOSING SLIDE ──
+  // ── CLOSING SLIDE ────────────────────────────────────────────────────────────
   if (slide.type === "closing") return (
     <div style={base}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
         <defs>
           <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={t.bg}/><stop offset="100%" stopColor={t.cardBg}/>
           </linearGradient>
         </defs>
-        <rect width="640" height="360" fill="url(#cg)"/>
-        <circle cx="320" cy="180" r="210" fill={t.accent} fillOpacity="0.04"/>
-        <circle cx="320" cy="180" r="155" fill={t.accent} fillOpacity="0.03"/>
-        <circle cx="320" cy="180" r="100" fill={t.accent} fillOpacity="0.03"/>
-        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-        <rect x="634" y="0" width="6" height="360" fill={t.accent} fillOpacity="0.4"/>
-        <rect x="58" y="28" width="524" height="1.5" fill={t.accent} fillOpacity="0.18"/>
-        <rect x="58" y="330" width="524" height="1.5" fill={t.accent} fillOpacity="0.18"/>
+        <rect width="960" height="540" fill="url(#cg)"/>
+        <circle cx="480" cy="270" r="310" fill={t.accent} fillOpacity="0.04"/>
+        <circle cx="480" cy="270" r="230" fill={t.accent} fillOpacity="0.032"/>
+        <circle cx="480" cy="270" r="155" fill={t.accent} fillOpacity="0.028"/>
+        <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
+        <rect x="952" y="0" width="8" height="540" fill={t.accent} fillOpacity="0.35"/>
+        <rect x="80" y="36" width="800" height="2" fill={t.accent} fillOpacity="0.16"/>
+        <rect x="80" y="498" width="800" height="2" fill={t.accent} fillOpacity="0.16"/>
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "8%", textAlign: "center" }}>
-        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(13px,2.9vw,26px)", marginBottom: "3%", lineHeight: 1.1 }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(7.5px,1.15vw,10.5px)", opacity: 0.7, marginBottom: "5%" }}>{slide.subtitle}</div>}
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "50px 60px", textAlign: "center" }}>
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 44, marginBottom: 16, lineHeight: 1.1, maxWidth: 720 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: 18, opacity: 0.72, marginBottom: 32, lineHeight: 1.45 }}>{slide.subtitle}</div>}
         {slide.bullets?.[0] && (
-          <div style={{ padding: "1.5% 5%", background: t.accent, borderRadius: "4px", color: t.bg, fontSize: "clamp(6.5px,1.05vw,10px)", fontWeight: 700, letterSpacing: "0.05em" }}>
+          <div style={{ padding: "14px 42px", background: t.accent, borderRadius: 6, color: t.bg, fontSize: 15, fontWeight: 700, letterSpacing: "0.05em", marginBottom: 14 }}>
             {slide.bullets[0]}
           </div>
         )}
-        {slide.bullets?.[1] && <div style={{ marginTop: "2.5%", color: t.bodyColor, fontSize: "clamp(5.5px,0.85vw,8px)", opacity: 0.5 }}>{slide.bullets[1]}</div>}
+        {slide.bullets?.[1] && <div style={{ color: t.bodyColor, fontSize: 12, opacity: 0.5 }}>{slide.bullets[1]}</div>}
       </div>
       <Logo />
     </div>
   );
 
-  // ── MODULE 6: TABLE SLIDE ──
+  // ── TABLE SLIDE ──────────────────────────────────────────────────────────────
   if (slide.type === "table") {
     const table = slide.tableData || {
-      headers: ["Category", "Q1 Actual", "Q2 Actual", "Target", "Status"],
+      headers: ["Category", "Q1", "Q2", "Target", "Status"],
       rows: [
         ["Revenue",   "$2.4M", "$2.8M", "$2.6M", "✓ On Track"],
         ["EBITDA",    "$0.8M", "$1.0M", "$0.9M", "✓ On Track"],
         ["Occupancy", "82%",   "88%",   "85%",   "✓ On Track"],
-        ["NPS Score", "48",    "54",    "50",    "✓ On Track"],
+        ["NPS",       "48",    "54",    "50",    "✓ On Track"],
       ],
     };
     const cols = table.headers.length;
     const rows = table.rows.length;
     return (
       <div style={base}>
-        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-          <rect width="640" height="360" fill={t.bg}/>
-          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-          <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.6"/>
-          <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.5"/>
-          <circle cx="600" cy="310" r="70" fill={t.accent} fillOpacity="0.03"/>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
+          <rect width="960" height="540" fill={t.bg}/>
+          <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
+          <rect x="0" y="0" width="960" height="58" fill={t.cardBg} fillOpacity="0.6"/>
+          <rect x="0" y="58" width="960" height="1.5" fill={t.borderColor} fillOpacity="0.5"/>
+          <circle cx="880" cy="460" r="95" fill={t.accent} fillOpacity="0.03"/>
         </svg>
-        <div style={{ position: "absolute", inset: 0, padding: "0 5% 5% 5%" }}>
-          <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
-            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
-            {slide.emphasis && <div style={{ marginLeft: "2%", padding: "0.5% 2%", background: `${t.accent}1e`, borderRadius: "3px", color: t.accent, fontSize: "clamp(4.5px,0.65vw,6.5px)", fontWeight: 600 }}>{slide.emphasis}</div>}
+        <div style={{ position: "absolute", inset: 0, padding: "0 24px 18px 24px" }}>
+          <div style={{ height: 58, display: "flex", alignItems: "center", paddingLeft: 14 }}>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 26 }}>{slide.title}</div>
+            {slide.emphasis && <div style={{ marginLeft: 14, padding: "3px 12px", background: `${t.accent}1e`, borderRadius: 4, color: t.accent, fontSize: 11, fontWeight: 600 }}>{slide.emphasis}</div>}
           </div>
-          <div style={{ borderRadius: "4px", overflow: "hidden", border: `1px solid ${t.borderColor}40` }}>
+          <div style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${t.borderColor}40` }}>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
               {table.headers.map((h, i) => (
-                <div key={i} style={{
-                  background: i === 0 ? t.accent : `${t.accent}cc`,
-                  color: i === 0 ? t.bg : t.bg,
-                  padding: "2.5% 3%",
-                  fontWeight: 700,
-                  fontSize: "clamp(4.5px,0.72vw,6.5px)",
-                  borderRight: i < cols - 1 ? `1px solid rgba(0,0,0,0.15)` : "none",
-                  letterSpacing: "0.04em",
-                }}>{h}</div>
+                <div key={i} style={{ background: i === 0 ? t.accent : `${t.accent}cc`, color: t.bg, padding: "10px 14px", fontWeight: 700, fontSize: 12, borderRight: i < cols - 1 ? "1px solid rgba(0,0,0,0.15)" : "none", letterSpacing: "0.04em" }}>{h}</div>
               ))}
             </div>
             {table.rows.map((row, ri) => (
               <div key={ri} style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, background: ri % 2 === 0 ? `${t.cardBg}55` : "transparent" }}>
                 {row.map((cell, ci) => (
-                  <div key={ci} style={{
-                    color: ci === 0 ? t.bodyColor : (cell.includes("✓") || cell.startsWith("+") ? "#22c55e" : cell.startsWith("-") || cell.includes("✗") ? "#ef4444" : t.bodyColor),
-                    fontWeight: ci === 0 ? 600 : 400,
-                    padding: "2% 3%",
-                    fontSize: "clamp(4.5px,0.7vw,6.5px)",
-                    borderRight: ci < cols - 1 ? `1px solid ${t.borderColor}25` : "none",
-                    borderBottom: ri < rows - 1 ? `1px solid ${t.borderColor}15` : "none",
-                    lineHeight: 1.3,
-                  }}>{cell}</div>
+                  <div key={ci} style={{ color: ci === 0 ? t.bodyColor : (cell.includes("✓") || cell.startsWith("+") ? "#22c55e" : cell.startsWith("-") || cell.includes("✗") ? "#ef4444" : t.bodyColor), fontWeight: ci === 0 ? 600 : 400, padding: "9px 14px", fontSize: 13, borderRight: ci < cols - 1 ? `1px solid ${t.borderColor}25` : "none", borderBottom: ri < rows - 1 ? `1px solid ${t.borderColor}15` : "none", lineHeight: 1.35 }}>{cell}</div>
                 ))}
               </div>
             ))}
           </div>
-          {slide.subtitle && (
-            <div style={{ marginTop: "2%", color: t.subtleColor, fontSize: "clamp(4.5px,0.65vw,6px)", fontStyle: "italic", paddingLeft: "1%" }}>
-              {slide.subtitle}
-            </div>
-          )}
+          {slide.subtitle && <div style={{ marginTop: 8, color: t.subtleColor, fontSize: 11, fontStyle: "italic", paddingLeft: 4 }}>{slide.subtitle}</div>}
         </div>
         <Logo />
       </div>
     );
   }
 
-  // ── MODULE 8: IMAGE SLIDE ──
+  // ── IMAGE SLIDE ──────────────────────────────────────────────────────────────
   if (slide.type === "image") return (
     <div style={base}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-        <rect width="640" height="360" fill={t.bg}/>
-        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
+        <rect width="960" height="540" fill={t.bg}/>
+        <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
       </svg>
       {slide.imageUrl ? (
-        <div style={{ position: "absolute", inset: "12% 8% 20% 8%", borderRadius: "6px", overflow: "hidden", boxShadow: `0 4px 24px rgba(0,0,0,0.4)` }}>
+        <div style={{ position: "absolute", top: "12%", left: "6%", right: "6%", bottom: "18%", borderRadius: 8, overflow: "hidden", boxShadow: "0 6px 32px rgba(0,0,0,0.4)" }}>
           <img src={slide.imageUrl} alt={slide.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         </div>
       ) : (
-        <div style={{ position: "absolute", inset: "12% 8% 20% 8%", borderRadius: "6px", background: `${t.cardBg}80`, border: `2px dashed ${t.borderColor}60`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3%" }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={t.subtleColor} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          <span style={{ color: t.subtleColor, fontSize: "clamp(6px,0.85vw,7.5px)" }}>Image placeholder</span>
+        <div style={{ position: "absolute", top: "12%", left: "6%", right: "6%", bottom: "18%", borderRadius: 8, background: `${t.cardBg}80`, border: `2px dashed ${t.borderColor}60`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={t.subtleColor} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span style={{ color: t.subtleColor, fontSize: 13 }}>Image placeholder</span>
         </div>
       )}
-      <div style={{ position: "absolute", bottom: "5%", left: "8%", right: "8%" }}>
-        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(8px,1.4vw,13px)" }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(6px,0.85vw,8px)", opacity: 0.7, marginTop: "1%" }}>{slide.subtitle}</div>}
+      <div style={{ position: "absolute", bottom: "4%", left: "7%", right: "7%" }}>
+        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: 20 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: 14, opacity: 0.7, marginTop: 4 }}>{slide.subtitle}</div>}
       </div>
       <Logo />
     </div>
   );
 
-  // ── CONTENT SLIDE (default) ──
+  // ── CONTENT SLIDE (default) ──────────────────────────────────────────────────
   return (
     <div style={base}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-        <rect width="640" height="360" fill={t.bg}/>
-        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-        <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.52"/>
-        <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
-        <circle cx="580" cy="310" r="68" fill={t.accent} fillOpacity="0.04"/>
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
+        <rect width="960" height="540" fill={t.bg}/>
+        <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
+        <rect x="0" y="0" width="960" height="58" fill={t.cardBg} fillOpacity="0.52"/>
+        <rect x="0" y="58" width="960" height="1.5" fill={t.borderColor} fillOpacity="0.4"/>
+        <circle cx="860" cy="460" r="100" fill={t.accent} fillOpacity="0.04"/>
       </svg>
-      <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
-        <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
-          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
+      <div style={{ position: "absolute", inset: 0, padding: "0 24px 18px 24px" }}>
+        <div style={{ height: 58, display: "flex", alignItems: "center", paddingLeft: 14 }}>
+          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 26 }}>{slide.title}</div>
         </div>
         {slide.emphasis && (
-          <div style={{ marginBottom: "2%", paddingLeft: "2%", padding: "1.5% 2.5%", background: `${t.accent}12`, borderLeft: `3px solid ${t.accent}`, borderRadius: "0 3px 3px 0", color: t.accent, fontSize: "clamp(6px,0.9vw,8.5px)", fontWeight: 600, lineHeight: 1.3 }}>{slide.emphasis}</div>
+          <div style={{ marginBottom: 10, marginLeft: 14, padding: "10px 18px", background: `${t.accent}12`, borderLeft: `4px solid ${t.accent}`, borderRadius: "0 4px 4px 0", color: t.accent, fontSize: 14, fontWeight: 600, lineHeight: 1.35 }}>{slide.emphasis}</div>
         )}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5%", paddingLeft: "2%" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 14 }}>
           {(slide.bullets || []).slice(0, 6).map((b, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "2%", padding: "1.5% 2%", background: i % 2 === 0 ? `${t.cardBg}35` : "transparent", borderRadius: "3px" }}>
-              <svg width="7" height="7" viewBox="0 0 7 7" style={{ flexShrink: 0, marginTop: "0.2em" }}>
-                <circle cx="3.5" cy="3.5" r="3" fill={t.accent} fillOpacity="0.9"/>
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "9px 14px", background: i % 2 === 0 ? `${t.cardBg}40` : "transparent", borderRadius: 4 }}>
+              <svg width="9" height="9" viewBox="0 0 9 9" style={{ flexShrink: 0, marginTop: 5 }}>
+                <circle cx="4.5" cy="4.5" r="4" fill={t.accent} fillOpacity="0.9"/>
               </svg>
-              <span style={{ color: t.bodyColor, fontSize: "clamp(7px,0.93vw,8.5px)", lineHeight: 1.45 }}>{b}</span>
+              <span style={{ color: t.bodyColor, fontSize: 17, lineHeight: 1.5 }}>{b}</span>
             </div>
           ))}
         </div>
@@ -1028,7 +1047,7 @@ function SlideThumbnail({ slide, theme, index, active, onClick }: {
     const measure = () => {
       if (containerRef.current) {
         const w = containerRef.current.getBoundingClientRect().width;
-        if (w > 0) setScale(w / 640);
+        if (w > 0) setScale(w / SLIDE_W);
       }
     };
     measure();
@@ -1045,7 +1064,7 @@ function SlideThumbnail({ slide, theme, index, active, onClick }: {
       <div className="w-full rounded overflow-hidden" style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
         <div style={{
           position: "absolute", top: 0, left: 0,
-          width: 640, height: 360,
+          width: SLIDE_W, height: SLIDE_H,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           pointerEvents: "none",
@@ -1168,7 +1187,7 @@ function FullscreenViewer({ slides, theme, initialIdx, onClose }: {
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "70px 80px 80px" }}>
         <div style={{ width: "100%", maxWidth: "min(calc(100vh * 16 / 9 - 140px), 100%)", ...slideStyle }}>
           <div style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 25px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06)" }}>
-            <SlideCanvas slide={slide} theme={theme} />
+            <ScaledSlide slide={slide} theme={theme} />
           </div>
         </div>
       </div>
@@ -1507,14 +1526,14 @@ function HomeView({
                 const thm = THEMES[p.theme as Theme] || THEMES["executive-dark"];
                 const firstSlide = (p.slides as Slide[])?.[0];
                 const THUMB_W = 80; const THUMB_H = 45;
-                const thumbScale = THUMB_W / 640;
+                const thumbScale = THUMB_W / SLIDE_W;
                 return (
                   <div key={p.id} onClick={() => onOpen(p)}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-card hover:shadow-md hover:border-primary/30 cursor-pointer group transition-all"
                     data-testid={`card-presentation-${p.id}`}>
                     <div className="rounded overflow-hidden shrink-0" style={{ width: THUMB_W, height: THUMB_H, background: thm.bg, position: "relative" }}>
                       {firstSlide ? (
-                        <div style={{ position: "absolute", top: 0, left: 0, width: 640, height: 360, transform: `scale(${thumbScale})`, transformOrigin: "top left", pointerEvents: "none" }}>
+                        <div style={{ position: "absolute", top: 0, left: 0, width: SLIDE_W, height: SLIDE_H, transform: `scale(${thumbScale})`, transformOrigin: "top left", pointerEvents: "none" }}>
                           <SlideCanvas slide={firstSlide} theme={p.theme as Theme} />
                         </div>
                       ) : (
@@ -1926,7 +1945,7 @@ function EditorView({
             <div className="w-full max-w-2xl">
               {/* Live preview with fullscreen button */}
               <div className="relative group/canvas rounded-xl overflow-hidden shadow-xl ring-1 ring-border/50">
-                <SlideCanvas slide={selectedSlide} theme={theme} />
+                <ScaledSlide slide={selectedSlide} theme={theme} />
                 <button
                   onClick={() => setFullscreen(true)}
                   className="absolute top-2 right-2 opacity-0 group-hover/canvas:opacity-100 transition-opacity p-1.5 rounded-lg bg-black/50 backdrop-blur text-white hover:bg-black/70"

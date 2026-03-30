@@ -3199,30 +3199,43 @@ Generate the outline now:`;
         ? `\n\nATTACHED DOCUMENT:\n${String(sourceData.fileContent).slice(0, 3000)}`
         : "";
 
-      const systemPrompt = `You are an expert business presentation designer and writer. Given a slide outline and context, generate full rich slide content for each slide. Return ONLY valid JSON — an array of slide content objects. No markdown fences, no extra text.
+      const systemPrompt = `You are a world-class business presentation designer and strategist. Generate compelling, information-rich slide content that reads like a premium McKinsey or BCG deck. Return ONLY valid JSON — an array of slide content objects matching the outline. No markdown fences, no extra text.
 
-Each slide object MUST include:
+Each slide object MUST include ALL applicable fields:
 - id: string (match the outline id exactly)
 - type: string (match the outline type exactly)
-- title: string (concise slide title)
-- subtitle: string (optional — for title/closing/section slides only)
-- bullets: string[] (3–5 bullet points for content/agenda/two-column slides; keep each under 12 words; empty array for data/quote slides)
-- stat: array of up to 3 KPI/metric objects for "data" slides — each with:
-    { value: string, label: string, change: string, trend: "up"|"down"|"flat", pct: number (0-100 representing % of target), color: "green"|"amber"|"red" }
-- chartData: array of 4–6 bar chart entries for "data" slides with relevant breakdown — each: { label: string, value: number }
-- quote: string (for quote slides — a compelling quote relevant to the topic)
-- emphasis: string (optional — one punchy phrase, a key number, or a callout for any slide type)
-- colorCode: "green"|"amber"|"red" (optional — overall health status for data slides)
-- notes: string (speaker notes, 2–3 sentences)
+- title: string (punchy, informative slide title — under 8 words)
+- subtitle: string (for title/closing/section slides — one complete sentence adding context)
+- emphasis: string (a bold callout — key metric, insight, or action phrase — for ANY slide type; always populate this)
+- bullets: string[] — for content/agenda/two-column slides:
+    • 4–6 bullets per slide
+    • Each bullet: 12–20 words, complete thought, specific and substantive
+    • Start with a strong verb or key number where possible
+    • agenda slides: each bullet = one agenda topic, 8–14 words
+    • Empty array ONLY for data/quote/section slides
+- stat: array for "data" slides — always include 3 stats (use real values from context or realistic estimates):
+    { value: string (e.g. "$2.4M", "87%", "14.2"), label: string (descriptive, 3–6 words), change: string (e.g. "+12% YoY", "-3pp QoQ"), trend: "up"|"down"|"flat", pct: number (0–150, % of target achieved — can exceed 100%), color: "green"|"amber"|"red" }
+- chartData: array for "data" slides — always include 4–6 entries for a bar chart breakdown:
+    { label: string (2–4 words), value: number }
+    Use real breakdowns: by region, product, department, quarter, etc.
+- tableData: for "table" slides — always include headers and 4–6 data rows:
+    { headers: string[], rows: string[][] }
+    Include a Status column with ✓ / ✗ / → indicators where appropriate
+- quote: string (for quote slides — an inspiring, specific, attributed quote relevant to the context; 15–40 words)
+- colorCode: "green"|"amber"|"red" (for data slides — overall RAG status)
+- notes: string (speaker notes, 3–4 sentences, includes key talking points and context)
 
-Design rules:
-- Tone: ${brief?.tone || "Executive"}
-- Audience: ${brief?.audience || "Senior leadership"}
-- Keep bullets SHORT (max 10 words each) — this is a slide, not a document
-- For data slides: always populate stat AND chartData with plausible business metrics from the context
-- For title slides: write a compelling subtitle and an emphasis tag (e.g. "Q2 2026 BOARD REVIEW")
-- For closing slides: bullets[0] = clear call-to-action, bullets[1] = contact or next step
-- Be specific with numbers wherever the source data provides them`;
+Design principles:
+- Tone: ${brief?.tone || "Executive"} — be decisive, data-driven, and clear
+- Audience: ${brief?.audience || "Senior leadership"} — assume high business acumen
+- Every slide must feel information-dense and visually rich
+- Always use specific numbers, names, percentages — never vague generalities
+- For title slides: craft a compelling subtitle that captures the narrative arc, plus emphasis as "PERIOD BOARD REVIEW" or similar
+- For data slides: stat values should be eye-catching big numbers (e.g. "$12.4M", "94%", "3.2×")
+- For closing slides: bullets[0] = specific, actionable CTA; bullets[1] = next meeting / deadline
+- For section slides: subtitle should preview the key insight in that section
+- For two-column slides: left column = challenges/problems, right column = solutions/achievements (or before/after)
+- chartData should tell a story — show relative performance, not just random numbers`;
 
       const userPrompt = `Presentation: "${brief?.title || "Business Presentation"}"
 Objective: ${brief?.objective || ""}
@@ -3237,7 +3250,7 @@ Generate full slide content now — use real data values from above wherever ava
         model: "gpt-4o",
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
         temperature: 0.7,
-        max_tokens: 4000,
+        max_tokens: 6000,
       });
 
       const raw = completion.choices[0].message.content || "[]";
