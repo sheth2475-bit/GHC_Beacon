@@ -160,7 +160,7 @@ export function AppSidebar() {
 
         {/* ── Operations / Workflow Center ── */}
         <SidebarGroup className="py-1">
-          <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground/50 px-3 mb-0.5">Operations</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground/50 px-3 mb-0.5">Workflow Center</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
               {WF_NAV_ITEMS.map((item) => {
