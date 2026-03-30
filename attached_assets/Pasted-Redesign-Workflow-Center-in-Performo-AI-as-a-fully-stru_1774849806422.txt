@@ -1,0 +1,930 @@
+Redesign Workflow Center in Performo AI as a fully structured, highly user-friendly operational workflow module with the following primary structure:
+
+Workflow Center
+├─ Recurring Tasks
+├─ Service Desk
+├─ Licenses
+├─ Certificates
+
+Each of these 4 workflow areas must have its own:
+- configuration
+- data entry / record creation
+- operational views
+- detailed record pages
+- analytics
+- tables / filters / exports
+- reminders / automations
+- comments / activity history
+
+Important:
+- Use only Performo AI branding
+- Do not mention any third-party product names anywhere in the UI
+- Make the UI extremely user-friendly, premium, intuitive, and business-friendly
+- This must feel like a polished workflow operating system, not a basic forms module
+
+====================================================
+1. CORE PRODUCT LOGIC
+====================================================
+
+Workflow Center must be structured around 4 dedicated workflow types:
+
+1. Recurring Tasks
+2. Service Desk
+3. Licenses
+4. Certificates
+
+Each workflow type must follow the same product lifecycle:
+
+1. Config
+2. Record creation / data entry
+3. Operational views
+4. Detailed record view
+5. Analytics
+
+This must be implemented consistently for all 4 workflow types.
+
+====================================================
+2. GLOBAL NAVIGATION STRUCTURE
+====================================================
+
+Workflow Center navigation should be reworked to clearly reflect this structure:
+
+Workflow Center
+- Home / Overview
+- Recurring Tasks
+- Service Desk
+- Licenses
+- Certificates
+- Workflow Builder / Configuration
+- Workflow Analytics
+- My Requests / Assigned to Me
+- Automations / Rules
+
+If needed, each workflow type can have its own internal tabs:
+- Overview
+- Config
+- Records
+- Analytics
+
+====================================================
+3. VERY IMPORTANT DATA MODEL REQUIREMENT
+====================================================
+
+For all workflow types, add support for:
+- Assigned To Name
+- Assigned To Email Address
+
+This is critical because automation rules must be able to send email reminders and notifications.
+
+Specifically:
+- Recurring Tasks must store assigned person name and email
+- Service Tickets must store assigned person/team contact name and email
+- Certificates must store candidate/holder name and email
+- Licenses must store responsible owner/renewal owner name and email
+
+This data must be visible in:
+- configuration
+- record creation forms
+- detailed record view
+- automations/rules
+- analytics where relevant
+
+====================================================
+4. SCREEN-BY-SCREEN FLOW
+====================================================
+
+----------------------------------------------------
+SCREEN 1: Workflow Center Home / Overview
+----------------------------------------------------
+
+Purpose:
+Main landing page for the full Workflow Center.
+
+Show:
+- total open items across all workflow types
+- overdue items
+- expiring soon
+- items assigned to me
+- recent activity
+- recent comments/updates
+- automation alerts
+- quick create buttons for:
+  - Recurring Task
+  - Service Ticket
+  - License
+  - Certificate
+
+Show summary cards by workflow type:
+- Recurring Tasks
+- Service Desk
+- Licenses
+- Certificates
+
+Each card should show:
+- total records
+- open/active
+- overdue/expired/expiring soon as relevant
+
+Also show:
+- shortcuts to each workflow type
+- recent submissions
+- recent assignments
+- due soon items
+
+States:
+- empty state
+- populated state
+- permission-limited state
+
+====================================================
+5. RECURRING TASKS
+====================================================
+
+----------------------------------------------------
+SCREEN 2: Recurring Tasks Overview
+----------------------------------------------------
+
+Show:
+- total recurring tasks
+- due soon
+- overdue
+- completed
+- upcoming occurrences
+- tasks assigned to me
+
+Views:
+- list
+- table
+- calendar
+- timeline
+
+Quick actions:
+- new recurring task
+- open config
+- open analytics
+
+----------------------------------------------------
+SCREEN 3: Recurring Tasks Config
+----------------------------------------------------
+
+Purpose:
+Configuration screen specifically for recurring task workflows.
+
+Allow admin to configure:
+- task workflow name
+- status flow
+- priority levels
+- recurrence types
+- due date rules
+- reminder rules
+- escalation rules
+- required fields
+- custom fields
+- assignment rules
+- default assigned to name
+- default assigned to email
+- notification templates if possible
+
+Field support should include:
+- title
+- description
+- department
+- assigned to name
+- assigned to email
+- recurrence pattern
+- start date
+- next due date
+- reminder timing
+- status
+- priority
+- attachments
+- notes/comments
+
+----------------------------------------------------
+SCREEN 4: New Recurring Task
+----------------------------------------------------
+
+Purpose:
+Create a recurring task record.
+
+Fields:
+- title
+- description
+- department
+- assigned to name
+- assigned to email
+- recurrence type
+- start date
+- next due date
+- reminder schedule
+- priority
+- status
+- attachments
+
+Behavior:
+- validation for required fields
+- email field validation
+- recurrence preview if possible
+
+Actions:
+- save
+- save and create next
+- cancel
+
+----------------------------------------------------
+SCREEN 5: Recurring Task Records List
+----------------------------------------------------
+
+Show:
+- reference number
+- title
+- department
+- assigned to name
+- assigned to email
+- status
+- priority
+- recurrence type
+- next due date
+- overdue indicator
+- last updated
+
+Filters:
+- assigned to
+- department
+- status
+- priority
+- due date
+- recurrence type
+
+Views:
+- list
+- table
+- calendar
+- timeline
+
+----------------------------------------------------
+SCREEN 6: Recurring Task Detail View
+----------------------------------------------------
+
+Show:
+- full task details
+- assigned to name
+- assigned to email
+- recurrence pattern
+- next due date
+- history of occurrences
+- comments / updates
+- attachments
+- activity history
+- reminder history
+- automation history
+
+Actions:
+- mark complete
+- edit
+- reassign
+- reschedule
+- pause recurrence
+- add comment
+- attach file
+
+----------------------------------------------------
+SCREEN 7: Recurring Tasks Analytics
+----------------------------------------------------
+
+Show:
+- total recurring tasks
+- due soon
+- overdue
+- completed on time
+- completion trend
+- overdue by owner
+- recurrence health
+- department-wise performance
+- task volume over time
+
+====================================================
+6. SERVICE DESK
+====================================================
+
+----------------------------------------------------
+SCREEN 8: Service Desk Overview
+----------------------------------------------------
+
+Show:
+- total tickets
+- new
+- assigned
+- in progress
+- pending
+- resolved
+- closed
+- escalated
+- SLA breaches if supported
+
+Views:
+- board
+- list
+- table
+
+Quick actions:
+- new ticket
+- open config
+- open analytics
+
+----------------------------------------------------
+SCREEN 9: Service Desk Config
+----------------------------------------------------
+
+Purpose:
+Configuration screen for ticket workflows.
+
+Allow admin to configure:
+- ticket workflow name
+- ticket categories
+- statuses
+- priority levels
+- SLA rules
+- escalation rules
+- assignment rules
+- required fields
+- custom fields
+- email notification rules
+- default assignee rules
+- assigned to name
+- assigned to email structure
+- team queues if supported
+
+Fields should support:
+- ticket title
+- description
+- category
+- requester name
+- requester email
+- assigned to name
+- assigned to email
+- department
+- due date
+- SLA target
+- status
+- priority
+- attachments
+
+----------------------------------------------------
+SCREEN 10: New Service Ticket
+----------------------------------------------------
+
+Fields:
+- ticket title
+- description
+- category
+- requester name
+- requester email
+- department
+- assigned to name
+- assigned to email
+- priority
+- due date
+- SLA target if applicable
+- attachments
+
+Behavior:
+- ticket number auto-generation
+- email validation
+- routing logic if configured
+
+----------------------------------------------------
+SCREEN 11: Service Ticket Records / Queue
+----------------------------------------------------
+
+Show:
+- ticket number
+- title
+- category
+- requester
+- assigned to name
+- assigned to email
+- department
+- status
+- priority
+- due date
+- SLA status
+- overdue indicator
+- last updated
+
+Views:
+- board by status
+- list
+- table
+
+Filters:
+- assignee
+- department
+- category
+- priority
+- status
+- SLA status
+
+----------------------------------------------------
+SCREEN 12: Service Ticket Detail View
+----------------------------------------------------
+
+Show:
+- ticket details
+- requester
+- assigned to name
+- assigned to email
+- SLA timers
+- escalation status
+- comments/updates thread
+- attachments
+- activity history
+- audit trail
+- reminder history
+
+Actions:
+- assign / reassign
+- update status
+- escalate
+- resolve
+- close
+- add comment
+- attach file
+
+----------------------------------------------------
+SCREEN 13: Service Desk Analytics
+----------------------------------------------------
+
+Show:
+- tickets by status
+- tickets by priority
+- SLA breaches
+- average response time
+- average resolution time
+- aging analysis
+- tickets by department
+- tickets by assignee
+- volume trend over time
+
+====================================================
+7. LICENSES
+====================================================
+
+----------------------------------------------------
+SCREEN 14: Licenses Overview
+----------------------------------------------------
+
+Show:
+- total licenses
+- active
+- expiring soon
+- expired
+- renewal in progress
+- assigned owners
+- due for renewal
+
+Views:
+- list
+- table
+- calendar
+- timeline
+
+Quick actions:
+- new license
+- open config
+- open analytics
+
+----------------------------------------------------
+SCREEN 15: Licenses Config
+----------------------------------------------------
+
+Purpose:
+Configuration for license workflows.
+
+Allow admin to configure:
+- license types
+- statuses
+- owner fields
+- renewal owner fields
+- reminder schedules
+- expiry alerts
+- required documents
+- custom fields
+- assignment rules
+- notification rules
+
+Fields should support:
+- license name
+- license type
+- vendor
+- department
+- owner name
+- owner email
+- renewal owner name
+- renewal owner email
+- issue date
+- expiry date
+- status
+- attachment/document
+
+----------------------------------------------------
+SCREEN 16: New License
+----------------------------------------------------
+
+Fields:
+- license name
+- license type
+- vendor
+- department
+- owner name
+- owner email
+- renewal owner name
+- renewal owner email
+- issue date
+- expiry date
+- reminder settings
+- status
+- attachments
+
+Validation:
+- email validation
+- date validation
+- expiry > issue date
+
+----------------------------------------------------
+SCREEN 17: License Records List
+----------------------------------------------------
+
+Show:
+- license name
+- type
+- vendor
+- owner name
+- owner email
+- renewal owner name
+- renewal owner email
+- department
+- issue date
+- expiry date
+- days remaining
+- status
+- expiry indicator
+
+Views:
+- list
+- table
+- calendar
+- timeline
+
+Filters:
+- department
+- type
+- vendor
+- owner
+- renewal owner
+- expiry range
+- status
+
+----------------------------------------------------
+SCREEN 18: License Detail View
+----------------------------------------------------
+
+Show:
+- full license details
+- owner name/email
+- renewal owner name/email
+- issue/expiry dates
+- reminder schedule
+- renewal history
+- attachments
+- comments
+- activity history
+- automation history
+
+Actions:
+- renew
+- update status
+- change owner
+- change renewal owner
+- attach document
+- add comment
+
+----------------------------------------------------
+SCREEN 19: License Analytics
+----------------------------------------------------
+
+Show:
+- active
+- expiring soon
+- expired
+- renewal in progress
+- overdue renewals
+- licenses by department
+- licenses by vendor
+- licenses by owner
+- expiry trend over time
+
+====================================================
+8. CERTIFICATES
+====================================================
+
+----------------------------------------------------
+SCREEN 20: Certificates Overview
+----------------------------------------------------
+
+Show:
+- total certificates
+- active
+- expiring soon
+- expired
+- renewal in progress
+- candidates/holders due for renewal
+
+Views:
+- list
+- table
+- calendar
+- timeline
+
+Quick actions:
+- new certificate
+- open config
+- open analytics
+
+----------------------------------------------------
+SCREEN 21: Certificates Config
+----------------------------------------------------
+
+Purpose:
+Configuration for certificate workflows.
+
+Allow admin to configure:
+- certificate types
+- statuses
+- holder/candidate fields
+- reminder schedules
+- expiry alerts
+- required documents
+- custom fields
+- notification rules
+
+Critical fields must support:
+- candidate/holder name
+- candidate/holder email
+
+Also support:
+- certificate name
+- type
+- department
+- issue date
+- expiry date
+- issuing authority
+- status
+- attachment/document
+
+----------------------------------------------------
+SCREEN 22: New Certificate
+----------------------------------------------------
+
+Fields:
+- certificate name
+- certificate type
+- candidate/holder name
+- candidate/holder email
+- department
+- issue date
+- expiry date
+- issuing authority
+- reminder settings
+- status
+- attachments
+
+Validation:
+- email validation
+- date validation
+
+----------------------------------------------------
+SCREEN 23: Certificate Records List
+----------------------------------------------------
+
+Show:
+- certificate name
+- type
+- candidate/holder name
+- candidate/holder email
+- department
+- issue date
+- expiry date
+- days remaining
+- status
+- expiry indicator
+
+Views:
+- list
+- table
+- calendar
+- timeline
+
+Filters:
+- department
+- type
+- holder
+- expiry range
+- status
+
+----------------------------------------------------
+SCREEN 24: Certificate Detail View
+----------------------------------------------------
+
+Show:
+- certificate details
+- candidate/holder name
+- candidate/holder email
+- issue/expiry dates
+- reminder schedule
+- renewal history
+- attachments
+- comments
+- activity history
+- automation history
+
+Actions:
+- renew
+- update status
+- change holder
+- attach document
+- add comment
+
+----------------------------------------------------
+SCREEN 25: Certificate Analytics
+----------------------------------------------------
+
+Show:
+- active
+- expiring soon
+- expired
+- renewed
+- overdue renewals
+- certificates by department
+- certificates by holder
+- certificates by type
+- expiry trend over time
+
+====================================================
+9. SHARED / GLOBAL SCREENS
+====================================================
+
+----------------------------------------------------
+SCREEN 26: Workflow Analytics Home
+----------------------------------------------------
+
+Purpose:
+Cross-workflow analytics view.
+
+Show:
+- total records across all 4 workflow types
+- open records
+- overdue
+- expiring soon
+- by workflow type
+- by status
+- by priority
+- by owner
+- by department
+- trend over time
+
+Allow drill-down into:
+- Recurring Tasks Analytics
+- Service Desk Analytics
+- License Analytics
+- Certificate Analytics
+
+----------------------------------------------------
+SCREEN 27: Workflow Automations / Rules
+----------------------------------------------------
+
+Purpose:
+Manage automation rules across workflow types.
+
+Allow admin to configure rules such as:
+- when due date is near -> send email to assigned to email
+- when overdue -> escalate via email
+- when SLA breached -> notify assigned to email and manager
+- when certificate nears expiry -> email candidate/holder and owner
+- when license nears expiry -> email renewal owner
+- when recurring task is completed -> generate next occurrence and notify assignee
+
+For each rule show:
+- workflow type
+- trigger
+- condition
+- action
+- recipient name/email source
+- active/inactive
+
+----------------------------------------------------
+SCREEN 28: My Requests / Assigned to Me
+----------------------------------------------------
+
+Purpose:
+Personal work area.
+
+Tabs:
+- Submitted by Me
+- Assigned to Me
+
+Show:
+- all items across workflow types
+- status
+- due/expiry date
+- workflow type
+- priority
+- owner
+- latest update
+
+Filters:
+- workflow type
+- status
+- due soon
+- overdue
+- expiring soon
+
+====================================================
+10. UI / UX REQUIREMENTS
+====================================================
+
+The entire Workflow Center must be extremely user-friendly.
+
+Design requirements:
+- clean and premium layout
+- easy navigation
+- very clear labels
+- large clickable actions
+- modern status badges
+- simple forms
+- strong visual hierarchy
+- no clutter
+- clear empty states
+- clear due/expiry alerts
+- intuitive record detail pages
+- highly readable tables
+- easy filters
+- useful summary cards
+- mobile/tablet friendly where practical
+
+Make it feel polished and business-friendly, not technical.
+
+====================================================
+11. EMAIL / AUTOMATION REQUIREMENT
+====================================================
+
+This is critical:
+
+For automation emails and reminders, every relevant workflow must have usable email recipient fields.
+
+Required support:
+- Recurring Tasks -> assigned to email
+- Service Tickets -> assigned to email and requester email
+- Licenses -> owner email and renewal owner email
+- Certificates -> candidate/holder email
+
+Ensure these fields are:
+- configurable
+- visible in forms
+- stored in database
+- available to automation rules
+- available in analytics/detail pages
+
+====================================================
+12. PERMISSIONS
+====================================================
+
+Respect:
+- role-based access
+- department-based access
+- company scope
+
+Users must only see records and analytics within their allowed scope.
+
+====================================================
+13. FINAL EXPECTATION
+====================================================
+
+Implement Workflow Center as a complete, highly user-friendly, screen-by-screen workflow engine with this structure:
+
+Workflow Center
+├─ Recurring Tasks
+├─ Service Desk
+├─ Licenses
+├─ Certificates
+
+Each workflow type must have:
+- its own config
+- data entry
+- operational views
+- detailed record pages
+- analytics
+- email-ready assignment/holder fields
+- automation-ready reminders and rules
+
+The result must feel like a complete, polished workflow operating module inside Performo AI.

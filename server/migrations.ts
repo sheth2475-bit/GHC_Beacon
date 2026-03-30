@@ -131,6 +131,70 @@ export async function runMigrations() {
 
     console.log("[migrations] workflow_center tables ready");
 
+    // ── Seed demo workflow data (only if none yet for company 1) ─────────
+    const { rows: existing } = await client.query(`SELECT id FROM workflow_submissions WHERE company_id = 1 LIMIT 1`);
+    if (existing.length === 0) {
+      const now = new Date();
+      const d = (offset: number) => {
+        const dt = new Date(now);
+        dt.setDate(dt.getDate() + offset);
+        return dt.toISOString().slice(0, 10);
+      };
+
+      type SeedRow = [
+        number, number, string, string, string, string, string, string,
+        string, string, string, string, string, string, string, string,
+        string, string, string, string
+      ];
+
+      const seeds: SeedRow[] = [
+        // recurring_task (4)
+        [1, 1, "recurring_task", `RT-${Date.now()}-001`, "Monthly P&L Report", "Prepare and distribute monthly P&L statement to all HODs", "Operations", "Rania Al Mansouri", "rania@oyohotels.ae", "Dharmesh Sheth", "dharmesh@oyohotels.ae", "", "", "Monthly", d(5), "", "Scheduled", "High", "", ""],
+        [1, 1, "recurring_task", `RT-${Date.now()}-002`, "Housekeeping Standards Audit", "Conduct weekly quality check across all guest floors", "Operations", "Faisal Hassan", "faisal@oyohotels.ae", "Noura Bin Rashid", "noura@oyohotels.ae", "", "", "Weekly", d(-2), "", "Overdue", "Medium", "", ""],
+        [1, 1, "recurring_task", `RT-${Date.now()}-003`, "Employee Payroll Processing", "Process monthly payroll and distribute payslips", "HR", "Priya Sharma", "priya@oyohotels.ae", "Rania Al Mansouri", "rania@oyohotels.ae", "", "", "Monthly", d(12), "", "Scheduled", "Critical", "", ""],
+        [1, 1, "recurring_task", `RT-${Date.now()}-004`, "Fire Safety Equipment Check", "Inspect all fire extinguishers and sprinkler systems", "Operations", "Khalid Mansoor", "khalid@oyohotels.ae", "Dharmesh Sheth", "dharmesh@oyohotels.ae", "", "", "Quarterly", d(-5), "", "Overdue", "High", "", ""],
+        // service_ticket (5)
+        [1, 1, "service_ticket", `TKT-${Date.now()}-001`, "Lobby AC Unit Not Cooling", "Main lobby air conditioning unit not functioning. Guests reporting discomfort.", "Operations", "Faisal Hassan", "faisal@oyohotels.ae", "Sara Ahmed", "sara@oyohotels.ae", "Omar Khalil", "omar@oyohotels.ae", "", d(1), "", "In Progress", "Critical", "", "4 hours"],
+        [1, 1, "service_ticket", `TKT-${Date.now()}-002`, "POS System Downtime - Restaurant", "F&B POS system offline causing revenue loss at main restaurant.", "Finance", "Noura Bin Rashid", "noura@oyohotels.ae", "Michael Chen", "michael@oyohotels.ae", "Lisa Wong", "lisa@oyohotels.ae", "", d(0), "", "Escalated", "Critical", "", "2 hours"],
+        [1, 1, "service_ticket", `TKT-${Date.now()}-003`, "Guest Room 412 Plumbing Issue", "Water leak reported in bathroom of room 412. Guest moved to 414.", "Operations", "Khalid Mansoor", "khalid@oyohotels.ae", "Faisal Hassan", "faisal@oyohotels.ae", "David Park", "david@oyohotels.ae", "", d(0), "", "Assigned", "High", "", "8 hours"],
+        [1, 1, "service_ticket", `TKT-${Date.now()}-004`, "New Employee Onboarding Setup", "Provision laptop, email and system access for Fatima Al Rashid joining HR dept.", "HR", "Priya Sharma", "priya@oyohotels.ae", "Rania Al Mansouri", "rania@oyohotels.ae", "Fatima Al Rashid", "fatima@oyohotels.ae", "", d(3), "", "New", "Medium", "", "24 hours"],
+        [1, 1, "service_ticket", `TKT-${Date.now()}-005`, "Marketing Collateral Print Request", "Print 500 copies of updated property brochure for GITEX travel expo.", "Sales", "Sarah Johnson", "sarah@oyohotels.ae", "Omar Khalil", "omar@oyohotels.ae", "Lisa Wong", "lisa@oyohotels.ae", "", d(7), "", "Pending", "Low", "", "48 hours"],
+        // license (4)
+        [1, 1, "license", `LIC-${Date.now()}-001`, "Dubai Tourism Operating License", "Official DTCM tourism operating license for OYO Hospitality UAE", "Operations", "Rania Al Mansouri", "rania@oyohotels.ae", "Dharmesh Sheth", "dharmesh@oyohotels.ae", "", "", "Trade", d(25), d(25), "Expiring Soon", "Critical", "DTCM", ""],
+        [1, 1, "license", `LIC-${Date.now()}-002`, "Microsoft Office 365 Enterprise", "Enterprise M365 subscription — 150 seats across all properties", "Finance", "Noura Bin Rashid", "noura@oyohotels.ae", "Michael Chen", "michael@oyohotels.ae", "", "", "Software", d(90), d(90), "Active", "High", "Microsoft", ""],
+        [1, 1, "license", `LIC-${Date.now()}-003`, "Food Handling & Safety License", "Municipal food handling permit for kitchen and F&B operations", "Operations", "Khalid Mansoor", "khalid@oyohotels.ae", "Faisal Hassan", "faisal@oyohotels.ae", "", "", "Health & Safety", d(-10), d(-10), "Expired", "Critical", "Dubai Municipality", ""],
+        [1, 1, "license", `LIC-${Date.now()}-004`, "Property Management System (Opera)", "OPERA PMS annual software license for front desk operations", "Finance", "Rania Al Mansouri", "rania@oyohotels.ae", "Noura Bin Rashid", "noura@oyohotels.ae", "", "", "Software", d(180), d(180), "Active", "High", "Oracle Hospitality", ""],
+        // certificate (5)
+        [1, 1, "certificate", `CERT-${Date.now()}-001`, "ISO 9001 Quality Management Certification", "International quality management systems certification for hotel operations", "Operations", "Dharmesh Sheth", "dharmesh@oyohotels.ae", "Rania Al Mansouri", "rania@oyohotels.ae", "", "", "ISO", d(20), d(20), "Expiring Soon", "High", "", "Bureau Veritas"],
+        [1, 1, "certificate", `CERT-${Date.now()}-002`, "Food Safety HACCP Certification", "HACCP food safety management certification for all F&B staff", "Operations", "Khalid Mansoor", "khalid@oyohotels.ae", "Faisal Hassan", "faisal@oyohotels.ae", "", "", "Health & Safety", d(60), d(60), "Active", "High", "", "SGS"],
+        [1, 1, "certificate", `CERT-${Date.now()}-003`, "First Aid Training - Front Desk Team", "CPR and first aid certification for 12 front desk team members", "HR", "Priya Sharma", "priya@oyohotels.ae", "Sara Ahmed", "sara@oyohotels.ae", "", "", "Health & Safety", d(-15), d(-15), "Expired", "Medium", "", "Dubai Red Crescent"],
+        [1, 1, "certificate", `CERT-${Date.now()}-004`, "Fire Warden Training Certificate", "Certified fire warden training for housekeeping supervisors", "Operations", "Faisal Hassan", "faisal@oyohotels.ae", "Khalid Mansoor", "khalid@oyohotels.ae", "", "", "Safety", d(120), d(120), "Active", "Medium", "", "Civil Defence UAE"],
+        [1, 1, "certificate", `CERT-${Date.now()}-005`, "PCI DSS Payment Security Compliance", "Payment card industry data security standard compliance certificate", "Finance", "Noura Bin Rashid", "noura@oyohotels.ae", "Michael Chen", "michael@oyohotels.ae", "", "", "Compliance", d(14), d(14), "Expiring Soon", "Critical", "", "QSA Auditors Ltd"],
+      ];
+
+      for (const [
+        companyId, createdBy, workflowType, referenceNumber, title, description,
+        departmentName, assignedTo, assignedToEmail, ownerName, ownerEmail,
+        requesterName, requesterEmail, recurrenceOrLicenseType, dueDate, expiryDate,
+        status, priority, vendorName, issueAuthority,
+      ] of seeds) {
+        await client.query(`
+          INSERT INTO workflow_submissions
+            (company_id, created_by, workflow_type, reference_number, title, description,
+             department_name, assigned_to, assigned_to_email, owner_name, owner_email,
+             requester_name, requester_email, recurrence_type, license_type, due_date, expiry_date,
+             status, priority, vendor_name, issue_authority)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14,$15,$16,$17,$18,$19,$20)
+        `, [
+          companyId, createdBy, workflowType, referenceNumber, title, description,
+          departmentName, assignedTo, assignedToEmail, ownerName, ownerEmail,
+          requesterName, requesterEmail, recurrenceOrLicenseType, dueDate, expiryDate,
+          status, priority, vendorName, issueAuthority,
+        ]);
+      }
+      console.log("[migrations] seeded 18 demo workflow records");
+    }
+
   } catch (err) {
     console.error("[migrations] Error running migrations:", err);
   } finally {
