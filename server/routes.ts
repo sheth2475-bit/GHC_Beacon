@@ -9,6 +9,9 @@ import { registerOwnerRoutes, logActivity } from "./owner-routes";
 import * as XLSX from "xlsx";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
+import multer from "multer";
+
+const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 /** Normalises a date string to YYYY-MM-DD for DB storage.
  *  Accepts DD-MM-YYYY (from Excel uploads) or YYYY-MM-DD (legacy / browser date pickers). */
@@ -2948,6 +2951,32 @@ Return a JSON object:
     try {
       const versions = await storage.listPresentationVersions(Number(req.params.id));
       res.json(versions);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── File Upload for Presentation Source ────────────────────────────────────
+  app.post("/api/presentations/upload-source", requireAuth, uploadMemory.single("file"), async (req: Request, res: Response) => {
+    try {
+      const file = (req as any).file;
+      if (!file) return res.status(400).json({ message: "No file uploaded" });
+      const mime = file.mimetype || "";
+      const name = (file.originalname || "").toLowerCase();
+      let text = "";
+      if (mime.includes("text") || name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".csv") || name.endsWith(".json")) {
+        text = file.buffer.toString("utf-8").slice(0, 15000);
+      } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+        const wb = XLSX.read(file.buffer, { type: "buffer" });
+        const rows: any[] = [];
+        wb.SheetNames.slice(0, 3).forEach(sn => {
+          const ws = wb.Sheets[sn];
+          const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+          rows.push(...data.slice(0, 50));
+        });
+        text = JSON.stringify(rows).slice(0, 15000);
+      } else {
+        return res.status(400).json({ message: "Unsupported file type. Upload .txt, .md, .csv, .json, or .xlsx files." });
+      }
+      res.json({ text, fileName: file.originalname, chars: text.length });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

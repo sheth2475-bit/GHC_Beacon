@@ -6,6 +6,8 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+export function getOaiV2() { return openai; }
+
 const kpiSchema = z.object({
   kpi_name: z.string(),
   description: z.string(),
