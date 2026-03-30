@@ -360,7 +360,7 @@ function RecordsView({ submissions, wfType, onSelect, onNew }: {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
-  const [view, setView] = useState<ViewMode>("list");
+  const [view, setView] = useState<ViewMode>("table");
   const hasBoard = ["service_ticket", "recurring_task", "license", "certificate"].includes(wfType);
   const viewModes: ViewMode[] = hasBoard ? ["list", "board", "table", "calendar"] : ["list", "table", "calendar"];
 
