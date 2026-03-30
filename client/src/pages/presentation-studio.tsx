@@ -107,14 +107,25 @@ const pptxColor = (hex: string) => {
   return c.slice(0, 6);
 };
 
+// ─── PPTX canvas constants ────────────────────────────────────────────────────
+// Slide: 10 in × 5.625 in  (16 : 9 landscape — exact PowerPoint Widescreen)
+const PPTX_W = 10;      // inches, full slide width
+const PPTX_H = 5.625;   // inches, full slide height
+// Helpers to keep coordinates readable; nothing is scaled, values are native inches.
+const PH = PPTX_H;      // alias
+const PW = PPTX_W;      // alias
+
 async function exportToPptx(slides: Slide[], theme: Theme, title: string) {
   const t = THEMES[theme];
   try {
     const pptxgenjs = await import("pptxgenjs");
     const PptxGenJS = (pptxgenjs as any).default || pptxgenjs;
     const pptx = new PptxGenJS();
-    pptx.layout = "LAYOUT_16x9";
-    pptx.title = title;
+
+    // ── Define exact 10 × 5.625 layout ──────────────────────────────────────
+    pptx.defineLayout({ name: "WIDESCREEN_16x9", width: PW, height: PH });
+    pptx.layout = "WIDESCREEN_16x9";
+    pptx.title   = title;
     pptx.company = "Performo AI";
 
     for (let si = 0; si < slides.length; si++) {
@@ -123,185 +134,320 @@ async function exportToPptx(slides: Slide[], theme: Theme, title: string) {
 
       ps.background = { fill: pptxColor(t.bg) };
 
-      // Accent bar (left)
+      // Left accent bar — full slide height
       ps.addShape("rect", {
-        x: 0, y: 0, w: 0.08, h: 7.5,
+        x: 0, y: 0, w: 0.07, h: PH,
         fill: { color: pptxColor(t.accent) },
         line: { type: "none" },
       });
 
-      // Slide number footer
+      // Footer: slide counter + branding
+      const footerY = PH - 0.28;
       ps.addText(`${si + 1} / ${slides.length}`, {
-        x: 0.15, y: 7.1, w: 1, h: 0.3,
-        fontSize: 7, color: pptxColor(t.subtleColor), align: "left",
+        x: 0.15, y: footerY, w: 1, h: 0.22,
+        fontSize: 6, color: pptxColor(t.subtleColor), align: "left",
       });
       ps.addText("PERFORMO AI", {
-        x: 8.5, y: 7.1, w: 1.4, h: 0.3,
-        fontSize: 7, color: pptxColor(t.subtleColor), align: "right", charSpacing: 2,
+        x: 8.5, y: footerY, w: 1.4, h: 0.22,
+        fontSize: 6, color: pptxColor(t.subtleColor), align: "right", charSpacing: 2,
       });
 
+      // ── Per-slide layouts, designed for 10 × 5.625 ────────────────────────
       switch (slide.type) {
-        case "title":
+
+        case "title": {
+          // Decorative circles (background)
+          ps.addShape("ellipse", {
+            x: 7.2, y: -0.5, w: 3.5, h: 3.5,
+            fill: { color: pptxColor(t.accent) }, line: { type: "none" }, transparency: 92,
+          });
           if (slide.emphasis) {
             ps.addText(slide.emphasis, {
-              x: 0.5, y: 1.8, w: 7, h: 0.5,
-              fontSize: 10, color: pptxColor(t.accent), bold: true, charSpacing: 4,
+              x: 0.5, y: 1.1, w: 6.5, h: 0.35,
+              fontSize: 9, color: pptxColor(t.accent), bold: true, charSpacing: 4,
             });
           }
           ps.addText(slide.title, {
-            x: 0.5, y: 2.4, w: 7.5, h: 2.4,
-            fontSize: 40, color: pptxColor(t.titleColor), bold: true, breakLine: true,
+            x: 0.5, y: slide.emphasis ? 1.52 : 1.1, w: 7.0, h: 2.1,
+            fontSize: 32, color: pptxColor(t.titleColor), bold: true, breakLine: true,
           });
           if (slide.subtitle) {
             ps.addText(slide.subtitle, {
-              x: 0.5, y: 5.0, w: 6.5, h: 1.2,
-              fontSize: 18, color: pptxColor(t.bodyColor), opacity: 0.75,
+              x: 0.5, y: 3.75, w: 6.0, h: 0.9,
+              fontSize: 14, color: pptxColor(t.bodyColor), opacity: 0.75,
             });
           }
-          break;
-
-        case "content":
-          ps.addText(slide.title, {
-            x: 0.5, y: 0.3, w: 9, h: 0.9,
-            fontSize: 24, color: pptxColor(t.titleColor), bold: true,
+          // Horizontal rule
+          ps.addShape("line", {
+            x: 0.5, y: 5.2, w: 9.3, h: 0,
+            line: { color: pptxColor(t.accent), pt: 0.75, transparency: 70 },
           });
+          break;
+        }
+
+        case "content": {
+          // Header band
+          ps.addShape("rect", {
+            x: 0, y: 0, w: PW, h: 0.62,
+            fill: { color: pptxColor(t.cardBg) }, line: { type: "none" },
+          });
+          ps.addText(slide.title, {
+            x: 0.5, y: 0.1, w: 9.3, h: 0.44,
+            fontSize: 18, color: pptxColor(t.titleColor), bold: true, valign: "middle",
+          });
+          const bulletsY = slide.emphasis ? 1.18 : 0.75;
           if (slide.emphasis) {
             ps.addText(slide.emphasis, {
-              x: 0.5, y: 1.3, w: 9, h: 0.45,
-              fontSize: 12, color: pptxColor(t.accent), bold: true,
+              x: 0.5, y: 0.72, w: 9.3, h: 0.38,
+              fontSize: 10, color: pptxColor(t.accent), bold: true,
             });
           }
           if (slide.bullets && slide.bullets.length > 0) {
             const bulletItems = slide.bullets.slice(0, 6).map(b => ({
-              text: b, options: { bullet: { code: "2022" }, fontSize: 15, color: pptxColor(t.bodyColor), paraSpaceAfter: 6 },
+              text: b,
+              options: { bullet: { code: "2022" }, fontSize: 13, color: pptxColor(t.bodyColor), paraSpaceAfter: 5 },
             }));
-            ps.addText(bulletItems, { x: 0.6, y: slide.emphasis ? 1.9 : 1.4, w: 9, h: 5.5 });
+            ps.addText(bulletItems, { x: 0.6, y: bulletsY, w: 9.1, h: PH - bulletsY - 0.35 });
           }
           break;
+        }
 
-        case "agenda":
+        case "agenda": {
           ps.addText("AGENDA", {
-            x: 0.5, y: 0.3, w: 9, h: 0.4,
-            fontSize: 9, color: pptxColor(t.accent), bold: true, charSpacing: 5,
+            x: 0.5, y: 0.22, w: 9, h: 0.30,
+            fontSize: 8, color: pptxColor(t.accent), bold: true, charSpacing: 5,
           });
           ps.addText(slide.title, {
-            x: 0.5, y: 0.8, w: 9, h: 0.8,
-            fontSize: 26, color: pptxColor(t.titleColor), bold: true,
+            x: 0.5, y: 0.55, w: 9, h: 0.60,
+            fontSize: 20, color: pptxColor(t.titleColor), bold: true,
           });
-          (slide.bullets || []).slice(0, 7).forEach((b, i) => {
+          const items = (slide.bullets || []).slice(0, 7);
+          const rowH  = Math.min(0.56, (PH - 1.35) / Math.max(items.length, 1));
+          items.forEach((b, i) => {
+            const ry = 1.3 + i * (rowH + 0.04);
             ps.addShape("rect", {
-              x: 0.5, y: 1.8 + i * 0.76, w: 9, h: 0.65,
+              x: 0.5, y: ry, w: 9.2, h: rowH,
               fill: { color: pptxColor(t.cardBg) }, line: { color: pptxColor(t.borderColor), pt: 0.5 },
             });
             ps.addText(`${String(i + 1).padStart(2, "0")}   ${b}`, {
-              x: 0.7, y: 1.9 + i * 0.76, w: 8.5, h: 0.45,
-              fontSize: 13, color: pptxColor(t.bodyColor),
+              x: 0.7, y: ry + 0.04, w: 8.8, h: rowH - 0.08,
+              fontSize: 11, color: pptxColor(t.bodyColor), valign: "middle",
             });
           });
           break;
+        }
 
-        case "data":
+        case "data": {
+          // Header band
           ps.addShape("rect", {
-            x: 0, y: 0, w: 10, h: 0.7,
+            x: 0, y: 0, w: PW, h: 0.58,
             fill: { color: pptxColor(t.cardBg) }, line: { type: "none" },
           });
           ps.addText(slide.title, {
-            x: 0.5, y: 0.12, w: 9, h: 0.5,
-            fontSize: 20, color: pptxColor(t.titleColor), bold: true,
+            x: 0.5, y: 0.09, w: 9.3, h: 0.42,
+            fontSize: 18, color: pptxColor(t.titleColor), bold: true, valign: "middle",
           });
+
           const stats = (slide.stat || []).slice(0, 4);
-          const cols = Math.min(stats.length, 2);
+          const statCols  = Math.min(stats.length, 4);
+          const cardW     = (9.2 - (statCols - 1) * 0.15) / statCols;
+          const cardH     = 1.9;
+          const cardsTopY = 0.7;
+
           stats.forEach((s, i) => {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const cardW = cols === 1 ? 9 : 4.4;
-            const x = 0.5 + col * (cardW + 0.2);
-            const y = 0.9 + row * 2.6;
+            const cx = 0.4 + i * (cardW + 0.15);
             const bColor = s.color === "green" ? "22c55e" : s.color === "red" ? "ef4444" : s.color === "amber" ? "f59e0b" : pptxColor(t.borderColor);
-            ps.addShape("rect", { x, y, w: cardW, h: 2.3, fill: { color: pptxColor(t.cardBg) }, line: { color: pptxColor(t.borderColor), pt: 0.5 } });
-            ps.addShape("rect", { x, y, w: cardW, h: 0.06, fill: { color: bColor }, line: { type: "none" } });
-            ps.addText(s.value, { x: x + 0.2, y: y + 0.2, w: cardW - 0.4, h: 1.0, fontSize: 32, color: pptxColor(t.accent), bold: true });
-            ps.addText(s.label, { x: x + 0.2, y: y + 1.3, w: cardW - 0.4, h: 0.5, fontSize: 12, color: pptxColor(t.bodyColor) });
-            if (s.change) ps.addText(s.change, { x: x + 0.2, y: y + 1.8, w: cardW - 0.4, h: 0.4, fontSize: 10, color: s.trend === "up" ? "22c55e" : "ef4444", bold: true });
+            // Card background
+            ps.addShape("rect", {
+              x: cx, y: cardsTopY, w: cardW, h: cardH,
+              fill: { color: pptxColor(t.cardBg) }, line: { color: pptxColor(t.borderColor), pt: 0.5 },
+            });
+            // Color accent top strip
+            ps.addShape("rect", {
+              x: cx, y: cardsTopY, w: cardW, h: 0.055,
+              fill: { color: bColor }, line: { type: "none" },
+            });
+            // KPI value
+            ps.addText(s.value, {
+              x: cx + 0.12, y: cardsTopY + 0.14, w: cardW - 0.24, h: 0.78,
+              fontSize: 26, color: pptxColor(t.accent), bold: true,
+            });
+            // Label
+            ps.addText(s.label, {
+              x: cx + 0.12, y: cardsTopY + 0.96, w: cardW - 0.24, h: 0.40,
+              fontSize: 9, color: pptxColor(t.bodyColor),
+            });
+            // Change / trend
+            if (s.change) {
+              ps.addText(s.change, {
+                x: cx + 0.12, y: cardsTopY + 1.44, w: cardW - 0.24, h: 0.30,
+                fontSize: 8, color: s.trend === "up" ? "22c55e" : "ef4444", bold: true,
+              });
+            }
           });
-          if (slide.bullets && slide.bullets.length > 0) {
-            ps.addText(slide.bullets.slice(0, 3).map(b => ({ text: `▪  ${b}`, options: { fontSize: 11, color: pptxColor(t.bodyColor), paraSpaceAfter: 4 } })), {
-              x: 0.5, y: 5.5, w: 9, h: 1.8,
+
+          // Insight bullets below cards
+          const bulletsY = cardsTopY + cardH + 0.1;
+          if (slide.bullets && slide.bullets.length > 0 && bulletsY < PH - 0.4) {
+            const bulletItems = slide.bullets.slice(0, 3).map(b => ({
+              text: `▪  ${b}`,
+              options: { fontSize: 9, color: pptxColor(t.bodyColor), paraSpaceAfter: 3 },
+            }));
+            ps.addText(bulletItems, {
+              x: 0.5, y: bulletsY, w: 9.2, h: PH - bulletsY - 0.32,
             });
           }
           break;
+        }
 
-        case "quote":
+        case "quote": {
+          // Large decorative open-quote
           ps.addText("\u201C", {
-            x: 0.1, y: -0.4, w: 3, h: 3,
-            fontSize: 180, color: pptxColor(t.accent), transparency: 88, fontFace: "Georgia",
+            x: 0.1, y: -0.55, w: 2.5, h: 2.5,
+            fontSize: 160, color: pptxColor(t.accent), transparency: 88, fontFace: "Georgia",
           });
           ps.addText(slide.quote || slide.title, {
-            x: 1.2, y: 1.4, w: 7.5, h: 4.0,
-            fontSize: 24, color: pptxColor(t.bodyColor), italic: true,
+            x: 1.0, y: 0.9, w: 8.0, h: 3.2,
+            fontSize: 20, color: pptxColor(t.bodyColor), italic: true,
             align: "center", valign: "middle", paraSpaceAfter: 8, fontFace: "Georgia",
           });
           if (slide.subtitle) {
-            ps.addShape("line", { x: 4, y: 5.6, w: 2, h: 0, line: { color: pptxColor(t.accent), pt: 1.5 } });
+            ps.addShape("line", {
+              x: 3.8, y: 4.35, w: 2.4, h: 0,
+              line: { color: pptxColor(t.accent), pt: 1.5 },
+            });
             ps.addText(`— ${slide.subtitle}`, {
-              x: 2, y: 5.85, w: 6, h: 0.5,
-              fontSize: 13, color: pptxColor(t.accent), align: "center", bold: true,
+              x: 2.0, y: 4.55, w: 6.0, h: 0.40,
+              fontSize: 11, color: pptxColor(t.accent), align: "center", bold: true,
             });
           }
           break;
+        }
 
-        case "section":
-          ps.addShape("rect", { x: 0, y: 0, w: 3.5, h: 7.5, fill: { color: pptxColor(t.accent) }, line: { type: "none" }, transparency: 88 });
-          ps.addText("SECTION", { x: 1.0, y: 2.5, w: 8, h: 0.5, fontSize: 10, color: pptxColor(t.accent), bold: true, charSpacing: 5 });
-          ps.addText(slide.title, { x: 1.0, y: 3.1, w: 8, h: 2.2, fontSize: 38, color: pptxColor(t.titleColor), bold: true });
-          if (slide.subtitle) ps.addText(slide.subtitle, { x: 1.0, y: 5.4, w: 7, h: 0.9, fontSize: 18, color: pptxColor(t.bodyColor) });
-          break;
-
-        case "closing":
-          ps.addShape("ellipse", { x: 2.0, y: 0.5, w: 6.0, h: 6.5, fill: { color: pptxColor(t.accent) }, line: { type: "none" }, transparency: 96 });
-          ps.addText(slide.title, { x: 0.5, y: 1.8, w: 9, h: 2.0, fontSize: 36, color: pptxColor(t.titleColor), bold: true, align: "center" });
-          if (slide.subtitle) ps.addText(slide.subtitle, { x: 0.5, y: 3.9, w: 9, h: 0.8, fontSize: 18, color: pptxColor(t.bodyColor), align: "center" });
-          if (slide.bullets?.[0]) {
-            ps.addShape("rect", { x: 3.0, y: 4.9, w: 4.0, h: 0.75, fill: { color: pptxColor(t.accent) }, line: { type: "none" } });
-            ps.addText(slide.bullets[0], { x: 3.0, y: 5.0, w: 4.0, h: 0.55, fontSize: 13, color: pptxColor(t.bg), bold: true, align: "center" });
+        case "section": {
+          // Semi-transparent left panel
+          ps.addShape("rect", {
+            x: 0, y: 0, w: 3.2, h: PH,
+            fill: { color: pptxColor(t.accent) }, line: { type: "none" }, transparency: 88,
+          });
+          ps.addText("SECTION", {
+            x: 0.9, y: 1.7, w: 8.5, h: 0.38,
+            fontSize: 8, color: pptxColor(t.accent), bold: true, charSpacing: 5,
+          });
+          ps.addText(slide.title, {
+            x: 0.9, y: 2.15, w: 8.8, h: 1.85,
+            fontSize: 30, color: pptxColor(t.titleColor), bold: true,
+          });
+          if (slide.subtitle) {
+            ps.addText(slide.subtitle, {
+              x: 0.9, y: 4.1, w: 7.5, h: 0.72,
+              fontSize: 14, color: pptxColor(t.bodyColor),
+            });
           }
-          if (slide.bullets?.[1]) ps.addText(slide.bullets[1], { x: 0.5, y: 5.8, w: 9, h: 0.4, fontSize: 11, color: pptxColor(t.subtleColor), align: "center" });
           break;
+        }
 
-        case "table":
-          ps.addShape("rect", { x: 0, y: 0, w: 10, h: 0.7, fill: { color: pptxColor(t.cardBg) }, line: { type: "none" } });
-          ps.addText(slide.title, { x: 0.5, y: 0.12, w: 9, h: 0.5, fontSize: 20, color: pptxColor(t.titleColor), bold: true });
+        case "closing": {
+          // Subtle glow circle
+          ps.addShape("ellipse", {
+            x: 1.8, y: 0.4, w: 6.4, h: 5.0,
+            fill: { color: pptxColor(t.accent) }, line: { type: "none" }, transparency: 94,
+          });
+          // Horizontal rule top
+          ps.addShape("line", {
+            x: 0.5, y: 0.22, w: 9.3, h: 0,
+            line: { color: pptxColor(t.accent), pt: 0.75, transparency: 72 },
+          });
+          ps.addText(slide.title, {
+            x: 0.5, y: 1.2, w: 9.0, h: 1.6,
+            fontSize: 28, color: pptxColor(t.titleColor), bold: true, align: "center",
+          });
+          if (slide.subtitle) {
+            ps.addText(slide.subtitle, {
+              x: 0.5, y: 2.9, w: 9.0, h: 0.60,
+              fontSize: 14, color: pptxColor(t.bodyColor), align: "center",
+            });
+          }
+          if (slide.bullets?.[0]) {
+            ps.addShape("rect", {
+              x: 3.2, y: 3.65, w: 3.6, h: 0.60,
+              fill: { color: pptxColor(t.accent) }, line: { type: "none" },
+            });
+            ps.addText(slide.bullets[0], {
+              x: 3.2, y: 3.66, w: 3.6, h: 0.58,
+              fontSize: 11, color: pptxColor(t.bg), bold: true, align: "center", valign: "middle",
+            });
+          }
+          if (slide.bullets?.[1]) {
+            ps.addText(slide.bullets[1], {
+              x: 0.5, y: 4.42, w: 9.0, h: 0.35,
+              fontSize: 9, color: pptxColor(t.subtleColor), align: "center",
+            });
+          }
+          // Bottom rule
+          ps.addShape("line", {
+            x: 0.5, y: 5.18, w: 9.3, h: 0,
+            line: { color: pptxColor(t.accent), pt: 0.75, transparency: 72 },
+          });
+          break;
+        }
+
+        case "table": {
+          // Header band
+          ps.addShape("rect", {
+            x: 0, y: 0, w: PW, h: 0.58,
+            fill: { color: pptxColor(t.cardBg) }, line: { type: "none" },
+          });
+          ps.addText(slide.title, {
+            x: 0.5, y: 0.09, w: 9.3, h: 0.42,
+            fontSize: 18, color: pptxColor(t.titleColor), bold: true, valign: "middle",
+          });
           if (slide.tableData) {
             const { headers, rows } = slide.tableData;
             const tableRows: any[][] = [
-              headers.map(h => ({ text: h, options: { bold: true, color: pptxColor(t.bg), fill: { color: pptxColor(t.accent) }, fontSize: 11 } })),
+              headers.map(h => ({
+                text: h,
+                options: { bold: true, color: pptxColor(t.bg), fill: { color: pptxColor(t.accent) }, fontSize: 10 },
+              })),
               ...rows.map((row, ri) =>
                 row.map(cell => ({
                   text: cell,
                   options: {
                     fill: { color: ri % 2 === 0 ? pptxColor(t.cardBg) : pptxColor(t.bg) },
                     color: cell.startsWith("+") ? "22c55e" : cell.startsWith("-") ? "ef4444" : pptxColor(t.bodyColor),
-                    fontSize: 11,
+                    fontSize: 10,
                   },
                 }))
               ),
             ];
             ps.addTable(tableRows, {
-              x: 0.5, y: 0.85, w: 9.0,
+              x: 0.4, y: 0.70, w: 9.2,
               border: { pt: 0.5, color: pptxColor(t.borderColor) },
-              fontSize: 11,
+              fontSize: 10,
+              rowH: 0.32,
             });
           }
           break;
+        }
 
-        default:
-          ps.addText(slide.title, { x: 0.5, y: 0.3, w: 9, h: 0.9, fontSize: 24, color: pptxColor(t.titleColor), bold: true });
+        default: {
+          // Generic content fallback
+          ps.addShape("rect", {
+            x: 0, y: 0, w: PW, h: 0.62,
+            fill: { color: pptxColor(t.cardBg) }, line: { type: "none" },
+          });
+          ps.addText(slide.title, {
+            x: 0.5, y: 0.1, w: 9.3, h: 0.44,
+            fontSize: 18, color: pptxColor(t.titleColor), bold: true, valign: "middle",
+          });
           if (slide.bullets && slide.bullets.length > 0) {
-            const bulletItems = slide.bullets.slice(0, 6).map(b => ({
-              text: b, options: { bullet: { code: "2022" }, fontSize: 15, color: pptxColor(t.bodyColor), paraSpaceAfter: 6 },
+            const bulletItems = slide.bullets.slice(0, 7).map(b => ({
+              text: b,
+              options: { bullet: { code: "2022" }, fontSize: 13, color: pptxColor(t.bodyColor), paraSpaceAfter: 5 },
             }));
-            ps.addText(bulletItems, { x: 0.6, y: 1.4, w: 9, h: 5.5 });
+            ps.addText(bulletItems, { x: 0.6, y: 0.75, w: 9.1, h: PH - 0.75 - 0.35 });
           }
+        }
       }
 
       if (slide.notes) ps.addNotes(slide.notes);
@@ -610,7 +756,7 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
                 {stats.slice(0, 3).map((s, i) => {
                   const bColor = s.color === "green" ? "#22c55e" : s.color === "red" ? "#ef4444" : s.color === "amber" ? "#f59e0b" : t.borderColor;
                   return (
-                    <div key={i} style={{ background: t.cardBg, borderRadius: "5px", padding: "5% 5% 4%", border: `1px solid ${t.borderColor}50`, borderTop: `3px solid ${bColor}`, display: "flex", flexDirection: "column" }}>
+                    <div key={i} style={{ background: t.cardBg, borderRadius: "5px", padding: "5% 5% 4%", borderTop: `3px solid ${bColor}`, borderRight: `1px solid ${t.borderColor}50`, borderBottom: `1px solid ${t.borderColor}50`, borderLeft: `1px solid ${t.borderColor}50`, display: "flex", flexDirection: "column" }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "4%", marginBottom: "2%" }}>
                         <div style={{ color: t.accent, fontSize: "clamp(11px,2.1vw,20px)", fontWeight: 800, lineHeight: 1 }}>{s.value}</div>
                         <TrendArrow trend={s.trend} color={s.color} />
@@ -665,7 +811,7 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3%", height: "83%" }}>
             {([colA, colB] as string[][]).map((col, ci) => (
-              <div key={ci} style={{ background: ci === 0 ? t.cardBg : `${t.cardBg}80`, borderRadius: "5px", padding: "5% 5%", border: `1px solid ${t.borderColor}50`, borderTop: `3px solid ${ci === 0 ? t.accent : `${t.accent}60`}` }}>
+              <div key={ci} style={{ background: ci === 0 ? t.cardBg : `${t.cardBg}80`, borderRadius: "5px", padding: "5% 5%", borderTop: `3px solid ${ci === 0 ? t.accent : `${t.accent}60`}`, borderRight: `1px solid ${t.borderColor}50`, borderBottom: `1px solid ${t.borderColor}50`, borderLeft: `1px solid ${t.borderColor}50` }}>
                 <div style={{ color: t.accent, fontSize: "clamp(4.5px,0.68vw,6.5px)", letterSpacing: "0.12em", fontWeight: 700, marginBottom: "5%", textTransform: "uppercase" }}>
                   {ci === 0 ? (slide.emphasis || "Overview") : "Details"}
                 </div>
