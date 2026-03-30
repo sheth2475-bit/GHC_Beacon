@@ -30,11 +30,13 @@ type ViewMode = "list" | "board" | "table" | "calendar";
 interface Submission {
   id: number; referenceNumber: string; workflowType: WorkflowType;
   title: string; description?: string; status: string; priority: string;
-  ownerName?: string; assignedTo?: string; requesterName?: string;
+  ownerName?: string; ownerEmail?: string;
+  assignedTo?: string; assignedToEmail?: string;
+  requesterName?: string; requesterEmail?: string;
   departmentName?: string; category?: string; createdBy?: number;
   dueDate?: string; expiryDate?: string; renewalDate?: string; nextOccurrence?: string;
   recurrenceType?: string; vendorName?: string; issueAuthority?: string;
-  licenseType?: string; holderName?: string; slaTarget?: string;
+  licenseType?: string; holderName?: string; holderEmail?: string; slaTarget?: string;
   createdAt: string; updatedAt: string;
   comments?: Comment[]; activity?: ActivityEntry[];
 }
@@ -306,9 +308,13 @@ function CreateDialog({ open, onClose, defaultType, departments }: {
   const { toast } = useToast();
   const [type, setType] = useState<WorkflowType>(defaultType || "service_ticket");
   const [form, setForm] = useState<Record<string, string>>({
-    title: "", description: "", priority: "Medium", ownerName: "", departmentName: "",
-    dueDate: "", expiryDate: "", recurrenceType: "Monthly", vendorName: "", issueAuthority: "",
-    licenseType: "", holderName: "", category: "", slaTarget: "",
+    title: "", description: "", priority: "Medium",
+    ownerName: "", ownerEmail: "",
+    assignedTo: "", assignedToEmail: "",
+    requesterName: "", requesterEmail: "",
+    departmentName: "", dueDate: "", expiryDate: "",
+    recurrenceType: "Monthly", vendorName: "", issueAuthority: "",
+    licenseType: "", holderName: "", holderEmail: "", category: "", slaTarget: "",
   });
   const defaults: Record<WorkflowType, string> = { recurring_task: "Scheduled", service_ticket: "New", license: "Active", certificate: "Active" };
 
@@ -367,8 +373,43 @@ function CreateDialog({ open, onClose, defaultType, departments }: {
                 <SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>)}<SelectItem value="General">General</SelectItem></SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">Owner / Assignee</Label><Input value={form.ownerName} onChange={e => set("ownerName", e.target.value)} className="mt-1 h-9" data-testid="input-wf-owner" /></div>
             <div><Label className="text-xs">Category</Label><Input value={form.category} onChange={e => set("category", e.target.value)} className="mt-1 h-9" /></div>
+          </div>
+
+          {/* ── Assignment block ── */}
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5"><User className="h-3 w-3" />Assignment &amp; Notifications</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Owner Name</Label>
+                <Input value={form.ownerName} onChange={e => set("ownerName", e.target.value)} placeholder="Full name" className="mt-1 h-8 text-sm" data-testid="input-wf-owner" />
+              </div>
+              <div>
+                <Label className="text-xs">Owner Email</Label>
+                <Input type="email" value={form.ownerEmail} onChange={e => set("ownerEmail", e.target.value)} placeholder="owner@company.com" className="mt-1 h-8 text-sm" data-testid="input-wf-owner-email" />
+              </div>
+              <div>
+                <Label className="text-xs">Assigned To (Name)</Label>
+                <Input value={form.assignedTo} onChange={e => set("assignedTo", e.target.value)} placeholder="Full name" className="mt-1 h-8 text-sm" data-testid="input-wf-assigned" />
+              </div>
+              <div>
+                <Label className="text-xs">Assigned To (Email)</Label>
+                <Input type="email" value={form.assignedToEmail} onChange={e => set("assignedToEmail", e.target.value)} placeholder="assignee@company.com" className="mt-1 h-8 text-sm" data-testid="input-wf-assigned-email" />
+              </div>
+              {(type === "service_ticket") && (
+                <>
+                  <div>
+                    <Label className="text-xs">Requester Name</Label>
+                    <Input value={form.requesterName} onChange={e => set("requesterName", e.target.value)} placeholder="Full name" className="mt-1 h-8 text-sm" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Requester Email</Label>
+                    <Input type="email" value={form.requesterEmail} onChange={e => set("requesterEmail", e.target.value)} placeholder="requester@company.com" className="mt-1 h-8 text-sm" data-testid="input-wf-requester-email" />
+                  </div>
+                </>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Bell className="h-2.5 w-2.5" />Automation reminder emails will be sent to these addresses based on your configured rules.</p>
           </div>
           {type === "recurring_task" && (
             <div className="p-3 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 space-y-3">
@@ -401,7 +442,8 @@ function CreateDialog({ open, onClose, defaultType, departments }: {
                 <div><Label className="text-xs">{type === "license" ? "Vendor" : "Issuing Authority"}</Label>
                   <Input value={type === "license" ? form.vendorName : form.issueAuthority} onChange={e => set(type === "license" ? "vendorName" : "issueAuthority", e.target.value)} className="mt-1 h-9" />
                 </div>
-                <div><Label className="text-xs">Holder / Holder Name</Label><Input value={form.holderName} onChange={e => set("holderName", e.target.value)} className="mt-1 h-9" /></div>
+                <div><Label className="text-xs">Holder Name</Label><Input value={form.holderName} onChange={e => set("holderName", e.target.value)} className="mt-1 h-9" /></div>
+                <div><Label className="text-xs">Holder Email</Label><Input type="email" value={form.holderEmail} onChange={e => set("holderEmail", e.target.value)} placeholder="holder@company.com" className="mt-1 h-9" data-testid="input-wf-holder-email" /></div>
                 <div><Label className="text-xs">Issue Date</Label><Input type="date" value={form.dueDate} onChange={e => set("dueDate", e.target.value)} className="mt-1 h-9" /></div>
                 <div><Label className="text-xs">Expiry Date</Label><Input type="date" value={form.expiryDate} onChange={e => set("expiryDate", e.target.value)} className="mt-1 h-9" data-testid="input-expiry-date" /></div>
               </div>
@@ -478,15 +520,13 @@ function DetailDialog({ sub, onClose, onUpdate }: { sub: Submission; onClose: ()
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
                 { l: "Workflow Type", v: wf.label }, { l: "Priority", v: sub.priority },
-                { l: "Department", v: sub.departmentName }, { l: "Owner", v: sub.ownerName },
-                { l: "Requester", v: sub.requesterName }, { l: "Category", v: sub.category },
+                { l: "Department", v: sub.departmentName }, { l: "Category", v: sub.category },
                 { l: "Due Date", v: fmt(sub.dueDate) }, { l: "Expiry Date", v: fmt(sub.expiryDate) },
                 sub.recurrenceType && { l: "Recurrence", v: sub.recurrenceType },
+                sub.slaTarget && { l: "SLA Target", v: sub.slaTarget },
                 sub.vendorName && { l: "Vendor", v: sub.vendorName },
                 sub.issueAuthority && { l: "Authority", v: sub.issueAuthority },
                 sub.licenseType && { l: "Type", v: sub.licenseType },
-                sub.holderName && { l: "Holder", v: sub.holderName },
-                sub.slaTarget && { l: "SLA", v: sub.slaTarget },
               ].filter(Boolean).map((item: any) => item.v && item.v !== "—" && (
                 <div key={item.l} className="flex flex-col">
                   <span className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">{item.l}</span>
@@ -494,6 +534,34 @@ function DetailDialog({ sub, onClose, onUpdate }: { sub: Submission; onClose: ()
                 </div>
               ))}
             </div>
+
+            {/* Assignment & contact emails */}
+            <div className="rounded-lg border bg-muted/20 p-3 space-y-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5"><User className="h-3 w-3" />Assignment &amp; Notification Contacts</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                {[
+                  { l: "Owner", name: sub.ownerName, email: sub.ownerEmail },
+                  { l: "Assigned To", name: sub.assignedTo, email: sub.assignedToEmail },
+                  { l: "Requester", name: sub.requesterName, email: sub.requesterEmail },
+                  ...(sub.holderName || sub.holderEmail ? [{ l: "Certificate / License Holder", name: sub.holderName, email: sub.holderEmail }] : []),
+                ].filter(r => r.name || r.email).map(r => (
+                  <div key={r.l} className="flex items-start gap-2">
+                    <div className="h-7 w-7 rounded-full bg-primary/10 text-primary text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {r.name ? r.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2) : "?"}
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide">{r.l}</p>
+                      {r.name && <p className="text-xs font-medium leading-tight">{r.name}</p>}
+                      {r.email && <a href={`mailto:${r.email}`} className="text-[11px] text-primary hover:underline">{r.email}</a>}
+                    </div>
+                  </div>
+                ))}
+                {!sub.ownerName && !sub.ownerEmail && !sub.assignedTo && !sub.assignedToEmail && !sub.requesterName && !sub.requesterEmail && (
+                  <p className="text-xs text-muted-foreground col-span-2">No assignment contacts set. Edit this record to add them.</p>
+                )}
+              </div>
+            </div>
+
             {sub.description && <><p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Description</p><p className="text-sm text-foreground/80 leading-relaxed">{sub.description}</p></>}
             <p className="text-[10px] text-muted-foreground">Created {fmt(sub.createdAt)} · Updated {fmt(sub.updatedAt)}</p>
           </TabsContent>

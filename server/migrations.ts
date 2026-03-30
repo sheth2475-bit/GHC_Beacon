@@ -117,6 +117,18 @@ export async function runMigrations() {
     await client.query(`CREATE INDEX IF NOT EXISTS workflow_submissions_company_idx ON workflow_submissions(company_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS workflow_submissions_type_idx ON workflow_submissions(workflow_type)`);
     await client.query(`CREATE INDEX IF NOT EXISTS workflow_submissions_status_idx ON workflow_submissions(status)`);
+
+    // Add email columns (safe ALTER TABLE — idempotent)
+    const emailCols = [
+      { col: "owner_email", type: "TEXT" },
+      { col: "assigned_to_email", type: "TEXT" },
+      { col: "requester_email", type: "TEXT" },
+      { col: "holder_email", type: "TEXT" },
+    ];
+    for (const { col, type } of emailCols) {
+      await client.query(`ALTER TABLE workflow_submissions ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    }
+
     console.log("[migrations] workflow_center tables ready");
 
   } catch (err) {
