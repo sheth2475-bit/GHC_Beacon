@@ -2,7 +2,7 @@ import { useLocation, Link, useSearch } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
-  FolderOpen, Users2, Clock, ChevronRight, Workflow,
+  FolderOpen, Users2, Clock, ChevronRight,
   RotateCcw, Ticket, ShieldCheck, FileCheck2, type LucideIcon,
 } from "lucide-react";
 import {
@@ -53,7 +53,6 @@ const executiveAnalyticsNav = [
 ];
 
 const WF_NAV_ITEMS = [
-  { key: "home",            label: "Landing Page",    url: "/workflow",                     icon: Workflow,    color: "text-primary" },
   { key: "recurring_tasks", label: "Recurring Tasks", url: "/workflow?s=recurring_tasks",   icon: RotateCcw,   color: "text-blue-500" },
   { key: "service_desk",    label: "Service Desk",    url: "/workflow?s=service_desk",       icon: Ticket,      color: "text-violet-500" },
   { key: "licenses",        label: "Licenses",        url: "/workflow?s=licenses",           icon: ShieldCheck, color: "text-emerald-500" },
@@ -165,9 +164,7 @@ export function AppSidebar() {
             <SidebarMenu className="gap-0.5">
               {WF_NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
-                const active = item.key === "home"
-                  ? isOnWorkflow && activeWfSection === "home"
-                  : activeWfSection === item.key;
+                const active = activeWfSection === item.key;
                 return (
                   <SidebarMenuItem key={item.key}>
                     <SidebarMenuButton asChild data-active={active}>
