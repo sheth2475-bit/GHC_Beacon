@@ -195,6 +195,39 @@ export async function runMigrations() {
       console.log("[migrations] seeded 18 demo workflow records");
     }
 
+    // ── Presentation Studio tables ─────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS presentations (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        title TEXT NOT NULL DEFAULT 'Untitled Presentation',
+        status TEXT NOT NULL DEFAULT 'draft',
+        source_types JSONB DEFAULT '[]'::jsonb,
+        brief JSONB DEFAULT '{}'::jsonb,
+        outline JSONB DEFAULT '[]'::jsonb,
+        slides JSONB DEFAULT '[]'::jsonb,
+        theme TEXT DEFAULT 'executive-dark',
+        version INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS presentation_versions (
+        id SERIAL PRIMARY KEY,
+        presentation_id INTEGER NOT NULL REFERENCES presentations(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL,
+        outline JSONB DEFAULT '[]'::jsonb,
+        slides JSONB DEFAULT '[]'::jsonb,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS presentations_company_id_idx ON presentations(company_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS presentations_created_by_idx ON presentations(created_by)`);
+    console.log("[migrations] presentation_studio tables ready");
+
   } catch (err) {
     console.error("[migrations] Error running migrations:", err);
   } finally {

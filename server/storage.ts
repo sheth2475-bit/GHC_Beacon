@@ -1041,6 +1041,45 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.insert(workflowActivity).values(data).returning();
     return row;
   }
+
+  // ─── Presentation Studio ───────────────────────────────────────────────────
+  async listPresentations(companyId: number, userId?: number) {
+    const { presentations } = await import("@shared/schema");
+    return db.select().from(presentations)
+      .where(eq(presentations.companyId, companyId))
+      .orderBy(desc(presentations.updatedAt));
+  }
+  async getPresentation(id: number) {
+    const { presentations } = await import("@shared/schema");
+    const [row] = await db.select().from(presentations).where(eq(presentations.id, id));
+    return row;
+  }
+  async createPresentation(data: import("@shared/schema").InsertPresentation) {
+    const { presentations } = await import("@shared/schema");
+    const [row] = await db.insert(presentations).values(data).returning();
+    return row;
+  }
+  async updatePresentation(id: number, data: Partial<import("@shared/schema").InsertPresentation>) {
+    const { presentations } = await import("@shared/schema");
+    const [row] = await db.update(presentations).set({ ...data, updatedAt: new Date() }).where(eq(presentations.id, id)).returning();
+    return row;
+  }
+  async deletePresentation(id: number) {
+    const { presentations, presentationVersions } = await import("@shared/schema");
+    await db.delete(presentationVersions).where(eq(presentationVersions.presentationId, id));
+    await db.delete(presentations).where(eq(presentations.id, id));
+  }
+  async listPresentationVersions(presentationId: number) {
+    const { presentationVersions } = await import("@shared/schema");
+    return db.select().from(presentationVersions)
+      .where(eq(presentationVersions.presentationId, presentationId))
+      .orderBy(desc(presentationVersions.createdAt));
+  }
+  async createPresentationVersion(data: import("@shared/schema").InsertPresentationVersion) {
+    const { presentationVersions } = await import("@shared/schema");
+    const [row] = await db.insert(presentationVersions).values(data).returning();
+    return row;
+  }
 }
 
 export const storage = new DatabaseStorage();

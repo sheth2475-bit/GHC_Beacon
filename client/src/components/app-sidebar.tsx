@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
   FolderOpen, Users2, Clock, ChevronRight,
-  RotateCcw, Ticket, ShieldCheck, FileCheck2, type LucideIcon,
+  RotateCcw, Ticket, ShieldCheck, FileCheck2, type LucideIcon, Presentation,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -156,6 +156,7 @@ export function AppSidebar() {
         {renderGroup("Projects", executionNav)}
         {renderGroup("Performance", performanceNav)}
         {renderGroup("Analytics", analyticsNav)}
+        {renderGroup("Studio", [{ title: "Presentation Studio", url: "/presentations", icon: Presentation }])}
 
         {/* ── Operations / Workflow Center ── */}
         <SidebarGroup className="py-1">

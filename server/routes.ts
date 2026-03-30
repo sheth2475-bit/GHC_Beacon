@@ -2864,6 +2864,230 @@ Return a JSON object:
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PRESENTATION STUDIO
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  app.get("/api/presentations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const company = await storage.getCompanyByUserId(user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const list = await storage.listPresentations(company.id, user.id);
+      res.json(list);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/presentations", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const company = await storage.getCompanyByUserId(user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const pres = await storage.createPresentation({
+        companyId: company.id,
+        createdBy: user.id,
+        title: req.body.title || "Untitled Presentation",
+        status: "draft",
+        sourceTypes: req.body.sourceTypes || [],
+        brief: req.body.brief || {},
+        outline: req.body.outline || [],
+        slides: req.body.slides || [],
+        theme: req.body.theme || "executive-dark",
+        version: 1,
+      });
+      res.json(pres);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/presentations/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const pres = await storage.getPresentation(Number(req.params.id));
+      if (!pres) return res.status(404).json({ message: "Not found" });
+      res.json(pres);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/presentations/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const id = Number(req.params.id);
+      const existing = await storage.getPresentation(id);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      // Save version snapshot on meaningful save
+      if (req.body.slides && req.body.saveVersion) {
+        await storage.createPresentationVersion({
+          presentationId: id,
+          versionNumber: (existing.version || 1),
+          outline: existing.outline as any,
+          slides: existing.slides as any,
+          createdBy: user.id,
+        });
+      }
+      const updated = await storage.updatePresentation(id, {
+        title: req.body.title,
+        status: req.body.status,
+        sourceTypes: req.body.sourceTypes,
+        brief: req.body.brief,
+        outline: req.body.outline,
+        slides: req.body.slides,
+        theme: req.body.theme,
+        version: req.body.saveVersion ? (existing.version || 1) + 1 : existing.version,
+      });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/presentations/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deletePresentation(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/presentations/:id/versions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const versions = await storage.listPresentationVersions(Number(req.params.id));
+      res.json(versions);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI: Generate Outline ──────────────────────────────────────────────────
+  app.post("/api/presentations/generate-outline", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { getOaiV2 } = await import("./ai");
+      const oai = getOaiV2();
+      const { brief, sourceData } = req.body;
+      const targetSlides = Number(brief?.targetSlides) || 10;
+
+      const systemPrompt = `You are an expert business presentation strategist. Given a presentation brief and any source data, generate a crisp slide outline. Return ONLY valid JSON — an array of slide outline objects. No markdown fences.
+
+Each object must have:
+- id: string (e.g. "slide-1")
+- type: one of ["title", "agenda", "content", "two-column", "data", "quote", "section", "closing"]
+- title: string (the slide title)
+- description: string (one sentence describing what goes on this slide)
+
+Rules:
+- First slide must be type "title"  
+- Last slide must be type "closing"
+- Include an "agenda" slide as slide 2 or 3
+- Match the number of slides to targetSlides (${targetSlides})
+- Keep titles concise (max 8 words)`;
+
+      const userPrompt = `Brief:
+Title: ${brief?.title || "Business Presentation"}
+Audience: ${brief?.audience || "Senior leadership"}
+Objective: ${brief?.objective || "Inform and align"}
+Tone: ${brief?.tone || "Executive"}
+Deck Type: ${brief?.deckType || "Strategy"}
+Target Slides: ${targetSlides}
+Design Style: ${brief?.designStyle || "Clean"}
+Instructions: ${brief?.instructions || ""}
+
+Source Data Summary: ${sourceData ? JSON.stringify(sourceData).slice(0, 2000) : "No additional source data provided."}
+
+Generate the outline now:`;
+
+      const completion = await oai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+
+      const raw = completion.choices[0].message.content || "[]";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const outline = JSON.parse(cleaned);
+      res.json({ outline });
+    } catch (err: any) { res.status(500).json({ message: err.message || "Outline generation failed" }); }
+  });
+
+  // ── AI: Generate Slides from Outline ─────────────────────────────────────
+  app.post("/api/presentations/:id/generate-slides", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { getOaiV2 } = await import("./ai");
+      const oai = getOaiV2();
+      const { outline, brief, sourceData } = req.body;
+
+      const systemPrompt = `You are an expert business presentation writer. Given a slide outline and context, generate full slide content for each slide. Return ONLY valid JSON — an array of slide content objects. No markdown fences.
+
+Each slide object must have:
+- id: string (match the outline id)
+- type: string (match the outline type)
+- title: string (slide title)
+- subtitle: string (optional subtitle, for title/section slides)
+- bullets: string[] (3-5 bullet points for content slides, empty for others)
+- stat: { value: string, label: string, change: string }[] (for data slides, up to 3 stats)
+- quote: string (for quote slides)
+- notes: string (speaker notes, 1-2 sentences)
+- emphasis: string (optional single highlighted phrase or number)
+
+Tone: ${brief?.tone || "Executive"}
+Audience: ${brief?.audience || "Senior leadership"}
+Style: Keep bullets short (max 10 words each). Be data-driven where possible.`;
+
+      const userPrompt = `Presentation: "${brief?.title || "Business Presentation"}"
+Objective: ${brief?.objective || ""}
+Instructions: ${brief?.instructions || ""}
+Source Data: ${sourceData ? JSON.stringify(sourceData).slice(0, 2000) : "None"}
+
+Outline to expand:
+${JSON.stringify(outline, null, 2)}
+
+Generate full slide content now:`;
+
+      const completion = await oai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
+
+      const raw = completion.choices[0].message.content || "[]";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const slides = JSON.parse(cleaned);
+
+      // Save slides to presentation
+      const id = Number(req.params.id);
+      const existing = await storage.getPresentation(id);
+      if (existing) {
+        await storage.updatePresentation(id, { slides, outline, status: "draft" });
+      }
+      res.json({ slides });
+    } catch (err: any) { res.status(500).json({ message: err.message || "Slide generation failed" }); }
+  });
+
+  // ── AI: Refine Single Slide ───────────────────────────────────────────────
+  app.post("/api/presentations/:id/refine-slide", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { getOaiV2 } = await import("./ai");
+      const oai = getOaiV2();
+      const { slide, instruction, brief } = req.body;
+
+      const completion = await oai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: `You are a business presentation expert. Refine the given slide based on the user instruction. Return ONLY valid JSON of the updated slide object. Keep the same structure (id, type, title, subtitle, bullets, stat, quote, notes, emphasis). No markdown fences.` },
+          { role: "user", content: `Presentation context: "${brief?.title || ""}" for ${brief?.audience || "executives"}.
+
+Current slide:
+${JSON.stringify(slide, null, 2)}
+
+User instruction: ${instruction}
+
+Return the refined slide:` }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+      });
+
+      const raw = completion.choices[0].message.content || "{}";
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const refined = JSON.parse(cleaned);
+      res.json({ slide: refined });
+    } catch (err: any) { res.status(500).json({ message: err.message || "Slide refinement failed" }); }
+  });
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });

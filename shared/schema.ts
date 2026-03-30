@@ -670,3 +670,38 @@ export type AnalyticsDashboardDefinition = typeof analyticsDashboardDefinitions.
 export type InsertAnalyticsDashboardDefinition = z.infer<typeof insertAnalyticsDashboardDefinitionSchema>;
 export type AnalyticsDashboardItem = typeof analyticsDashboardItems.$inferSelect;
 export type InsertAnalyticsDashboardItem = z.infer<typeof insertAnalyticsDashboardItemSchema>;
+
+// ── Presentation Studio ───────────────────────────────────────────────────────
+export const presentations = pgTable("presentations", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  title: text("title").notNull().default("Untitled Presentation"),
+  status: text("status").notNull().default("draft"), // draft | published | archived
+  sourceTypes: jsonb("source_types").default([]),     // ["prompt","upload","kpis","projects",...]
+  brief: jsonb("brief").default({}),                  // {audience,objective,tone,deckType,targetSlides,designStyle,instructions}
+  outline: jsonb("outline").default([]),              // [{id,type,title,description}]
+  slides: jsonb("slides").default([]),                // [{id,type,title,subtitle,bullets,notes,theme,...}]
+  theme: text("theme").default("executive-dark"),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const presentationVersions = pgTable("presentation_versions", {
+  id: serial("id").primaryKey(),
+  presentationId: integer("presentation_id").notNull().references(() => presentations.id, { onDelete: "cascade" }),
+  versionNumber: integer("version_number").notNull(),
+  outline: jsonb("outline").default([]),
+  slides: jsonb("slides").default([]),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertPresentationSchema = createInsertSchema(presentations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPresentationVersionSchema = createInsertSchema(presentationVersions).omit({ id: true, createdAt: true });
+
+export type Presentation = typeof presentations.$inferSelect;
+export type InsertPresentation = z.infer<typeof insertPresentationSchema>;
+export type PresentationVersion = typeof presentationVersions.$inferSelect;
+export type InsertPresentationVersion = z.infer<typeof insertPresentationVersionSchema>;
