@@ -1,10 +1,9 @@
-import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useSearch } from "wouter";
 import {
   LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
   FolderOpen, Users2, Clock, ChevronRight, Workflow,
-  RotateCcw, Ticket, ShieldCheck, FileCheck2, ChevronDown,
+  RotateCcw, Ticket, ShieldCheck, FileCheck2, type LucideIcon,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -53,11 +52,12 @@ const executiveAnalyticsNav = [
   { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
 ];
 
-const WF_SUB_ITEMS = [
-  { key: "recurring_tasks", label: "Recurring Tasks", icon: RotateCcw, color: "text-blue-500" },
-  { key: "service_desk",    label: "Service Desk",    icon: Ticket,     color: "text-violet-500" },
-  { key: "licenses",        label: "Licenses",        icon: ShieldCheck, color: "text-emerald-500" },
-  { key: "certificates",    label: "Certificates",    icon: FileCheck2, color: "text-amber-500" },
+const WF_NAV_ITEMS = [
+  { key: "home",            label: "Workflow Center", url: "/workflow",                     icon: Workflow,    color: "text-primary" },
+  { key: "recurring_tasks", label: "Recurring Tasks", url: "/workflow?s=recurring_tasks",   icon: RotateCcw,   color: "text-blue-500" },
+  { key: "service_desk",    label: "Service Desk",    url: "/workflow?s=service_desk",       icon: Ticket,      color: "text-violet-500" },
+  { key: "licenses",        label: "Licenses",        url: "/workflow?s=licenses",           icon: ShieldCheck, color: "text-emerald-500" },
+  { key: "certificates",    label: "Certificates",    url: "/workflow?s=certificates",       icon: FileCheck2,  color: "text-amber-500" },
 ] as const;
 
 const planBadgeClass: Record<string, string> = {
@@ -71,9 +71,7 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, isAdmin, isExecutive } = useAuth();
   const isOnWorkflow = location.startsWith("/workflow");
-
-  // Auto-expand when on /workflow, allow manual toggle otherwise
-  const [wfExpanded, setWfExpanded] = useState(isOnWorkflow);
+  const searchString = useSearch();
 
   const { data: sub } = useQuery<any>({
     queryKey: ["/api/subscription"],
@@ -93,14 +91,13 @@ export function AppSidebar() {
   const isActive = (url: string) =>
     url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
 
-  // Detect active workflow subsection from URL search param
   const activeWfSection = (() => {
     if (!isOnWorkflow) return null;
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchString);
     return params.get("s") || "home";
   })();
 
-  const renderGroup = (label: string, items: typeof overviewNav) => (
+  const renderGroup = (label: string, items: { title: string; url: string; icon: LucideIcon }[]) => (
     <SidebarGroup className="py-1">
       <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground/50 px-3 mb-0.5">{label}</SidebarGroupLabel>
       <SidebarGroupContent>
@@ -166,61 +163,31 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground/50 px-3 mb-0.5">Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-
-              {/* Parent: Workflow Center (toggle) */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={isOnWorkflow && !activeWfSection}>
-                  <button
-                    onClick={() => {
-                      if (!isOnWorkflow) {
-                        window.location.href = "/workflow";
-                      } else {
-                        setWfExpanded(v => !v);
-                      }
-                    }}
-                    data-testid="link-nav-workflow-center"
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                      isOnWorkflow
-                        ? "bg-primary/8 text-foreground"
-                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                    }`}
-                  >
-                    <Workflow className={`h-4 w-4 shrink-0 ${isOnWorkflow ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`} />
-                    <span className="flex-1 truncate text-left">Workflow Center</span>
-                    <ChevronDown className={`h-3 w-3 shrink-0 transition-transform duration-200 ${(wfExpanded || isOnWorkflow) ? "rotate-0" : "-rotate-90"} ${isOnWorkflow ? "text-primary/60" : "text-muted-foreground/50"}`} />
-                  </button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              {/* Sub-items — shown when expanded or on /workflow */}
-              {(wfExpanded || isOnWorkflow) && (
-                <div className="ml-3 pl-3 border-l border-border/40 space-y-0.5 mt-0.5 mb-1">
-                  {WF_SUB_ITEMS.map(item => {
-                    const Icon = item.icon;
-                    const isActiveSub = activeWfSection === item.key;
-                    return (
-                      <SidebarMenuItem key={item.key}>
-                        <SidebarMenuButton asChild data-active={isActiveSub}>
-                          <Link
-                            href={`/workflow?s=${item.key}`}
-                            data-testid={`link-nav-wf-${item.key}`}
-                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 group ${
-                              isActiveSub
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                            }`}
-                          >
-                            <Icon className={`h-3.5 w-3.5 shrink-0 ${isActiveSub ? "text-primary-foreground" : item.color}`} />
-                            <span className="flex-1 truncate">{item.label}</span>
-                            {isActiveSub && <ChevronRight className="h-2.5 w-2.5 opacity-60 shrink-0" />}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </div>
-              )}
-
+              {WF_NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                const active = item.key === "home"
+                  ? isOnWorkflow && activeWfSection === "home"
+                  : activeWfSection === item.key;
+                return (
+                  <SidebarMenuItem key={item.key}>
+                    <SidebarMenuButton asChild data-active={active}>
+                      <Link
+                        href={item.url}
+                        data-testid={`link-nav-wf-${item.key}`}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
+                          active
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${active ? "text-primary-foreground" : item.color + " group-hover:opacity-100 opacity-80"}`} />
+                        <span className="flex-1 truncate">{item.label}</span>
+                        {active && <ChevronRight className="h-3 w-3 opacity-60 shrink-0" />}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
