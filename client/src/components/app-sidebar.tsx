@@ -53,7 +53,7 @@ const executiveAnalyticsNav = [
 ];
 
 const WF_NAV_ITEMS = [
-  { key: "home",            label: "Workflow Center", url: "/workflow",                     icon: Workflow,    color: "text-primary" },
+  { key: "home",            label: "Landing Page",    url: "/workflow",                     icon: Workflow,    color: "text-primary" },
   { key: "recurring_tasks", label: "Recurring Tasks", url: "/workflow?s=recurring_tasks",   icon: RotateCcw,   color: "text-blue-500" },
   { key: "service_desk",    label: "Service Desk",    url: "/workflow?s=service_desk",       icon: Ticket,      color: "text-violet-500" },
   { key: "licenses",        label: "Licenses",        url: "/workflow?s=licenses",           icon: ShieldCheck, color: "text-emerald-500" },
