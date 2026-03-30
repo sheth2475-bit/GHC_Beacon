@@ -41,6 +41,7 @@ The Performo AI platform is built with a modern web stack. The frontend utilizes
 - **Workload**: Team task distribution by assignee.
 - **Analytics Studio V2**: Dataset upload/configuration, explore/insight builder with various chart types, AI-suggested questions, dashboard composer with AI narrative generation, and visibility controls.
 - **Platform Owner**: Login, dashboard with key metrics, company management (activate/suspend), activation key generation, user activity tracking, AI usage monitoring, and audit logging.
+- **Workflow Center** (`/workflow`): Unified hub for 4 workflow types — Recurring Tasks, Service Desk (tickets), Licenses, and Certificates. Features: hierarchical sidebar nav with `?s=` URL deep-linking, per-type overview/config/records/analytics tabs, global analytics, My Work, and Automations sections. Detail dialog has 4 tabs: Details, Comments, Files (attachments), Activity. 18 seeded OYO-branded demo records. Automation email routing rules per type. DB tables: `workflow_submissions`, `workflow_comments`, `workflow_activity_log`, `document_attachments`.
 
 ## External Dependencies
 - **OpenAI**: Integrated via Replit AI Integrations for GPT-4o model capabilities (Performo Assistant, AI-generated KPIs, Analytics Studio insights and narratives).

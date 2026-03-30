@@ -32,7 +32,7 @@ function formatTs(ts: Date | string | null | undefined) {
 }
 
 interface Props {
-  entityType: "task" | "subtask" | "project";
+  entityType: "task" | "subtask" | "project" | "workflow_submission";
   entityId: number;
 }
 

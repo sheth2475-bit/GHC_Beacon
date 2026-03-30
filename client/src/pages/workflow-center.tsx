@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
@@ -21,8 +22,9 @@ import {
   Activity, ArrowUpRight, Layers, Bell, Zap, ClipboardList,
   LayoutList, Kanban, Table2, CalendarDays, Filter,
   Users, Lightbulb, RefreshCw, AlertCircle,
-  CheckSquare, Timer, ArrowRight, Star, Mail,
+  CheckSquare, Timer, ArrowRight, Star, Mail, Paperclip,
 } from "lucide-react";
+import { DocumentAttachments } from "@/components/document-attachments";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type WorkflowType = "recurring_task" | "service_ticket" | "license" | "certificate";
@@ -930,9 +932,10 @@ function DetailDialog({ sub, onClose, onUpdate }: { sub: Submission; onClose: ()
           </div>
         </DialogHeader>
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="w-full grid grid-cols-3 h-8">
+          <TabsList className="w-full grid grid-cols-4 h-8">
             <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
             <TabsTrigger value="comments" className="text-xs">Comments{(sub.comments?.length || 0) > 0 && ` (${sub.comments?.length})`}</TabsTrigger>
+            <TabsTrigger value="attachments" className="text-xs"><Paperclip className="h-3 w-3 mr-1 inline" />Files</TabsTrigger>
             <TabsTrigger value="activity" className="text-xs">Activity</TabsTrigger>
           </TabsList>
           <TabsContent value="details" className="mt-4 space-y-4">
@@ -1008,6 +1011,9 @@ function DetailDialog({ sub, onClose, onUpdate }: { sub: Submission; onClose: ()
               <Button size="icon" className="self-end h-9 w-9 shrink-0" onClick={() => commentMut.mutate()} disabled={!comment.trim() || commentMut.isPending} data-testid="btn-send-comment"><SendHorizontal className="h-4 w-4" /></Button>
             </div>
           </TabsContent>
+          <TabsContent value="attachments" className="mt-4">
+            <DocumentAttachments entityType="workflow_submission" entityId={sub.id} />
+          </TabsContent>
           <TabsContent value="activity" className="mt-4">
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {(sub.activity || []).length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No activity recorded.</p>}
@@ -1044,13 +1050,28 @@ const NAV_SECTIONS = [
 export default function WorkflowCenterPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [section, setSection] = useState("home");
+  const search = useSearch();
+  const [, navigate] = useLocation();
+
+  // Derive section from URL search param ?s=recurring_tasks etc.
+  const sectionFromUrl = useMemo(() => {
+    const p = new URLSearchParams(search);
+    return p.get("s") || "home";
+  }, [search]);
+
+  const [section, setSection] = useState(sectionFromUrl);
   const [typeTab, setTypeTab] = useState("overview"); // overview | config | records | analytics
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<WorkflowType | undefined>();
   const [detailSub, setDetailSub] = useState<Submission | null>(null);
   const [automationRules, setAutomationRules] = useState(AUTOMATION_RULES);
   const [analyticsFilter, setAnalyticsFilter] = useState<"all" | WorkflowType>("all");
+
+  // Keep section in sync when the URL changes externally (e.g. sidebar link click)
+  useEffect(() => {
+    setSection(sectionFromUrl);
+    setTypeTab("overview");
+  }, [sectionFromUrl]);
 
   const { data: allSubs = [], refetch: refetchSubs } = useQuery<Submission[]>({ queryKey: ["/api/workflow/submissions"], enabled: !!user });
   const { data: analytics } = useQuery<Analytics>({ queryKey: ["/api/workflow/analytics"], enabled: !!user });
@@ -1064,7 +1085,11 @@ export default function WorkflowCenterPage() {
   const departments = company?.departments || [];
   const t = today();
 
-  function goSection(s: string) { setSection(s); setTypeTab("overview"); }
+  function goSection(s: string) {
+    setSection(s);
+    setTypeTab("overview");
+    navigate(s === "home" ? "/workflow" : `/workflow?s=${s}`);
+  }
   function openCreate(type?: WorkflowType) { setCreateType(type); setCreateOpen(true); }
   function openDetail(s: Submission) { setDetailSub(s); }
   function toggleRule(type: WorkflowType, id: string) {
