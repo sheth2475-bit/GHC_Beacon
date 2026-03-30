@@ -1,0 +1,460 @@
+Upgrade Workflow Center in Performo AI so it behaves like a configurable workflow operating system.
+
+The current Workflow Center already has:
+- Home
+- Workflow Builder
+- Submissions
+- My Requests
+- Renewal Tracker
+- Service Desk
+- Workflow Analytics
+
+also think automation set-up if user wants auto emails sent to remind
+
+Keep the module name Workflow Center, but redesign the logic so each workflow type follows this lifecycle:
+
+1. Workflow Builder = configure the workflow type
+2. Records / operational view = create and manage records for that workflow type
+3. Analytics view = analyze activity, status, overdue items, trends, and workload for that workflow type
+
+Use only Performo AI branding.
+Do not mention any third-party product names anywhere in the UI.
+
+====================================================
+1. CORE PRODUCT LOGIC
+====================================================
+
+Workflow Center should be a configurable workflow engine.
+
+For each workflow type, the system should support:
+- configuration
+- record creation and management
+- analytics
+
+This should apply to:
+- Service Tickets
+- Recurring Tasks
+- Licenses
+- Certificates
+- and any future workflow types added later
+
+====================================================
+2. WORKFLOW BUILDER MUST BECOME THE CONFIGURATION LAYER
+====================================================
+
+Workflow Builder should not only show templates.
+It should be the configuration area where admin defines how each workflow type works.
+
+For each workflow type, allow configuration of:
+
+A. General setup
+- workflow name
+- description
+- category
+- icon
+- department scope
+- visibility rules
+
+B. Ticket / record structure
+- reference number prefix
+- title field
+- required fields
+- optional fields
+- custom fields
+- attachments allowed or not
+
+C. Status workflow
+Admin can define statuses per workflow type.
+
+Examples:
+
+Service Ticket:
+- New
+- Assigned
+- In Progress
+- Pending
+- Resolved
+- Closed
+- Escalated
+
+Recurring Task:
+- Scheduled
+- Due Soon
+- In Progress
+- Completed
+- Overdue
+
+License / Certificate:
+- Active
+- Expiring Soon
+- Renewal in Progress
+- Renewed
+- Expired
+- Suspended if needed
+
+D. Priority structure
+- low
+- medium
+- high
+- critical
+or custom priority labels
+
+E. Assignment rules
+- assign to owner/team by default
+- assign by department/category if applicable
+- assign renewal owner
+- assign escalation owner
+
+F. Reminder and automation rules
+- reminder before due date
+- reminder before expiry date
+- overdue reminders
+- escalation rules
+- recurring generation rules
+- SLA alerts for tickets
+- renewal alerts for licenses/certificates
+
+G. SLA configuration for ticket-style workflows
+Especially for Service Tickets:
+- SLA start logic
+- due response target
+- due resolution target
+- breach handling
+- escalation timing
+
+H. Form structure
+- what fields appear when creating a record
+- field order
+- required fields
+- custom field visibility
+
+====================================================
+3. SERVICE TICKET LOGIC
+====================================================
+
+Service Desk should be driven by Workflow Builder.
+
+Meaning:
+Admin first configures what type of service/ticket system they want:
+- IT Support
+- HR Helpdesk
+- Admin Requests
+- Facilities Support
+- Procurement Query
+- General Internal Ticketing
+- custom ticket workflows
+
+Then the system should provide:
+
+A. Ticket creation
+- new ticket form based on workflow config
+- ticket number generation
+- requester
+- assignee/team
+- category
+- priority
+- SLA
+- due dates
+- attachments
+- comments
+
+B. Ticket operations
+- list/table view
+- board view by status
+- detail page
+- activity log
+- comments/updates
+- reassignment
+- escalation
+- status changes
+- due date/SLA tracking
+
+C. Ticket analytics
+- total tickets
+- open tickets
+- overdue tickets
+- resolved tickets
+- escalated tickets
+- SLA breaches
+- average resolution time
+- tickets by priority
+- tickets by department
+- tickets by assignee
+- aging analysis
+
+====================================================
+4. RECURRING TASK LOGIC
+====================================================
+
+Recurring Task should also follow the same lifecycle:
+
+A. Recurring Task configuration in Workflow Builder
+Admin defines:
+- recurrence pattern
+- reminder schedule
+- owner rules
+- due date rules
+- recurring generation logic
+- default statuses
+- custom fields
+
+B. Recurring Task operations
+- create recurring task
+- auto-generate next occurrence
+- manage upcoming tasks
+- mark completed
+- overdue handling
+- calendar/timeline/list view
+- comments and attachments
+
+C. Recurring Task analytics
+- total recurring tasks
+- due soon
+- overdue
+- completed on time
+- completion trend
+- overdue by owner
+- recurrence health
+
+====================================================
+5. LICENSE MANAGEMENT LOGIC
+====================================================
+
+License workflow should also follow configuration -> operations -> analytics.
+
+A. License configuration in Workflow Builder
+Admin defines:
+- license types
+- required fields
+- owner/renewal owner
+- vendor fields
+- expiry fields
+- reminder schedule
+- renewal workflow
+- attachment requirements
+
+B. License operations
+- create/manage license records
+- expiry tracking
+- renewal updates
+- owner assignment
+- comments
+- document attachments
+- status updates
+- renewal progress tracking
+
+C. License analytics
+- active licenses
+- expiring soon
+- expired
+- renewal in progress
+- renewals overdue
+- licenses by department
+- licenses by vendor/type
+
+====================================================
+6. CERTIFICATE MANAGEMENT LOGIC
+====================================================
+
+Certificate workflow should follow the same model.
+
+A. Certificate configuration in Workflow Builder
+Admin defines:
+- certificate types
+- holder fields
+- expiry fields
+- reminder schedule
+- renewal flow
+- attachment/document rules
+- status workflow
+
+B. Certificate operations
+- create/manage certificate records
+- holder tracking
+- expiry tracking
+- renewal updates
+- attachments
+- comments
+- owner assignment
+
+C. Certificate analytics
+- active certificates
+- expiring soon
+- expired
+- renewed
+- overdue renewals
+- certificates by department
+- certificates by holder/type
+
+====================================================
+7. WORKFLOW CENTER NAVIGATION LOGIC
+====================================================
+
+Keep the existing navigation but make the behavior more structured.
+
+Home
+- command center of all workflow types
+
+Workflow Builder
+- configuration area for all workflow types
+
+Submissions
+- all records across all configured workflow types
+
+My Requests
+- records submitted by current user
+
+Renewal Tracker
+- renewal operations and analytics for license + certificate workflows
+
+Service Desk
+- operational and analytics area for ticket-based workflows configured in Workflow Builder
+
+Workflow Analytics
+- overall analytics across all workflow types plus drill-down by type
+
+====================================================
+8. SERVICE DESK PAGE BEHAVIOR
+====================================================
+
+Service Desk should specifically show:
+- only ticket-style workflow records
+- ticket queues
+- board/list/table views
+- SLA views
+- ticket filters
+- analytics summary for tickets
+
+Do not treat Service Desk as a fixed hardcoded ticket system only.
+It should support different configured ticket workflow types.
+
+====================================================
+9. RENEWAL TRACKER PAGE BEHAVIOR
+====================================================
+
+Renewal Tracker should specifically show:
+- only renewal-driven records such as licenses and certificates
+- expiring soon
+- overdue renewal
+- active vs expired
+- calendar/timeline/list views
+- renewal owner views
+- renewal analytics
+
+====================================================
+10. MULTIPLE VIEWS
+====================================================
+
+Each workflow type should support appropriate views.
+
+At minimum support:
+- List View
+- Table View
+- Board View for status-driven workflows
+- Calendar View for due/expiry-based workflows
+- Timeline View where applicable
+
+Examples:
+- Service Tickets -> board/list/table
+- Recurring Tasks -> list/calendar/timeline
+- Licenses -> list/calendar/timeline
+- Certificates -> list/calendar/timeline
+
+====================================================
+11. ANALYTICS MUST BE SPLIT BY WORKFLOW TYPE
+====================================================
+
+Workflow Analytics should not be too generic.
+
+Allow analytics by:
+- workflow type
+- status
+- priority
+- owner
+- department
+- overdue
+- expiry
+- SLA
+- completion/resolution time
+- trend over time
+
+Also provide dedicated analytics sections for:
+- Service Tickets
+- Recurring Tasks
+- Licenses
+- Certificates
+
+====================================================
+12. DETAIL VIEW / RECORD VIEW
+====================================================
+
+Every workflow record should have a rich detail page or panel with:
+- full record details
+- custom fields
+- attachments
+- comments/updates
+- activity history
+- reminders
+- SLA/renewal status if applicable
+- audit trail
+- related records
+
+====================================================
+13. AUTOMATIONS
+====================================================
+
+Workflow Builder should allow automation rules such as:
+- when ticket created -> assign owner
+- when due date near -> remind owner
+- when SLA breached -> escalate
+- when recurring item completed -> generate next occurrence
+- when expiry date near -> send renewal reminder
+- when expired -> change status automatically
+
+====================================================
+14. DASHBOARD / HOME PAGE IMPROVEMENT
+====================================================
+
+Workflow Center Home should show:
+- open work by workflow type
+- overdue by workflow type
+- expiring soon by workflow type
+- SLA breach summary
+- workload by owner
+- recent activity
+- recent comments/updates
+- quick create shortcuts
+
+====================================================
+15. UX REQUIREMENTS
+====================================================
+
+Make Workflow Center feel like a configurable operational workflow platform.
+
+It should be:
+- structured
+- configurable
+- premium
+- collaborative
+- easy to track
+- strong in drill-down
+- strong in analytics
+- not just a basic submission tracker
+
+====================================================
+16. FINAL EXPECTATION
+====================================================
+
+Rework Workflow Center so each major workflow type follows this model:
+
+1. configure in Workflow Builder
+2. create/manage records in its operational area
+3. analyze records in analytics views
+
+Apply this strongly to:
+- Service Tickets
+- Recurring Tasks
+- Licenses
+- Certificates
+
+The result should feel much closer to a flexible, configurable workflow platform with proper configuration, operations, and analytics layers.
