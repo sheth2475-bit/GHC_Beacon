@@ -1,0 +1,86 @@
+Before implementing tell me i want you tell me what you are going to implement I same what https://skywork.ai/ doing to make AI based presentation and user can get editable powerpoint
+
+Design and implement **Presentation Studio** in Performo AI with a complete screen-by-screen product flow.
+
+Presentation Studio should be an AI-powered business presentation creation module.
+
+Users should be able to create presentations from:
+- a prompt
+- uploaded files (PDF, Word, Excel, PowerPoint, text notes)
+- existing Performo AI data (Analytics Studio, KPI module, Initiatives, Workflow Center, Dashboards, Monthly Reviews, and other modules)
+- or a mix of these sources
+
+### Core flow
+Build this end-to-end flow:
+1. Presentation Studio Home
+2. Create Presentation
+3. Source Selection
+4. Brief Setup
+5. Outline / Storyboard Generation
+6. Outline Review
+7. Draft Presentation Generation
+8. Presentation Draft View
+9. Slide Refinement / Editing
+10. Save Draft
+11. Share / Publish
+12. Export
+13. My Presentations
+14. Shared Presentations
+15. Presentation Library
+16. Templates
+17. Version History
+
+### Important product behavior
+- User must first choose the source(s)
+- User must then fill a presentation brief:
+  - title
+  - audience
+  - objective
+  - tone
+  - deck type
+  - target length
+  - design style
+  - free-text instruction
+- AI must generate an outline/storyboard first
+- User must review and refine the outline before full draft generation
+- Only after outline approval should the presentation draft be generated
+- User must be able to refine:
+  - full deck
+  - section
+  - single slide
+- User must be able to save, share, publish, and export presentations
+- Support PPTX and PDF export if feasible
+- Keep version history
+
+### Screen expectations
+For each screen include:
+- purpose
+- key UI sections
+- main actions
+- transitions to next/previous screens
+- empty state
+- loading state
+- validation/error state where relevant
+
+### Source handling
+Make source handling smart:
+- uploaded documents should be summarized and converted into presentation structure
+- app data should be turned into charts, summaries, and business storytelling
+- mixed sources should be combined coherently
+
+### UX requirements
+Make Presentation Studio:
+- premium
+- business-friendly
+- executive-friendly
+- outline-first
+- AI-first but editable
+- simple for non-designers
+
+### Permissions
+Respect role-based and department-based access.
+Users should only be able to use source data and share presentations within their allowed scope.
+
+### Final expectation
+Build Presentation Studio as a real connected module, not a mock UI.
+It should feel like a complete AI presentation workflow from source selection to outline to draft to refinement to export.
