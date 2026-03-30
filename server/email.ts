@@ -157,6 +157,90 @@ function priorityColor(p: string | null) {
   return "#6b7280";
 }
 
+// ── Workflow Automation Email ─────────────────────────────────────────────────
+export interface WorkflowAutomationEmailPayload {
+  to: string[];
+  recipientName: string;
+  subject: string;
+  triggerLabel: string;
+  actionLabel: string;
+  recordTitle: string;
+  referenceNumber: string;
+  workflowTypeLabel: string;
+  status: string;
+  priority: string;
+  dueDate?: string;
+  expiryDate?: string;
+  assignedTo?: string;
+  ownerName?: string;
+  companyName: string;
+}
+
+export async function sendWorkflowAutomationEmail(payload: WorkflowAutomationEmailPayload): Promise<void> {
+  const { client, fromEmail } = await getUncachableResendClient();
+
+  const urgencyColor =
+    payload.priority === "Critical" ? "#dc2626" :
+    payload.priority === "High" ? "#ea580c" :
+    "#2563eb";
+
+  const rows = [
+    payload.referenceNumber && `<tr><td style="padding:5px 0;color:#6b7280;width:140px;">Reference</td><td style="padding:5px 0;color:#111827;font-weight:500;font-family:monospace;">${payload.referenceNumber}</td></tr>`,
+    `<tr><td style="padding:5px 0;color:#6b7280;">Type</td><td style="padding:5px 0;color:#111827;font-weight:500;">${payload.workflowTypeLabel}</td></tr>`,
+    `<tr><td style="padding:5px 0;color:#6b7280;">Status</td><td style="padding:5px 0;color:#111827;font-weight:500;">${payload.status}</td></tr>`,
+    `<tr><td style="padding:5px 0;color:#6b7280;">Priority</td><td style="padding:5px 0;"><span style="background:${urgencyColor}1a;color:${urgencyColor};padding:2px 8px;border-radius:4px;font-weight:600;font-size:12px;">${payload.priority}</span></td></tr>`,
+    payload.assignedTo && `<tr><td style="padding:5px 0;color:#6b7280;">Assigned To</td><td style="padding:5px 0;color:#111827;font-weight:500;">${payload.assignedTo}</td></tr>`,
+    payload.ownerName && `<tr><td style="padding:5px 0;color:#6b7280;">Owner</td><td style="padding:5px 0;color:#111827;font-weight:500;">${payload.ownerName}</td></tr>`,
+    payload.dueDate && `<tr><td style="padding:5px 0;color:#6b7280;">Due Date</td><td style="padding:5px 0;color:${urgencyColor};font-weight:700;">${formatDate(payload.dueDate)}</td></tr>`,
+    payload.expiryDate && `<tr><td style="padding:5px 0;color:#6b7280;">Expiry Date</td><td style="padding:5px 0;color:${urgencyColor};font-weight:700;">${formatDate(payload.expiryDate)}</td></tr>`,
+  ].filter(Boolean).join("\n");
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="max-width:600px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);padding:28px 32px;">
+      <p style="margin:0 0 4px;font-size:11px;color:#bfdbfe;letter-spacing:0.08em;text-transform:uppercase;">Performo AI · Workflow Center Automation</p>
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">${payload.subject}</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:14px;color:#374151;">
+        Hi <strong>${payload.recipientName || "Team"}</strong>,<br/><br/>
+        An automated workflow rule has triggered for <strong>${payload.companyName}</strong>.
+      </p>
+      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+        <p style="margin:0 0 4px;font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Rule Triggered</p>
+        <p style="margin:0;font-size:14px;color:#78350f;font-weight:600;">When: ${payload.triggerLabel}</p>
+        <p style="margin:4px 0 0;font-size:13px;color:#92400e;">Then: ${payload.actionLabel}</p>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:20px;border-left:4px solid ${urgencyColor};">
+        <h2 style="margin:0 0 12px;font-size:16px;font-weight:700;color:#111827;">${payload.recordTitle}</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">${rows}</table>
+      </div>
+      <p style="margin:0;font-size:13px;color:#9ca3af;">
+        Please log in to <strong>Performo AI</strong> to review and action this item.<br/>
+        This is an automated message from the Workflow Center.
+      </p>
+    </div>
+    <div style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;">
+        Performo AI &mdash; Workflow Center &bull; Confidential — For internal use only
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const testEmail = process.env.RESEND_TEST_EMAIL;
+  const effectiveTo = testEmail ? [testEmail] : payload.to.filter(Boolean);
+  if (!effectiveTo.length) return;
+
+  const result = await client.emails.send({ from: fromEmail, to: effectiveTo, subject: payload.subject, html });
+  if (result.error) throw new Error(result.error.message || "Failed to send workflow automation email");
+}
+
 export async function sendActionReminder(payload: ReminderPayload): Promise<void> {
   const { client, fromEmail } = await getUncachableResendClient();
 

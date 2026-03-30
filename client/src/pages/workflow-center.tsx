@@ -524,12 +524,163 @@ function TypeAnalytics({ submissions, wfType }: { submissions: Submission[]; wfT
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
-function TypeConfig({ wfType, automationRules, toggleRule }: {
+// ── All possible fields per type for the Config > Fields tab ─────────────────
+const ALL_FIELDS_BY_TYPE: Record<WorkflowType, { name: string; required: boolean; locked?: boolean }[]> = {
+  service_ticket: [
+    { name: "Title", required: true, locked: true },
+    { name: "Priority", required: true },
+    { name: "Assigned To (Name)", required: true },
+    { name: "Assigned To (Email)", required: true },
+    { name: "Requester Name", required: true },
+    { name: "Requester Email", required: true },
+    { name: "SLA Target", required: false },
+    { name: "Description", required: false },
+    { name: "Department", required: false },
+    { name: "Category", required: false },
+    { name: "Owner Name", required: false },
+    { name: "Owner Email", required: false },
+  ],
+  recurring_task: [
+    { name: "Title", required: true, locked: true },
+    { name: "Priority", required: true },
+    { name: "Assigned To (Name)", required: true },
+    { name: "Assigned To (Email)", required: true },
+    { name: "Recurrence Type", required: true },
+    { name: "Due Date", required: true },
+    { name: "Description", required: false },
+    { name: "Department", required: false },
+    { name: "Category", required: false },
+    { name: "Owner Name", required: false },
+    { name: "Owner Email", required: false },
+  ],
+  license: [
+    { name: "Title", required: true, locked: true },
+    { name: "Priority", required: true },
+    { name: "Assigned To (Name)", required: true },
+    { name: "Assigned To (Email)", required: true },
+    { name: "Expiry Date", required: true },
+    { name: "Vendor", required: true },
+    { name: "License Type", required: false },
+    { name: "Holder Name", required: false },
+    { name: "Holder Email", required: false },
+    { name: "Description", required: false },
+    { name: "Department", required: false },
+    { name: "Owner Name", required: false },
+    { name: "Owner Email", required: false },
+  ],
+  certificate: [
+    { name: "Title", required: true, locked: true },
+    { name: "Priority", required: true },
+    { name: "Assigned To (Name)", required: true },
+    { name: "Assigned To (Email)", required: true },
+    { name: "Expiry Date", required: true },
+    { name: "Issuing Authority", required: true },
+    { name: "Certificate Type", required: false },
+    { name: "Holder Name", required: false },
+    { name: "Holder Email", required: false },
+    { name: "Description", required: false },
+    { name: "Department", required: false },
+    { name: "Owner Name", required: false },
+    { name: "Owner Email", required: false },
+  ],
+};
+
+function TypeConfig({ wfType, automationRules, toggleRule, editRule, onRunAutomations }: {
   wfType: WorkflowType;
   automationRules: typeof AUTOMATION_RULES;
   toggleRule: (type: WorkflowType, id: string) => void;
+  editRule: (type: WorkflowType, id: string, field: "trigger" | "action", value: string) => void;
+  onRunAutomations: (wfType: WorkflowType) => void;
 }) {
+  const { toast } = useToast();
   const [configTab, setConfigTab] = useState("statuses");
+
+  // ── Editable statuses (persisted to localStorage per type) ─────────────────
+  const storageKey = `wf_statuses_${wfType}`;
+  const [statuses, setStatuses] = useState<string[]>(() => {
+    try { const s = localStorage.getItem(storageKey); return s ? JSON.parse(s) : [...STATUS_BY_TYPE[wfType]]; } catch { return [...STATUS_BY_TYPE[wfType]]; }
+  });
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingVal, setEditingVal] = useState("");
+  const [newStatus, setNewStatus] = useState("");
+
+  const saveStatuses = (next: string[]) => {
+    setStatuses(next);
+    localStorage.setItem(storageKey, JSON.stringify(next));
+    toast({ title: "Status workflow saved", description: `${next.length} statuses updated.` });
+  };
+  const startEdit = (idx: number) => { setEditingIdx(idx); setEditingVal(statuses[idx]); };
+  const commitEdit = () => {
+    if (editingIdx === null || !editingVal.trim()) { setEditingIdx(null); return; }
+    const next = statuses.map((s, i) => i === editingIdx ? editingVal.trim() : s);
+    setEditingIdx(null);
+    setEditingVal("");
+    saveStatuses(next);
+  };
+  const deleteStatus = (idx: number) => {
+    if (statuses.length <= 2) { toast({ title: "Cannot delete", description: "At least 2 statuses required.", variant: "destructive" }); return; }
+    saveStatuses(statuses.filter((_, i) => i !== idx));
+  };
+  const addStatus = () => {
+    if (!newStatus.trim()) return;
+    if (statuses.includes(newStatus.trim())) { toast({ title: "Duplicate status", variant: "destructive" }); return; }
+    const next = [...statuses, newStatus.trim()];
+    setNewStatus("");
+    saveStatuses(next);
+  };
+  const resetStatuses = () => { saveStatuses([...STATUS_BY_TYPE[wfType]]); toast({ title: "Reset to defaults" }); };
+
+  // ── Editable fields (persisted to localStorage per type) ───────────────────
+  const fieldsKey = `wf_fields_${wfType}`;
+  const [fields, setFields] = useState<{ name: string; required: boolean; locked?: boolean }[]>(() => {
+    try { const s = localStorage.getItem(fieldsKey); return s ? JSON.parse(s) : ALL_FIELDS_BY_TYPE[wfType]; } catch { return ALL_FIELDS_BY_TYPE[wfType]; }
+  });
+  const [fieldsSaved, setFieldsSaved] = useState(false);
+  const toggleField = (name: string) => {
+    setFields(f => f.map(fi => fi.name === name && !fi.locked ? { ...fi, required: !fi.required } : fi));
+  };
+  const saveFields = () => {
+    localStorage.setItem(fieldsKey, JSON.stringify(fields));
+    setFieldsSaved(true);
+    toast({ title: "Field settings saved" });
+    setTimeout(() => setFieldsSaved(false), 2000);
+  };
+  const resetFields = () => {
+    const defaults = ALL_FIELDS_BY_TYPE[wfType];
+    setFields(defaults);
+    localStorage.setItem(fieldsKey, JSON.stringify(defaults));
+    toast({ title: "Fields reset to defaults" });
+  };
+
+  // ── Automation run state ───────────────────────────────────────────────────
+  const [running, setRunning] = useState(false);
+  const [runResult, setRunResult] = useState<{ sent: number; errors: string[] } | null>(null);
+
+  const runAutomations = async () => {
+    setRunning(true);
+    setRunResult(null);
+    try {
+      const rules = automationRules[wfType];
+      const resp = await fetch("/api/workflow/automations/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ workflowType: wfType, rules }),
+      });
+      const data = await resp.json();
+      setRunResult({ sent: data.sent, errors: data.errors || [] });
+      toast({
+        title: data.sent > 0 ? `${data.sent} email${data.sent !== 1 ? "s" : ""} sent` : "No emails triggered",
+        description: data.sent > 0 ? "Automation emails dispatched to assignees and owners." : "No records currently match the active rule conditions.",
+        variant: data.errors?.length ? "destructive" : "default",
+      });
+    } catch (e: any) {
+      toast({ title: "Automation failed", description: e.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2 border-b pb-1">
@@ -541,80 +692,101 @@ function TypeConfig({ wfType, automationRules, toggleRule }: {
         ))}
       </div>
 
+      {/* ── Status Workflow tab ── */}
       {configTab === "statuses" && (
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Status Flow</h3>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetStatuses}>Reset Defaults</Button>
+            </div>
+          </div>
+
+          {/* Flow preview */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm">Status Flow</CardTitle></CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               <div className="flex flex-wrap items-center gap-2">
-                {STATUS_BY_TYPE[wfType].map((st, i) => (
-                  <div key={st} className="flex items-center gap-2">
-                    <div className={`px-3 py-2 rounded-lg ${STATUS_COLORS[st] || "bg-muted"}`}>
+                {statuses.map((st, i) => (
+                  <div key={`${st}-${i}`} className="flex items-center gap-2">
+                    <div className={`px-3 py-2 rounded-lg ${STATUS_COLORS[st] || "bg-muted/60"}`}>
                       <p className="text-xs font-semibold">{st}</p>
-                      <p className="text-[9px] opacity-70">{i === 0 ? "Initial" : i === STATUS_BY_TYPE[wfType].length - 1 ? "Terminal" : "Active"}</p>
+                      <p className="text-[9px] opacity-70">{i === 0 ? "Initial" : i === statuses.length - 1 ? "Terminal" : "Active"}</p>
                     </div>
-                    {i < STATUS_BY_TYPE[wfType].length - 1 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />}
+                    {i < statuses.length - 1 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />}
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {STATUS_BY_TYPE[wfType].map((st, idx) => (
-              <div key={st} className={`rounded-lg p-3 ${STATUS_COLORS[st] || "bg-muted"}`}>
-                <p className="text-xs font-semibold">{st}</p>
-                <p className="text-[10px] opacity-60 mt-0.5">{idx === 0 ? "Initial" : idx === STATUS_BY_TYPE[wfType].length - 1 ? "Terminal" : "Active"}</p>
+
+          {/* Editable status list */}
+          <div className="space-y-2">
+            {statuses.map((st, idx) => (
+              <div key={`edit-${st}-${idx}`} className="flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-muted/20 transition-colors">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${idx === 0 ? "bg-sky-400" : idx === statuses.length - 1 ? "bg-gray-400" : "bg-emerald-400"}`} />
+                {editingIdx === idx ? (
+                  <Input value={editingVal} onChange={e => setEditingVal(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingIdx(null); }}
+                    className="h-7 text-xs flex-1" autoFocus data-testid={`input-status-${idx}`} />
+                ) : (
+                  <span className="flex-1 text-sm font-medium">{st}</span>
+                )}
+                <span className="text-[10px] text-muted-foreground shrink-0 w-14 text-right">{idx === 0 ? "Initial" : idx === statuses.length - 1 ? "Terminal" : "Active"}</span>
+                {editingIdx === idx ? (
+                  <Button size="sm" className="h-7 text-xs px-2" onClick={commitEdit}>Save</Button>
+                ) : (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(idx)} data-testid={`btn-edit-status-${idx}`}><Settings className="h-3 w-3" /></Button>
+                )}
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => deleteStatus(idx)} data-testid={`btn-delete-status-${idx}`}><X className="h-3 w-3" /></Button>
               </div>
             ))}
           </div>
+
+          {/* Add new status */}
+          <div className="flex gap-2">
+            <Input value={newStatus} onChange={e => setNewStatus(e.target.value)} placeholder="New status name…"
+              onKeyDown={e => { if (e.key === "Enter") addStatus(); }}
+              className="h-8 text-sm flex-1" data-testid="input-new-status" />
+            <Button size="sm" className="h-8 gap-1.5" onClick={addStatus} disabled={!newStatus.trim()} data-testid="btn-add-status">
+              <Plus className="h-3.5 w-3.5" />Add
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">First status = Initial state. Last status = Terminal state. Click the gear icon to rename.</p>
         </div>
       )}
 
+      {/* ── Fields & Rules tab ── */}
       {configTab === "fields" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm">Required Fields</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-1.5">
-                {[
-                  "Title",
-                  "Priority",
-                  "Assigned To (Name)",
-                  "Assigned To (Email)",
-                  ...(wfType === "service_ticket" ? ["Requester Name", "Requester Email", "SLA Target"] : []),
-                  ...(wfType === "recurring_task" ? ["Recurrence Type", "Start Date"] : []),
-                  ...(wfType === "license" || wfType === "certificate" ? ["Expiry Date", "Holder Name", "Holder Email"] : []),
-                  ...(wfType === "license" ? ["Vendor"] : []),
-                  ...(wfType === "certificate" ? ["Issuing Authority"] : []),
-                ].map(f => (
-                  <div key={f} className="flex items-center gap-2">
-                    <CheckSquare className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-xs">{f}</span>
-                  </div>
-                ))}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Field Configuration</h3>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={resetFields}>Reset Defaults</Button>
+              <Button size="sm" className={`h-7 text-xs gap-1.5 ${fieldsSaved ? "bg-emerald-600 hover:bg-emerald-700" : ""}`} onClick={saveFields} data-testid="btn-save-fields">
+                {fieldsSaved ? <CheckCircle2 className="h-3 w-3" /> : <CheckSquare className="h-3 w-3" />}{fieldsSaved ? "Saved!" : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Toggle fields between Required and Optional. Locked fields cannot be changed.</p>
+          <div className="space-y-1.5">
+            {fields.map(f => (
+              <div key={f.name} className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${f.required ? "bg-primary/5 border-primary/20" : "bg-card"} ${f.locked ? "opacity-70" : ""}`}>
+                <Switch checked={f.required} onCheckedChange={() => toggleField(f.name)} disabled={!!f.locked} data-testid={`toggle-field-${f.name.replace(/\s+/g, "-")}`} />
+                <span className="text-sm flex-1">{f.name}</span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${f.required ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                  {f.locked ? "Always Required" : f.required ? "Required" : "Optional"}
+                </span>
               </div>
-            </CardContent>
-          </Card>
+            ))}
+          </div>
+
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm">Optional Fields</CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-1.5">
-                {["Description", "Department", "Category", "Owner Name", "Owner Email", "Comments", "Attachments"].map(f => (
-                  <div key={f} className="flex items-center gap-2">
-                    <div className="h-3.5 w-3.5 rounded border border-muted-foreground/40 shrink-0" />
-                    <span className="text-xs text-muted-foreground">{f}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="md:col-span-2">
             <CardHeader className="pb-2"><CardTitle className="text-sm">Reference Number Format</CardTitle></CardHeader>
             <CardContent>
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 font-mono text-sm">
                 <span className="text-primary font-bold">{({ recurring_task: "RT", service_ticket: "TKT", license: "LIC", certificate: "CERT" })[wfType]}</span>
                 <span className="text-muted-foreground">-</span>
-                <span className="text-foreground">YYYYMMDD</span>
+                <span className="text-foreground">TIMESTAMP</span>
                 <span className="text-muted-foreground">-</span>
                 <span className="text-foreground">NNN</span>
               </div>
@@ -623,26 +795,64 @@ function TypeConfig({ wfType, automationRules, toggleRule }: {
         </div>
       )}
 
+      {/* ── Automation Rules tab ── */}
       {configTab === "automation" && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40">
-            <Zap className="h-4 w-4 text-amber-600 shrink-0" />
-            <p className="text-xs text-amber-700 dark:text-amber-400">Automation rules run in the background and send email reminders to the <strong>Assigned To Email</strong> and <strong>Owner Email</strong> stored on each record.</p>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 flex-1">
+              <Zap className="h-4 w-4 text-amber-600 shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">Rules send emails to <strong>Assigned To Email</strong> and <strong>Owner Email</strong>. Click any field to edit the trigger or action text.</p>
+            </div>
+            <Button onClick={runAutomations} disabled={running} className="gap-2 h-9 shrink-0" data-testid="btn-run-automations">
+              {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
+              {running ? "Running…" : "Run Active Rules Now"}
+            </Button>
           </div>
+
+          {runResult && (
+            <div className={`p-3 rounded-lg text-xs flex items-center gap-2 ${runResult.errors.length ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+              {runResult.errors.length ? <AlertCircle className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
+              <span>
+                {runResult.sent} email{runResult.sent !== 1 ? "s" : ""} sent.
+                {runResult.errors.length > 0 && ` ${runResult.errors.length} error(s): ${runResult.errors.slice(0, 2).join("; ")}`}
+              </span>
+            </div>
+          )}
+
           {automationRules[wfType].map(rule => {
             const Icon = rule.icon;
             return (
-              <div key={rule.id} className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${rule.enabled ? "bg-card" : "bg-muted/30 opacity-60"}`}>
-                <div className={`p-2 rounded-lg shrink-0 ${rule.enabled ? "bg-primary/10" : "bg-muted"}`}>
-                  <Icon className={`h-4 w-4 ${rule.enabled ? "text-primary" : "text-muted-foreground"}`} />
+              <div key={rule.id} className={`rounded-xl border transition-all ${rule.enabled ? "bg-card" : "bg-muted/20 opacity-60"}`}>
+                <div className="flex items-center gap-3 p-3 border-b border-border/40">
+                  <div className={`p-2 rounded-lg shrink-0 ${rule.enabled ? "bg-primary/10" : "bg-muted"}`}>
+                    <Icon className={`h-4 w-4 ${rule.enabled ? "text-primary" : "text-muted-foreground"}`} />
+                  </div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">Rule {rule.id}</span>
+                  <Switch checked={rule.enabled} onCheckedChange={() => toggleRule(wfType, rule.id)} data-testid={`toggle-rule-${rule.id}`} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold">When</p>
-                  <p className="text-sm font-medium mt-0.5">{rule.trigger}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mt-2">Then</p>
-                  <p className="text-sm mt-0.5 text-muted-foreground">{rule.action}</p>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1.5 block">When (Trigger)</Label>
+                    <Input
+                      value={rule.trigger}
+                      onChange={e => editRule(wfType, rule.id, "trigger", e.target.value)}
+                      className="text-sm h-8"
+                      placeholder="Trigger condition…"
+                      data-testid={`input-trigger-${rule.id}`}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1.5 block">Then (Action & Email)</Label>
+                    <Textarea
+                      value={rule.action}
+                      onChange={e => editRule(wfType, rule.id, "action", e.target.value)}
+                      className="text-sm resize-none"
+                      rows={2}
+                      placeholder="Action and email description…"
+                      data-testid={`input-action-${rule.id}`}
+                    />
+                  </div>
                 </div>
-                <Switch checked={rule.enabled} onCheckedChange={() => toggleRule(wfType, rule.id)} data-testid={`toggle-rule-${rule.id}`} />
               </div>
             );
           })}
@@ -1095,6 +1305,9 @@ export default function WorkflowCenterPage() {
   function toggleRule(type: WorkflowType, id: string) {
     setAutomationRules(r => ({ ...r, [type]: r[type].map(rule => rule.id === id ? { ...rule, enabled: !rule.enabled } : rule) }));
   }
+  function editRule(type: WorkflowType, id: string, field: "trigger" | "action", value: string) {
+    setAutomationRules(r => ({ ...r, [type]: r[type].map(rule => rule.id === id ? { ...rule, [field]: value } : rule) }));
+  }
 
   const currentWfType = SECTION_TYPE[section] as WorkflowType | undefined;
   const currentWf = currentWfType ? WF_TYPES[currentWfType] : null;
@@ -1121,61 +1334,7 @@ export default function WorkflowCenterPage() {
   }, [allSubs]);
 
   return (
-    <div className="flex h-full">
-      {/* ── Sidebar ── */}
-      <aside className="w-52 shrink-0 border-r bg-muted/10 flex flex-col py-4 px-2 gap-0.5 hidden md:flex">
-        <div className="px-3 mb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10"><Workflow className="h-4 w-4 text-primary" /></div>
-            <div><h2 className="text-sm font-bold">Workflow Center</h2><p className="text-[10px] text-muted-foreground">Operations Hub</p></div>
-          </div>
-        </div>
-
-        {/* Home */}
-        <button onClick={() => goSection("home")} data-testid="nav-wf-home"
-          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full text-left ${section === "home" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}`}>
-          <Home className="h-4 w-4 shrink-0" /><span>Home</span>
-        </button>
-
-        {/* Workflow types group */}
-        <div className="px-3 pt-3 pb-1"><p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">Workflow Types</p></div>
-        {NAV_SECTIONS.filter(s => s.group === "workflows").map(s => {
-          const Icon = s.icon;
-          const wf = WF_TYPES[s.wfType!];
-          const typeCount = allSubs.filter(a => a.workflowType === s.wfType).length;
-          const overdueCount = allSubs.filter(a => a.workflowType === s.wfType && isOverdue(a)).length;
-          const active = section === s.key;
-          return (
-            <button key={s.key} onClick={() => goSection(s.key)} data-testid={`nav-wf-${s.key}`}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full text-left group ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}`}>
-              <div className={`p-1 rounded shrink-0 ${active ? "bg-white/20" : wf.bg}`}><Icon className={`h-3.5 w-3.5 ${active ? "text-primary-foreground" : wf.color}`} /></div>
-              <span className="flex-1 truncate">{s.label}</span>
-              {overdueCount > 0 && <span className="text-[9px] bg-red-500 text-white rounded-full px-1.5 font-bold">{overdueCount}</span>}
-              {!overdueCount && typeCount > 0 && <span className={`text-[9px] rounded-full px-1.5 font-bold ${active ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"}`}>{typeCount}</span>}
-            </button>
-          );
-        })}
-
-        {/* Tools group */}
-        <div className="px-3 pt-3 pb-1"><p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">Tools</p></div>
-        {NAV_SECTIONS.filter(s => s.group === "tools").map(s => {
-          const Icon = s.icon;
-          const active = section === s.key;
-          const badge = s.key === "my_work" ? myWork.filter(a => !["Completed", "Resolved", "Closed", "Renewed", "Expired"].includes(a.status)).length : 0;
-          return (
-            <button key={s.key} onClick={() => goSection(s.key)} data-testid={`nav-wf-${s.key}`}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full text-left ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/60"}`}>
-              <Icon className={`h-4 w-4 shrink-0 ${active ? "text-primary-foreground" : ""}`} />
-              <span className="flex-1 truncate">{s.label}</span>
-              {badge > 0 && <span className={`text-[9px] rounded-full px-1.5 font-bold ${active ? "bg-white/20 text-white" : "bg-primary/10 text-primary"}`}>{badge}</span>}
-            </button>
-          );
-        })}
-
-        <div className="flex-1" />
-        <div className="px-3"><Button onClick={() => openCreate()} className="w-full h-8 text-xs gap-1.5" data-testid="btn-new-submission-sidebar"><Plus className="h-3.5 w-3.5" />New Record</Button></div>
-      </aside>
-
+    <div className="flex h-full flex-col">
       {/* ── Main content ── */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile nav */}
@@ -1293,7 +1452,7 @@ export default function WorkflowCenterPage() {
                   onNew={() => openCreate(currentWfType)} setTypeTab={setTypeTab} />
               )}
               {typeTab === "config" && (
-                <TypeConfig wfType={currentWfType} automationRules={automationRules} toggleRule={toggleRule} />
+                <TypeConfig wfType={currentWfType} automationRules={automationRules} toggleRule={toggleRule} editRule={editRule} onRunAutomations={() => {}} />
               )}
               {typeTab === "records" && (
                 <RecordsView submissions={allSubs.filter(s => s.workflowType === currentWfType)}

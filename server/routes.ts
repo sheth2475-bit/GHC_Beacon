@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, requireAuth, requireAdmin, requireEditAccess } from "./auth";
 import { generateKpis, generateMonthlyReview, generateDashboardPlan } from "./ai";
-import { sendActionReminder } from "./email";
+import { sendActionReminder, sendWorkflowAutomationEmail } from "./email";
 import { processAssistantMessage } from "./assistant";
 import { registerOwnerRoutes, logActivity } from "./owner-routes";
 import * as XLSX from "xlsx";
@@ -2749,6 +2749,119 @@ Return a JSON object:
 
       res.json({ total: all.length, open, overdue, expiringSoon, byType, byStatus, byPriority });
     } catch { res.status(500).json({ message: "Failed to get analytics" }); }
+  });
+
+  // ── Workflow Automations: Run email notifications ─────────────────────────
+  app.post("/api/workflow/automations/run", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { workflowType, rules } = req.body as {
+        workflowType?: string;
+        rules: { id: string; trigger: string; action: string; enabled: boolean }[];
+      };
+
+      const all = await storage.getWorkflowSubmissions(user.companyId, workflowType ? { workflowType } : {});
+      const company = await storage.getCompany(user.companyId);
+      const companyName = company?.companyName || "Your Company";
+
+      const today = new Date().toISOString().slice(0, 10);
+      const TERMINAL = ["Completed", "Resolved", "Closed", "Renewed", "Expired"];
+      const WF_LABELS: Record<string, string> = {
+        recurring_task: "Recurring Task",
+        service_ticket: "Service Ticket",
+        license: "License",
+        certificate: "Certificate",
+      };
+
+      let sent = 0;
+      const errors: string[] = [];
+      const sentRecordIds = new Set<string>(); // avoid duplicate emails per record per run
+
+      const enabledRules = (rules || []).filter(r => r.enabled);
+
+      for (const record of all) {
+        const label = WF_LABELS[record.workflowType] || record.workflowType;
+        const daysUntilDue = record.dueDate
+          ? Math.ceil((new Date(record.dueDate).getTime() - Date.now()) / 86400000)
+          : null;
+        const daysUntilExpiry = record.expiryDate
+          ? Math.ceil((new Date(record.expiryDate).getTime() - Date.now()) / 86400000)
+          : null;
+        const isOverdue = record.dueDate && record.dueDate < today && !TERMINAL.includes(record.status);
+        const isExpired = record.expiryDate && record.expiryDate < today && !TERMINAL.includes(record.status);
+
+        for (const rule of enabledRules) {
+          const tl = rule.trigger.toLowerCase();
+          let shouldSend = false;
+          let emailSubject = "";
+
+          if ((tl.includes("overdue") || tl.includes("passed") || tl.includes("due date passed")) && isOverdue) {
+            shouldSend = true;
+            emailSubject = `⚠ Overdue: ${record.title}`;
+          } else if ((tl.includes("expired") || tl.includes("expiry") && (tl.includes("expired") || isExpired)) && isExpired) {
+            shouldSend = true;
+            emailSubject = `🔴 Expired: ${record.title}`;
+          } else if (tl.includes("7 day") && daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 7) {
+            shouldSend = true;
+            emailSubject = `🚨 Critical — Expiring in ${daysUntilExpiry} days: ${record.title}`;
+          } else if (tl.includes("30 day") && daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30) {
+            shouldSend = true;
+            emailSubject = `⏳ Expiring Soon (${daysUntilExpiry}d): ${record.title}`;
+          } else if (tl.includes("60 day") && daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 60) {
+            shouldSend = true;
+            emailSubject = `📅 Renewal Reminder (${daysUntilExpiry}d): ${record.title}`;
+          } else if ((tl.includes("due soon") || tl.includes("within 3 day") || tl.includes("3 days")) && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 3) {
+            shouldSend = true;
+            emailSubject = `⏰ Due in ${daysUntilDue} day${daysUntilDue !== 1 ? "s" : ""}: ${record.title}`;
+          } else if ((tl.includes("created") || tl.includes("new")) && record.status && ["New", "Scheduled"].includes(record.status)) {
+            shouldSend = true;
+            emailSubject = `📋 New Assignment: ${record.title}`;
+          } else if (tl.includes("sla") || tl.includes("breach")) {
+            const slaTarget = record.slaTarget || record.issueAuthority || "";
+            if (isOverdue) {
+              shouldSend = true;
+              emailSubject = `🚨 SLA Breach: ${record.title}`;
+            }
+          }
+
+          if (!shouldSend) continue;
+
+          const ruleKey = `${record.id}-${rule.id}`;
+          if (sentRecordIds.has(ruleKey)) continue;
+          sentRecordIds.add(ruleKey);
+
+          const recipients = [record.assignedToEmail, record.ownerEmail].filter((e): e is string => !!e && e.includes("@"));
+          if (!recipients.length) continue;
+
+          try {
+            await sendWorkflowAutomationEmail({
+              to: recipients,
+              recipientName: record.assignedTo || record.ownerName || "Team",
+              subject: emailSubject,
+              triggerLabel: rule.trigger,
+              actionLabel: rule.action,
+              recordTitle: record.title,
+              referenceNumber: record.referenceNumber || "",
+              workflowTypeLabel: label,
+              status: record.status,
+              priority: record.priority || "Medium",
+              dueDate: record.dueDate || undefined,
+              expiryDate: record.expiryDate || undefined,
+              assignedTo: record.assignedTo || undefined,
+              ownerName: record.ownerName || undefined,
+              companyName,
+            });
+            sent++;
+          } catch (err: any) {
+            errors.push(`${record.referenceNumber}: ${err.message}`);
+          }
+        }
+      }
+
+      res.json({ sent, skipped: all.length - sent, errors, total: all.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to run automations" });
+    }
   });
 
   app.all(/^\/api\//, (_req: Request, res: Response) => {
