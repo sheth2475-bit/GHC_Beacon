@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -12,28 +12,39 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Presentation, Plus, Sparkles, ChevronRight, ChevronLeft, ArrowLeft,
   FileText, BarChart3, Target, FolderOpen, Workflow, BookOpen, Upload,
-  Wand2, Check, Trash2, Download, Clock, Save, Eye,
+  Wand2, Check, Trash2, Download, Clock, Save, Eye, Table,
   Copy, RefreshCw, X, Type, List, BarChart2, Quote,
   Columns, Minus, PlayCircle, History, Globe, FileOutput,
   ChevronDown, AlignLeft, MoreHorizontal, Paperclip, GripVertical,
+  Maximize2, Minimize2, FileDown, Image, ZoomIn, ZoomOut,
+  ChevronUp, Layers,
 } from "lucide-react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-type SlideType = "title" | "agenda" | "content" | "two-column" | "data" | "quote" | "section" | "closing";
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 1: PRESENTATION JSON SCHEMA ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+type SlideType = "title" | "agenda" | "content" | "two-column" | "data" | "quote" | "section" | "closing" | "table" | "image";
 type Theme = "executive-dark" | "clean-light" | "bold-purple" | "fresh-teal" | "minimal-gray" | "warm-amber";
 type SourceType = "kpis" | "projects" | "workflow" | "reviews" | "analytics";
 type View = "home" | "questions" | "outline" | "generating" | "editor";
+type TransitionType = "fade" | "slide" | "zoom" | "morph";
 
 interface AiQuestion { id: string; question: string; placeholder: string; why: string; }
+
+interface TableData {
+  headers: string[];
+  rows: string[][];
+}
 
 interface Slide {
   id: string; type: SlideType; title: string;
   subtitle?: string; bullets?: string[];
   stat?: { value: string; label: string; change?: string; trend?: "up" | "down" | "flat"; pct?: number; color?: "green" | "amber" | "red" }[];
   chartData?: { label: string; value: number; color?: string }[];
+  tableData?: TableData;
   quote?: string; notes?: string; emphasis?: string;
   colorCode?: "green" | "amber" | "red";
-  icon?: string;
+  icon?: string; imageUrl?: string;
 }
 
 interface OutlineItem {
@@ -53,38 +64,349 @@ interface PresentationRecord {
   createdAt: string; updatedAt: string;
 }
 
-// ── Theme definitions ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 3: THEME & STYLE MODULE
+// ═══════════════════════════════════════════════════════════════════════════════
 const THEMES: Record<Theme, {
   label: string; bg: string; titleColor: string; bodyColor: string;
   accent: string; subtleColor: string; cardBg: string; borderColor: string; preview: string;
 }> = {
   "executive-dark": { label: "Executive Dark", bg: "#0f1929", titleColor: "#f59e0b", bodyColor: "#e2e8f0", accent: "#f59e0b", subtleColor: "#64748b", cardBg: "#1e293b", borderColor: "#334155", preview: "from-slate-900 to-slate-800" },
-  "clean-light":   { label: "Clean Light",    bg: "#ffffff",  titleColor: "#0f172a", bodyColor: "#475569", accent: "#3b82f6", subtleColor: "#94a3b8", cardBg: "#f1f5f9", borderColor: "#e2e8f0", preview: "from-white to-slate-50" },
-  "bold-purple":   { label: "Bold Purple",    bg: "#2e1065",  titleColor: "#e9d5ff", bodyColor: "#ddd6fe", accent: "#a78bfa", subtleColor: "#7c3aed", cardBg: "#4c1d95", borderColor: "#6d28d9", preview: "from-purple-950 to-purple-900" },
-  "fresh-teal":    { label: "Fresh Teal",     bg: "#0f4c4c",  titleColor: "#ccfbf1", bodyColor: "#99f6e4", accent: "#2dd4bf", subtleColor: "#0f766e", cardBg: "#134e4a", borderColor: "#0d9488", preview: "from-teal-950 to-teal-900" },
-  "minimal-gray":  { label: "Minimal",        bg: "#f8fafc",  titleColor: "#0f172a", bodyColor: "#334155", accent: "#6366f1", subtleColor: "#94a3b8", cardBg: "#f1f5f9", borderColor: "#cbd5e1", preview: "from-slate-50 to-gray-100" },
-  "warm-amber":    { label: "Warm Amber",     bg: "#1c0a00",  titleColor: "#fde68a", bodyColor: "#fef3c7", accent: "#f59e0b", subtleColor: "#92400e", cardBg: "#2d1200", borderColor: "#78350f", preview: "from-amber-950 to-amber-900" },
+  "clean-light":    { label: "Clean Light",    bg: "#ffffff",  titleColor: "#0f172a", bodyColor: "#475569", accent: "#3b82f6", subtleColor: "#94a3b8", cardBg: "#f1f5f9", borderColor: "#e2e8f0", preview: "from-white to-slate-50" },
+  "bold-purple":    { label: "Bold Purple",    bg: "#2e1065",  titleColor: "#e9d5ff", bodyColor: "#ddd6fe", accent: "#a78bfa", subtleColor: "#7c3aed", cardBg: "#4c1d95", borderColor: "#6d28d9", preview: "from-purple-950 to-purple-900" },
+  "fresh-teal":     { label: "Fresh Teal",     bg: "#0f4c4c",  titleColor: "#ccfbf1", bodyColor: "#99f6e4", accent: "#2dd4bf", subtleColor: "#0f766e", cardBg: "#134e4a", borderColor: "#0d9488", preview: "from-teal-950 to-teal-900" },
+  "minimal-gray":   { label: "Minimal",        bg: "#f8fafc",  titleColor: "#0f172a", bodyColor: "#334155", accent: "#6366f1", subtleColor: "#94a3b8", cardBg: "#f1f5f9", borderColor: "#cbd5e1", preview: "from-slate-50 to-gray-100" },
+  "warm-amber":     { label: "Warm Amber",     bg: "#1c0a00",  titleColor: "#fde68a", bodyColor: "#fef3c7", accent: "#f59e0b", subtleColor: "#92400e", cardBg: "#2d1200", borderColor: "#78350f", preview: "from-amber-950 to-amber-900" },
 };
 
 const SOURCE_CHIPS: { key: SourceType; label: string; icon: typeof Target; color: string }[] = [
-  { key: "kpis",      label: "KPI Data",        icon: Target,     color: "text-blue-500" },
-  { key: "projects",  label: "Projects",         icon: FolderOpen, color: "text-emerald-500" },
-  { key: "workflow",  label: "Workflow",         icon: Workflow,   color: "text-orange-500" },
-  { key: "reviews",   label: "Monthly Reviews",  icon: BookOpen,   color: "text-pink-500" },
-  { key: "analytics", label: "Analytics",        icon: BarChart3,  color: "text-cyan-500" },
+  { key: "kpis",      label: "KPI Data",       icon: Target,     color: "text-blue-500" },
+  { key: "projects",  label: "Projects",        icon: FolderOpen, color: "text-emerald-500" },
+  { key: "workflow",  label: "Workflow",        icon: Workflow,   color: "text-orange-500" },
+  { key: "reviews",   label: "Monthly Reviews", icon: BookOpen,   color: "text-pink-500" },
+  { key: "analytics", label: "Analytics",       icon: BarChart3,  color: "text-cyan-500" },
 ];
 
 const SLIDE_TYPE_ICONS: Record<SlideType, typeof Type> = {
   title: Type, agenda: List, content: AlignLeft, "two-column": Columns,
   data: BarChart2, quote: Quote, section: Minus, closing: PlayCircle,
+  table: Table, image: Image,
 };
 
 const SLIDE_TYPE_LABELS: Record<SlideType, string> = {
   title: "Title Slide", agenda: "Agenda", content: "Content", "two-column": "Two Column",
   data: "Data / Stats", quote: "Quote", section: "Section", closing: "Closing",
+  table: "Table", image: "Image",
 };
 
-// ── Slide Canvas ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 13: EXPORT ENGINE — PPTX + PDF
+// ═══════════════════════════════════════════════════════════════════════════════
+const pptxColor = (hex: string) => {
+  const c = hex.startsWith("#") ? hex.slice(1) : hex;
+  return c.slice(0, 6);
+};
+
+async function exportToPptx(slides: Slide[], theme: Theme, title: string) {
+  const t = THEMES[theme];
+  try {
+    const pptxgenjs = await import("pptxgenjs");
+    const PptxGenJS = (pptxgenjs as any).default || pptxgenjs;
+    const pptx = new PptxGenJS();
+    pptx.layout = "LAYOUT_16x9";
+    pptx.title = title;
+    pptx.company = "Performo AI";
+
+    for (let si = 0; si < slides.length; si++) {
+      const slide = slides[si];
+      const ps = pptx.addSlide();
+
+      ps.background = { fill: pptxColor(t.bg) };
+
+      // Accent bar (left)
+      ps.addShape("rect", {
+        x: 0, y: 0, w: 0.08, h: 7.5,
+        fill: { color: pptxColor(t.accent) },
+        line: { type: "none" },
+      });
+
+      // Slide number footer
+      ps.addText(`${si + 1} / ${slides.length}`, {
+        x: 0.15, y: 7.1, w: 1, h: 0.3,
+        fontSize: 7, color: pptxColor(t.subtleColor), align: "left",
+      });
+      ps.addText("PERFORMO AI", {
+        x: 8.5, y: 7.1, w: 1.4, h: 0.3,
+        fontSize: 7, color: pptxColor(t.subtleColor), align: "right", charSpacing: 2,
+      });
+
+      switch (slide.type) {
+        case "title":
+          if (slide.emphasis) {
+            ps.addText(slide.emphasis, {
+              x: 0.5, y: 1.8, w: 7, h: 0.5,
+              fontSize: 10, color: pptxColor(t.accent), bold: true, charSpacing: 4,
+            });
+          }
+          ps.addText(slide.title, {
+            x: 0.5, y: 2.4, w: 7.5, h: 2.4,
+            fontSize: 40, color: pptxColor(t.titleColor), bold: true, breakLine: true,
+          });
+          if (slide.subtitle) {
+            ps.addText(slide.subtitle, {
+              x: 0.5, y: 5.0, w: 6.5, h: 1.2,
+              fontSize: 18, color: pptxColor(t.bodyColor), opacity: 0.75,
+            });
+          }
+          break;
+
+        case "content":
+          ps.addText(slide.title, {
+            x: 0.5, y: 0.3, w: 9, h: 0.9,
+            fontSize: 24, color: pptxColor(t.titleColor), bold: true,
+          });
+          if (slide.emphasis) {
+            ps.addText(slide.emphasis, {
+              x: 0.5, y: 1.3, w: 9, h: 0.45,
+              fontSize: 12, color: pptxColor(t.accent), bold: true,
+            });
+          }
+          if (slide.bullets && slide.bullets.length > 0) {
+            const bulletItems = slide.bullets.slice(0, 6).map(b => ({
+              text: b, options: { bullet: { code: "2022" }, fontSize: 15, color: pptxColor(t.bodyColor), paraSpaceAfter: 6 },
+            }));
+            ps.addText(bulletItems, { x: 0.6, y: slide.emphasis ? 1.9 : 1.4, w: 9, h: 5.5 });
+          }
+          break;
+
+        case "agenda":
+          ps.addText("AGENDA", {
+            x: 0.5, y: 0.3, w: 9, h: 0.4,
+            fontSize: 9, color: pptxColor(t.accent), bold: true, charSpacing: 5,
+          });
+          ps.addText(slide.title, {
+            x: 0.5, y: 0.8, w: 9, h: 0.8,
+            fontSize: 26, color: pptxColor(t.titleColor), bold: true,
+          });
+          (slide.bullets || []).slice(0, 7).forEach((b, i) => {
+            ps.addShape("rect", {
+              x: 0.5, y: 1.8 + i * 0.76, w: 9, h: 0.65,
+              fill: { color: pptxColor(t.cardBg) }, line: { color: pptxColor(t.borderColor), pt: 0.5 },
+            });
+            ps.addText(`${String(i + 1).padStart(2, "0")}   ${b}`, {
+              x: 0.7, y: 1.9 + i * 0.76, w: 8.5, h: 0.45,
+              fontSize: 13, color: pptxColor(t.bodyColor),
+            });
+          });
+          break;
+
+        case "data":
+          ps.addShape("rect", {
+            x: 0, y: 0, w: 10, h: 0.7,
+            fill: { color: pptxColor(t.cardBg) }, line: { type: "none" },
+          });
+          ps.addText(slide.title, {
+            x: 0.5, y: 0.12, w: 9, h: 0.5,
+            fontSize: 20, color: pptxColor(t.titleColor), bold: true,
+          });
+          const stats = (slide.stat || []).slice(0, 4);
+          const cols = Math.min(stats.length, 2);
+          stats.forEach((s, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const cardW = cols === 1 ? 9 : 4.4;
+            const x = 0.5 + col * (cardW + 0.2);
+            const y = 0.9 + row * 2.6;
+            const bColor = s.color === "green" ? "22c55e" : s.color === "red" ? "ef4444" : s.color === "amber" ? "f59e0b" : pptxColor(t.borderColor);
+            ps.addShape("rect", { x, y, w: cardW, h: 2.3, fill: { color: pptxColor(t.cardBg) }, line: { color: pptxColor(t.borderColor), pt: 0.5 } });
+            ps.addShape("rect", { x, y, w: cardW, h: 0.06, fill: { color: bColor }, line: { type: "none" } });
+            ps.addText(s.value, { x: x + 0.2, y: y + 0.2, w: cardW - 0.4, h: 1.0, fontSize: 32, color: pptxColor(t.accent), bold: true });
+            ps.addText(s.label, { x: x + 0.2, y: y + 1.3, w: cardW - 0.4, h: 0.5, fontSize: 12, color: pptxColor(t.bodyColor) });
+            if (s.change) ps.addText(s.change, { x: x + 0.2, y: y + 1.8, w: cardW - 0.4, h: 0.4, fontSize: 10, color: s.trend === "up" ? "22c55e" : "ef4444", bold: true });
+          });
+          if (slide.bullets && slide.bullets.length > 0) {
+            ps.addText(slide.bullets.slice(0, 3).map(b => ({ text: `▪  ${b}`, options: { fontSize: 11, color: pptxColor(t.bodyColor), paraSpaceAfter: 4 } })), {
+              x: 0.5, y: 5.5, w: 9, h: 1.8,
+            });
+          }
+          break;
+
+        case "quote":
+          ps.addText("\u201C", {
+            x: 0.1, y: -0.4, w: 3, h: 3,
+            fontSize: 180, color: pptxColor(t.accent), transparency: 88, fontFace: "Georgia",
+          });
+          ps.addText(slide.quote || slide.title, {
+            x: 1.2, y: 1.4, w: 7.5, h: 4.0,
+            fontSize: 24, color: pptxColor(t.bodyColor), italic: true,
+            align: "center", valign: "middle", paraSpaceAfter: 8, fontFace: "Georgia",
+          });
+          if (slide.subtitle) {
+            ps.addShape("line", { x: 4, y: 5.6, w: 2, h: 0, line: { color: pptxColor(t.accent), pt: 1.5 } });
+            ps.addText(`— ${slide.subtitle}`, {
+              x: 2, y: 5.85, w: 6, h: 0.5,
+              fontSize: 13, color: pptxColor(t.accent), align: "center", bold: true,
+            });
+          }
+          break;
+
+        case "section":
+          ps.addShape("rect", { x: 0, y: 0, w: 3.5, h: 7.5, fill: { color: pptxColor(t.accent) }, line: { type: "none" }, transparency: 88 });
+          ps.addText("SECTION", { x: 1.0, y: 2.5, w: 8, h: 0.5, fontSize: 10, color: pptxColor(t.accent), bold: true, charSpacing: 5 });
+          ps.addText(slide.title, { x: 1.0, y: 3.1, w: 8, h: 2.2, fontSize: 38, color: pptxColor(t.titleColor), bold: true });
+          if (slide.subtitle) ps.addText(slide.subtitle, { x: 1.0, y: 5.4, w: 7, h: 0.9, fontSize: 18, color: pptxColor(t.bodyColor) });
+          break;
+
+        case "closing":
+          ps.addShape("ellipse", { x: 2.0, y: 0.5, w: 6.0, h: 6.5, fill: { color: pptxColor(t.accent) }, line: { type: "none" }, transparency: 96 });
+          ps.addText(slide.title, { x: 0.5, y: 1.8, w: 9, h: 2.0, fontSize: 36, color: pptxColor(t.titleColor), bold: true, align: "center" });
+          if (slide.subtitle) ps.addText(slide.subtitle, { x: 0.5, y: 3.9, w: 9, h: 0.8, fontSize: 18, color: pptxColor(t.bodyColor), align: "center" });
+          if (slide.bullets?.[0]) {
+            ps.addShape("rect", { x: 3.0, y: 4.9, w: 4.0, h: 0.75, fill: { color: pptxColor(t.accent) }, line: { type: "none" } });
+            ps.addText(slide.bullets[0], { x: 3.0, y: 5.0, w: 4.0, h: 0.55, fontSize: 13, color: pptxColor(t.bg), bold: true, align: "center" });
+          }
+          if (slide.bullets?.[1]) ps.addText(slide.bullets[1], { x: 0.5, y: 5.8, w: 9, h: 0.4, fontSize: 11, color: pptxColor(t.subtleColor), align: "center" });
+          break;
+
+        case "table":
+          ps.addShape("rect", { x: 0, y: 0, w: 10, h: 0.7, fill: { color: pptxColor(t.cardBg) }, line: { type: "none" } });
+          ps.addText(slide.title, { x: 0.5, y: 0.12, w: 9, h: 0.5, fontSize: 20, color: pptxColor(t.titleColor), bold: true });
+          if (slide.tableData) {
+            const { headers, rows } = slide.tableData;
+            const tableRows: any[][] = [
+              headers.map(h => ({ text: h, options: { bold: true, color: pptxColor(t.bg), fill: { color: pptxColor(t.accent) }, fontSize: 11 } })),
+              ...rows.map((row, ri) =>
+                row.map(cell => ({
+                  text: cell,
+                  options: {
+                    fill: { color: ri % 2 === 0 ? pptxColor(t.cardBg) : pptxColor(t.bg) },
+                    color: cell.startsWith("+") ? "22c55e" : cell.startsWith("-") ? "ef4444" : pptxColor(t.bodyColor),
+                    fontSize: 11,
+                  },
+                }))
+              ),
+            ];
+            ps.addTable(tableRows, {
+              x: 0.5, y: 0.85, w: 9.0,
+              border: { pt: 0.5, color: pptxColor(t.borderColor) },
+              fontSize: 11,
+            });
+          }
+          break;
+
+        default:
+          ps.addText(slide.title, { x: 0.5, y: 0.3, w: 9, h: 0.9, fontSize: 24, color: pptxColor(t.titleColor), bold: true });
+          if (slide.bullets && slide.bullets.length > 0) {
+            const bulletItems = slide.bullets.slice(0, 6).map(b => ({
+              text: b, options: { bullet: { code: "2022" }, fontSize: 15, color: pptxColor(t.bodyColor), paraSpaceAfter: 6 },
+            }));
+            ps.addText(bulletItems, { x: 0.6, y: 1.4, w: 9, h: 5.5 });
+          }
+      }
+
+      if (slide.notes) ps.addNotes(slide.notes);
+    }
+
+    await pptx.writeFile({ fileName: `${title.replace(/[^a-zA-Z0-9\s]/g, "").slice(0, 50) || "presentation"}.pptx` });
+  } catch (err: any) {
+    throw new Error(`PPTX export failed: ${err.message}`);
+  }
+}
+
+function exportToPdf(slides: Slide[], theme: Theme, title: string) {
+  const t = THEMES[theme];
+  const slideHtmls = slides.map((slide, i) => {
+    let inner = "";
+
+    const badge = slide.emphasis
+      ? `<div style="color:${t.accent};font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px;">${slide.emphasis}</div>`
+      : "";
+    const titleHtml = `<div style="color:${t.titleColor};font-weight:800;line-height:1.1;margin-bottom:12px;font-size:${slide.type === "title" ? "2.6rem" : "1.7rem"};">${slide.title}</div>`;
+    const subHtml = slide.subtitle ? `<div style="color:${t.bodyColor};font-size:1.05rem;opacity:.75;margin-bottom:12px;">${slide.subtitle}</div>` : "";
+
+    if (slide.type === "title") {
+      inner = `${badge}${titleHtml}${subHtml}`;
+    } else if (slide.type === "quote") {
+      inner = `<div style="color:${t.accent};font-size:5rem;opacity:.18;line-height:1;font-family:Georgia,serif;margin-bottom:-10px;">"</div>
+               <div style="color:${t.bodyColor};font-style:italic;font-size:1.4rem;line-height:1.65;text-align:center;padding:0 5%;">${slide.quote || slide.title}</div>
+               ${slide.subtitle ? `<div style="color:${t.accent};margin-top:20px;font-size:.85rem;font-weight:700;text-align:center;">— ${slide.subtitle}</div>` : ""}`;
+    } else if (slide.type === "section") {
+      inner = `<div style="color:${t.accent};font-size:9px;font-weight:700;letter-spacing:.14em;margin-bottom:14px;">SECTION</div>${titleHtml}${subHtml}`;
+    } else if (slide.type === "data") {
+      const statCards = (slide.stat || []).slice(0, 4).map(s => {
+        const bCol = s.color === "green" ? "#22c55e" : s.color === "red" ? "#ef4444" : s.color === "amber" ? "#f59e0b" : t.borderColor;
+        return `<div style="background:${t.cardBg};border:1px solid ${t.borderColor}60;border-top:3px solid ${bCol};border-radius:6px;padding:14px 16px;flex:1;">
+          <div style="color:${t.accent};font-size:1.8rem;font-weight:800;">${s.value}</div>
+          <div style="color:${t.bodyColor};font-size:.75rem;margin-top:6px;opacity:.8;">${s.label}</div>
+          ${s.change ? `<div style="color:${s.trend === "up" ? "#22c55e" : "#ef4444"};font-size:.7rem;font-weight:700;margin-top:4px;">${s.change}</div>` : ""}
+        </div>`;
+      }).join("");
+      inner = `${titleHtml}<div style="display:flex;gap:12px;margin-bottom:12px;">${statCards}</div>
+               ${(slide.bullets || []).map(b => `<div style="color:${t.bodyColor};font-size:.8rem;margin-bottom:5px;">▪ ${b}</div>`).join("")}`;
+    } else if (slide.type === "table" && slide.tableData) {
+      const { headers, rows } = slide.tableData;
+      const colWidth = `${Math.floor(100 / headers.length)}%`;
+      const headerCells = headers.map(h => `<th style="background:${t.accent};color:${t.bg};padding:8px 12px;font-size:.75rem;text-align:left;">${h}</th>`).join("");
+      const dataRows = rows.map((row, ri) =>
+        `<tr style="background:${ri % 2 === 0 ? `${t.cardBg}80` : "transparent"};">
+          ${row.map(cell => `<td style="color:${cell.startsWith("+") ? "#22c55e" : cell.startsWith("-") ? "#ef4444" : t.bodyColor};padding:7px 12px;font-size:.75rem;border-bottom:1px solid ${t.borderColor}30;">${cell}</td>`).join("")}
+        </tr>`
+      ).join("");
+      inner = `${titleHtml}<table style="width:100%;border-collapse:collapse;border-radius:6px;overflow:hidden;border:1px solid ${t.borderColor}40;">
+        <thead><tr>${headerCells}</tr></thead><tbody>${dataRows}</tbody>
+      </table>`;
+    } else {
+      inner = `${titleHtml}${subHtml}${badge}
+               ${(slide.bullets || []).slice(0, 7).map(b => `<div style="display:flex;gap:10px;color:${t.bodyColor};font-size:.85rem;margin-bottom:8px;"><span style="color:${t.accent};flex-shrink:0;">▸</span>${b}</div>`).join("")}`;
+    }
+
+    return `<div class="slide" style="background:${t.bg};">
+      <div class="accent-bar" style="background:${t.accent};"></div>
+      <div class="slide-content">${inner}</div>
+      <div class="slide-footer">
+        <span style="color:${t.subtleColor};font-size:8px;">${i + 1} / ${slides.length}</span>
+        <span style="color:${t.subtleColor};font-size:7px;letter-spacing:.12em;">PERFORMO AI</span>
+      </div>
+    </div>`;
+  }).join("");
+
+  const css = `
+    @page { size: A4 landscape; margin: 0; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Inter',system-ui,sans-serif; background:#111; }
+    .slide {
+      width: 297mm; height: 210mm;
+      page-break-after: always;
+      page-break-inside: avoid;
+      position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .slide:last-child { page-break-after: auto; }
+    .accent-bar { position:absolute; left:0; top:0; width:8px; height:100%; }
+    .slide-content { padding: 7% 9% 7% 10%; width:100%; }
+    .slide-footer {
+      position:absolute; bottom:4%; left:5%; right:4%;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    @media print {
+      body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  `;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>${css}</style></head>
+    <body>${slideHtmls}
+    <script>window.onload=()=>{ setTimeout(()=>{ window.print(); }, 1200); }</script>
+    </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 2 + 4 + 5 + 6 + 7 + 8: LAYOUT ENGINE, SHAPE, CHART, TABLE, NARRATIVE, VISUAL
+// ═══════════════════════════════════════════════════════════════════════════════
 function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
   const t = THEMES[theme] || THEMES["executive-dark"];
   const base: React.CSSProperties = {
@@ -93,9 +415,9 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
   };
 
   const Logo = () => (
-    <div style={{ position: "absolute", bottom: "3%", right: "4%", display: "flex", alignItems: "center", gap: "2%", opacity: 0.35 }}>
-      <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={t.accent}/></svg>
-      <span style={{ fontSize: "clamp(5px,0.7vw,7px)", color: t.subtleColor, fontWeight: 700, letterSpacing: "0.12em" }}>PERFORMO AI</span>
+    <div style={{ position: "absolute", bottom: "3%", right: "4%", display: "flex", alignItems: "center", gap: "2%", opacity: 0.32 }}>
+      <svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={t.accent}/></svg>
+      <span style={{ fontSize: "clamp(4px,0.6vw,6px)", color: t.subtleColor, fontWeight: 700, letterSpacing: "0.12em" }}>PERFORMO AI</span>
     </div>
   );
 
@@ -111,26 +433,56 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     const barColor = statColor === "green" ? "#22c55e" : statColor === "red" ? "#ef4444" : statColor === "amber" ? "#f59e0b" : t.accent;
     return (
       <div style={{ marginTop: "4%", height: "clamp(2px,0.4vw,3px)", background: `${t.borderColor}60`, borderRadius: "2px", overflow: "hidden" }}>
-        <div style={{ width: `${val}%`, height: "100%", background: barColor, borderRadius: "2px", transition: "width 0.5s ease" }} />
+        <div style={{ width: `${val}%`, height: "100%", background: barColor, borderRadius: "2px" }} />
       </div>
     );
   };
 
+  // MODULE 5: Chart Rendering
   const InlineBarChart = ({ data }: { data: { label: string; value: number; color?: string }[] }) => {
     const max = Math.max(...data.map(d => d.value), 1);
-    const colors = [t.accent, `${t.accent}aa`, `${t.accent}66`, `${t.accent}44`];
+    const colors = [t.accent, `${t.accent}bb`, `${t.accent}77`, `${t.accent}55`, "#22c55e", "#f59e0b"];
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "3%", height: "100%" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "5%", height: "100%" }}>
         {data.slice(0, 5).map((d, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: "3%" }}>
-            <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.75vw,7px)", width: "28%", textAlign: "right", opacity: 0.8, flexShrink: 0 }}>{d.label}</div>
-            <div style={{ flex: 1, height: "clamp(6px,1.2vw,10px)", background: `${t.borderColor}40`, borderRadius: "2px", overflow: "hidden" }}>
+            <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.72vw,7px)", width: "28%", textAlign: "right", opacity: 0.8, flexShrink: 0, lineHeight: 1.2 }}>{d.label}</div>
+            <div style={{ flex: 1, height: "clamp(6px,1.1vw,9px)", background: `${t.borderColor}40`, borderRadius: "2px", overflow: "hidden" }}>
               <div style={{ width: `${(d.value / max) * 100}%`, height: "100%", background: d.color || colors[i % colors.length], borderRadius: "2px" }} />
             </div>
-            <div style={{ color: t.accent, fontSize: "clamp(5px,0.75vw,7px)", width: "12%", fontWeight: 700, flexShrink: 0 }}>{d.value}</div>
+            <div style={{ color: t.accent, fontSize: "clamp(5px,0.72vw,7px)", width: "12%", fontWeight: 700, flexShrink: 0, textAlign: "right" }}>{d.value}</div>
           </div>
         ))}
       </div>
+    );
+  };
+
+  // Donut / Pie Chart
+  const DonutChart = ({ data }: { data: { label: string; value: number; color?: string }[] }) => {
+    const total = data.reduce((s, d) => s + d.value, 0) || 1;
+    const colors = [t.accent, "#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a78bfa"];
+    let startAngle = -90;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const polar = (cx: number, cy: number, r: number, deg: number) => ({
+      x: cx + r * Math.cos(toRad(deg)), y: cy + r * Math.sin(toRad(deg)),
+    });
+    const cx = 50; const cy = 50; const R = 42; const IR = 24;
+
+    return (
+      <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%" }}>
+        {data.slice(0, 5).map((d, i) => {
+          const angle = (d.value / total) * 360;
+          const endAngle = startAngle + angle;
+          const s1 = polar(cx, cy, R, startAngle); const e1 = polar(cx, cy, R, endAngle);
+          const s2 = polar(cx, cy, IR, endAngle); const e2 = polar(cx, cy, IR, startAngle);
+          const large = angle > 180 ? 1 : 0;
+          const path = `M ${s1.x} ${s1.y} A ${R} ${R} 0 ${large} 1 ${e1.x} ${e1.y} L ${s2.x} ${s2.y} A ${IR} ${IR} 0 ${large} 0 ${e2.x} ${e2.y} Z`;
+          startAngle = endAngle;
+          return <path key={i} d={path} fill={d.color || colors[i % colors.length]} opacity={0.9} />;
+        })}
+        <circle cx={cx} cy={cy} r={IR - 1} fill={t.cardBg} />
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={t.accent} fontSize="10" fontWeight="700">{data[0]?.value}</text>
+      </svg>
     );
   };
 
@@ -140,31 +492,34 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
         <defs>
           <linearGradient id="tg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={t.bg}/>
-            <stop offset="100%" stopColor={t.cardBg}/>
+            <stop offset="0%" stopColor={t.bg}/><stop offset="100%" stopColor={t.cardBg}/>
+          </linearGradient>
+          <linearGradient id="tg2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={t.accent} stopOpacity="0.18"/><stop offset="100%" stopColor={t.accent} stopOpacity="0.02"/>
           </linearGradient>
         </defs>
         <rect width="640" height="360" fill="url(#tg)"/>
-        <circle cx="580" cy="60" r="140" fill={t.accent} fillOpacity="0.08"/>
-        <circle cx="560" cy="20" r="80" fill={t.accent} fillOpacity="0.06"/>
-        <circle cx="80" cy="320" r="100" fill={t.accent} fillOpacity="0.05"/>
+        <circle cx="590" cy="55" r="160" fill={t.accent} fillOpacity="0.07"/>
+        <circle cx="565" cy="15" r="90" fill={t.accent} fillOpacity="0.05"/>
+        <circle cx="70" cy="330" r="110" fill={t.accent} fillOpacity="0.04"/>
         <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-        <rect x="60" y="340" width="520" height="1.5" fill={t.accent} fillOpacity="0.25"/>
-        <rect x="60" y="20" width="200" height="1.5" fill={t.accent} fillOpacity="0.2"/>
+        <rect x="55" y="340" width="530" height="1.5" fill={t.accent} fillOpacity="0.2"/>
+        <rect x="55" y="18" width="210" height="1.5" fill={t.accent} fillOpacity="0.15"/>
+        <rect x="420" y="0" width="220" height="360" fill="url(#tg2)"/>
       </svg>
       <div style={{ position: "absolute", top: "7%", left: "5%", display: "flex", alignItems: "center", gap: "1.5%" }}>
-        <div style={{ width: "clamp(4px,0.8vw,6px)", height: "clamp(4px,0.8vw,6px)", borderRadius: "50%", background: t.accent }} />
+        <div style={{ width: "clamp(5px,0.8vw,7px)", height: "clamp(5px,0.8vw,7px)", borderRadius: "50%", background: t.accent }} />
         <span style={{ color: t.subtleColor, fontSize: "clamp(5px,0.75vw,7px)", letterSpacing: "0.15em", fontWeight: 600 }}>PERFORMO AI</span>
       </div>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", padding: "8% 8% 10% 8%" }}>
         {slide.emphasis && (
-          <div style={{ marginBottom: "3%", padding: "0.8% 2.5%", background: `${t.accent}20`, border: `1px solid ${t.accent}40`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.85vw,8px)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{slide.emphasis}</div>
+          <div style={{ marginBottom: "3%", padding: "0.8% 2.5%", background: `${t.accent}1e`, border: `1px solid ${t.accent}40`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.85vw,8px)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{slide.emphasis}</div>
         )}
-        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3.2vw,30px)", lineHeight: 1.1, marginBottom: "3%", maxWidth: "75%" }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.4vw,13px)", opacity: 0.75, maxWidth: "65%", lineHeight: 1.4 }}>{slide.subtitle}</div>}
-        <div style={{ position: "absolute", bottom: "8%", left: "8%", display: "flex", alignItems: "center", gap: "1.5%", opacity: 0.45 }}>
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3.2vw,30px)", lineHeight: 1.1, marginBottom: "3%", maxWidth: "72%" }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.35vw,13px)", opacity: 0.72, maxWidth: "62%", lineHeight: 1.45 }}>{slide.subtitle}</div>}
+        <div style={{ position: "absolute", bottom: "8%", left: "8%", display: "flex", alignItems: "center", gap: "1.5%", opacity: 0.4 }}>
           <div style={{ width: "clamp(3px,0.5vw,4px)", height: "clamp(3px,0.5vw,4px)", borderRadius: "50%", background: t.accent }} />
-          <span style={{ color: t.subtleColor, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.08em" }}>CONFIDENTIAL</span>
+          <span style={{ color: t.subtleColor, fontSize: "clamp(5px,0.65vw,6px)", letterSpacing: "0.08em" }}>CONFIDENTIAL</span>
         </div>
       </div>
     </div>
@@ -172,7 +527,7 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
 
   // ── AGENDA SLIDE ──
   if (slide.type === "agenda") {
-    const items = (slide.bullets || []).slice(0, 6);
+    const items = (slide.bullets || []).slice(0, 7);
     return (
       <div style={base}>
         <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
@@ -180,20 +535,21 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
           <rect x="0" y="0" width="220" height="360" fill={t.accent} fillOpacity="0.04"/>
           <rect x="0" y="0" width="5" height="360" fill={t.accent}/>
           <circle cx="580" cy="320" r="80" fill={t.accent} fillOpacity="0.05"/>
+          <circle cx="590" cy="30" r="40" fill={t.accent} fillOpacity="0.04"/>
         </svg>
-        <div style={{ position: "absolute", inset: 0, padding: "6% 6% 6% 5%" }}>
-          <div style={{ paddingLeft: "2.5%", marginBottom: "5%" }}>
-            <div style={{ color: t.accent, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600, marginBottom: "1.5%" }}>AGENDA</div>
-            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(10px,1.9vw,18px)" }}>{slide.title}</div>
+        <div style={{ position: "absolute", inset: 0, padding: "5% 5% 5% 5%" }}>
+          <div style={{ paddingLeft: "2.5%", marginBottom: "4%" }}>
+            <div style={{ color: t.accent, fontSize: "clamp(5px,0.7vw,6.5px)", letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 600, marginBottom: "1.5%" }}>AGENDA</div>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(10px,1.85vw,17px)" }}>{slide.title}</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.8%" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5%" }}>
             {items.map((b, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "2.5%", padding: "1.5% 2.5%", background: `${t.cardBg}cc`, borderRadius: "4px", border: `1px solid ${t.borderColor}30` }}>
-                <div style={{ width: "clamp(12px,2vw,18px)", height: "clamp(12px,2vw,18px)", borderRadius: "50%", background: `${t.accent}20`, border: `1px solid ${t.accent}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ color: t.accent, fontWeight: 700, fontSize: "clamp(6px,0.9vw,8px)" }}>{String(i + 1).padStart(2, "0")}</span>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "2.5%", padding: "1.4% 2.5%", background: `${t.cardBg}cc`, borderRadius: "4px", border: `1px solid ${t.borderColor}25` }}>
+                <div style={{ width: "clamp(11px,1.8vw,16px)", height: "clamp(11px,1.8vw,16px)", borderRadius: "50%", background: `${t.accent}1e`, border: `1.5px solid ${t.accent}55`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ color: t.accent, fontWeight: 700, fontSize: "clamp(5px,0.8vw,7.5px)" }}>{String(i + 1).padStart(2, "0")}</span>
                 </div>
-                <span style={{ color: t.bodyColor, fontSize: "clamp(7px,1vw,9px)", lineHeight: 1.3, fontWeight: i === 0 ? 600 : 400 }}>{b}</span>
-                <div style={{ marginLeft: "auto", width: "clamp(20px,3vw,28px)", height: "1px", background: `${t.accent}20`, flexShrink: 0 }} />
+                <span style={{ color: t.bodyColor, fontSize: "clamp(6.5px,0.9vw,8.5px)", lineHeight: 1.3, fontWeight: i === 0 ? 600 : 400 }}>{b}</span>
+                <div style={{ marginLeft: "auto", width: "clamp(16px,2.5vw,24px)", height: "1px", background: `${t.accent}20`, flexShrink: 0 }} />
               </div>
             ))}
           </div>
@@ -204,28 +560,26 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
   }
 
   // ── SECTION SLIDE ──
-  if (slide.type === "section") {
-    return (
-      <div style={base}>
-        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
-          <rect width="640" height="360" fill={t.bg}/>
-          <rect x="0" y="0" width="260" height="360" fill={t.accent} fillOpacity="0.12"/>
-          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-          <circle cx="200" cy="180" r="120" fill={t.accent} fillOpacity="0.06"/>
-          <circle cx="550" cy="280" r="60" fill={t.accent} fillOpacity="0.04"/>
-          <rect x="260" y="155" width="320" height="1.5" fill={t.accent} fillOpacity="0.15"/>
-          <rect x="260" y="205" width="200" height="1.5" fill={t.accent} fillOpacity="0.1"/>
-        </svg>
-        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "8% 10%" }}>
-          <div style={{ color: t.accent, fontSize: "clamp(28px,5vw,48px)", fontWeight: 900, opacity: 0.12, lineHeight: 1, marginBottom: "-1%" }}>§</div>
-          <div style={{ color: t.accent, fontSize: "clamp(5px,0.75vw,7px)", letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700, marginBottom: "2%" }}>SECTION</div>
-          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3vw,26px)", lineHeight: 1.15 }}>{slide.title}</div>
-          {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.2vw,11px)", marginTop: "2.5%", opacity: 0.7, lineHeight: 1.4 }}>{slide.subtitle}</div>}
-        </div>
-        <Logo />
+  if (slide.type === "section") return (
+    <div style={base}>
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+        <rect width="640" height="360" fill={t.bg}/>
+        <rect x="0" y="0" width="270" height="360" fill={t.accent} fillOpacity="0.1"/>
+        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+        <circle cx="200" cy="180" r="130" fill={t.accent} fillOpacity="0.05"/>
+        <circle cx="560" cy="280" r="65" fill={t.accent} fillOpacity="0.04"/>
+        <rect x="270" y="152" width="330" height="1.5" fill={t.accent} fillOpacity="0.12"/>
+        <rect x="270" y="208" width="210" height="1.5" fill={t.accent} fillOpacity="0.08"/>
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "8% 10%" }}>
+        <div style={{ color: t.accent, fontSize: "clamp(28px,5vw,48px)", fontWeight: 900, opacity: 0.1, lineHeight: 1, marginBottom: "-1.5%" }}>§</div>
+        <div style={{ color: t.accent, fontSize: "clamp(5px,0.75vw,7px)", letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700, marginBottom: "2%" }}>SECTION</div>
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(13px,2.9vw,25px)", lineHeight: 1.15 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.15vw,10.5px)", marginTop: "2.5%", opacity: 0.68, lineHeight: 1.4 }}>{slide.subtitle}</div>}
       </div>
-    );
-  }
+      <Logo />
+    </div>
+  );
 
   // ── DATA / KPI SLIDE ──
   if (slide.type === "data") {
@@ -235,6 +589,7 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
       { value: "—", label: "Metric C", trend: "flat" as const },
     ];
     const hasChart = slide.chartData && slide.chartData.length > 0;
+    const chartType = slide.chartData && slide.chartData.length <= 3 ? "donut" : "bar";
     return (
       <div style={base}>
         <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
@@ -242,41 +597,45 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
           <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
           <rect x="0" y="0" width="640" height="40" fill={t.cardBg} fillOpacity="0.5"/>
           <rect x="0" y="40" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
-          <circle cx="600" cy="310" r="70" fill={t.accent} fillOpacity="0.04"/>
+          <circle cx="600" cy="310" r="75" fill={t.accent} fillOpacity="0.04"/>
         </svg>
         <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
           <div style={{ height: "12%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
-            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.7vw,16px)" }}>{slide.title}</div>
-            {slide.emphasis && <div style={{ marginLeft: "2%", padding: "0.5% 2%", background: `${t.accent}20`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.7vw,7px)", fontWeight: 600 }}>{slide.emphasis}</div>}
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
+            {slide.emphasis && <div style={{ marginLeft: "2%", padding: "0.5% 2%", background: `${t.accent}1e`, borderRadius: "3px", color: t.accent, fontSize: "clamp(5px,0.68vw,6.5px)", fontWeight: 600 }}>{slide.emphasis}</div>}
           </div>
-          <div style={{ display: hasChart ? "grid" : "flex", gridTemplateColumns: hasChart ? "1fr 1fr" : undefined, flexDirection: hasChart ? undefined : "column", gap: "2.5%", height: "78%" }}>
+          <div style={{ display: hasChart ? "grid" : "flex", gridTemplateColumns: hasChart ? "1fr 0.9fr" : undefined, flexDirection: hasChart ? undefined : "column", gap: "2.5%", height: "80%" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "2.5%", justifyContent: "center" }}>
               <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(stats.length, 3)}, 1fr)`, gap: "2.5%" }}>
                 {stats.slice(0, 3).map((s, i) => {
                   const bColor = s.color === "green" ? "#22c55e" : s.color === "red" ? "#ef4444" : s.color === "amber" ? "#f59e0b" : t.borderColor;
                   return (
-                    <div key={i} style={{ background: t.cardBg, borderRadius: "5px", padding: "5% 5% 4%", border: `1px solid ${t.borderColor}60`, borderTop: `3px solid ${bColor}`, display: "flex", flexDirection: "column" }}>
+                    <div key={i} style={{ background: t.cardBg, borderRadius: "5px", padding: "5% 5% 4%", border: `1px solid ${t.borderColor}50`, borderTop: `3px solid ${bColor}`, display: "flex", flexDirection: "column" }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "4%", marginBottom: "2%" }}>
                         <div style={{ color: t.accent, fontSize: "clamp(11px,2.1vw,20px)", fontWeight: 800, lineHeight: 1 }}>{s.value}</div>
                         <TrendArrow trend={s.trend} color={s.color} />
                       </div>
-                      <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.8vw,7.5px)", opacity: 0.75, lineHeight: 1.3 }}>{s.label}</div>
-                      {s.change && <div style={{ marginTop: "3%", color: s.trend === "up" ? (s.color === "red" ? "#ef4444" : "#22c55e") : "#ef4444", fontSize: "clamp(5px,0.7vw,6.5px)", fontWeight: 600 }}>{s.change}</div>}
+                      <div style={{ color: t.bodyColor, fontSize: "clamp(5px,0.78vw,7px)", opacity: 0.75, lineHeight: 1.3 }}>{s.label}</div>
+                      {s.change && <div style={{ marginTop: "3%", color: s.trend === "up" ? (s.color === "red" ? "#ef4444" : "#22c55e") : "#ef4444", fontSize: "clamp(4.5px,0.68vw,6.5px)", fontWeight: 600 }}>{s.change}</div>}
                       <MiniBar pct={s.pct} statColor={s.color} />
                     </div>
                   );
                 })}
               </div>
               {(slide.bullets || []).slice(0, 2).map((b, i) => (
-                <div key={i} style={{ display: "flex", gap: "1.5%", color: t.bodyColor, fontSize: "clamp(6px,0.85vw,8px)", alignItems: "flex-start" }}>
+                <div key={i} style={{ display: "flex", gap: "1.5%", color: t.bodyColor, fontSize: "clamp(6px,0.83vw,7.5px)", alignItems: "flex-start" }}>
                   <span style={{ color: t.accent, flexShrink: 0 }}>▪</span><span style={{ lineHeight: 1.3 }}>{b}</span>
                 </div>
               ))}
             </div>
             {hasChart && (
               <div style={{ background: t.cardBg, borderRadius: "5px", padding: "5%", border: `1px solid ${t.borderColor}40`, display: "flex", flexDirection: "column" }}>
-                <div style={{ color: t.subtleColor, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "6%", fontWeight: 600 }}>BREAKDOWN</div>
-                <InlineBarChart data={slide.chartData!} />
+                <div style={{ color: t.subtleColor, fontSize: "clamp(4.5px,0.65vw,6.5px)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "5%", fontWeight: 600 }}>
+                  {chartType === "donut" ? "DISTRIBUTION" : "BREAKDOWN"}
+                </div>
+                {chartType === "donut"
+                  ? <DonutChart data={slide.chartData!} />
+                  : <InlineBarChart data={slide.chartData!} />}
               </div>
             )}
           </div>
@@ -297,25 +656,23 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
         <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
           <rect width="640" height="360" fill={t.bg}/>
           <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-          <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.6"/>
+          <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.55"/>
           <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
         </svg>
         <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
           <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
-            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.7vw,16px)" }}>{slide.title}</div>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3%", height: "83%" }}>
             {([colA, colB] as string[][]).map((col, ci) => (
-              <div key={ci} style={{ background: ci === 0 ? `${t.cardBg}` : `${t.cardBg}80`, borderRadius: "5px", padding: "5% 5%", border: `1px solid ${t.borderColor}50`, borderTop: `3px solid ${ci === 0 ? t.accent : `${t.accent}60`}` }}>
-                <div style={{ color: t.accent, fontSize: "clamp(5px,0.7vw,7px)", letterSpacing: "0.12em", fontWeight: 700, marginBottom: "5%", textTransform: "uppercase" }}>
+              <div key={ci} style={{ background: ci === 0 ? t.cardBg : `${t.cardBg}80`, borderRadius: "5px", padding: "5% 5%", border: `1px solid ${t.borderColor}50`, borderTop: `3px solid ${ci === 0 ? t.accent : `${t.accent}60`}` }}>
+                <div style={{ color: t.accent, fontSize: "clamp(4.5px,0.68vw,6.5px)", letterSpacing: "0.12em", fontWeight: 700, marginBottom: "5%", textTransform: "uppercase" }}>
                   {ci === 0 ? (slide.emphasis || "Overview") : "Details"}
                 </div>
                 {col.map((b, i) => (
                   <div key={i} style={{ display: "flex", gap: "3%", marginBottom: "4%", alignItems: "flex-start" }}>
-                    <svg width="6" height="6" viewBox="0 0 6 6" style={{ flexShrink: 0, marginTop: "0.15em" }}>
-                      <polygon points="0,0 6,3 0,6" fill={t.accent}/>
-                    </svg>
-                    <span style={{ color: t.bodyColor, fontSize: "clamp(6.5px,0.9vw,8.5px)", lineHeight: 1.4 }}>{b}</span>
+                    <svg width="6" height="6" viewBox="0 0 6 6" style={{ flexShrink: 0, marginTop: "0.15em" }}><polygon points="0,0 6,3 0,6" fill={t.accent}/></svg>
+                    <span style={{ color: t.bodyColor, fontSize: "clamp(6.5px,0.88vw,8px)", lineHeight: 1.4 }}>{b}</span>
                   </div>
                 ))}
               </div>
@@ -333,21 +690,20 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
         <defs>
           <linearGradient id="qg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={t.cardBg}/>
-            <stop offset="100%" stopColor={t.bg}/>
+            <stop offset="0%" stopColor={t.cardBg}/><stop offset="100%" stopColor={t.bg}/>
           </linearGradient>
         </defs>
         <rect width="640" height="360" fill="url(#qg)"/>
-        <text x="40" y="200" fontSize="220" fontWeight="900" fill={t.accent} fillOpacity="0.06" fontFamily="serif">"</text>
-        <rect x="200" y="330" width="240" height="2" fill={t.accent} fillOpacity="0.3"/>
-        <circle cx="580" cy="50" r="60" fill={t.accent} fillOpacity="0.05"/>
+        <text x="38" y="200" fontSize="220" fontWeight="900" fill={t.accent} fillOpacity="0.07" fontFamily="Georgia,serif">"</text>
+        <rect x="200" y="328" width="240" height="2" fill={t.accent} fillOpacity="0.28"/>
+        <circle cx="580" cy="48" r="65" fill={t.accent} fillOpacity="0.04"/>
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12% 16%", textAlign: "center" }}>
-        <div style={{ color: t.bodyColor, fontSize: "clamp(9px,1.6vw,15px)", fontStyle: "italic", lineHeight: 1.6, fontWeight: 400 }}>{slide.quote || slide.title}</div>
+        <div style={{ color: t.bodyColor, fontSize: "clamp(8.5px,1.55vw,14.5px)", fontStyle: "italic", lineHeight: 1.65, fontWeight: 400 }}>{slide.quote || slide.title}</div>
         {slide.subtitle && (
           <div style={{ marginTop: "6%", display: "flex", alignItems: "center", gap: "2%" }}>
             <div style={{ width: "clamp(12px,2vw,20px)", height: "1px", background: t.accent }} />
-            <span style={{ color: t.accent, fontSize: "clamp(6px,0.85vw,8px)", fontWeight: 600, letterSpacing: "0.08em" }}>{slide.subtitle}</span>
+            <span style={{ color: t.accent, fontSize: "clamp(6px,0.82vw,7.5px)", fontWeight: 600, letterSpacing: "0.08em" }}>{slide.subtitle}</span>
           </div>
         )}
       </div>
@@ -361,28 +717,120 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
         <defs>
           <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={t.bg}/>
-            <stop offset="100%" stopColor={t.cardBg}/>
+            <stop offset="0%" stopColor={t.bg}/><stop offset="100%" stopColor={t.cardBg}/>
           </linearGradient>
         </defs>
         <rect width="640" height="360" fill="url(#cg)"/>
-        <circle cx="320" cy="180" r="200" fill={t.accent} fillOpacity="0.04"/>
-        <circle cx="320" cy="180" r="150" fill={t.accent} fillOpacity="0.03"/>
+        <circle cx="320" cy="180" r="210" fill={t.accent} fillOpacity="0.04"/>
+        <circle cx="320" cy="180" r="155" fill={t.accent} fillOpacity="0.03"/>
         <circle cx="320" cy="180" r="100" fill={t.accent} fillOpacity="0.03"/>
         <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
         <rect x="634" y="0" width="6" height="360" fill={t.accent} fillOpacity="0.4"/>
-        <rect x="60" y="30" width="520" height="1.5" fill={t.accent} fillOpacity="0.2"/>
-        <rect x="60" y="328" width="520" height="1.5" fill={t.accent} fillOpacity="0.2"/>
+        <rect x="58" y="28" width="524" height="1.5" fill={t.accent} fillOpacity="0.18"/>
+        <rect x="58" y="330" width="524" height="1.5" fill={t.accent} fillOpacity="0.18"/>
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "8%", textAlign: "center" }}>
-        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(14px,3vw,28px)", marginBottom: "3%", lineHeight: 1.1 }}>{slide.title}</div>
-        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(8px,1.2vw,11px)", opacity: 0.7, marginBottom: "5%" }}>{slide.subtitle}</div>}
+        <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(13px,2.9vw,26px)", marginBottom: "3%", lineHeight: 1.1 }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(7.5px,1.15vw,10.5px)", opacity: 0.7, marginBottom: "5%" }}>{slide.subtitle}</div>}
         {slide.bullets?.[0] && (
-          <div style={{ padding: "1.5% 5%", background: t.accent, borderRadius: "4px", color: t.bg, fontSize: "clamp(7px,1.1vw,10px)", fontWeight: 700, letterSpacing: "0.05em" }}>
+          <div style={{ padding: "1.5% 5%", background: t.accent, borderRadius: "4px", color: t.bg, fontSize: "clamp(6.5px,1.05vw,10px)", fontWeight: 700, letterSpacing: "0.05em" }}>
             {slide.bullets[0]}
           </div>
         )}
-        {slide.bullets?.[1] && <div style={{ marginTop: "2.5%", color: t.bodyColor, fontSize: "clamp(6px,0.9vw,8px)", opacity: 0.55 }}>{slide.bullets[1]}</div>}
+        {slide.bullets?.[1] && <div style={{ marginTop: "2.5%", color: t.bodyColor, fontSize: "clamp(5.5px,0.85vw,8px)", opacity: 0.5 }}>{slide.bullets[1]}</div>}
+      </div>
+      <Logo />
+    </div>
+  );
+
+  // ── MODULE 6: TABLE SLIDE ──
+  if (slide.type === "table") {
+    const table = slide.tableData || {
+      headers: ["Category", "Q1 Actual", "Q2 Actual", "Target", "Status"],
+      rows: [
+        ["Revenue",   "$2.4M", "$2.8M", "$2.6M", "✓ On Track"],
+        ["EBITDA",    "$0.8M", "$1.0M", "$0.9M", "✓ On Track"],
+        ["Occupancy", "82%",   "88%",   "85%",   "✓ On Track"],
+        ["NPS Score", "48",    "54",    "50",    "✓ On Track"],
+      ],
+    };
+    const cols = table.headers.length;
+    const rows = table.rows.length;
+    return (
+      <div style={base}>
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+          <rect width="640" height="360" fill={t.bg}/>
+          <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+          <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.6"/>
+          <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.5"/>
+          <circle cx="600" cy="310" r="70" fill={t.accent} fillOpacity="0.03"/>
+        </svg>
+        <div style={{ position: "absolute", inset: 0, padding: "0 5% 5% 5%" }}>
+          <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
+            <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
+            {slide.emphasis && <div style={{ marginLeft: "2%", padding: "0.5% 2%", background: `${t.accent}1e`, borderRadius: "3px", color: t.accent, fontSize: "clamp(4.5px,0.65vw,6.5px)", fontWeight: 600 }}>{slide.emphasis}</div>}
+          </div>
+          <div style={{ borderRadius: "4px", overflow: "hidden", border: `1px solid ${t.borderColor}40` }}>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+              {table.headers.map((h, i) => (
+                <div key={i} style={{
+                  background: i === 0 ? t.accent : `${t.accent}cc`,
+                  color: i === 0 ? t.bg : t.bg,
+                  padding: "2.5% 3%",
+                  fontWeight: 700,
+                  fontSize: "clamp(4.5px,0.72vw,6.5px)",
+                  borderRight: i < cols - 1 ? `1px solid rgba(0,0,0,0.15)` : "none",
+                  letterSpacing: "0.04em",
+                }}>{h}</div>
+              ))}
+            </div>
+            {table.rows.map((row, ri) => (
+              <div key={ri} style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, background: ri % 2 === 0 ? `${t.cardBg}55` : "transparent" }}>
+                {row.map((cell, ci) => (
+                  <div key={ci} style={{
+                    color: ci === 0 ? t.bodyColor : (cell.includes("✓") || cell.startsWith("+") ? "#22c55e" : cell.startsWith("-") || cell.includes("✗") ? "#ef4444" : t.bodyColor),
+                    fontWeight: ci === 0 ? 600 : 400,
+                    padding: "2% 3%",
+                    fontSize: "clamp(4.5px,0.7vw,6.5px)",
+                    borderRight: ci < cols - 1 ? `1px solid ${t.borderColor}25` : "none",
+                    borderBottom: ri < rows - 1 ? `1px solid ${t.borderColor}15` : "none",
+                    lineHeight: 1.3,
+                  }}>{cell}</div>
+                ))}
+              </div>
+            ))}
+          </div>
+          {slide.subtitle && (
+            <div style={{ marginTop: "2%", color: t.subtleColor, fontSize: "clamp(4.5px,0.65vw,6px)", fontStyle: "italic", paddingLeft: "1%" }}>
+              {slide.subtitle}
+            </div>
+          )}
+        </div>
+        <Logo />
+      </div>
+    );
+  }
+
+  // ── MODULE 8: IMAGE SLIDE ──
+  if (slide.type === "image") return (
+    <div style={base}>
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
+        <rect width="640" height="360" fill={t.bg}/>
+        <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
+      </svg>
+      {slide.imageUrl ? (
+        <div style={{ position: "absolute", inset: "12% 8% 20% 8%", borderRadius: "6px", overflow: "hidden", boxShadow: `0 4px 24px rgba(0,0,0,0.4)` }}>
+          <img src={slide.imageUrl} alt={slide.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        </div>
+      ) : (
+        <div style={{ position: "absolute", inset: "12% 8% 20% 8%", borderRadius: "6px", background: `${t.cardBg}80`, border: `2px dashed ${t.borderColor}60`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3%" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={t.subtleColor} strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span style={{ color: t.subtleColor, fontSize: "clamp(6px,0.85vw,7.5px)" }}>Image placeholder</span>
+        </div>
+      )}
+      <div style={{ position: "absolute", bottom: "5%", left: "8%", right: "8%" }}>
+        <div style={{ color: t.titleColor, fontWeight: 700, fontSize: "clamp(8px,1.4vw,13px)" }}>{slide.title}</div>
+        {slide.subtitle && <div style={{ color: t.bodyColor, fontSize: "clamp(6px,0.85vw,8px)", opacity: 0.7, marginTop: "1%" }}>{slide.subtitle}</div>}
       </div>
       <Logo />
     </div>
@@ -394,24 +842,24 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 640 360" preserveAspectRatio="none">
         <rect width="640" height="360" fill={t.bg}/>
         <rect x="0" y="0" width="6" height="360" fill={t.accent}/>
-        <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.55"/>
+        <rect x="0" y="0" width="640" height="42" fill={t.cardBg} fillOpacity="0.52"/>
         <rect x="0" y="42" width="640" height="1" fill={t.borderColor} fillOpacity="0.4"/>
-        <circle cx="580" cy="310" r="65" fill={t.accent} fillOpacity="0.04"/>
+        <circle cx="580" cy="310" r="68" fill={t.accent} fillOpacity="0.04"/>
       </svg>
       <div style={{ position: "absolute", inset: 0, padding: "0 5% 4% 5%" }}>
         <div style={{ height: "13%", display: "flex", alignItems: "center", paddingLeft: "2%" }}>
-          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.7vw,16px)" }}>{slide.title}</div>
+          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: "clamp(9px,1.65vw,15px)" }}>{slide.title}</div>
         </div>
         {slide.emphasis && (
-          <div style={{ marginBottom: "2%", paddingLeft: "2%", paddingRight: "2%", padding: "1.5% 2.5%", background: `${t.accent}15`, borderLeft: `3px solid ${t.accent}`, borderRadius: "0 3px 3px 0", color: t.accent, fontSize: "clamp(6.5px,0.95vw,9px)", fontWeight: 600, lineHeight: 1.3 }}>{slide.emphasis}</div>
+          <div style={{ marginBottom: "2%", paddingLeft: "2%", padding: "1.5% 2.5%", background: `${t.accent}12`, borderLeft: `3px solid ${t.accent}`, borderRadius: "0 3px 3px 0", color: t.accent, fontSize: "clamp(6px,0.9vw,8.5px)", fontWeight: 600, lineHeight: 1.3 }}>{slide.emphasis}</div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5%", paddingLeft: "2%" }}>
-          {(slide.bullets || []).slice(0, 5).map((b, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "2%", padding: "1.5% 2%", background: i % 2 === 0 ? `${t.cardBg}40` : "transparent", borderRadius: "3px" }}>
+          {(slide.bullets || []).slice(0, 6).map((b, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "2%", padding: "1.5% 2%", background: i % 2 === 0 ? `${t.cardBg}35` : "transparent", borderRadius: "3px" }}>
               <svg width="7" height="7" viewBox="0 0 7 7" style={{ flexShrink: 0, marginTop: "0.2em" }}>
                 <circle cx="3.5" cy="3.5" r="3" fill={t.accent} fillOpacity="0.9"/>
               </svg>
-              <span style={{ color: t.bodyColor, fontSize: "clamp(7px,0.95vw,9px)", lineHeight: 1.4 }}>{b}</span>
+              <span style={{ color: t.bodyColor, fontSize: "clamp(7px,0.93vw,8.5px)", lineHeight: 1.45 }}>{b}</span>
             </div>
           ))}
         </div>
@@ -421,22 +869,241 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
   );
 }
 
-// ── Slide Thumbnail ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 14: PREVIEW RENDERER — Slide Thumbnail (CSS-scale based, crisp)
+// ═══════════════════════════════════════════════════════════════════════════════
 function SlideThumbnail({ slide, theme, index, active, onClick }: {
   slide: Slide; theme: Theme; index: number; active: boolean; onClick: () => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.25);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.getBoundingClientRect().width;
+        if (w > 0) setScale(w / 640);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <div onClick={onClick} className={`cursor-pointer group transition-all ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background rounded" : ""}`}
+    <div ref={containerRef} onClick={onClick}
+      className={`cursor-pointer group transition-all ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background rounded" : ""}`}
       data-testid={`thumb-slide-${index}`}>
-      <div className="text-[9px] text-center font-medium mb-0.5" style={{ color: active ? "var(--primary)" : "var(--muted-foreground)" }}>{index + 1}</div>
-      <div className="w-full rounded overflow-hidden" style={{ aspectRatio: "16/9" }}>
-        <SlideCanvas slide={slide} theme={theme} />
+      <div className="text-[9px] text-center font-medium mb-0.5 tabular-nums" style={{ color: active ? "var(--primary)" : "var(--muted-foreground)" }}>{index + 1}</div>
+      <div className="w-full rounded overflow-hidden" style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
+        <div style={{
+          position: "absolute", top: 0, left: 0,
+          width: 640, height: 360,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          pointerEvents: "none",
+        }}>
+          <SlideCanvas slide={slide} theme={theme} />
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Theme Picker ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 9: TRANSITION & ANIMATION — FullscreenViewer (Morph-inspired)
+// ═══════════════════════════════════════════════════════════════════════════════
+function FullscreenViewer({ slides, theme, initialIdx, onClose }: {
+  slides: Slide[]; theme: Theme; initialIdx: number; onClose: () => void;
+}) {
+  const [idx, setIdx] = useState(initialIdx);
+  const [transitioning, setTransitioning] = useState(false);
+  const [direction, setDirection] = useState<"next" | "prev">("next");
+  const [visible, setVisible] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const t = THEMES[theme];
+
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true));
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const resetControlsTimer = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+  }, []);
+
+  useEffect(() => {
+    resetControlsTimer();
+    return () => { if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current); };
+  }, []);
+
+  const navigate = useCallback((newIdx: number, dir: "next" | "prev") => {
+    if (newIdx < 0 || newIdx >= slides.length || transitioning) return;
+    setDirection(dir);
+    setTransitioning(true);
+    setTimeout(() => {
+      setIdx(newIdx);
+      setTransitioning(false);
+    }, 300);
+    resetControlsTimer();
+  }, [slides.length, transitioning, resetControlsTimer]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); navigate(idx + 1, "next"); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); navigate(idx - 1, "prev"); }
+      else if (e.key === "Home") navigate(0, "prev");
+      else if (e.key === "End") navigate(slides.length - 1, "next");
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [idx, navigate, onClose, slides.length]);
+
+  const slide = slides[idx];
+  const progress = ((idx + 1) / slides.length) * 100;
+
+  const slideStyle: React.CSSProperties = {
+    opacity: transitioning ? 0 : 1,
+    transform: transitioning
+      ? `translateX(${direction === "next" ? "-30px" : "30px"}) scale(0.97)`
+      : "translateX(0) scale(1)",
+    transition: "opacity 0.3s ease, transform 0.3s ease",
+  };
+
+  return (
+    <div
+      onMouseMove={resetControlsTimer}
+      onClick={resetControlsTimer}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#000",
+        display: "flex", flexDirection: "column",
+        opacity: visible ? 1 : 0,
+        transition: "opacity 0.3s ease",
+        cursor: showControls ? "default" : "none",
+      }}>
+
+      {/* Top bar */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0,
+        padding: "12px 20px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)",
+        zIndex: 10,
+        opacity: showControls ? 1 : 0,
+        transition: "opacity 0.4s ease",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.accent }} />
+          <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: 600, fontFamily: "system-ui" }}>
+            {slides[0]?.type === "title" ? (slides[0].title || "Presentation") : "Presentation"}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontFamily: "system-ui" }}>
+            {idx + 1} / {slides.length}
+          </span>
+          <button
+            onClick={onClose}
+            style={{ padding: "6px 14px", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 6, color: "rgba(255,255,255,0.8)", fontSize: 12, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", gap: 6 }}
+            data-testid="btn-fullscreen-close">
+            <X style={{ width: 12, height: 12 }} /> ESC
+          </button>
+        </div>
+      </div>
+
+      {/* Slide area */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "70px 80px 80px" }}>
+        <div style={{ width: "100%", maxWidth: "min(calc(100vh * 16 / 9 - 140px), 100%)", ...slideStyle }}>
+          <div style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 25px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06)" }}>
+            <SlideCanvas slide={slide} theme={theme} />
+          </div>
+        </div>
+      </div>
+
+      {/* Left arrow */}
+      {idx > 0 && (
+        <button
+          onClick={() => navigate(idx - 1, "prev")}
+          style={{
+            position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)",
+            width: 48, height: 48, borderRadius: "50%",
+            background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "rgba(255,255,255,0.8)",
+            opacity: showControls ? 1 : 0, transition: "opacity 0.4s ease",
+            zIndex: 10,
+          }}
+          data-testid="btn-fullscreen-prev">
+          <ChevronLeft style={{ width: 22, height: 22 }} />
+        </button>
+      )}
+
+      {/* Right arrow */}
+      {idx < slides.length - 1 && (
+        <button
+          onClick={() => navigate(idx + 1, "next")}
+          style={{
+            position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)",
+            width: 48, height: 48, borderRadius: "50%",
+            background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "rgba(255,255,255,0.8)",
+            opacity: showControls ? 1 : 0, transition: "opacity 0.4s ease",
+            zIndex: 10,
+          }}
+          data-testid="btn-fullscreen-next">
+          <ChevronRight style={{ width: 22, height: 22 }} />
+        </button>
+      )}
+
+      {/* Bottom controls */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        padding: "16px 24px 20px",
+        display: "flex", flexDirection: "column", gap: 10,
+        background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)",
+        opacity: showControls ? 1 : 0, transition: "opacity 0.4s ease",
+        zIndex: 10,
+      }}>
+        {/* Progress bar */}
+        <div style={{ height: 2, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${progress}%`, background: t.accent, borderRadius: 2, transition: "width 0.3s ease" }} />
+        </div>
+        {/* Dot navigation */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
+          {slides.map((_, i) => (
+            <button key={i} onClick={() => navigate(i, i > idx ? "next" : "prev")}
+              style={{
+                width: i === idx ? 20 : 6, height: 6, borderRadius: 3,
+                background: i === idx ? t.accent : "rgba(255,255,255,0.3)",
+                border: "none", cursor: "pointer", padding: 0,
+                transition: "all 0.3s ease",
+              }}
+              title={slides[i].title}
+            />
+          ))}
+        </div>
+        {/* Speaker notes */}
+        {slide.notes && (
+          <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 11, fontStyle: "italic", maxWidth: 600, margin: "0 auto" }}>
+            {slide.notes}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Theme Picker
+// ═══════════════════════════════════════════════════════════════════════════════
 function ThemePicker({ value, onChange }: { value: Theme; onChange: (t: Theme) => void }) {
   return (
     <div className="flex gap-2 flex-wrap">
@@ -452,25 +1119,22 @@ function ThemePicker({ value, onChange }: { value: Theme; onChange: (t: Theme) =
   );
 }
 
-// ── Questions View ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Questions View
+// ═══════════════════════════════════════════════════════════════════════════════
 function QuestionsView({
   prompt, questions, answers, isLoading,
   onAnswer, onSkip, onGenerate, onBack,
 }: {
-  prompt: string;
-  questions: AiQuestion[];
-  answers: Record<string, string>;
-  isLoading: boolean;
+  prompt: string; questions: AiQuestion[];
+  answers: Record<string, string>; isLoading: boolean;
   onAnswer: (id: string, val: string) => void;
-  onSkip: () => void;
-  onGenerate: () => void;
-  onBack: () => void;
+  onSkip: () => void; onGenerate: () => void; onBack: () => void;
 }) {
   const answeredCount = questions.filter(q => answers[q.id]?.trim()).length;
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="max-w-2xl mx-auto w-full px-6 py-8 space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" data-testid="btn-questions-back">
             <ArrowLeft className="h-4 w-4" />
@@ -480,14 +1144,10 @@ function QuestionsView({
             <p className="text-xs text-muted-foreground mt-0.5">Help me tailor the presentation to your exact needs</p>
           </div>
         </div>
-
-        {/* Prompt recap */}
         <div className="bg-muted/40 rounded-xl p-4 border border-border/50">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5">Your request</p>
           <p className="text-sm text-foreground leading-relaxed">{prompt}</p>
         </div>
-
-        {/* Questions */}
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map(i => (
@@ -522,8 +1182,6 @@ function QuestionsView({
             ))}
           </div>
         )}
-
-        {/* Actions */}
         {!isLoading && (
           <div className="flex items-center justify-between pt-2">
             <button onClick={onSkip} className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2" data-testid="btn-skip-questions">
@@ -541,13 +1199,14 @@ function QuestionsView({
   );
 }
 
-// ── Home / Create View ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Home / Create View
+// ═══════════════════════════════════════════════════════════════════════════════
 function HomeView({
-  presentations, isLoading, initialPromptMode,
+  presentations, isLoading,
   onGenerate, onOpen, onDelete,
 }: {
   presentations: PresentationRecord[]; isLoading: boolean;
-  initialPromptMode?: SourceType | "prompt" | null;
   onGenerate: (opts: { prompt: string; sources: SourceType[]; fileText: string | null; fileName: string | null; slideCount: number; theme: Theme }) => void;
   onOpen: (p: PresentationRecord) => void;
   onDelete: (id: number) => void;
@@ -557,7 +1216,6 @@ function HomeView({
   const [sources, setSources] = useState<SourceType[]>([]);
   const [slideCount, setSlideCount] = useState(10);
   const [theme, setTheme] = useState<Theme>("executive-dark");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [fileText, setFileText] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -565,29 +1223,20 @@ function HomeView({
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (initialPromptMode && initialPromptMode !== "prompt") {
-      setSources([initialPromptMode as SourceType]);
-    }
-    setTimeout(() => promptRef.current?.focus(), 100);
-  }, [initialPromptMode]);
+  useEffect(() => { setTimeout(() => promptRef.current?.focus(), 100); }, []);
 
-  const toggleSource = (key: SourceType) => {
+  const toggleSource = (key: SourceType) =>
     setSources(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
-  };
 
   const handleFileUpload = async (file: File) => {
     setUploading(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const resp = await fetch("/api/presentations/upload-source", {
-        method: "POST", body: fd, credentials: "include",
-      });
+      const resp = await fetch("/api/presentations/upload-source", { method: "POST", body: fd, credentials: "include" });
       if (!resp.ok) throw new Error((await resp.json()).message);
       const data = await resp.json();
-      setFileText(data.text);
-      setFileName(data.fileName);
+      setFileText(data.text); setFileName(data.fileName);
       toast({ title: `File uploaded: ${data.fileName}`, description: `${data.chars} characters extracted` });
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
@@ -603,19 +1252,14 @@ function HomeView({
   const handleGenerate = async () => {
     if (!prompt.trim()) { promptRef.current?.focus(); return; }
     setGenerating(true);
-    try {
-      await onGenerate({ prompt: prompt.trim(), sources, fileText, fileName, slideCount, theme });
-    } finally {
-      setGenerating(false);
-    }
+    try { await onGenerate({ prompt: prompt.trim(), sources, fileText, fileName, slideCount, theme }); }
+    finally { setGenerating(false); }
   };
 
   return (
     <div className="min-h-full bg-background">
-      {/* ── Create area ── */}
       <div className="bg-gradient-to-b from-slate-950 via-slate-900 to-background border-b border-border">
         <div className="max-w-3xl mx-auto px-6 py-10">
-          {/* Header */}
           <div className="flex items-center gap-2.5 mb-6">
             <div className="h-8 w-8 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
               <Presentation className="h-4 w-4 text-primary" />
@@ -626,7 +1270,6 @@ function HomeView({
             </div>
           </div>
 
-          {/* Main prompt area */}
           <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl overflow-hidden shadow-2xl">
             <div className="p-4">
               <Textarea
@@ -639,8 +1282,6 @@ function HomeView({
                 data-testid="textarea-main-prompt"
               />
             </div>
-
-            {/* Source chips */}
             <div className="border-t border-slate-700/60 px-4 py-3 flex items-center gap-2 flex-wrap">
               <span className="text-[11px] text-slate-500 font-medium shrink-0">Add data from:</span>
               {SOURCE_CHIPS.map(chip => {
@@ -655,8 +1296,6 @@ function HomeView({
                   </button>
                 );
               })}
-
-              {/* File upload chip */}
               <button onClick={() => fileInputRef.current?.click()}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${fileName ? "bg-emerald-600 text-white border-emerald-500" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"}`}
                 data-testid="chip-upload-file">
@@ -667,15 +1306,11 @@ function HomeView({
               <input ref={fileInputRef} type="file" className="hidden" accept=".txt,.md,.csv,.json,.xlsx,.xls"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ""; }} />
             </div>
-
-            {/* Options row */}
             <div className="border-t border-slate-700/60 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-slate-500">Slides:</span>
-                  <select
-                    value={slideCount}
-                    onChange={e => setSlideCount(Number(e.target.value))}
+                  <select value={slideCount} onChange={e => setSlideCount(Number(e.target.value))}
                     className="bg-slate-800 border border-slate-600 text-slate-200 text-[11px] rounded-lg px-2 py-1 outline-none"
                     data-testid="select-slide-count">
                     {[5, 8, 10, 12, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
@@ -683,18 +1318,14 @@ function HomeView({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] text-slate-500">Theme:</span>
-                  <select
-                    value={theme}
-                    onChange={e => setTheme(e.target.value as Theme)}
+                  <select value={theme} onChange={e => setTheme(e.target.value as Theme)}
                     className="bg-slate-800 border border-slate-600 text-slate-200 text-[11px] rounded-lg px-2 py-1 outline-none"
                     data-testid="select-theme-home">
                     {(Object.entries(THEMES) as [Theme, any][]).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
                 </div>
               </div>
-              <Button
-                onClick={handleGenerate}
-                disabled={!prompt.trim() || generating}
+              <Button onClick={handleGenerate} disabled={!prompt.trim() || generating}
                 className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 h-8 px-5 text-sm"
                 data-testid="btn-generate-outline">
                 {generating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -704,11 +1335,8 @@ function HomeView({
             </div>
           </div>
 
-          {/* File drop hint */}
           <div className="mt-3 flex items-center justify-center">
-            <div
-              onDrop={handleDrop}
-              onDragOver={e => e.preventDefault()}
+            <div onDrop={handleDrop} onDragOver={e => e.preventDefault()}
               className="flex items-center gap-2 text-[11px] text-slate-600 border border-dashed border-slate-700 rounded-lg px-4 py-2 w-full text-center justify-center hover:border-slate-500 hover:text-slate-500 transition-colors cursor-default">
               <Upload className="h-3 w-3" />Drop a file here (.txt, .md, .csv, .xlsx) to include as context
             </div>
@@ -716,14 +1344,12 @@ function HomeView({
         </div>
       </div>
 
-      {/* ── Recent presentations ── */}
       <div className="max-w-3xl mx-auto px-6 py-6">
         {isLoading && (
           <div className="grid grid-cols-3 gap-4">
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-40 rounded-xl" />)}
           </div>
         )}
-
         {!isLoading && presentations.length > 0 && (
           <div>
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -732,18 +1358,22 @@ function HomeView({
             <div className="space-y-1.5">
               {presentations.map(p => {
                 const slideCount = (p.slides as any[])?.length || 0;
-                const t = THEMES[p.theme as Theme] || THEMES["executive-dark"];
+                const thm = THEMES[p.theme as Theme] || THEMES["executive-dark"];
                 const firstSlide = (p.slides as Slide[])?.[0];
+                const THUMB_W = 80; const THUMB_H = 45;
+                const thumbScale = THUMB_W / 640;
                 return (
-                  <div key={p.id}
-                    onClick={() => onOpen(p)}
+                  <div key={p.id} onClick={() => onOpen(p)}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-card hover:shadow-md hover:border-primary/30 cursor-pointer group transition-all"
                     data-testid={`card-presentation-${p.id}`}>
-                    {/* Thumbnail */}
-                    <div className="w-20 h-12 rounded overflow-hidden shrink-0" style={{ background: t.bg }}>
-                      {firstSlide ? <SlideCanvas slide={firstSlide} theme={p.theme as Theme} /> : (
+                    <div className="rounded overflow-hidden shrink-0" style={{ width: THUMB_W, height: THUMB_H, background: thm.bg, position: "relative" }}>
+                      {firstSlide ? (
+                        <div style={{ position: "absolute", top: 0, left: 0, width: 640, height: 360, transform: `scale(${thumbScale})`, transformOrigin: "top left", pointerEvents: "none" }}>
+                          <SlideCanvas slide={firstSlide} theme={p.theme as Theme} />
+                        </div>
+                      ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Presentation className="h-4 w-4 opacity-20" style={{ color: t.bodyColor }} />
+                          <Presentation className="h-4 w-4 opacity-20" style={{ color: thm.bodyColor }} />
                         </div>
                       )}
                     </div>
@@ -768,7 +1398,6 @@ function HomeView({
             </div>
           </div>
         )}
-
         {!isLoading && presentations.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Presentation className="h-12 w-12 mx-auto mb-3 opacity-15" />
@@ -781,7 +1410,9 @@ function HomeView({
   );
 }
 
-// ── Outline Review View ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Outline Review View
+// ═══════════════════════════════════════════════════════════════════════════════
 function OutlineView({
   outline, brief, theme, isLoading,
   onEdit, onRegenerate, onBuild, onBack,
@@ -795,9 +1426,7 @@ function OutlineView({
       <div className="relative h-16 w-16">
         <div className="absolute inset-0 rounded-full border-4 border-muted" />
         <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-        </div>
+        <div className="absolute inset-0 flex items-center justify-center"><Sparkles className="h-6 w-6 text-primary animate-pulse" /></div>
       </div>
       <div className="text-center">
         <h3 className="font-semibold text-lg">Generating your outline…</h3>
@@ -809,11 +1438,8 @@ function OutlineView({
     </div>
   );
 
-  const typeLabels = SLIDE_TYPE_LABELS;
-
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between gap-4 px-6 py-4 border-b bg-card shrink-0">
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
@@ -833,45 +1459,31 @@ function OutlineView({
           </Button>
         </div>
       </div>
-
-      {/* Outline list */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-2">
           {outline.map((item, idx) => {
             const Icon = SLIDE_TYPE_ICONS[item.type] || Type;
             return (
-              <div key={item.id}
-                className="flex items-start gap-3 p-3.5 rounded-xl border bg-card hover:border-primary/30 hover:shadow-sm transition-all group">
-                {/* Number + icon */}
+              <div key={item.id} className="flex items-start gap-3 p-3.5 rounded-xl border bg-card hover:border-primary/30 hover:shadow-sm transition-all group">
                 <div className="flex items-center gap-2 shrink-0 pt-0.5">
                   <span className="text-[11px] font-bold text-muted-foreground/40 w-5 text-right tabular-nums">{idx + 1}</span>
                   <div className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                 </div>
-                {/* Editable fields */}
                 <div className="flex-1 min-w-0 space-y-1">
-                  <input
-                    className="w-full bg-transparent font-semibold text-sm outline-none focus:text-primary transition-colors border-b border-transparent focus:border-primary/30 pb-0.5"
-                    value={item.title}
-                    onChange={e => onEdit(item.id, "title", e.target.value)}
-                    data-testid={`outline-title-${idx}`}
-                  />
-                  <input
-                    className="w-full bg-transparent text-[11px] text-muted-foreground outline-none focus:text-foreground transition-colors"
-                    value={item.description}
-                    onChange={e => onEdit(item.id, "description", e.target.value)}
-                    data-testid={`outline-desc-${idx}`}
-                  />
+                  <input className="w-full bg-transparent font-semibold text-sm outline-none focus:text-primary transition-colors border-b border-transparent focus:border-primary/30 pb-0.5"
+                    value={item.title} onChange={e => onEdit(item.id, "title", e.target.value)} data-testid={`outline-title-${idx}`} />
+                  <input className="w-full bg-transparent text-[11px] text-muted-foreground outline-none focus:text-foreground transition-colors"
+                    value={item.description} onChange={e => onEdit(item.id, "description", e.target.value)} data-testid={`outline-desc-${idx}`} />
                 </div>
                 <Badge variant="outline" className="text-[10px] shrink-0 self-start mt-0.5 whitespace-nowrap">
-                  {typeLabels[item.type] || item.type}
+                  {SLIDE_TYPE_LABELS[item.type] || item.type}
                 </Badge>
               </div>
             );
           })}
         </div>
-        {/* Bottom build button */}
         <div className="max-w-2xl mx-auto mt-6 flex justify-end">
           <Button onClick={onBuild} disabled={outline.length === 0} className="gap-2 shadow-lg" data-testid="btn-build-presentation-bottom">
             <Wand2 className="h-4 w-4" />Build Presentation ({outline.length} slides)
@@ -882,16 +1494,14 @@ function OutlineView({
   );
 }
 
-// ── Generating View ───────────────────────────────────────────────────────────
+// Generating View
 function GeneratingView({ progress, label }: { progress: number; label: string }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-6 py-24">
       <div className="relative h-20 w-20">
         <div className="absolute inset-0 rounded-full border-4 border-muted" />
         <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Sparkles className="h-8 w-8 text-primary animate-pulse" />
-        </div>
+        <div className="absolute inset-0 flex items-center justify-center"><Sparkles className="h-8 w-8 text-primary animate-pulse" /></div>
       </div>
       <div className="text-center">
         <h3 className="font-bold text-2xl">Building your presentation</h3>
@@ -907,7 +1517,9 @@ function GeneratingView({ progress, label }: { progress: number; label: string }
   );
 }
 
-// ── Editor View ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODULE 11: SLIDE COMPOSITION ENGINE — Editor View
+// ═══════════════════════════════════════════════════════════════════════════════
 function EditorView({
   presentation, onBack, onSave, isSaving,
 }: {
@@ -923,7 +1535,12 @@ function EditorView({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [exporting, setExporting] = useState<"pptx" | "pdf" | null>(null);
   const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
 
   const selectedSlide = slides[selectedIdx] || slides[0];
 
@@ -933,11 +1550,24 @@ function EditorView({
     return () => { if (autoSaveRef.current) clearTimeout(autoSaveRef.current); };
   }, [slides, theme, title]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setExportMenuOpen(false);
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) setAddMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const updateSlide = (idx: number, data: Partial<Slide>) =>
     setSlides(prev => prev.map((s, i) => i === idx ? { ...s, ...data } : s));
 
   const addSlide = (type: SlideType) => {
-    const ns: Slide = { id: `slide-${Date.now()}`, type, title: "New Slide", bullets: ["Add your content here"], notes: "" };
+    const ns: Slide = {
+      id: `slide-${Date.now()}`, type, title: "New Slide",
+      bullets: ["Add your content here"], notes: "",
+      ...(type === "table" ? { tableData: { headers: ["Column 1", "Column 2", "Column 3", "Column 4"], rows: [["Row 1", "Data", "Data", "Data"], ["Row 2", "Data", "Data", "Data"]] } } : {}),
+    };
     const next = [...slides]; next.splice(selectedIdx + 1, 0, ns);
     setSlides(next); setSelectedIdx(selectedIdx + 1); setAddMenuOpen(false);
   };
@@ -954,6 +1584,14 @@ function EditorView({
     setSlides(next); setSelectedIdx(idx + 1);
   };
 
+  const moveSlide = (idx: number, dir: "up" | "down") => {
+    const newIdx = dir === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= slides.length) return;
+    const next = [...slides];
+    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+    setSlides(next); setSelectedIdx(newIdx);
+  };
+
   const refineWithAI = async () => {
     if (!aiPrompt.trim() || !selectedSlide) return;
     setAiLoading(true);
@@ -968,15 +1606,48 @@ function EditorView({
     finally { setAiLoading(false); }
   };
 
+  const handleExportPptx = async () => {
+    setExportMenuOpen(false);
+    setExporting("pptx");
+    try {
+      await exportToPptx(slides, theme, title);
+      toast({ title: "PPTX exported successfully" });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally { setExporting(null); }
+  };
+
+  const handleExportPdf = () => {
+    setExportMenuOpen(false);
+    setExporting("pdf");
+    try {
+      exportToPdf(slides, theme, title);
+      toast({ title: "PDF print dialog opened", description: "Use your browser's Print → Save as PDF" });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally { setExporting(null); }
+  };
+
   const SLIDE_TYPES: { type: SlideType; label: string }[] = [
     { type: "content", label: "Content" }, { type: "two-column", label: "Two Column" },
     { type: "data", label: "Data / Stats" }, { type: "quote", label: "Quote" },
     { type: "agenda", label: "Agenda" }, { type: "section", label: "Section" },
+    { type: "table", label: "Table" }, { type: "image", label: "Image" },
     { type: "title", label: "Title" }, { type: "closing", label: "Closing" },
   ];
 
   return (
     <div className="flex flex-col h-full bg-background" style={{ minHeight: 0 }}>
+      {/* Fullscreen viewer overlay */}
+      {fullscreen && (
+        <FullscreenViewer
+          slides={slides}
+          theme={theme}
+          initialIdx={selectedIdx}
+          onClose={() => setFullscreen(false)}
+        />
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-card shrink-0">
         <button onClick={onBack} className="p-1.5 rounded hover:bg-muted text-muted-foreground" data-testid="btn-editor-back">
@@ -986,6 +1657,7 @@ function EditorView({
         <input value={title} onChange={e => setTitle(e.target.value)}
           className="font-semibold text-sm bg-transparent outline-none border-b border-transparent focus:border-primary/40 px-1 min-w-0 max-w-xs"
           data-testid="input-presentation-title" />
+
         <div className="ml-auto flex items-center gap-1.5">
           {/* Theme */}
           <Select value={theme} onValueChange={v => setTheme(v as Theme)}>
@@ -1001,14 +1673,16 @@ function EditorView({
               ))}
             </SelectContent>
           </Select>
+
           <div className="h-4 w-px bg-border" />
+
           {/* Add slide */}
-          <div className="relative">
+          <div className="relative" ref={addMenuRef}>
             <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAddMenuOpen(v => !v)} data-testid="btn-add-slide">
               <Plus className="h-3 w-3" />Slide <ChevronDown className="h-2.5 w-2.5" />
             </Button>
             {addMenuOpen && (
-              <div className="absolute top-8 right-0 z-50 bg-popover border rounded-xl shadow-xl p-1.5 w-40">
+              <div className="absolute top-8 right-0 z-50 bg-popover border rounded-xl shadow-xl p-1.5 w-44">
                 {SLIDE_TYPES.map(opt => {
                   const Icon = SLIDE_TYPE_ICONS[opt.type] || Type;
                   return (
@@ -1021,7 +1695,49 @@ function EditorView({
               </div>
             )}
           </div>
+
           <div className="h-4 w-px bg-border" />
+
+          {/* Fullscreen */}
+          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setFullscreen(true)} data-testid="btn-fullscreen">
+            <Maximize2 className="h-3 w-3" />Present
+          </Button>
+
+          {/* Export */}
+          <div className="relative" ref={exportMenuRef}>
+            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setExportMenuOpen(v => !v)} disabled={!!exporting} data-testid="btn-export">
+              {exporting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              {exporting ? (exporting === "pptx" ? "Exporting…" : "Opening…") : "Export"}
+              <ChevronDown className="h-2.5 w-2.5" />
+            </Button>
+            {exportMenuOpen && (
+              <div className="absolute top-8 right-0 z-50 bg-popover border rounded-xl shadow-xl p-1.5 w-48">
+                <button onClick={handleExportPptx}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-muted w-full text-left">
+                  <div className="h-6 w-6 rounded bg-orange-500/15 flex items-center justify-center shrink-0">
+                    <Layers className="h-3 w-3 text-orange-500" />
+                  </div>
+                  <div>
+                    <div className="font-medium">Export as PPTX</div>
+                    <div className="text-muted-foreground text-[10px]">PowerPoint presentation</div>
+                  </div>
+                </button>
+                <button onClick={handleExportPdf}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-muted w-full text-left">
+                  <div className="h-6 w-6 rounded bg-red-500/15 flex items-center justify-center shrink-0">
+                    <FileDown className="h-3 w-3 text-red-500" />
+                  </div>
+                  <div>
+                    <div className="font-medium">Export as PDF</div>
+                    <div className="text-muted-foreground text-[10px]">Print-ready slides</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="h-4 w-px bg-border" />
+
           <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" disabled={isSaving}
             onClick={() => { onSave({ title, slides: slides as any, theme }, true); toast({ title: "Saved" }); }}
             data-testid="btn-save">
@@ -1040,7 +1756,13 @@ function EditorView({
           {slides.map((s, i) => (
             <div key={s.id} className="group relative">
               <SlideThumbnail slide={s} theme={theme} index={i} active={i === selectedIdx} onClick={() => setSelectedIdx(i)} />
-              <div className="absolute top-5 right-0 hidden group-hover:flex gap-0.5">
+              <div className="absolute top-5 right-0 hidden group-hover:flex gap-0.5 flex-col">
+                <button onClick={() => moveSlide(i, "up")} disabled={i === 0} className="p-0.5 rounded bg-background/90 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30" title="Move up">
+                  <ChevronUp className="h-2.5 w-2.5" />
+                </button>
+                <button onClick={() => moveSlide(i, "down")} disabled={i === slides.length - 1} className="p-0.5 rounded bg-background/90 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30" title="Move down">
+                  <ChevronDown className="h-2.5 w-2.5" />
+                </button>
                 <button onClick={() => duplicateSlide(i)} className="p-0.5 rounded bg-background/90 hover:bg-muted text-muted-foreground hover:text-foreground" title="Duplicate">
                   <Copy className="h-2.5 w-2.5" />
                 </button>
@@ -1056,19 +1778,45 @@ function EditorView({
         <div className="flex-1 flex flex-col overflow-y-auto bg-muted/10 p-5 items-center" data-testid="slide-canvas">
           {selectedSlide && (
             <div className="w-full max-w-2xl">
-              {/* Live preview */}
-              <div className="rounded-xl overflow-hidden shadow-xl ring-1 ring-border/50">
+              {/* Live preview with fullscreen button */}
+              <div className="relative group/canvas rounded-xl overflow-hidden shadow-xl ring-1 ring-border/50">
                 <SlideCanvas slide={selectedSlide} theme={theme} />
+                <button
+                  onClick={() => setFullscreen(true)}
+                  className="absolute top-2 right-2 opacity-0 group-hover/canvas:opacity-100 transition-opacity p-1.5 rounded-lg bg-black/50 backdrop-blur text-white hover:bg-black/70"
+                  title="Full-screen presentation"
+                  data-testid="btn-canvas-fullscreen">
+                  <Maximize2 className="h-3.5 w-3.5" />
+                </button>
               </div>
+
               {/* Edit panel */}
               <div className="mt-4 bg-card rounded-xl border p-4 space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Edit slide {selectedIdx + 1} — {SLIDE_TYPE_LABELS[selectedSlide.type]}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Slide {selectedIdx + 1} — {SLIDE_TYPE_LABELS[selectedSlide.type]}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    {/* Slide type switcher */}
+                    <Select value={selectedSlide.type} onValueChange={v => updateSlide(selectedIdx, { type: v as SlideType })}>
+                      <SelectTrigger className="h-6 text-[10px] w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SLIDE_TYPES.map(opt => (
+                          <SelectItem key={opt.type} value={opt.type}><span className="text-xs">{opt.label}</span></SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-2.5">
                   <div className="space-y-1">
                     <Label className="text-[11px]">Title</Label>
                     <Input value={selectedSlide.title || ""} onChange={e => updateSlide(selectedIdx, { title: e.target.value })} className="h-8 text-sm" data-testid="input-slide-title" />
                   </div>
-                  {["title", "section", "closing", "quote"].includes(selectedSlide.type) && (
+                  {["title", "section", "closing", "quote", "image"].includes(selectedSlide.type) && (
                     <div className="space-y-1">
                       <Label className="text-[11px]">Subtitle</Label>
                       <Input value={selectedSlide.subtitle || ""} onChange={e => updateSlide(selectedIdx, { subtitle: e.target.value })} className="h-8 text-sm" />
@@ -1090,6 +1838,28 @@ function EditorView({
                       />
                     </div>
                   )}
+                  {selectedSlide.type === "table" && selectedSlide.tableData && (
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Table headers (comma-separated)</Label>
+                      <Input
+                        value={selectedSlide.tableData.headers.join(", ")}
+                        onChange={e => updateSlide(selectedIdx, { tableData: { ...selectedSlide.tableData!, headers: e.target.value.split(",").map(h => h.trim()) } })}
+                        className="h-8 text-sm"
+                      />
+                      <Label className="text-[11px]">Table rows (one row per line, cells comma-separated)</Label>
+                      <Textarea
+                        value={selectedSlide.tableData.rows.map(r => r.join(", ")).join("\n")}
+                        onChange={e => updateSlide(selectedIdx, { tableData: { ...selectedSlide.tableData!, rows: e.target.value.split("\n").filter(Boolean).map(r => r.split(",").map(c => c.trim())) } })}
+                        className="min-h-[80px] text-sm font-mono"
+                      />
+                    </div>
+                  )}
+                  {["title", "content", "data"].includes(selectedSlide.type) && (
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Emphasis / label</Label>
+                      <Input value={selectedSlide.emphasis || ""} onChange={e => updateSlide(selectedIdx, { emphasis: e.target.value })} className="h-8 text-sm" placeholder="e.g. Q2 2026 BOARD REVIEW" />
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label className="text-[11px]">Speaker notes</Label>
                     <Textarea value={selectedSlide.notes || ""} onChange={e => updateSlide(selectedIdx, { notes: e.target.value })}
@@ -1099,7 +1869,7 @@ function EditorView({
               </div>
             </div>
           )}
-          <p className="text-[11px] text-muted-foreground mt-3">Slide {selectedIdx + 1} of {slides.length} · auto-saves every 30s</p>
+          <p className="text-[11px] text-muted-foreground mt-3">Slide {selectedIdx + 1} of {slides.length} · auto-saves every 30s · <kbd className="bg-muted px-1 py-0.5 rounded text-[10px]">Space</kbd> / <kbd className="bg-muted px-1 py-0.5 rounded text-[10px]">←→</kbd> in fullscreen</p>
         </div>
 
         {/* Right: AI assist */}
@@ -1120,7 +1890,7 @@ function EditorView({
                 <p className="text-[10px] text-muted-foreground">Tell AI how to improve this slide.</p>
               </div>
               <div className="space-y-1 flex-1 overflow-y-auto">
-                {["Make it more concise", "Add more data points", "Executive-friendly language", "Strengthen the opening", "Add a call to action"].map(s => (
+                {["Make it more concise", "Add more data points", "Executive-friendly language", "Strengthen the opening", "Add a call to action", "Rewrite with stronger verbs", "Add supporting statistics"].map(s => (
                   <button key={s} onClick={() => setAiPrompt(s)}
                     className="w-full text-left text-[11px] px-2.5 py-1.5 rounded-lg border hover:border-primary/40 hover:bg-primary/5 transition-all text-muted-foreground hover:text-foreground">
                     {s}
@@ -1151,7 +1921,9 @@ function EditorView({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Main Page
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function PresentationStudioPage() {
   const { toast } = useToast();
   const [view, setView] = useState<View>("home");
@@ -1184,7 +1956,6 @@ export default function PresentationStudioPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/presentations"] }); toast({ title: "Presentation deleted" }); },
   });
 
-  // Step 1a: Ask AI clarifying questions
   const handleGenerate = async (opts: { prompt: string; sources: SourceType[]; fileText: string | null; fileName: string | null; slideCount: number; theme: Theme }) => {
     const brief = {
       title: opts.prompt.slice(0, 80),
@@ -1212,7 +1983,6 @@ export default function PresentationStudioPage() {
         body: JSON.stringify({ prompt: opts.prompt, sources: opts.sources }),
       });
       if (!resp.ok) {
-        // If questions fail, go straight to outline
         setView("outline");
         await generateOutline(brief, sourceData, opts.sources, {});
         return;
@@ -1220,7 +1990,6 @@ export default function PresentationStudioPage() {
       const data = await resp.json();
       setAiQuestions(data.questions || []);
     } catch {
-      // On any error, skip questions and go straight to outline
       setView("outline");
       await generateOutline(brief, sourceData, opts.sources, {});
     } finally {
@@ -1228,7 +1997,6 @@ export default function PresentationStudioPage() {
     }
   };
 
-  // Step 1b: Generate outline (called from both questions view and direct)
   const generateOutline = async (brief: any, sourceData: any, sources: SourceType[], answersMap: Record<string, string>) => {
     setOutlineLoading(true);
     setOutline([]);
@@ -1239,7 +2007,6 @@ export default function PresentationStudioPage() {
           const q = aiQuestions.find(q => q.id === id);
           return { question: q?.question || id, answer };
         });
-
       const resp = await fetch("/api/presentations/generate-outline", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ brief, sourceData, sources, answers: answeredPairs }),
@@ -1255,7 +2022,6 @@ export default function PresentationStudioPage() {
     }
   };
 
-  // Step 1c: Handle "Generate" from questions view
   const handleGenerateFromQuestions = async () => {
     if (!pendingCreate) return;
     setView("outline");
@@ -1267,13 +2033,11 @@ export default function PresentationStudioPage() {
     generateOutline(pendingCreate.brief, pendingCreate.sourceData, pendingCreate.sources, answers);
   };
 
-  // Step 2: Build slides from outline
   const handleBuild = async () => {
     if (!pendingCreate || outline.length === 0) return;
     setView("generating");
     setGenerateProgress(0);
-
-    const LABELS = ["Creating presentation…", "Writing slide content…", "Adding speaker notes…", "Finalising…"];
+    const LABELS = ["Creating presentation…", "Writing slide content…", "Adding speaker notes…", "Finalising design…"];
     let prog = 0;
     const interval = setInterval(() => {
       prog = Math.min(prog + 7, 90);
@@ -1282,7 +2046,6 @@ export default function PresentationStudioPage() {
     }, 400);
 
     try {
-      // Create DB record
       const created = await createMutation.mutateAsync({
         title: pendingCreate.brief.title || "Untitled Presentation",
         sourceTypes: pendingCreate.sources,
@@ -1291,7 +2054,6 @@ export default function PresentationStudioPage() {
         theme: pendingCreate.theme,
       }) as any;
 
-      // Generate slides
       const resp = await fetch(`/api/presentations/${created.id}/generate-slides`, {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ outline, brief: pendingCreate.brief, sourceData: pendingCreate.sourceData, sources: pendingCreate.sources }),
@@ -1317,58 +2079,47 @@ export default function PresentationStudioPage() {
     setActivePres(prev => prev ? { ...prev, ...data } : prev);
   };
 
-  if (view === "questions") {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        <QuestionsView
-          prompt={pendingCreate?.brief?.prompt || ""}
-          questions={aiQuestions}
-          answers={answers}
-          isLoading={questionsLoading}
-          onAnswer={(id, val) => setAnswers(prev => ({ ...prev, [id]: val }))}
-          onSkip={handleGenerateFromQuestions}
-          onGenerate={handleGenerateFromQuestions}
-          onBack={() => setView("home")}
-        />
-      </div>
-    );
-  }
-
-  if (view === "outline") {
-    return (
-      <div className="flex flex-col h-full">
-        <OutlineView
-          outline={outline}
-          brief={pendingCreate?.brief || {}}
-          theme={pendingCreate?.theme || "executive-dark"}
-          isLoading={outlineLoading}
-          onEdit={(id, field, val) => setOutline(prev => prev.map(o => o.id === id ? { ...o, [field]: val } : o))}
-          onRegenerate={handleRegenerate}
-          onBuild={handleBuild}
-          onBack={() => setView("home")}
-        />
-      </div>
-    );
-  }
-
-  if (view === "generating") {
-    return (
-      <div className="flex flex-col h-full">
-        <GeneratingView progress={generateProgress} label={generateLabel} />
-      </div>
-    );
-  }
-
-  if (view === "editor" && activePres) {
-    return (
-      <EditorView
-        presentation={activePres}
-        onBack={() => { setView("home"); setActivePres(null); }}
-        onSave={handleSave}
-        isSaving={saveMutation.isPending}
+  if (view === "questions") return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <QuestionsView
+        prompt={pendingCreate?.brief?.prompt || ""}
+        questions={aiQuestions} answers={answers}
+        isLoading={questionsLoading}
+        onAnswer={(id, val) => setAnswers(prev => ({ ...prev, [id]: val }))}
+        onSkip={handleGenerateFromQuestions}
+        onGenerate={handleGenerateFromQuestions}
+        onBack={() => setView("home")}
       />
-    );
-  }
+    </div>
+  );
+
+  if (view === "outline") return (
+    <div className="flex flex-col h-full">
+      <OutlineView
+        outline={outline} brief={pendingCreate?.brief || {}}
+        theme={pendingCreate?.theme || "executive-dark"}
+        isLoading={outlineLoading}
+        onEdit={(id, field, val) => setOutline(prev => prev.map(o => o.id === id ? { ...o, [field]: val } : o))}
+        onRegenerate={handleRegenerate} onBuild={handleBuild}
+        onBack={() => setView("home")}
+      />
+    </div>
+  );
+
+  if (view === "generating") return (
+    <div className="flex flex-col h-full">
+      <GeneratingView progress={generateProgress} label={generateLabel} />
+    </div>
+  );
+
+  if (view === "editor" && activePres) return (
+    <EditorView
+      presentation={activePres}
+      onBack={() => { setView("home"); setActivePres(null); }}
+      onSave={handleSave}
+      isSaving={saveMutation.isPending}
+    />
+  );
 
   return (
     <HomeView
