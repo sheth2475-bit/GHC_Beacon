@@ -884,12 +884,12 @@ export default function PresentationStudioPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/presentations", data),
+    mutationFn: async (data: any) => { const r = await apiRequest("POST", "/api/presentations", data); return r.json(); },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/presentations"] }),
   });
 
   const saveMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest("PATCH", `/api/presentations/${id}`, data),
+    mutationFn: async ({ id, data }: { id: number; data: any }) => { const r = await apiRequest("PATCH", `/api/presentations/${id}`, data); return r.json(); },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/presentations"] }),
   });
 
