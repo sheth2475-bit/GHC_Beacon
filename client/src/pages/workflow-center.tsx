@@ -22,7 +22,7 @@ import {
   Activity, ArrowUpRight, Layers, Bell, Zap, ClipboardList,
   LayoutList, Kanban, Table2, CalendarDays, Filter,
   Users, Lightbulb, RefreshCw, AlertCircle,
-  CheckSquare, Timer, ArrowRight, Star, Mail, Paperclip,
+  CheckSquare, Timer, ArrowRight, Star, Mail, Paperclip, Pencil,
 } from "lucide-react";
 import { DocumentAttachments } from "@/components/document-attachments";
 
@@ -244,7 +244,12 @@ function BoardCard({ s, onClick }: { s: Submission; onClick: () => void }) {
 }
 
 // ── Table row ─────────────────────────────────────────────────────────────────
-function TableRow({ s, onClick }: { s: Submission; onClick: () => void }) {
+function TableRow({ s, onClick, onEdit, onDelete }: {
+  s: Submission;
+  onClick: () => void;
+  onEdit: (e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
+}) {
   const overdue = isOverdue(s);
   return (
     <tr className={`border-b border-border/40 hover:bg-muted/30 cursor-pointer transition-colors group ${overdue ? "bg-red-50/20 dark:bg-red-950/10" : ""}`}
@@ -260,6 +265,16 @@ function TableRow({ s, onClick }: { s: Submission; onClick: () => void }) {
       <td className="px-3 py-2.5 whitespace-nowrap"><span className={`text-[11px] px-2 py-0.5 rounded font-medium ${PRIORITY_COLORS[s.priority] || ""}`}>{s.priority}</span></td>
       <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
         {overdue ? <span className="text-red-500 flex items-center gap-0.5"><AlertTriangle className="h-3 w-3" />{fmt(s.dueDate || s.expiryDate)}</span> : fmt(s.dueDate || s.expiryDate)}
+      </td>
+      <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={onEdit} className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Edit" data-testid={`btn-edit-${s.id}`}>
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={onDelete} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-muted-foreground hover:text-red-500" title="Delete" data-testid={`btn-delete-${s.id}`}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -357,12 +372,25 @@ function ViewSwitcher({ modes, view, setView }: { modes: ViewMode[]; view: ViewM
 function RecordsView({ submissions, wfType, onSelect, onNew }: {
   submissions: Submission[]; wfType: WorkflowType; onSelect: (s: Submission) => void; onNew: () => void;
 }) {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [view, setView] = useState<ViewMode>("table");
+  const [confirmDelete, setConfirmDelete] = useState<Submission | null>(null);
   const hasBoard = ["service_ticket", "recurring_task", "license", "certificate"].includes(wfType);
   const viewModes: ViewMode[] = hasBoard ? ["list", "board", "table", "calendar"] : ["list", "table", "calendar"];
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/workflow/submissions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workflow/submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/workflow/analytics"] });
+      toast({ title: "Record deleted successfully" });
+      setConfirmDelete(null);
+    },
+    onError: () => toast({ title: "Delete failed", description: "Could not delete the record.", variant: "destructive" }),
+  });
 
   const filtered = useMemo(() => submissions.filter(s => {
     if (filterStatus !== "all" && s.status !== filterStatus) return false;
@@ -408,16 +436,44 @@ function RecordsView({ submissions, wfType, onSelect, onNew }: {
         <div className="rounded-xl border overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/30">
-              <tr>{["Ref", "Title", "Assigned To / Email", "Department", "Status", "Priority", "Due / Expiry"].map(h => <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{h}</th>)}</tr>
+              <tr>
+                {["Ref", "Title", "Assigned To / Email", "Department", "Status", "Priority", "Due / Expiry", "Actions"].map(h => (
+                  <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{h}</th>
+                ))}
+              </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 && <tr><td colSpan={7} className="text-center py-10 text-muted-foreground text-sm">No records found.</td></tr>}
-              {filtered.map(s => <TableRow key={s.id} s={s} onClick={() => onSelect(s)} />)}
+              {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-10 text-muted-foreground text-sm">No records found.</td></tr>}
+              {filtered.map(s => (
+                <TableRow key={s.id} s={s}
+                  onClick={() => onSelect(s)}
+                  onEdit={e => { e.stopPropagation(); onSelect(s); }}
+                  onDelete={e => { e.stopPropagation(); setConfirmDelete(s); }}
+                />
+              ))}
             </tbody>
           </table>
         </div>
       )}
       {view === "calendar" && <CalendarView submissions={filtered} onSelect={onSelect} />}
+
+      {/* ── Delete confirmation dialog ── */}
+      <Dialog open={!!confirmDelete} onOpenChange={open => { if (!open) setConfirmDelete(null); }}>
+        <DialogContent className="max-w-sm" aria-describedby="delete-confirm-desc">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600"><Trash2 className="h-4 w-4" />Delete Record</DialogTitle>
+          </DialogHeader>
+          <p id="delete-confirm-desc" className="text-sm text-muted-foreground">
+            Are you sure you want to delete <span className="font-semibold text-foreground">"{confirmDelete?.title}"</span>? This action cannot be undone.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setConfirmDelete(null)} disabled={deleteMutation.isPending}>Cancel</Button>
+            <Button variant="destructive" size="sm" onClick={() => confirmDelete && deleteMutation.mutate(confirmDelete.id)} disabled={deleteMutation.isPending} data-testid="btn-confirm-delete">
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
