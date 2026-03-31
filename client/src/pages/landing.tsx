@@ -14,9 +14,9 @@ import {
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
-  { label: "Analytics Studio", href: "#analytics" },
-  { label: "Presentation Studio", href: "#presentations" },
   { label: "How It Works", href: "#how-it-works" },
+  { label: "Analytics", href: "#analytics" },
+  { label: "Presentations", href: "#presentations" },
   { label: "Pricing", href: "#pricing" },
   { label: "Guide", href: "/guide" },
 ];
@@ -637,6 +637,37 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ══ HOW IT WORKS ══════════════════════════════════════════════════════ */}
+      <section id="how-it-works" className="py-20 bg-gray-50/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 text-emerald-600 text-sm font-semibold uppercase tracking-wider mb-3">
+              <span className="h-px w-8 bg-emerald-300" /> Simple by design <span className="h-px w-8 bg-emerald-300" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Up and running in 3 steps</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {STEPS.map((s, i) => (
+              <div key={s.step} className={`relative rounded-2xl border-2 ${s.border} ${s.bg} p-7`}>
+                <div className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white border-2 ${s.border} mb-4`}>
+                  <span className={`text-lg font-black ${s.color}`}>{s.step}</span>
+                </div>
+                {i < 2 && (
+                  <div className="hidden md:block absolute top-14 -right-4 z-10">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white border border-gray-200 shadow-sm">
+                      <ArrowRight className="h-3.5 w-3.5 text-gray-400" />
+                    </div>
+                  </div>
+                )}
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{s.title}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ══ FEATURES ══════════════════════════════════════════════════════════ */}
       <section id="features" className="py-24 bg-[#070d1a] relative overflow-hidden">
         <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-blue-600/12 rounded-full blur-3xl pointer-events-none" />
@@ -1018,31 +1049,25 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══ HOW IT WORKS ══════════════════════════════════════════════════════ */}
-      <section id="how-it-works" className="py-20 bg-white">
+      {/* ══ WHY PERFORMO ══════════════════════════════════════════════════════ */}
+      <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 text-emerald-600 text-sm font-semibold uppercase tracking-wider mb-3">
-              <span className="h-px w-8 bg-emerald-300" /> Simple by design <span className="h-px w-8 bg-emerald-300" />
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Up and running in 3 steps</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Why teams choose Performo</h2>
+            <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
+              There are a hundred project tools. There's one Performo.
+            </p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {STEPS.map((s, i) => (
-              <div key={s.step} className={`relative rounded-2xl border-2 ${s.border} ${s.bg} p-7`}>
-                <div className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white border-2 ${s.border} mb-4`}>
-                  <span className={`text-lg font-black ${s.color}`}>{s.step}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {WHY_ITEMS.map(w => (
+              <div key={w.title} className="flex gap-4 rounded-2xl border border-gray-100 bg-gray-50 p-6 hover:bg-white hover:shadow-md transition-all duration-200">
+                <div className={`flex-none flex h-12 w-12 items-center justify-center rounded-xl ${w.bg} shrink-0`}>
+                  <w.icon className={`h-6 w-6 ${w.color}`} />
                 </div>
-                {i < 2 && (
-                  <div className="hidden md:block absolute top-14 -right-4 z-10">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white border border-gray-200 shadow-sm">
-                      <ArrowRight className="h-3.5 w-3.5 text-gray-400" />
-                    </div>
-                  </div>
-                )}
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{s.title}</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 mb-1.5">{w.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{w.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -1150,35 +1175,6 @@ export default function LandingPage() {
             <a href="/guide" className="inline-flex items-center gap-2 text-blue-400 font-semibold text-sm hover:text-blue-300 transition-colors">
               Open the full interactive guide <ChevronRight className="h-4 w-4" />
             </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ WHY PERFORMO ══════════════════════════════════════════════════════ */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Why teams choose Performo</h2>
-            <p className="mt-3 text-lg text-gray-600 max-w-xl mx-auto">
-              There are a hundred project tools. There's one Performo.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {WHY_ITEMS.map(w => (
-              <div key={w.title} className="relative flex gap-4 rounded-2xl border border-gray-100 bg-gray-50 p-6 hover:bg-white hover:shadow-md transition-all duration-200">
-                {w.badge && (
-                  <span className="absolute top-4 right-4 text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">{w.badge}</span>
-                )}
-                <div className={`flex-none flex h-12 w-12 items-center justify-center rounded-xl ${w.bg} shrink-0`}>
-                  <w.icon className={`h-6 w-6 ${w.color}`} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1.5">{w.title}</h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{w.desc}</p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
