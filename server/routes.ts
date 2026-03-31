@@ -2961,21 +2961,62 @@ Return a JSON object:
       if (!file) return res.status(400).json({ message: "No file uploaded" });
       const mime = file.mimetype || "";
       const name = (file.originalname || "").toLowerCase();
+
+      // Helper: format numbers without unnecessary decimals
+      const fmtNum = (n: number): string => {
+        if (!isFinite(n)) return "0";
+        return Number(parseFloat(n.toFixed(2))).toLocaleString();
+      };
+
+      // Build a rich sheet summary: column stats + sample rows
+      const buildSheetSummary = (sheetName: string, rows: Record<string, unknown>[]): string => {
+        if (!rows.length) return `SHEET: "${sheetName}" (empty)`;
+        const cols = Object.keys(rows[0]);
+        const lines: string[] = [`SHEET: "${sheetName}" — ${rows.length} rows, ${cols.length} columns`];
+        lines.push("COLUMN ANALYSIS:");
+        for (const col of cols) {
+          const vals = rows.map(r => r[col]).filter(v => v !== null && v !== "" && v !== undefined);
+          const nums = vals.map(v => parseFloat(String(v).replace(/,/g, ""))).filter(v => !isNaN(v));
+          if (nums.length > 0 && nums.length >= vals.length * 0.6) {
+            const sum = nums.reduce((a, b) => a + b, 0);
+            const avg = sum / nums.length;
+            const mn = Math.min(...nums);
+            const mx = Math.max(...nums);
+            lines.push(`  • "${col}" [numeric, ${nums.length} values]: total=${fmtNum(sum)}, average=${fmtNum(avg)}, min=${fmtNum(mn)}, max=${fmtNum(mx)}`);
+          } else {
+            const unique = [...new Set(vals.map(v => String(v)))];
+            const preview = unique.slice(0, 10).join(", ") + (unique.length > 10 ? ` ... (${unique.length} unique)` : "");
+            lines.push(`  • "${col}" [text, ${unique.length} unique values]: ${preview}`);
+          }
+        }
+        lines.push(`\nSAMPLE ROWS (first 50):\n${JSON.stringify(rows.slice(0, 50))}`);
+        return lines.join("\n");
+      };
+
       let text = "";
-      if (mime.includes("text") || name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".csv") || name.endsWith(".json")) {
-        text = file.buffer.toString("utf-8").slice(0, 15000);
-      } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+
+      if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
         const wb = XLSX.read(file.buffer, { type: "buffer" });
-        const rows: any[] = [];
-        wb.SheetNames.slice(0, 3).forEach(sn => {
+        const parts: string[] = [`FILE: ${file.originalname}`];
+        wb.SheetNames.slice(0, 5).forEach(sn => {
           const ws = wb.Sheets[sn];
-          const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
-          rows.push(...data.slice(0, 50));
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: null }) as Record<string, unknown>[];
+          parts.push(buildSheetSummary(sn, rows));
         });
-        text = JSON.stringify(rows).slice(0, 15000);
+        text = parts.join("\n\n").slice(0, 18000);
+      } else if (name.endsWith(".csv") || mime.includes("csv")) {
+        const raw = file.buffer.toString("utf-8");
+        // Parse CSV into rows using XLSX
+        const wb = XLSX.read(raw, { type: "string" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: null }) as Record<string, unknown>[];
+        text = [`FILE: ${file.originalname}`, buildSheetSummary(wb.SheetNames[0], rows)].join("\n\n").slice(0, 18000);
+      } else if (mime.includes("text") || name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".json")) {
+        text = `FILE: ${file.originalname}\n\n${file.buffer.toString("utf-8").slice(0, 15000)}`;
       } else {
         return res.status(400).json({ message: "Unsupported file type. Upload .txt, .md, .csv, .json, or .xlsx files." });
       }
+
       res.json({ text, fileName: file.originalname, chars: text.length });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -3088,8 +3129,10 @@ Ask the most impactful 2-3 clarifying questions now:`
         : "";
 
       const fileSection = sourceData?.fileContent
-        ? `\n\nATTACHED FILE CONTENT:\n${String(sourceData.fileContent).slice(0, 3000)}`
+        ? `\n\nSOURCE FILE DATA (base the entire presentation on this):\n${String(sourceData.fileContent).slice(0, 6000)}`
         : "";
+
+      const hasFile = !!sourceData?.fileContent;
 
       const systemPrompt = `You are an expert business presentation strategist. Generate a tailored, data-driven slide outline. Return ONLY valid JSON — an array of slide outline objects. No markdown fences.
 
@@ -3097,17 +3140,20 @@ Each object must have:
 - id: string (e.g. "slide-1")
 - type: one of ["title", "agenda", "content", "two-column", "data", "quote", "section", "closing"]
 - title: string (concise slide title, max 8 words)
-- description: string (one specific sentence — mention actual metrics, names, or decisions where relevant)
+- description: string (one specific sentence — mention actual metrics, names, or decisions from the data)
 
 Rules:
 - First slide: "title" type  
 - Second or third slide: "agenda" type
 - Last slide: "closing" type
-- Use "data" slides for KPI performance, financial metrics, or statistics
-- Use "two-column" for comparisons, pros/cons, or before/after
+- Use "data" slides for numeric columns, totals, averages, or KPI metrics
+- Use "two-column" for comparisons, breakdowns by category, or before/after
 - Use "section" to divide major themes
 - Match exactly ${targetSlides} slides
-- Make it SPECIFIC to the actual data provided — avoid generic placeholder descriptions`;
+- Make it SPECIFIC to the actual data provided — avoid generic placeholder descriptions
+${hasFile ? `- SOURCE FILE IS PROVIDED: derive ALL slide topics and data points directly from the file. Do not invent information not present in the file.
+- Do NOT include currency symbols ($, £, €, ₹, etc.) in any title or description unless the file data explicitly shows them` : "- Make it SPECIFIC to the actual data provided"}`;
+
 
       const userPrompt = `Presentation brief:
 Title: ${brief?.title || "Business Presentation"}
@@ -3196,12 +3242,21 @@ Generate the outline now:`;
         : "";
 
       const fileContext = sourceData?.fileContent
-        ? `\n\nATTACHED DOCUMENT:\n${String(sourceData.fileContent).slice(0, 3000)}`
+        ? `\n\nSOURCE FILE DATA (derive ALL slide content from this — do not invent any metric not in this file):\n${String(sourceData.fileContent).slice(0, 8000)}`
         : "";
 
-      const systemPrompt = `You are a world-class business presentation designer and strategist. Generate compelling, information-rich slide content that reads like a premium McKinsey or BCG deck. Return ONLY valid JSON — an array of slide content objects matching the outline. No markdown fences, no extra text.
+      const hasSourceFile = !!sourceData?.fileContent;
 
-Each slide object MUST include ALL applicable fields:
+      const systemPrompt = `You are a world-class business presentation designer and strategist. Generate compelling, information-rich slide content. Return ONLY valid JSON — an array of slide content objects matching the outline. No markdown fences, no extra text.
+
+${hasSourceFile ? `CRITICAL FILE RULES (source file is attached):
+- Base ALL numbers, metrics, and data ONLY on the file provided. Do NOT invent, estimate, or hallucinate values.
+- Use exact totals, averages, min/max values as computed from the file columns.
+- Do NOT add currency symbols ($, £, €, ₹, etc.) unless the file data explicitly shows them.
+- For data slides: chartData entries must come from actual column values or breakdowns in the file.
+- For stat entries: use the exact computed totals/averages from the COLUMN ANALYSIS section of the file.
+
+` : ""}Each slide object MUST include ALL applicable fields:
 - id: string (match the outline id exactly)
 - type: string (match the outline type exactly)
 - title: string (punchy, informative slide title — under 8 words)
@@ -3229,13 +3284,14 @@ Design principles:
 - Tone: ${brief?.tone || "Executive"} — be decisive, data-driven, and clear
 - Audience: ${brief?.audience || "Senior leadership"} — assume high business acumen
 - Every slide must feel information-dense and visually rich
-- Always use specific numbers, names, percentages — never vague generalities
-- For title slides: craft a compelling subtitle that captures the narrative arc, plus emphasis as "PERIOD BOARD REVIEW" or similar
-- For data slides: stat values should be eye-catching big numbers (e.g. "$12.4M", "94%", "3.2×")
+- Always use specific numbers and percentages drawn from the actual data — never vague generalities
+- CURRENCY: Do NOT add any currency symbol ($, £, €, ₹, etc.) to any number unless the source data explicitly shows that symbol. Use plain numbers (e.g. "12,450" not "$12,450")
+- For title slides: craft a compelling subtitle that captures the narrative arc, plus emphasis as "PERIOD REVIEW" or similar
+- For data slides: stat values = exact totals/averages/counts from the data (e.g. "12,450", "94%", "3.2×")
 - For closing slides: bullets[0] = specific, actionable CTA; bullets[1] = next meeting / deadline
 - For section slides: subtitle should preview the key insight in that section
-- For two-column slides: left column = challenges/problems, right column = solutions/achievements (or before/after)
-- chartData should tell a story — show relative performance, not just random numbers`;
+- For two-column slides: reflect actual categorical breakdowns from the data (e.g. by region, product, channel)
+- chartData should use real column values from the source file — not illustrative examples`;
 
       const userPrompt = `Presentation: "${brief?.title || "Business Presentation"}"
 Objective: ${brief?.objective || ""}
@@ -3244,7 +3300,7 @@ Instructions: ${brief?.instructions || ""}${platformContext}${fileContext}
 Outline to expand:
 ${JSON.stringify(outline, null, 2)}
 
-Generate full slide content now — use real data values from above wherever available:`;
+Generate full slide content now.${hasSourceFile ? " SOURCE FILE IS PROVIDED — use only values and metrics found in that file. Do not invent numbers. No currency symbols unless present in the file." : " Use real data values from above wherever available."}`;
 
       const completion = await oai.chat.completions.create({
         model: "gpt-4o",
