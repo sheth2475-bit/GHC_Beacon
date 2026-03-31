@@ -1396,7 +1396,7 @@ function HomeView({
   const { toast } = useToast();
   const [prompt, setPrompt] = useState("");
   const [sources, setSources] = useState<SourceType[]>([]);
-  const [slideCount, setSlideCount] = useState(10);
+  const [slideCount, setSlideCount] = useState(5);
   const [theme, setTheme] = useState<Theme>("executive-dark");
   const [fileText, setFileText] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -1491,11 +1491,11 @@ function HomeView({
             <div className="border-t border-slate-700/60 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500">Slides:</span>
+                  <span className="text-[11px] text-slate-500">Content slides:</span>
                   <select value={slideCount} onChange={e => setSlideCount(Number(e.target.value))}
                     className="bg-slate-800 border border-slate-600 text-slate-200 text-[11px] rounded-lg px-2 py-1 outline-none"
                     data-testid="select-slide-count">
-                    {[5, 8, 10, 12, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                    {[3, 4, 5, 6, 7, 8, 10, 12].map(n => <option key={n} value={n}>{n} slides ({n + 3} total)</option>)}
                   </select>
                 </div>
                 <div className="flex items-center gap-2">

@@ -3134,6 +3134,10 @@ Ask the most impactful 2-3 clarifying questions now:`
 
       const hasFile = !!sourceData?.fileContent;
 
+      // targetSlides = number of CONTENT slides (title + agenda + closing are always added on top)
+      const contentSlides = Math.max(3, targetSlides);
+      const totalSlides = contentSlides + 3; // title + agenda + (content × N) + closing
+
       const systemPrompt = `You are an expert business presentation strategist. Generate a tailored, data-driven slide outline. Return ONLY valid JSON — an array of slide outline objects. No markdown fences.
 
 Each object must have:
@@ -3142,18 +3146,24 @@ Each object must have:
 - title: string (concise slide title, max 8 words)
 - description: string (one specific sentence — mention actual metrics, names, or decisions from the data)
 
-Rules:
-- First slide: "title" type  
-- Second or third slide: "agenda" type
-- Last slide: "closing" type
-- Use "data" slides for numeric columns, totals, averages, or KPI metrics
-- Use "two-column" for comparisons, breakdowns by category, or before/after
-- Use "section" to divide major themes
-- Match exactly ${targetSlides} slides
-- Make it SPECIFIC to the actual data provided — avoid generic placeholder descriptions
-${hasFile ? `- SOURCE FILE IS PROVIDED: derive ALL slide topics and data points directly from the file. Do not invent information not present in the file.
-- Do NOT include currency symbols ($, £, €, ₹, etc.) in any title or description unless the file data explicitly shows them` : "- Make it SPECIFIC to the actual data provided"}`;
+STRICT STRUCTURE RULES (non-negotiable):
+1. slide-1: MUST be type "title"
+2. slide-2: MUST be type "agenda" — its bullets will list exactly the ${contentSlides} topics that follow
+3. slides 3 to ${contentSlides + 2}: MUST be ${contentSlides} content slides (use types: "content", "two-column", "data", "quote", "section" as appropriate)
+4. slide-${totalSlides}: MUST be type "closing"
+5. Total slides MUST be exactly ${totalSlides} (1 title + 1 agenda + ${contentSlides} content + 1 closing)
+6. EVERY agenda item must map to exactly one of the ${contentSlides} content slides that follow — one slide per topic, no exceptions
 
+Content slide type guidance:
+- Use "data" slides for numeric KPIs, metrics, totals, or percentages
+- Use "two-column" for comparisons, breakdowns by category, or before/after contrasts
+- Use "section" to divide major themes within the content slides
+- Use "content" for narrative, context, strategy, risks, or recommendations
+- Make each slide SPECIFIC to the actual data provided — avoid generic placeholder descriptions
+
+${hasFile ? `SOURCE FILE RULES:
+- Derive ALL slide topics directly from the file. Do not invent information not in the file.
+- Do NOT include currency symbols ($, £, €, ₹, etc.) in any title or description unless the file data shows them.` : "Make slides SPECIFIC to the actual data provided — use real names, metrics, and decisions."}`;
 
       const userPrompt = `Presentation brief:
 Title: ${brief?.title || "Business Presentation"}
@@ -3161,9 +3171,9 @@ Audience: ${brief?.audience || "Senior leadership"}
 Objective: ${brief?.objective || "Inform and align"}
 Tone: ${brief?.tone || "Executive"}
 Deck Type: ${brief?.deckType || "Strategy"}
-Target Slides: ${targetSlides}${answersSection}${platformData}${fileSection}
+Content slides required: ${contentSlides} (plus title, agenda, and closing = ${totalSlides} total)${answersSection}${platformData}${fileSection}
 
-Generate the outline now:`;
+Generate the outline now — exactly ${totalSlides} slides (slide-1=title, slide-2=agenda, slides 3-${contentSlides + 2}=content, slide-${totalSlides}=closing):`;
 
       const completion = await oai.chat.completions.create({
         model: "gpt-4o",
