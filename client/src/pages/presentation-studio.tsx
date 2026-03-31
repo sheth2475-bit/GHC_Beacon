@@ -2183,14 +2183,28 @@ export default function PresentationStudioPage() {
       return t.slice(0, 72).trim() || "Business Presentation";
     };
 
-    // Auto-detect sources from the prompt so user doesn't have to manually select them
+    // Auto-detect sources only when the prompt has clear company-data intent.
+    // NEVER trigger for generic/educational prompts ("how to", "what is", "guide", etc.)
     const autoDetectSources = (p: string): SourceType[] => {
+      // If user already picked sources manually, respect their choice as-is
+      if (opts.sources.length > 0) return opts.sources;
+
       const lower = p.toLowerCase();
-      const detected: SourceType[] = [...opts.sources];
-      if (/kpi|metric|target|occupancy|revenue|adr|revpar|gop|nps|score|rate|performance/.test(lower) && !detected.includes("kpis")) detected.push("kpis");
-      if (/project|portfolio|initiative|program|roadmap|milestone|progress|status/.test(lower) && !detected.includes("projects")) detected.push("projects");
-      if (/review|monthly|summary|gap|recommendation|last month/.test(lower) && !detected.includes("reviews")) detected.push("reviews");
-      if (/action|task|workflow|ticket|license|certificate|due|overdue/.test(lower) && !detected.includes("workflow")) detected.push("workflow");
+
+      // Generic/educational intent — do NOT pull company data
+      const isGeneric = /\b(how to|how do i|what is|what are|guide to|guide for|introduction to|intro to|overview of|tips for|best practices|best practice|tutorial|explain|meaning of|definition of|learn about)\b/.test(lower);
+      if (isGeneric) return [];
+
+      // Company-data intent signals — user is asking about THEIR specific data
+      const hasCompanyContext = /\b(our|my|company|team|department|this quarter|last quarter|this month|last month|q1|q2|q3|q4|fy\d|ytd|yoy|status|report on|update on|review of|performance of|results|actual|vs target|breakdown|analysis of)\b/.test(lower);
+      if (!hasCompanyContext) return [];
+
+      // Only auto-add sources when there is clear company-data context
+      const detected: SourceType[] = [];
+      if (/\b(kpi|metric|target|occupancy|revenue|adr|revpar|gop|nps|score|rate)\b/.test(lower)) detected.push("kpis");
+      if (/\b(project|portfolio|initiative|program|roadmap|milestone|progress)\b/.test(lower)) detected.push("projects");
+      if (/\b(review|monthly review|summary|gaps|recommendation)\b/.test(lower)) detected.push("reviews");
+      if (/\b(action item|overdue task|workflow|ticket|license|certificate)\b/.test(lower)) detected.push("workflow");
       return detected;
     };
 
