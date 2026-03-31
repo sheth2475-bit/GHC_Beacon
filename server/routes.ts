@@ -3247,7 +3247,11 @@ Generate the outline now:`;
 
       const hasSourceFile = !!sourceData?.fileContent;
 
-      const systemPrompt = `You are a world-class business presentation designer and strategist. Generate compelling, information-rich slide content. Return ONLY valid JSON — an array of slide content objects matching the outline. No markdown fences, no extra text.
+      // Pre-build agenda map so AI can reference actual slide titles
+      const nonFrameSlides = (outline as any[]).filter((s: any) => !["title","agenda","closing"].includes(s.type));
+      const agendaMap = nonFrameSlides.map((s: any, i: number) => `${i + 1}. ${s.title}${s.description ? ` — ${s.description}` : ""}`).join("\n");
+
+      const systemPrompt = `You are a world-class business presentation designer and strategist. Your job is to generate RICH, DETAILED, INFORMATION-DENSE slide content that a senior executive would be proud to present. Return ONLY valid JSON — an array of slide content objects matching the outline. No markdown fences, no extra text.
 
 ${hasSourceFile ? `CRITICAL FILE RULES (source file is attached):
 - Base ALL numbers, metrics, and data ONLY on the file provided. Do NOT invent, estimate, or hallucinate values.
@@ -3256,42 +3260,53 @@ ${hasSourceFile ? `CRITICAL FILE RULES (source file is attached):
 - For data slides: chartData entries must come from actual column values or breakdowns in the file.
 - For stat entries: use the exact computed totals/averages from the COLUMN ANALYSIS section of the file.
 
-` : ""}Each slide object MUST include ALL applicable fields:
+` : ""}═══ MANDATORY CONTENT REQUIREMENTS ═══
+
+Each slide object MUST include ALL applicable fields:
+
 - id: string (match the outline id exactly)
 - type: string (match the outline type exactly)
 - title: string (punchy, informative slide title — under 8 words)
-- subtitle: string (for title/closing/section slides — one complete sentence adding context)
-- emphasis: string (a bold callout — key metric, insight, or action phrase — for ANY slide type; always populate this)
-- bullets: string[] — for content/agenda/two-column slides:
-    • 4–6 bullets per slide
-    • Each bullet: 12–20 words, complete thought, specific and substantive
-    • Start with a strong verb or key number where possible
-    • agenda slides: each bullet = one agenda topic, 8–14 words
-    • Empty array ONLY for data/quote/section slides
-- stat: array for "data" slides — always include 3 stats (use real values from context or realistic estimates):
-    { value: string (e.g. "$2.4M", "87%", "14.2"), label: string (descriptive, 3–6 words), change: string (e.g. "+12% YoY", "-3pp QoQ"), trend: "up"|"down"|"flat", pct: number (0–150, % of target achieved — can exceed 100%), color: "green"|"amber"|"red" }
-- chartData: array for "data" slides — always include 4–6 entries for a bar chart breakdown:
+- subtitle: string — REQUIRED for title, closing, section, and quote slides. One rich sentence (20–30 words) that captures the key narrative of this slide.
+- emphasis: string — REQUIRED for ALL slide types. A bold, specific callout — a key metric, insight, decision, or action phrase. Must be concrete and data-driven (e.g., "Occupancy at 87% — 5pp above target", "3 critical gaps require Q2 action", "RevPAR growth of 14% YoY"). Never leave blank.
+- body: string — REQUIRED for content, two-column slides. A 2–3 sentence explanatory paragraph (40–60 words) that provides context, analysis, or background for the bullets. Written in flowing prose, not bullet form. This is the narrative spine of the slide.
+- bullets: string[] — MANDATORY for content, agenda, two-column slides. Rules:
+    • content/two-column slides: EXACTLY 5 bullets minimum. Each bullet: 18–28 words, a COMPLETE SENTENCE with a subject, action, and result/implication. Start with a strong verb or specific number. Must convey a distinct, substantive insight.
+    • agenda slides: EXACTLY one bullet per non-title, non-closing, non-agenda slide in the deck (see AGENDA MAP below). Format each as: "[Section Topic]: [what the audience will learn or decide — 10–15 words]"
+    • Empty array ONLY for data, quote, section slides
+- stat: array — REQUIRED for "data" slides — include EXACTLY 3 stats:
+    { value: string (e.g. "87%", "14.2K", "3.2×"), label: string (4–7 words describing what this measures), change: string (e.g. "+12% vs prior quarter", "-3pp vs target"), trend: "up"|"down"|"flat", pct: number (0–150, % of target achieved), color: "green"|"amber"|"red" }
+- chartData: array — REQUIRED for "data" slides — include EXACTLY 5–6 entries for a bar chart:
     { label: string (2–4 words), value: number }
-    Use real breakdowns: by region, product, department, quarter, etc.
-- tableData: for "table" slides — always include headers and 4–6 data rows:
-    { headers: string[], rows: string[][] }
-    Include a Status column with ✓ / ✗ / → indicators where appropriate
-- quote: string (for quote slides — an inspiring, specific, attributed quote relevant to the context; 15–40 words)
+    Derive from real breakdowns (by region, property, product, department, quarter, etc.)
+- tableData: for "table" slides — include headers and 4–6 data rows with a Status column using ✓ / ✗ / → indicators
+- quote: string — for quote slides — an inspiring, specific, attributed insight 20–40 words. Attribute to a real business leader or the presenter's company.
 - colorCode: "green"|"amber"|"red" (for data slides — overall RAG status)
-- notes: string (speaker notes, 3–4 sentences, includes key talking points and context)
+- notes: string — REQUIRED for ALL slides. 4–5 sentences of speaker notes (60–90 words). Include: what to emphasise verbally, key talking points not on the slide, how this slide connects to the next, and a suggested transition phrase.
 
-Design principles:
-- Tone: ${brief?.tone || "Executive"} — be decisive, data-driven, and clear
+═══ AGENDA MAP (use these exact topics for the agenda slide bullets) ═══
+${agendaMap || "Derive agenda topics from the slide outline provided."}
+
+═══ DESIGN PRINCIPLES ═══
+- Tone: ${brief?.tone || "Executive"} — decisive, data-driven, and clear
 - Audience: ${brief?.audience || "Senior leadership"} — assume high business acumen
-- Every slide must feel information-dense and visually rich
-- Always use specific numbers and percentages drawn from the actual data — never vague generalities
-- CURRENCY: Do NOT add any currency symbol ($, £, €, ₹, etc.) to any number unless the source data explicitly shows that symbol. Use plain numbers (e.g. "12,450" not "$12,450")
-- For title slides: craft a compelling subtitle that captures the narrative arc, plus emphasis as "PERIOD REVIEW" or similar
-- For data slides: stat values = exact totals/averages/counts from the data (e.g. "12,450", "94%", "3.2×")
-- For closing slides: bullets[0] = specific, actionable CTA; bullets[1] = next meeting / deadline
-- For section slides: subtitle should preview the key insight in that section
-- For two-column slides: reflect actual categorical breakdowns from the data (e.g. by region, product, channel)
-- chartData should use real column values from the source file — not illustrative examples`;
+- Every slide must be information-dense: title + emphasis + body paragraph + 5 detailed bullets = a complete, standalone slide
+- Use SPECIFIC numbers, names, percentages — never vague generalities like "improved significantly"
+- CURRENCY: Do NOT add any currency symbol ($, £, €, ₹, etc.) to any number unless the source data explicitly shows that symbol
+- Title slides: compelling subtitle capturing the narrative arc; emphasis = period label (e.g., "Q2 2026 BOARD REVIEW")
+- Data slides: stat values from real data; notes explain the story behind the numbers
+- Closing slides: bullets[0] = specific, actionable CTA with owner and date; bullets[1] = next milestone or meeting date
+- Section slides: subtitle previews the key insight to be revealed in this section
+- Two-column slides: colA bullets = one perspective/side; colB bullets = contrasting/complementary perspective
+- The body paragraph MUST add analysis or context that is NOT already stated in the bullets
+
+═══ QUALITY BAR ═══
+A slide FAILS quality if:
+- Any bullet is fewer than 15 words
+- The body field is missing or fewer than 30 words
+- The notes field is fewer than 50 words
+- The emphasis field is vague (e.g., "Key insight", "Important metric") or missing
+- The agenda slide bullets do not match the actual slides in the deck`;
 
       const userPrompt = `Presentation: "${brief?.title || "Business Presentation"}"
 Objective: ${brief?.objective || ""}
@@ -3305,8 +3320,8 @@ Generate full slide content now.${hasSourceFile ? " SOURCE FILE IS PROVIDED — 
       const completion = await oai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        temperature: 0.7,
-        max_tokens: 6000,
+        temperature: 0.65,
+        max_tokens: 10000,
       });
 
       const raw = completion.choices[0].message.content || "[]";
@@ -3343,8 +3358,8 @@ CANVAS VISIBILITY RULES — only these fields render visually on each slide type
 - "title" slides: title, subtitle, emphasis
 - "agenda" slides: title, bullets (each bullet = one agenda item)
 - "section" slides: title, subtitle, emphasis
-- "content" slides: title, bullets, emphasis
-- "two-column" slides: title, bullets (first half = left col, second half = right col), emphasis
+- "content" slides: title, body (explanatory paragraph shown above bullets), bullets, emphasis
+- "two-column" slides: title, body (explanatory paragraph), bullets (first half = left col, second half = right col), emphasis
 - "data" slides: title, stat (KPI cards — update value/label/change/trend/color), chartData (bar chart — update label/value pairs), emphasis, colorCode
 - "quote" slides: title, quote
 - "closing" slides: title, bullets, emphasis

@@ -39,6 +39,7 @@ interface TableData {
 interface Slide {
   id: string; type: SlideType; title: string;
   subtitle?: string; bullets?: string[];
+  body?: string;
   stat?: { value: string; label: string; change?: string; trend?: "up" | "down" | "flat"; pct?: number; color?: "green" | "amber" | "red" }[];
   chartData?: { label: string; value: number; color?: string }[];
   tableData?: TableData;
@@ -195,19 +196,27 @@ async function exportToPptx(slides: Slide[], theme: Theme, title: string) {
             x: 0.5, y: 0.1, w: 9.3, h: 0.44,
             fontSize: 18, color: pptxColor(t.titleColor), bold: true, valign: "middle",
           });
-          const bulletsY = slide.emphasis ? 1.18 : 0.75;
+          let contentY = 0.62;
           if (slide.emphasis) {
             ps.addText(slide.emphasis, {
-              x: 0.5, y: 0.72, w: 9.3, h: 0.38,
+              x: 0.5, y: 0.62, w: 9.3, h: 0.36,
               fontSize: 10, color: pptxColor(t.accent), bold: true,
             });
+            contentY = 1.02;
+          }
+          if (slide.body) {
+            ps.addText(slide.body, {
+              x: 0.6, y: contentY, w: 9.1, h: 0.42,
+              fontSize: 9.5, color: pptxColor(t.bodyColor), italic: true,
+            });
+            contentY += 0.46;
           }
           if (slide.bullets && slide.bullets.length > 0) {
             const bulletItems = slide.bullets.slice(0, 6).map(b => ({
               text: b,
-              options: { bullet: { code: "2022" }, fontSize: 13, color: pptxColor(t.bodyColor), paraSpaceAfter: 5 },
+              options: { bullet: { code: "2022" }, fontSize: 11.5, color: pptxColor(t.bodyColor), paraSpaceAfter: 5 },
             }));
-            ps.addText(bulletItems, { x: 0.6, y: bulletsY, w: 9.1, h: PH - bulletsY - 0.35 });
+            ps.addText(bulletItems, { x: 0.6, y: contentY, w: 9.1, h: PH - contentY - 0.3 });
           }
           break;
         }
@@ -502,8 +511,9 @@ function exportToPdf(slides: Slide[], theme: Theme, title: string) {
         <thead><tr>${headerCells}</tr></thead><tbody>${dataRows}</tbody>
       </table>`;
     } else {
-      inner = `${titleHtml}${subHtml}${badge}
-               ${(slide.bullets || []).slice(0, 7).map(b => `<div style="display:flex;gap:10px;color:${t.bodyColor};font-size:.85rem;margin-bottom:8px;"><span style="color:${t.accent};flex-shrink:0;">▸</span>${b}</div>`).join("")}`;
+      const bodyHtml = slide.body ? `<div style="color:${t.bodyColor};font-size:.82rem;font-style:italic;opacity:.82;line-height:1.6;margin-bottom:10px;padding-left:4px;">${slide.body}</div>` : "";
+      inner = `${titleHtml}${badge}${bodyHtml}
+               ${(slide.bullets || []).slice(0, 6).map(b => `<div style="display:flex;gap:10px;color:${t.bodyColor};font-size:.82rem;margin-bottom:7px;line-height:1.5;"><span style="color:${t.accent};flex-shrink:0;margin-top:2px;">▸</span>${b}</div>`).join("")}`;
     }
 
     return `<div class="slide" style="background:${t.bg};">
@@ -1002,29 +1012,36 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
   );
 
   // ── CONTENT SLIDE (default) ──────────────────────────────────────────────────
+  const bullets = slide.bullets || [];
+  const hasManyBullets = bullets.length >= 5;
+  const bulletFontSize = hasManyBullets ? 14 : 16;
+  const bulletPadV = hasManyBullets ? 7 : 9;
   return (
     <div style={base}>
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox="0 0 960 540" preserveAspectRatio="none">
         <rect width="960" height="540" fill={t.bg}/>
         <rect x="0" y="0" width="8" height="540" fill={t.accent}/>
-        <rect x="0" y="0" width="960" height="58" fill={t.cardBg} fillOpacity="0.52"/>
-        <rect x="0" y="58" width="960" height="1.5" fill={t.borderColor} fillOpacity="0.4"/>
+        <rect x="0" y="0" width="960" height="54" fill={t.cardBg} fillOpacity="0.52"/>
+        <rect x="0" y="54" width="960" height="1.5" fill={t.borderColor} fillOpacity="0.4"/>
         <circle cx="860" cy="460" r="100" fill={t.accent} fillOpacity="0.04"/>
       </svg>
-      <div style={{ position: "absolute", inset: 0, padding: "0 24px 18px 24px" }}>
-        <div style={{ height: 58, display: "flex", alignItems: "center", paddingLeft: 14 }}>
-          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 26 }}>{slide.title}</div>
+      <div style={{ position: "absolute", inset: 0, padding: "0 24px 14px 24px" }}>
+        <div style={{ height: 54, display: "flex", alignItems: "center", paddingLeft: 14 }}>
+          <div style={{ color: t.titleColor, fontWeight: 800, fontSize: 24 }}>{slide.title}</div>
         </div>
         {slide.emphasis && (
-          <div style={{ marginBottom: 10, marginLeft: 14, padding: "10px 18px", background: `${t.accent}12`, borderLeft: `4px solid ${t.accent}`, borderRadius: "0 4px 4px 0", color: t.accent, fontSize: 14, fontWeight: 600, lineHeight: 1.35 }}>{slide.emphasis}</div>
+          <div style={{ marginBottom: 8, marginLeft: 14, padding: "8px 16px", background: `${t.accent}12`, borderLeft: `4px solid ${t.accent}`, borderRadius: "0 4px 4px 0", color: t.accent, fontSize: 13, fontWeight: 600, lineHeight: 1.35 }}>{slide.emphasis}</div>
         )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 14 }}>
-          {(slide.bullets || []).slice(0, 6).map((b, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "9px 14px", background: i % 2 === 0 ? `${t.cardBg}40` : "transparent", borderRadius: 4 }}>
-              <svg width="9" height="9" viewBox="0 0 9 9" style={{ flexShrink: 0, marginTop: 5 }}>
+        {slide.body && (
+          <div style={{ marginBottom: 9, marginLeft: 14, marginRight: 14, color: t.bodyColor, fontSize: 12.5, lineHeight: 1.6, opacity: 0.78, fontStyle: "italic", paddingLeft: 4 }}>{slide.body}</div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 14 }}>
+          {bullets.slice(0, 6).map((b, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: `${bulletPadV}px 12px`, background: i % 2 === 0 ? `${t.cardBg}40` : "transparent", borderRadius: 4 }}>
+              <svg width="8" height="8" viewBox="0 0 9 9" style={{ flexShrink: 0, marginTop: 4 }}>
                 <circle cx="4.5" cy="4.5" r="4" fill={t.accent} fillOpacity="0.9"/>
               </svg>
-              <span style={{ color: t.bodyColor, fontSize: 17, lineHeight: 1.5 }}>{b}</span>
+              <span style={{ color: t.bodyColor, fontSize: bulletFontSize, lineHeight: 1.48 }}>{b}</span>
             </div>
           ))}
         </div>
@@ -2032,10 +2049,17 @@ function EditorView({
                       />
                     </div>
                   )}
-                  {["title", "content", "data"].includes(selectedSlide.type) && (
+                  {["title", "content", "data", "two-column"].includes(selectedSlide.type) && (
                     <div className="space-y-1">
                       <Label className="text-[11px]">Emphasis / label</Label>
                       <Input value={selectedSlide.emphasis || ""} onChange={e => updateSlide(selectedIdx, { emphasis: e.target.value })} className="h-8 text-sm" placeholder="e.g. Q2 2026 BOARD REVIEW" />
+                    </div>
+                  )}
+                  {["content", "two-column"].includes(selectedSlide.type) && (
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Body paragraph</Label>
+                      <Textarea value={selectedSlide.body || ""} onChange={e => updateSlide(selectedIdx, { body: e.target.value })}
+                        className="min-h-[60px] text-xs" placeholder="Add a brief explanatory paragraph shown above the bullets…" data-testid="textarea-body" />
                     </div>
                   )}
                   <div className="space-y-1">
