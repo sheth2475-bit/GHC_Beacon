@@ -199,75 +199,93 @@ const GUIDE_STEPS = [
 const FEATURES = [
   {
     icon: LayoutDashboard,
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
+    color: "text-blue-400",
+    bg: "bg-blue-500/15",
+    accent: "from-blue-500 to-cyan-400",
+    dot: "bg-blue-400",
     title: "Smart Dashboard",
-    desc: "A live command centre that adapts to your data — shows KPI health, project portfolio stats, and overdue action alerts. Always relevant, never empty.",
-    badge: null,
+    desc: "A live command centre that surfaces what matters — KPI health, project portfolio status, and overdue action alerts — the moment you log in.",
+    capabilities: ["KPI health overview at a glance", "Project portfolio health scores", "Overdue action alerts"],
   },
   {
     icon: Target,
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/15",
+    accent: "from-emerald-500 to-teal-400",
+    dot: "bg-emerald-400",
     title: "KPI Management",
-    desc: "Define targets, track actuals, and get Amber/Green/Red status automatically. AI can generate a full KPI library for your industry in seconds.",
-    badge: null,
+    desc: "Set targets, track actuals, and get Amber/Green/Red status automatically. AI generates a full KPI library for your industry in seconds.",
+    capabilities: ["AI-generated KPI library by industry", "Traffic-light status (Green/Amber/Red)", "Weekly, monthly, or quarterly cadence"],
   },
   {
     icon: ListChecks,
-    color: "text-orange-500",
-    bg: "bg-orange-500/10",
+    color: "text-orange-400",
+    bg: "bg-orange-500/15",
+    accent: "from-orange-500 to-amber-400",
+    dot: "bg-orange-400",
     title: "Action Tracker",
-    desc: "Capture decisions and assign action items with owner, due date, and priority. Live overdue alerts mean nothing slips through the cracks.",
-    badge: null,
+    desc: "Every decision becomes a trackable action. Assign owners, due dates, and priorities — with live overdue alerts so nothing slips.",
+    capabilities: ["Owner + due date + priority on every action", "Live overdue alerts and escalations", "Meeting-to-action workflow"],
   },
   {
     icon: Briefcase,
-    color: "text-pink-500",
-    bg: "bg-pink-500/10",
+    color: "text-pink-400",
+    bg: "bg-pink-500/15",
+    accent: "from-pink-500 to-rose-400",
+    dot: "bg-pink-400",
     title: "Project Management",
-    desc: "Portfolio → Initiatives → Tasks, three levels deep. Manage strategic projects, break them into initiatives, and track individual tasks — all in one place.",
-    badge: null,
-  },
-  {
-    icon: Database,
-    color: "text-indigo-500",
-    bg: "bg-indigo-500/10",
-    title: "Analytics Studio",
-    desc: "Upload any Excel or CSV, ask questions in plain English, and get instant AI-selected charts — bar, line, pie, KPI, trend, and more. Pin results to shared dashboards.",
-    badge: "New",
-  },
-  {
-    icon: Layers,
-    color: "text-fuchsia-500",
-    bg: "bg-fuchsia-500/10",
-    title: "Presentation Studio",
-    desc: "AI builds a full slide deck from your data or a prompt — 15 slide types, 6 professional themes, real-time AI refinement, and one-click PPTX/PDF export.",
-    badge: "New",
-  },
-  {
-    icon: Sparkles,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-    title: "AI Assistant",
-    desc: "Ask anything — 'Which KPIs are at risk?', 'Summarise last month's performance' — and get instant, data-grounded answers powered by GPT-4o.",
-    badge: null,
-  },
-  {
-    icon: FileText,
-    color: "text-teal-500",
-    bg: "bg-teal-500/10",
-    title: "Monthly Reviews",
-    desc: "Auto-generate board-ready performance reviews with strengths, gaps, and recommendations — covering KPIs, actions, and projects in one narrative.",
-    badge: null,
+    desc: "Three-level portfolio management — Portfolio → Initiatives → Tasks. Health scores keep every strategic project visible and on track.",
+    capabilities: ["Portfolio → Initiatives → Tasks hierarchy", "Green/Amber/Red health scores", "Milestone and deadline tracking"],
   },
   {
     icon: Workflow,
-    color: "text-cyan-500",
-    bg: "bg-cyan-500/10",
+    color: "text-cyan-400",
+    bg: "bg-cyan-500/15",
+    accent: "from-cyan-500 to-sky-400",
+    dot: "bg-cyan-400",
     title: "Workflow Center",
-    desc: "Map, monitor, and improve operational workflows across your departments. Track step-by-step processes and flag bottlenecks before they become problems.",
-    badge: null,
+    desc: "Map, automate, and monitor business workflows across every department. Automated email reminders fire on overdue steps, SLA targets are tracked in real time, and stage-level alerts catch bottlenecks before they escalate.",
+    capabilities: ["Automated email reminders for overdue steps", "SLA tracking with breach alerts", "Multi-department process mapping"],
+  },
+  {
+    icon: Database,
+    color: "text-indigo-400",
+    bg: "bg-indigo-500/15",
+    accent: "from-indigo-500 to-violet-400",
+    dot: "bg-indigo-400",
+    title: "Analytics Studio",
+    desc: "Upload any Excel or CSV, ask questions in plain English, and get instant AI-selected charts with trend detection, anomaly flags, and executive summaries.",
+    capabilities: ["Natural language to chart in seconds", "Trend and anomaly detection", "Pin insights to shared dashboards"],
+  },
+  {
+    icon: Layers,
+    color: "text-fuchsia-400",
+    bg: "bg-fuchsia-500/15",
+    accent: "from-fuchsia-500 to-purple-400",
+    dot: "bg-fuchsia-400",
+    title: "Presentation Studio",
+    desc: "AI builds a complete slide deck from your data or a prompt. 15 slide types, 6 professional themes, real-time AI refinement, and one-click PPTX/PDF export.",
+    capabilities: ["Full deck from prompt or data file", "6 themes · 15 slide types", "Export to PPTX or PDF instantly"],
+  },
+  {
+    icon: Sparkles,
+    color: "text-amber-400",
+    bg: "bg-amber-500/15",
+    accent: "from-amber-500 to-yellow-400",
+    dot: "bg-amber-400",
+    title: "AI Assistant",
+    desc: "Ask anything about your business — 'Which KPIs are at risk?', 'Summarise Q2 performance' — and get instant, grounded answers powered by GPT-4o.",
+    capabilities: ["Grounded in your KPIs, actions, and projects", "Risk flags and performance summaries", "Available across all modules"],
+  },
+  {
+    icon: FileText,
+    color: "text-teal-400",
+    bg: "bg-teal-500/15",
+    accent: "from-teal-500 to-emerald-400",
+    dot: "bg-teal-400",
+    title: "Monthly Reviews",
+    desc: "One click generates a board-ready performance review covering KPIs, action completion, and project progress — with an AI-written executive narrative.",
+    capabilities: ["AI-written executive narrative", "KPIs + actions + projects in one report", "PDF export for board distribution"],
   },
 ];
 
@@ -620,31 +638,45 @@ export default function LandingPage() {
       </section>
 
       {/* ══ FEATURES ══════════════════════════════════════════════════════════ */}
-      <section id="features" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 text-blue-600 text-sm font-semibold uppercase tracking-wider mb-3">
-              <span className="h-px w-8 bg-blue-300" /> Everything in one platform <span className="h-px w-8 bg-blue-300" />
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-              Replace five tools with one
+      <section id="features" className="py-24 bg-[#070d1a] relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-blue-600/12 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/3 w-[400px] h-[400px] bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-3/4 left-0 w-72 h-72 bg-cyan-600/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:60px_60px] pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="text-center mb-16">
+            <p className="text-blue-400 text-xs font-bold uppercase tracking-[0.2em] mb-4">Nine modules · One platform</p>
+            <h2 className="text-4xl sm:text-5xl font-bold text-white leading-[1.1] max-w-3xl mx-auto">
+              Every tool your performance<br className="hidden sm:block" /> team will ever need
             </h2>
-            <p className="mt-3 text-lg text-gray-600 max-w-2xl mx-auto">
-              Spreadsheets for KPIs. Another app for projects. Email threads for actions. Separate BI tools for data. A slide tool for presentations. Performo replaces all of it.
+            <p className="mt-5 text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+              From tracking KPIs to automating workflows and generating board-ready presentations — nine deeply integrated modules working as one.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map(f => (
-              <div key={f.title} className="relative bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
-                {f.badge && (
-                  <span className="absolute top-3 right-3 text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">{f.badge}</span>
-                )}
-                <div className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${f.bg} mb-4`}>
-                  <f.icon className={`h-5 w-5 ${f.color}`} />
+              <div key={f.title} className="group relative rounded-2xl overflow-hidden">
+                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${f.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                <div className="absolute inset-[1px] rounded-[14px] bg-[#0c1525]" />
+                <div className={`absolute top-0 left-6 right-6 h-[1.5px] bg-gradient-to-r ${f.accent} opacity-50 group-hover:opacity-100 transition-opacity duration-300`} />
+
+                <div className="relative p-6 flex flex-col h-full">
+                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${f.bg} mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                    <f.icon className={`h-5 w-5 ${f.color}`} />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-white mb-2 leading-snug">{f.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed mb-5 flex-1">{f.desc}</p>
+                  <div className="space-y-2 pt-4 border-t border-white/5">
+                    {f.capabilities.map(c => (
+                      <div key={c} className="flex items-center gap-2.5">
+                        <div className={`w-1 h-1 rounded-full ${f.dot} shrink-0 opacity-60`} />
+                        <span className="text-[11px] text-slate-500 leading-none">{c}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1.5 group-hover:text-blue-600 transition-colors">{f.title}</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -784,7 +816,6 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 text-fuchsia-600 text-sm font-semibold uppercase tracking-wider mb-3">
               <span className="h-px w-8 bg-fuchsia-300" /> Presentation Studio <span className="h-px w-8 bg-fuchsia-300" />
-              <span className="text-[10px] font-bold bg-fuchsia-600 text-white px-2 py-0.5 rounded-full ml-1">New</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
               Board-ready decks in under 30 seconds
@@ -1091,9 +1122,6 @@ export default function LandingPage() {
                   <span className="absolute -top-2 -right-1 text-8xl font-black text-white/[0.04] leading-none select-none pointer-events-none">{step.step}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] font-black text-white/25 uppercase tracking-widest">Step {step.step}</span>
-                    {(step as any).isNew && (
-                      <span className="text-[9px] font-bold bg-fuchsia-500 text-white px-1.5 py-0.5 rounded-full leading-none">New</span>
-                    )}
                   </div>
                   <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${step.bg} shrink-0`}>
                     <step.icon className={`h-5 w-5 ${step.color}`} />
