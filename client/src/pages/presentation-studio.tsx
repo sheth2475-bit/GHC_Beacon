@@ -1699,6 +1699,8 @@ function EditorView({
   const [rightPanel, setRightPanel] = useState<"ai" | "notes">("ai");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [canvasKey, setCanvasKey] = useState(0);
+  const [canvasFlash, setCanvasFlash] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -1771,8 +1773,12 @@ function EditorView({
       // Merge AI result — preserve original fields not returned by AI
       const merged: Slide = { ...selectedSlide, ...data.slide };
       updateSlide(selectedIdx, merged);
+      // Force canvas remount + flash so changes are always visible
+      setCanvasKey(k => k + 1);
+      setCanvasFlash(true);
+      setTimeout(() => setCanvasFlash(false), 800);
       setAiPrompt("");
-      toast({ title: "Slide refined", description: "Canvas updated with AI improvements" });
+      toast({ title: "Slide refined", description: "Changes applied to canvas" });
     } catch (err: any) {
       toast({ title: "AI refinement failed", description: err.message || "Unknown error", variant: "destructive" });
     } finally { setAiLoading(false); }
@@ -1951,8 +1957,8 @@ function EditorView({
           {selectedSlide && (
             <div className="w-full max-w-2xl">
               {/* Live preview with fullscreen button */}
-              <div className="relative group/canvas rounded-xl overflow-hidden shadow-xl ring-1 ring-border/50">
-                <ScaledSlide slide={selectedSlide} theme={theme} />
+              <div className={`relative group/canvas rounded-xl overflow-hidden shadow-xl transition-all duration-300 ${canvasFlash ? "ring-2 ring-primary ring-offset-2" : "ring-1 ring-border/50"}`}>
+                <ScaledSlide key={canvasKey} slide={selectedSlide} theme={theme} />
                 <button
                   onClick={() => setFullscreen(true)}
                   className="absolute top-2 right-2 opacity-0 group-hover/canvas:opacity-100 transition-opacity p-1.5 rounded-lg bg-black/50 backdrop-blur text-white hover:bg-black/70"

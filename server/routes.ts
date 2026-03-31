@@ -3339,23 +3339,36 @@ Generate full slide content now.${hasSourceFile ? " SOURCE FILE IS PROVIDED — 
 
 Return ONLY valid JSON of the complete updated slide object — no markdown fences, no extra text.
 
-IMPORTANT rules:
-- Preserve ALL fields from the input slide (id, type, title, subtitle, bullets, stat, chartData, tableData, quote, emphasis, notes, colorCode)
-- Only modify the fields relevant to the instruction
-- Keep chartData, stat, and tableData INTACT unless the instruction specifically asks to change data
-- If bullets are modified, keep them specific and substantive (not generic placeholders)
-- Do NOT add currency symbols unless they already appear in the slide data`,
+CANVAS VISIBILITY RULES — only these fields render visually on each slide type:
+- "title" slides: title, subtitle, emphasis
+- "agenda" slides: title, bullets (each bullet = one agenda item)
+- "section" slides: title, subtitle, emphasis
+- "content" slides: title, bullets, emphasis
+- "two-column" slides: title, bullets (first half = left col, second half = right col), emphasis
+- "data" slides: title, stat (KPI cards — update value/label/change/trend/color), chartData (bar chart — update label/value pairs), emphasis, colorCode
+- "quote" slides: title, quote
+- "closing" slides: title, bullets, emphasis
+- "table" slides: title, tableData (headers + rows)
+
+CRITICAL: When refining, you MUST update the fields that are VISIBLE for this slide's type.
+- For "data" slides: ALWAYS update stat entries and chartData to reflect the instruction — never just change notes or bullets (bullets are not shown on data slides)
+- For "content"/"agenda"/"closing": update bullets with substantive complete sentences
+- notes field is speaker notes (NOT visible on canvas) — update it too but it must NOT be your only change
+- Do NOT add currency symbols ($, £, €, ₹) unless they already exist in the data
+- Keep all fields from input, only modify what's relevant`,
           },
           {
             role: "user",
             content: `Presentation: "${brief?.title || ""}" — Audience: ${brief?.audience || "executives"}
+
+Slide type: "${slide?.type}" — MUST update the fields that render visually for this type.
 
 Current slide:
 ${JSON.stringify(slide, null, 2)}
 
 Instruction: ${instruction}
 
-Return the complete refined slide JSON:`,
+Return the complete refined slide JSON with VISIBLE fields updated:`,
           }
         ],
         temperature: 0.7,
