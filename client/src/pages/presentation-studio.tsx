@@ -1971,6 +1971,20 @@ function EditorView({
 
         {/* Center: canvas */}
         <div className="flex-1 flex flex-col overflow-y-auto bg-muted/10 p-5 items-center" data-testid="slide-canvas">
+          {slides.length === 0 && (
+            <div className="w-full max-w-2xl flex flex-col items-center justify-center gap-4 py-20 text-center">
+              <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
+                <Layers className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold text-base">No slides generated</p>
+                <p className="text-sm text-muted-foreground mt-1">The slide generation didn't complete. Use the <strong>+ Slide</strong> button to add slides manually, or go back to regenerate from the outline.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={onBack} className="gap-1.5">
+                <ArrowLeft className="h-3.5 w-3.5" />Return to home
+              </Button>
+            </div>
+          )}
           {selectedSlide && (
             <div className="w-full max-w-2xl">
               {/* Live preview with fullscreen button */}
@@ -2159,8 +2173,30 @@ export default function PresentationStudioPage() {
   });
 
   const handleGenerate = async (opts: { prompt: string; sources: SourceType[]; fileText: string | null; fileName: string | null; slideCount: number; theme: Theme }) => {
+    // Clean up prompt into a proper presentation title
+    const cleanTitle = (p: string) => {
+      let t = p.trim();
+      t = t.replace(/^(create|make|build|develop|generate|write|prepare|produce)\s+(a|an|me|us|the)?\s*(presentation|deck|slides|slide deck)\s*(for|on|about|covering|of|titled)?\s*/i, "");
+      t = t.replace(/^(presentation|deck|slides?)\s+(for|on|about|covering|of)\s*/i, "");
+      t = t.trim();
+      t = t.charAt(0).toUpperCase() + t.slice(1);
+      return t.slice(0, 72).trim() || "Business Presentation";
+    };
+
+    // Auto-detect sources from the prompt so user doesn't have to manually select them
+    const autoDetectSources = (p: string): SourceType[] => {
+      const lower = p.toLowerCase();
+      const detected: SourceType[] = [...opts.sources];
+      if (/kpi|metric|target|occupancy|revenue|adr|revpar|gop|nps|score|rate|performance/.test(lower) && !detected.includes("kpis")) detected.push("kpis");
+      if (/project|portfolio|initiative|program|roadmap|milestone|progress|status/.test(lower) && !detected.includes("projects")) detected.push("projects");
+      if (/review|monthly|summary|gap|recommendation|last month/.test(lower) && !detected.includes("reviews")) detected.push("reviews");
+      if (/action|task|workflow|ticket|license|certificate|due|overdue/.test(lower) && !detected.includes("workflow")) detected.push("workflow");
+      return detected;
+    };
+
+    const finalSources = autoDetectSources(opts.prompt);
     const brief = {
-      title: opts.prompt.slice(0, 80),
+      title: cleanTitle(opts.prompt),
       audience: "Leadership team",
       objective: opts.prompt,
       tone: "Executive",
@@ -2173,7 +2209,7 @@ export default function PresentationStudioPage() {
     const sourceData: any = {};
     if (opts.fileText) sourceData.fileContent = opts.fileText;
 
-    setPendingCreate({ brief, sources: opts.sources, theme: opts.theme, sourceData });
+    setPendingCreate({ brief, sources: finalSources, theme: opts.theme, sourceData });
     setAnswers({});
     setAiQuestions([]);
     setQuestionsLoading(true);
@@ -2261,11 +2297,14 @@ export default function PresentationStudioPage() {
         body: JSON.stringify({ outline, brief: pendingCreate.brief, sourceData: pendingCreate.sourceData, sources: pendingCreate.sources }),
       });
       const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || "Slide generation failed");
+      const slides = Array.isArray(data.slides) ? data.slides : [];
+      if (slides.length === 0) throw new Error("AI returned no slides — please try regenerating the outline or simplify the prompt");
       clearInterval(interval);
       setGenerateProgress(100);
       setGenerateLabel("Done!");
       setTimeout(() => {
-        setActivePres({ ...created, slides: data.slides || [], outline, theme: pendingCreate.theme });
+        setActivePres({ ...created, slides, outline, theme: pendingCreate.theme });
         setView("editor");
       }, 600);
     } catch (err: any) {

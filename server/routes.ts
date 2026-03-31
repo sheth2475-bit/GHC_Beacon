@@ -3326,7 +3326,24 @@ Generate full slide content now.${hasSourceFile ? " SOURCE FILE IS PROVIDED — 
 
       const raw = completion.choices[0].message.content || "[]";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const slides = JSON.parse(cleaned);
+
+      let slides: any[];
+      try {
+        slides = JSON.parse(cleaned);
+      } catch {
+        // Try to salvage a partial JSON array (truncated response)
+        const lastBrace = cleaned.lastIndexOf("}");
+        const partial = lastBrace > 0 ? cleaned.slice(0, lastBrace + 1) + "]" : "[]";
+        try {
+          slides = JSON.parse(partial);
+        } catch {
+          throw new Error("AI returned malformed JSON — please try regenerating the outline");
+        }
+      }
+
+      if (!Array.isArray(slides) || slides.length === 0) {
+        throw new Error("AI returned no slide content — please try again");
+      }
 
       // Save slides to presentation
       const id = Number(req.params.id);
