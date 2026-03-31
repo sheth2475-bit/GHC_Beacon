@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Performo AI — Sales Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #3b82f6;
+    --accent-light: #eff6ff;
+    --accent-mid: #bfdbfe;
+    --dark: #0f172a;
+    --body: #334155;
+    --subtle: #94a3b8;
+    --border: #e2e8f0;
+    --card: #f8fafc;
+    --white: #ffffff;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --purple: #8b5cf6;
+    --teal: #14b8a6;
+  }
+
+  html, body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #f1f5f9;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Slide layout ── */
+  .slide {
+    width: 960px;
+    height: 540px;
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+    margin: 0 auto 32px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+    border-radius: 4px;
+    page-break-after: always;
+    page-break-inside: avoid;
+  }
+
+  .accent-bar { position: absolute; left: 0; top: 0; width: 8px; height: 100%; background: var(--accent); z-index: 2; }
+  .top-bar    { position: absolute; left: 0; top: 0; width: 100%; height: 56px; background: var(--card); border-bottom: 1.5px solid var(--border); z-index: 1; }
+  .brand-mark {
+    position: absolute; bottom: 14px; right: 22px;
+    display: flex; align-items: center; gap: 5px; opacity: 0.3; z-index: 2;
+    font-size: 8px; font-weight: 700; letter-spacing: 0.12em; color: var(--subtle);
+  }
+  .brand-mark svg { display: block; }
+
+  /* ── Slide: Title ── */
+  .slide-title {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+  }
+  .slide-title .inner {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; padding: 60px 72px 80px;
+  }
+  .slide-title .eyebrow {
+    display: inline-flex; margin-bottom: 20px;
+    padding: 5px 16px; background: rgba(59,130,246,0.2);
+    border: 1px solid rgba(59,130,246,0.4); border-radius: 4px;
+    color: var(--accent); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; width: fit-content;
+  }
+  .slide-title h1 {
+    color: #f8fafc; font-size: 52px; font-weight: 800;
+    line-height: 1.08; margin-bottom: 22px; max-width: 620px;
+  }
+  .slide-title h1 span { color: var(--accent); }
+  .slide-title .subtitle {
+    color: #94a3b8; font-size: 18px; line-height: 1.55; max-width: 520px;
+  }
+  .slide-title .confidential {
+    position: absolute; bottom: 22px; left: 72px;
+    color: #475569; font-size: 9px; letter-spacing: 0.1em;
+  }
+
+  /* ── Slide: Section divider ── */
+  .slide-section { background: #0f172a; }
+  .slide-section .inner {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center; padding: 60px 72px;
+  }
+  .slide-section .section-label {
+    color: var(--accent); font-size: 10px; font-weight: 700;
+    letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 16px;
+  }
+  .slide-section h2 { color: #f1f5f9; font-size: 44px; font-weight: 800; line-height: 1.12; margin-bottom: 14px; }
+  .slide-section p  { color: #94a3b8; font-size: 17px; line-height: 1.55; max-width: 560px; }
+
+  /* ── Content slide header ── */
+  .slide-content .inner { position: absolute; inset: 0; padding: 0 28px 18px 28px; }
+  .slide-content .header {
+    height: 56px; display: flex; align-items: center;
+    padding-left: 16px; gap: 12px;
+  }
+  .slide-content .header h2 { color: var(--dark); font-size: 24px; font-weight: 800; }
+  .slide-content .tag {
+    padding: 3px 12px; background: rgba(59,130,246,0.1);
+    border-radius: 4px; color: var(--accent); font-size: 11px; font-weight: 600;
+  }
+  .slide-content .body { padding-left: 16px; }
+
+  /* ── Agenda slide ── */
+  .agenda-grid { display: flex; flex-direction: column; gap: 7px; padding: 0 16px; }
+  .agenda-item {
+    display: flex; align-items: center; gap: 18px;
+    padding: 10px 20px; background: var(--card);
+    border: 1px solid rgba(226,232,240,0.7); border-radius: 6px;
+  }
+  .agenda-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(59,130,246,0.12); border: 2px solid rgba(59,130,246,0.4);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent); font-weight: 800; font-size: 12px; flex-shrink: 0;
+  }
+  .agenda-text { color: var(--body); font-size: 16px; line-height: 1.3; flex: 1; }
+  .agenda-text strong { color: var(--dark); font-weight: 600; }
+
+  /* ── Problem slide ── */
+  .problem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+  .problem-card {
+    padding: 18px 20px; border-radius: 8px;
+    background: var(--card); border-left: 4px solid #ef4444;
+  }
+  .problem-card .icon { font-size: 22px; margin-bottom: 8px; }
+  .problem-card h4 { color: var(--dark); font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+  .problem-card p { color: var(--body); font-size: 12.5px; line-height: 1.55; }
+  .problem-stat { text-align: center; padding: 22px; background: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; }
+  .problem-stat .big { font-size: 40px; font-weight: 900; color: #ef4444; line-height: 1; }
+  .problem-stat small { font-size: 11px; color: #9ca3af; display: block; margin-top: 6px; }
+
+  /* ── Stats row ── */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 8px; }
+  .stat-card {
+    padding: 16px 18px; background: var(--card);
+    border-radius: 8px; border-top: 4px solid var(--accent);
+    border: 1px solid var(--border); border-top: 4px solid var(--accent);
+  }
+  .stat-card .val { font-size: 38px; font-weight: 900; color: var(--accent); line-height: 1; margin-bottom: 6px; }
+  .stat-card .lbl { font-size: 12px; color: var(--body); line-height: 1.4; }
+
+  /* ── Feature cards ── */
+  .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+  .feature-card {
+    padding: 16px; border-radius: 8px; background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .feature-card .f-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; margin-bottom: 10px;
+  }
+  .feature-card h4 { font-size: 13px; font-weight: 700; color: var(--dark); margin-bottom: 5px; }
+  .feature-card p  { font-size: 11.5px; color: var(--body); line-height: 1.5; }
+
+  /* ── Two column ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+  .col-card { padding: 20px 22px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--accent); }
+  .col-card.accent2 { border-top-color: var(--purple); }
+  .col-card h4 { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  .col-card.accent2 h4 { color: var(--purple); }
+  .col-card ul { list-style: none; }
+  .col-card ul li {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13px; color: var(--body); line-height: 1.5; margin-bottom: 9px;
+  }
+  .col-card ul li::before { content: "▸"; color: var(--accent); flex-shrink: 0; font-size: 10px; margin-top: 2px; }
+  .col-card.accent2 ul li::before { color: var(--purple); }
+
+  /* ── Bullets ── */
+  .bullets { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+  .bullet-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 9px 14px; border-radius: 4px;
+  }
+  .bullet-item:nth-child(odd) { background: var(--card); }
+  .bullet-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
+  .bullet-item span { color: var(--body); font-size: 15px; line-height: 1.5; }
+
+  /* ── Emphasis bar ── */
+  .emphasis-bar {
+    padding: 9px 16px; background: rgba(59,130,246,0.08);
+    border-left: 4px solid var(--accent); border-radius: 0 4px 4px 0;
+    color: var(--accent); font-size: 13px; font-weight: 600;
+    line-height: 1.35; margin-bottom: 10px;
+  }
+
+  /* ── Closing slide ── */
+  .slide-closing { background: linear-gradient(135deg, #0f172a, #1e293b); }
+  .slide-closing .inner {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 50px 60px; text-align: center;
+  }
+  .slide-closing h2 { color: #f1f5f9; font-size: 42px; font-weight: 800; margin-bottom: 14px; line-height: 1.12; }
+  .slide-closing p { color: #94a3b8; font-size: 17px; line-height: 1.5; margin-bottom: 32px; max-width: 600px; }
+  .slide-closing .cta-btn {
+    padding: 14px 40px; background: var(--accent);
+    border-radius: 6px; color: #fff; font-size: 15px;
+    font-weight: 700; letter-spacing: 0.05em; margin-bottom: 14px; display: inline-block;
+  }
+  .slide-closing .contact { color: #64748b; font-size: 13px; }
+  .slide-closing .contact a { color: var(--accent); text-decoration: none; }
+
+  /* ── Decorative SVG ── */
+  .deco { position: absolute; inset: 0; pointer-events: none; }
+
+  /* ── Print ── */
+  @media print {
+    html, body { background: white; }
+    .slide { margin: 0; box-shadow: none; border-radius: 0; page-break-after: always; }
+    .no-print { display: none !important; }
+  }
+
+  /* ── Screen container ── */
+  .deck { padding: 40px 20px; max-width: 1020px; margin: 0 auto; }
+  .print-btn {
+    display: block; margin: 0 auto 32px; padding: 12px 32px;
+    background: var(--accent); color: white; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .print-btn:hover { background: #2563eb; }
+  .slide-num {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; color: var(--subtle); letter-spacing: 0.05em; opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="deck">
+  <button class="print-btn no-print" onclick="window.print()">⬇ Save as PDF</button>
+
+  <!-- ═══════ SLIDE 1 — TITLE ═══════ -->
+  <div class="slide slide-title">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <circle cx="820" cy="80" r="280" fill="#3b82f6" fill-opacity="0.065"/>
+      <circle cx="790" cy="20" r="160" fill="#3b82f6" fill-opacity="0.05"/>
+      <circle cx="95" cy="500" r="180" fill="#3b82f6" fill-opacity="0.04"/>
+      <rect x="580" y="0" width="380" height="540" fill="#3b82f6" fill-opacity="0.04"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="76" y="510" width="830" height="2" fill="#3b82f6" fill-opacity="0.18"/>
+      <rect x="76" y="26" width="340" height="2" fill="#3b82f6" fill-opacity="0.14"/>
+    </svg>
+    <div style="position:absolute;top:18px;left:22px;display:flex;align-items:center;gap:6px;">
+      <svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>
+      <span style="color:#64748b;font-size:9px;letter-spacing:0.15em;font-weight:600;">PERFORMO AI</span>
+    </div>
+    <div class="inner">
+      <div class="eyebrow">AI-Powered Performance Management</div>
+      <h1>Run Your Business<br/>with <span>Clarity</span><br/>and Confidence</h1>
+      <p class="subtitle">Performo AI brings KPIs, projects, analytics, and team performance into one intelligent platform — built for the way growing SMEs actually work.</p>
+    </div>
+    <div class="confidential">COMMERCIAL IN CONFIDENCE</div>
+    <div class="brand-mark">
+      <svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>
+      PERFORMO AI
+    </div>
+  </div>
+
+  <!-- ═══════ SLIDE 2 — AGENDA ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="300" height="540" fill="#3b82f6" fill-opacity="0.03"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <circle cx="880" cy="480" r="120" fill="#3b82f6" fill-opacity="0.04"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <span style="font-size:10px;color:#3b82f6;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:5px;display:block;">AGENDA</span>
+        <h2>What We'll Cover</h2>
+      </div>
+      <div class="agenda-grid" style="margin-top:8px;">
+        <div class="agenda-item"><div class="agenda-num">01</div><div class="agenda-text"><strong>The Challenge</strong> — why performance management is broken for growing businesses</div></div>
+        <div class="agenda-item"><div class="agenda-num">02</div><div class="agenda-text"><strong>Introducing Performo AI</strong> — the all-in-one intelligent platform</div></div>
+        <div class="agenda-item"><div class="agenda-num">03</div><div class="agenda-text"><strong>Core Modules</strong> — KPIs, Projects, Analytics, Presentations, Workflow & Reviews</div></div>
+        <div class="agenda-item"><div class="agenda-num">04</div><div class="agenda-text"><strong>AI Capabilities</strong> — how Performo learns from your data to surface insights</div></div>
+        <div class="agenda-item"><div class="agenda-num">05</div><div class="agenda-text"><strong>Who It's For & Why Now</strong> — the SME advantage</div></div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 3 — THE PROBLEM ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc" fill-opacity="0.8"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0" fill-opacity="0.8"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>The Performance Management Gap</h2>
+        <span class="tag">The Challenge</span>
+      </div>
+      <div class="body">
+        <div class="emphasis-bar">Most SMEs are running blind — tracking performance in spreadsheets, chasing updates in meetings, and reacting to problems too late.</div>
+        <div class="problem-grid">
+          <div class="problem-card">
+            <div class="icon">📊</div>
+            <h4>Disconnected Data</h4>
+            <p>KPIs live in Excel, projects in email threads, financial data in separate systems. No single source of truth.</p>
+          </div>
+          <div class="problem-card">
+            <div class="icon">⏱️</div>
+            <h4>Time Lost in Reporting</h4>
+            <p>Leaders spend 6–10 hours per week manually compiling performance reports instead of making decisions.</p>
+          </div>
+          <div class="problem-card">
+            <div class="icon">🔍</div>
+            <h4>No Real-Time Visibility</h4>
+            <p>By the time data is consolidated and presented, it's already outdated. Decisions are based on last month's reality.</p>
+          </div>
+          <div class="problem-card">
+            <div class="icon">🎯</div>
+            <h4>Goals Drift Without Accountability</h4>
+            <p>Strategic objectives lose traction. Teams don't see the link between daily work and company targets.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 4 — INTRODUCING PERFORMO ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc" fill-opacity="0.8"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+      <circle cx="880" cy="440" r="120" fill="#3b82f6" fill-opacity="0.04"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>Introducing Performo AI</h2>
+        <span class="tag">The Platform</span>
+      </div>
+      <div class="body">
+        <p style="font-size:13.5px;color:#475569;margin-bottom:14px;line-height:1.6;">Performo AI is an all-in-one performance management platform that connects your KPIs, projects, analytics, and team workflows — giving every leader a live, intelligent view of how the business is performing.</p>
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="val">9+</div>
+            <div class="lbl">Integrated modules across strategy, operations & analytics</div>
+          </div>
+          <div class="stat-card" style="border-top-color:#8b5cf6;">
+            <div class="val" style="color:#8b5cf6;">AI</div>
+            <div class="lbl">Native AI assistant with access to all your live performance data</div>
+          </div>
+          <div class="stat-card" style="border-top-color:#22c55e;">
+            <div class="val" style="color:#22c55e;">1</div>
+            <div class="lbl">Single platform replacing spreadsheets, slides, and status calls</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+          <div style="text-align:center;padding:10px 8px;background:#eff6ff;border-radius:6px;border:1px solid #bfdbfe;">
+            <div style="font-size:18px;margin-bottom:4px;">🎯</div>
+            <div style="font-size:10.5px;font-weight:600;color:#1e40af;">KPI Engine</div>
+          </div>
+          <div style="text-align:center;padding:10px 8px;background:#f5f3ff;border-radius:6px;border:1px solid #ddd6fe;">
+            <div style="font-size:18px;margin-bottom:4px;">📁</div>
+            <div style="font-size:10.5px;font-weight:600;color:#6d28d9;">Portfolio</div>
+          </div>
+          <div style="text-align:center;padding:10px 8px;background:#ecfdf5;border-radius:6px;border:1px solid #a7f3d0;">
+            <div style="font-size:18px;margin-bottom:4px;">📊</div>
+            <div style="font-size:10.5px;font-weight:600;color:#047857;">Analytics</div>
+          </div>
+          <div style="text-align:center;padding:10px 8px;background:#fff7ed;border-radius:6px;border:1px solid #fed7aa;">
+            <div style="font-size:18px;margin-bottom:4px;">🪄</div>
+            <div style="font-size:10.5px;font-weight:600;color:#c2410c;">Presentations</div>
+          </div>
+          <div style="text-align:center;padding:10px 8px;background:#f0fdfa;border-radius:6px;border:1px solid #99f6e4;">
+            <div style="font-size:18px;margin-bottom:4px;">🤖</div>
+            <div style="font-size:10.5px;font-weight:600;color:#0f766e;">AI Assistant</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 5 — KPI MANAGEMENT ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>KPI Builder &amp; Management</h2>
+        <span class="tag">Module 01</span>
+      </div>
+      <div class="body">
+        <div class="emphasis-bar">Define the metrics that matter, track actuals against targets monthly, and surface RAG status automatically — no spreadsheets required.</div>
+        <div class="two-col">
+          <div class="col-card">
+            <h4>What You Can Do</h4>
+            <ul>
+              <li>Build a KPI library aligned to strategic goals and departments</li>
+              <li>Log actual values monthly with commentary and status flags</li>
+              <li>View trend charts, % of target, and RAG (Red/Amber/Green) health</li>
+              <li>Assign KPI ownership to individuals or departments</li>
+              <li>Filter and slice performance by department, period, or category</li>
+            </ul>
+          </div>
+          <div class="col-card accent2">
+            <h4>Business Impact</h4>
+            <ul>
+              <li>Every leader knows their targets and sees real-time progress</li>
+              <li>Monthly reviews shift from data-gathering to decision-making</li>
+              <li>Early warning on underperforming metrics before they become crises</li>
+              <li>Aligns daily team output to company-level OKRs and goals</li>
+              <li>Eliminates manual reporting — data is always current and centralized</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 6 — PROJECT PORTFOLIO ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#8b5cf6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>Project Portfolio &amp; Workload</h2>
+        <span class="tag" style="background:rgba(139,92,246,0.1);color:#8b5cf6;">Module 02</span>
+      </div>
+      <div class="body">
+        <div class="emphasis-bar" style="border-color:#8b5cf6;color:#8b5cf6;background:rgba(139,92,246,0.08);">One portfolio view across all strategic initiatives — with task tracking, milestones, resource allocation and health scores.</div>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="f-icon" style="background:#f5f3ff;">📁</div>
+            <h4>Portfolio Dashboard</h4>
+            <p>See all active projects, their status, progress %, health score, and owners in one board view.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#f5f3ff;">✅</div>
+            <h4>Task Management</h4>
+            <p>Break projects into tasks and sub-tasks, assign owners, set due dates, and track completion inline.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#f5f3ff;">🏁</div>
+            <h4>Milestones</h4>
+            <p>Define key project milestones, track dates, and surface milestone-at-risk alerts automatically.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#f5f3ff;">⚡</div>
+            <h4>Action Tracker</h4>
+            <p>Log and track action items from any meeting type — CEO, departmental, or strategic reviews.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#f5f3ff;">👥</div>
+            <h4>Workload View</h4>
+            <p>Visualise task load per team member, identify overloaded individuals, and rebalance before burnout.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#f5f3ff;">🔗</div>
+            <h4>KPI Linkage</h4>
+            <p>Connect projects directly to the strategic KPIs they support — see which initiatives drive which metrics.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#8b5cf6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 7 — ANALYTICS STUDIO ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#22c55e"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+      <circle cx="880" cy="440" r="110" fill="#22c55e" fill-opacity="0.04"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>Analytics Studio</h2>
+        <span class="tag" style="background:rgba(34,197,94,0.1);color:#16a34a;">Module 03</span>
+      </div>
+      <div class="body">
+        <div class="emphasis-bar" style="border-color:#22c55e;color:#16a34a;background:rgba(34,197,94,0.08);">Upload any business dataset and let AI automatically surface insights, trends, anomalies, and recommendations — no SQL or BI tool required.</div>
+        <div class="two-col">
+          <div class="col-card" style="border-top-color:#22c55e;">
+            <h4 style="color:#16a34a;">Insight Builder</h4>
+            <ul>
+              <li>Upload CSV or Excel files — AI analyses columns automatically</li>
+              <li>Ask questions in plain English: "Which region grew fastest?"</li>
+              <li>Get AI-generated charts, trend lines, and narrative explanations</li>
+              <li>Save and pin key insights to a shareable dashboard</li>
+              <li>Auto-generate insight narratives for board or leadership review</li>
+            </ul>
+          </div>
+          <div class="col-card" style="border-top-color:#14b8a6;">
+            <h4 style="color:#0f766e;">Analytics Dashboards</h4>
+            <ul>
+              <li>Build live dashboards from multiple uploaded datasets</li>
+              <li>Add KPI widgets, bar charts, pie charts, and trend cards</li>
+              <li>AI generates narrative summaries for each dashboard automatically</li>
+              <li>Chat with your dashboard — ask follow-up questions in natural language</li>
+              <li>Publish dashboards for stakeholder sharing across the team</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#22c55e"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 8 — PRESENTATION STUDIO ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#f59e0b"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>Presentation Studio</h2>
+        <span class="tag" style="background:rgba(245,158,11,0.1);color:#d97706;">Module 04</span>
+      </div>
+      <div class="body">
+        <div class="emphasis-bar" style="border-color:#f59e0b;color:#d97706;background:rgba(245,158,11,0.08);">Describe the presentation you need — Performo AI reads your live KPIs, projects, and reviews, then builds a full professional deck in under 60 seconds.</div>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="f-icon" style="background:#fffbeb;">🤖</div>
+            <h4>AI Outline Generation</h4>
+            <p>Type your brief; AI creates a structured deck outline with the right slide types for your audience.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#fffbeb;">📊</div>
+            <h4>Live Data Integration</h4>
+            <p>Pulls real KPI values, project statuses, and review findings directly into slide content.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#fffbeb;">🎨</div>
+            <h4>6 Executive Themes</h4>
+            <p>Choose from polished slide themes — Executive Dark, Clean Light, Bold Purple, Warm Amber and more.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#fffbeb;">✏️</div>
+            <h4>Live Slide Editor</h4>
+            <p>Edit every slide inline — bullets, emphasis, speaker notes, and charts — with AI refinement on demand.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#fffbeb;">📤</div>
+            <h4>Export PPTX &amp; PDF</h4>
+            <p>Download a full PowerPoint or print-ready PDF in one click. Fully formatted, board-ready.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#fffbeb;">📂</div>
+            <h4>File-Based Analysis</h4>
+            <p>Upload a CSV or report file and let AI build the entire presentation from your own data.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#f59e0b"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 9 — WORKFLOW CENTER + REVIEWS ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#14b8a6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>Workflow Center &amp; Monthly Reviews</h2>
+        <span class="tag" style="background:rgba(20,184,166,0.1);color:#0f766e;">Modules 05 &amp; 06</span>
+      </div>
+      <div class="body">
+        <div class="two-col">
+          <div class="col-card" style="border-top-color:#14b8a6;">
+            <h4 style="color:#0f766e;">Workflow Center</h4>
+            <ul>
+              <li>Track recurring tasks with recurrence type, owner, and due dates</li>
+              <li>Manage service tickets with SLA targets and resolution tracking</li>
+              <li>Monitor licenses and certificates with expiry alerts and renewal workflows</li>
+              <li>Full audit trail with comments, file attachments, and status history</li>
+              <li>RAG-status view across all active workflows at a glance</li>
+            </ul>
+          </div>
+          <div class="col-card" style="border-top-color:#6366f1;">
+            <h4 style="color:#4f46e5;">Monthly Reviews</h4>
+            <ul>
+              <li>AI generates structured monthly review documents automatically</li>
+              <li>Covers: overall summary, strengths, performance gaps, and recommendations</li>
+              <li>Built from live KPI actuals, project updates, and action items</li>
+              <li>History of all past reviews in one searchable archive</li>
+              <li>Serves as a reliable input for board packs and investor updates</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#14b8a6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 10 — AI ASSISTANT ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+      <circle cx="860" cy="440" r="120" fill="#3b82f6" fill-opacity="0.03"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>AI Assistant — Your Performance Co-Pilot</h2>
+        <span class="tag">Module 07</span>
+      </div>
+      <div class="body">
+        <div class="emphasis-bar">The Performo AI Assistant reads all your live data — KPIs, projects, actions, reviews — and answers business questions in plain English, instantly.</div>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="f-icon" style="background:#eff6ff;">💬</div>
+            <h4>Natural Language Queries</h4>
+            <p>Ask "Which KPIs are off track this month?" and get an instant, grounded answer with specifics.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#eff6ff;">🧠</div>
+            <h4>Context-Aware Analysis</h4>
+            <p>The assistant understands your business goals, departments, and team structure — not generic advice.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#eff6ff;">⚡</div>
+            <h4>Instant Briefings</h4>
+            <p>Get a live status briefing before any meeting — KPI health, overdue actions, project risks, in seconds.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#eff6ff;">📝</div>
+            <h4>Draft &amp; Summarise</h4>
+            <p>Ask it to draft a management summary, flag gaps, or write a narrative from your latest data.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#eff6ff;">🔗</div>
+            <h4>Cross-Module Intelligence</h4>
+            <p>Connects dots across KPIs, projects, and reviews — surfacing patterns humans often miss.</p>
+          </div>
+          <div class="feature-card">
+            <div class="f-icon" style="background:#eff6ff;">🔒</div>
+            <h4>Secure &amp; Private</h4>
+            <p>Your data stays within your account. The assistant only accesses your company's own information.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 11 — WHO IT'S FOR ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>Built for Growing Businesses</h2>
+        <span class="tag">Who It's For</span>
+      </div>
+      <div class="body">
+        <p style="font-size:13px;color:#475569;margin-bottom:12px;line-height:1.6;">Performo AI is designed for SMEs and mid-market businesses that have outgrown spreadsheets but don't need the complexity (or cost) of enterprise BI platforms.</p>
+        <div class="feature-grid" style="grid-template-columns:repeat(3,1fr);">
+          <div class="feature-card" style="border-top:3px solid #3b82f6;">
+            <div class="f-icon" style="background:#eff6ff;">🏨</div>
+            <h4>Hospitality &amp; Hotels</h4>
+            <p>Track occupancy, RevPAR, guest scores, and operational KPIs across properties.</p>
+          </div>
+          <div class="feature-card" style="border-top:3px solid #8b5cf6;">
+            <div class="f-icon" style="background:#f5f3ff;">🏗️</div>
+            <h4>Real Estate &amp; Facilities</h4>
+            <p>Manage projects, licenses, maintenance workflows, and asset performance in one place.</p>
+          </div>
+          <div class="feature-card" style="border-top:3px solid #22c55e;">
+            <div class="f-icon" style="background:#ecfdf5;">🛍️</div>
+            <h4>Retail &amp; F&amp;B</h4>
+            <p>Measure revenue per outlet, NPS, shrinkage, and team productivity across locations.</p>
+          </div>
+          <div class="feature-card" style="border-top:3px solid #f59e0b;">
+            <div class="f-icon" style="background:#fffbeb;">💼</div>
+            <h4>Professional Services</h4>
+            <p>Track client delivery, utilisation rates, project margins, and satisfaction metrics.</p>
+          </div>
+          <div class="feature-card" style="border-top:3px solid #14b8a6;">
+            <div class="f-icon" style="background:#f0fdfa;">🏥</div>
+            <h4>Healthcare &amp; Clinics</h4>
+            <p>Monitor compliance, staff performance, patient satisfaction, and operational KPIs.</p>
+          </div>
+          <div class="feature-card" style="border-top:3px solid #6366f1;">
+            <div class="f-icon" style="background:#eef2ff;">🚀</div>
+            <h4>Scale-Ups &amp; SMEs</h4>
+            <p>Any business with 20–500 employees that wants to run like a data-driven enterprise.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 12 — WHY PERFORMO ═══════ -->
+  <div class="slide slide-content">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <rect width="960" height="540" fill="#fff"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="0" y="0" width="960" height="56" fill="#f8fafc"/>
+      <rect x="0" y="56" width="960" height="1.5" fill="#e2e8f0"/>
+    </svg>
+    <div class="inner">
+      <div class="header">
+        <h2>Why Performo AI</h2>
+        <span class="tag">The Difference</span>
+      </div>
+      <div class="body">
+        <div class="two-col">
+          <div class="col-card">
+            <h4>What You Get</h4>
+            <ul>
+              <li>Live KPI tracking with automatic RAG status — no manual updates</li>
+              <li>AI-generated monthly reviews, insights, and board presentations</li>
+              <li>All modules connected — actions link to projects, projects link to KPIs</li>
+              <li>Natural language AI assistant with access to your real business data</li>
+              <li>Mobile-ready, cloud-based, multi-user with role-based access control</li>
+              <li>No BI team or data engineer needed — leaders use it directly</li>
+            </ul>
+          </div>
+          <div class="col-card accent2" style="border-top-color:#3b82f6;background:#eff6ff;">
+            <h4 style="color:#1d4ed8;">Versus Alternatives</h4>
+            <ul>
+              <li><strong style="color:#0f172a;">vs. Spreadsheets:</strong> Real-time, automatic, no manual entry or version confusion</li>
+              <li><strong style="color:#0f172a;">vs. Generic PM tools:</strong> Purpose-built for performance — KPIs, reviews, and analytics built-in</li>
+              <li><strong style="color:#0f172a;">vs. Enterprise BI:</strong> Fraction of the cost, deployed in days not months, no IT team needed</li>
+              <li><strong style="color:#0f172a;">vs. AI chatbots:</strong> Grounded in your actual data — not generic advice from the internet</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="brand-mark"><svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>PERFORMO AI</div>
+  </div>
+
+  <!-- ═══════ SLIDE 13 — CLOSING ═══════ -->
+  <div class="slide slide-closing">
+    <svg class="deco" viewBox="0 0 960 540" preserveAspectRatio="none">
+      <circle cx="480" cy="270" r="310" fill="#3b82f6" fill-opacity="0.04"/>
+      <circle cx="480" cy="270" r="220" fill="#3b82f6" fill-opacity="0.032"/>
+      <circle cx="480" cy="270" r="140" fill="#3b82f6" fill-opacity="0.028"/>
+      <rect x="0" y="0" width="8" height="540" fill="#3b82f6"/>
+      <rect x="952" y="0" width="8" height="540" fill="#3b82f6" fill-opacity="0.35"/>
+      <rect x="80" y="36" width="800" height="2" fill="#3b82f6" fill-opacity="0.16"/>
+      <rect x="80" y="498" width="800" height="2" fill="#3b82f6" fill-opacity="0.16"/>
+    </svg>
+    <div class="inner">
+      <div style="display:inline-flex;margin-bottom:20px;padding:5px 16px;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.4);border-radius:4px;color:#93c5fd;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;">PERFORMO AI</div>
+      <h2>Stop Reporting.<br/>Start Deciding.</h2>
+      <p>Give your leadership team the live intelligence they need to make faster, smarter decisions — powered by AI that understands your business.</p>
+      <div class="cta-btn">Request a Live Demo</div>
+      <div class="contact">
+        Get in touch: <a href="mailto:hello@performo.ai">hello@performo.ai</a> &nbsp;·&nbsp;
+        <a href="https://performo.ai">performo.ai</a>
+      </div>
+    </div>
+    <div class="brand-mark" style="opacity:0.2;">
+      <svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="#3b82f6"/></svg>
+      PERFORMO AI
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<script>
+  // Auto-number the slides
+  document.querySelectorAll('.slide').forEach((s, i) => {
+    const total = document.querySelectorAll('.slide').length;
+    const n = document.createElement('div');
+    n.className = 'slide-num';
+    n.textContent = (i + 1) + ' / ' + total;
+    s.appendChild(n);
+  });
+</script>
+</body>
+</html>
