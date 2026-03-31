@@ -3333,18 +3333,33 @@ Generate full slide content now.${hasSourceFile ? " SOURCE FILE IS PROVIDED — 
       const completion = await oai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: `You are a business presentation expert. Refine the given slide based on the user instruction. Return ONLY valid JSON of the updated slide object. Keep the same structure (id, type, title, subtitle, bullets, stat, quote, notes, emphasis). No markdown fences.` },
-          { role: "user", content: `Presentation context: "${brief?.title || ""}" for ${brief?.audience || "executives"}.
+          {
+            role: "system",
+            content: `You are a business presentation expert. Refine the given slide based on the user instruction.
+
+Return ONLY valid JSON of the complete updated slide object — no markdown fences, no extra text.
+
+IMPORTANT rules:
+- Preserve ALL fields from the input slide (id, type, title, subtitle, bullets, stat, chartData, tableData, quote, emphasis, notes, colorCode)
+- Only modify the fields relevant to the instruction
+- Keep chartData, stat, and tableData INTACT unless the instruction specifically asks to change data
+- If bullets are modified, keep them specific and substantive (not generic placeholders)
+- Do NOT add currency symbols unless they already appear in the slide data`,
+          },
+          {
+            role: "user",
+            content: `Presentation: "${brief?.title || ""}" — Audience: ${brief?.audience || "executives"}
 
 Current slide:
 ${JSON.stringify(slide, null, 2)}
 
-User instruction: ${instruction}
+Instruction: ${instruction}
 
-Return the refined slide:` }
+Return the complete refined slide JSON:`,
+          }
         ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 2000,
       });
 
       const raw = completion.choices[0].message.content || "{}";

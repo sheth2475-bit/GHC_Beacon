@@ -1766,9 +1766,16 @@ function EditorView({
         body: JSON.stringify({ slide: selectedSlide, instruction: aiPrompt, brief: presentation.brief }),
       });
       const data = await resp.json();
-      if (data.slide) { updateSlide(selectedIdx, data.slide); setAiPrompt(""); toast({ title: "Slide refined" }); }
-    } catch { toast({ title: "AI refinement failed", variant: "destructive" }); }
-    finally { setAiLoading(false); }
+      if (!resp.ok) throw new Error(data.message || `Server error ${resp.status}`);
+      if (!data.slide) throw new Error("No refined slide returned");
+      // Merge AI result — preserve original fields not returned by AI
+      const merged: Slide = { ...selectedSlide, ...data.slide };
+      updateSlide(selectedIdx, merged);
+      setAiPrompt("");
+      toast({ title: "Slide refined", description: "Canvas updated with AI improvements" });
+    } catch (err: any) {
+      toast({ title: "AI refinement failed", description: err.message || "Unknown error", variant: "destructive" });
+    } finally { setAiLoading(false); }
   };
 
   const handleExportPptx = async () => {
