@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Target, ListChecks, Briefcase,
   Users, FileText, Bot, Settings2, ArrowLeft, Menu, X,
   ChevronRight, Info, ArrowRight, Database, Upload, BarChart2,
-  Pin, Lightbulb, Search, RefreshCw,
+  Pin, Lightbulb, Search, RefreshCw, Zap, Layers,
 } from "lucide-react";
 
 /* ─── Module definitions ─────────────────────────────────────── */
@@ -152,6 +152,33 @@ const MODULES = [
     ],
   },
   {
+    id: "workflow-center",
+    label: "Workflow Center",
+    icon: Zap,
+    color: "violet",
+    screenshot: null,
+    screenshotAlt: "",
+    overview: "Workflow Center manages four types of operational records: Recurring Tasks, Service Tickets, Licenses, and Certificates. Each type has its own lifecycle statuses, SLA targets, and automated email reminders — so nothing operational falls through the cracks across your organisation.",
+    readingGuide: [
+      { area: "Home tab — summary stats bar", desc: "Shows total, active, overdue, and due-soon counts across all four workflow types. Review these numbers at the start of each day to triage what needs attention immediately." },
+      { area: "Four workflow type tabs", desc: "Recurring Tasks, Service Tickets, Licenses, and Certificates each have their own tab. Each type has purpose-built lifecycle statuses — e.g. Service Tickets flow New → Assigned → In Progress → Pending → Resolved → Closed." },
+      { area: "Kanban / List / Calendar views", desc: "Switch between three views for any workflow type. Kanban shows cards grouped by status column. List shows all records in a sortable table. Calendar shows records plotted by due date — ideal for planning around expiry dates." },
+      { area: "SLA indicators", desc: "Each record can have an SLA target (e.g. respond within 24 hours). The SLA badge shows Green (within target), Amber (approaching breach), or Red (SLA breached). Visible across all three views." },
+      { area: "Record detail drawer", desc: "Click any record to open a full detail panel with all fields, status history, and comment thread. Update the status, change the assignee, adjust the SLA, or log a comment — without leaving the current view." },
+      { area: "My Work tab", desc: "Filters all workflow records across all four types to show only items assigned to you. Your personal task queue — one place to see everything you are responsible for regardless of workflow type." },
+      { area: "Automations panel", desc: "Set up automated email reminders per workflow type. For example: send the assignee a reminder 24 hours before a recurring task is due, or alert the owner when a license expires within 30 days. Rules fire automatically — no manual follow-up needed." },
+      { area: "Global search & filters", desc: "Filter records by status, priority, assignee, or department. Use the search bar to find a specific record by title or reference number. Filters apply across all views (Kanban, List, Calendar)." },
+    ],
+    actions: [
+      { step: "1", text: "Go to Workflow Center in the sidebar" },
+      { step: "2", text: "Select the relevant type tab — Recurring Tasks, Service Tickets, Licenses, or Certificates" },
+      { step: "3", text: "Click + New Record and fill in the title, assignee, due date, SLA target, and priority" },
+      { step: "4", text: "As work progresses, open the record and advance the status (e.g. New → In Progress → Resolved)" },
+      { step: "5", text: "Set up Automations to send email reminders automatically for overdue or expiring records" },
+      { step: "6", text: "Use the My Work tab daily to see everything assigned to you across all workflow types" },
+    ],
+  },
+  {
     id: "analytics-studio",
     label: "Analytics Studio",
     icon: Database,
@@ -159,7 +186,6 @@ const MODULES = [
     screenshot: "/guide/analytics-studio-hub.jpeg",
     screenshotAlt: "Analytics Studio hub showing Dashboards tab with OYO Performance Analytics dashboard card, Insights (7), and Datasets & Ask Question (1) tabs, with stats bar showing 1 dataset, 7 insights, 1 dashboard, 1 published",
     overview: "Analytics Studio is Performo's built-in data intelligence layer. Upload any Excel or CSV file and ask questions in plain English — the AI selects the right chart, detects trends, flags anomalies, and identifies top and bottom performers automatically. Save insights and pin them to shared dashboards that your whole team can see.",
-    badge: "New",
     readingGuide: [
       { area: "Hub — Dashboards tab (default)", desc: "The first thing you see when you open Analytics Studio. Shows all published and draft dashboards in your company. Each card shows the dashboard title, AI narrative summary, and how many pinned insights it contains. Click any dashboard card to open it." },
       { area: "Hub — Insights tab", desc: "A library of all saved insights across your company — charts and KPI cards generated from your datasets. Click any insight card to re-open the Insight Builder with that question and result loaded." },
@@ -184,7 +210,6 @@ const MODULES = [
     screenshot: "/guide/analytics-insight-chart.jpeg",
     screenshotAlt: "Insight Builder showing a 3-column layout: left panel with field explorer (Revenue, ADR, Occupancy Rate etc as measures, Property and Month as dimensions), center panel with question 'What is the total revenue by property?' and a table result showing Dubai Marina at AED 31.8M as the top property, right panel showing Key Values with Dubai Marina as highest and Ajman Beach as lowest with AI analysis text",
     overview: "The Insight Builder is the 3-column interface you use to ask questions about your data and explore the results. Left panel: field explorer. Centre: question bar and chart. Right panel: interpretation, top/bottom performers, and AI analysis. Everything works together in real time.",
-    badge: "New",
     readingGuide: [
       { area: "Left panel — Field Explorer", desc: "Lists all columns from your dataset grouped into Measures (numeric values like Revenue, Occupancy Rate), Dimensions (categories like Property, Month), and Dates. Click any field name to see its values. Fields you've used appear highlighted." },
       { area: "Question bar (centre top)", desc: "Type any question in plain English here — e.g. 'Show monthly revenue trend' or 'Which property has the lowest ADR?'. Press Enter or click Ask. The AI determines the best chart type, measure, dimension, and aggregation automatically." },
@@ -217,7 +242,6 @@ const MODULES = [
     screenshot: "/guide/analytics-dashboard.jpeg",
     screenshotAlt: "OYO Performance Analytics dashboard showing Published status badge, AI Executive Summary narrative, 7 insights count, and a grid of pinned chart cards including Total Revenue KPI card (96M AED), Total Revenue by Property bar chart, Monthly Revenue Trend line chart, Highest Average Occupancy Rate KPI, and ADR vs RevPAR comparison bar chart",
     overview: "Analytics Dashboards are shared canvases of pinned insights. Each dashboard shows a collection of charts you've saved from the Insight Builder. Dashboards can be published to the whole company or kept as private drafts. You can also add an AI-generated executive narrative that summarises all the charts in one paragraph.",
-    badge: "New",
     readingGuide: [
       { area: "Dashboard cards (hub view)", desc: "Each dashboard card shows the title, description, status (Published / Draft), number of pinned insights, and a preview of the AI narrative summary. Published dashboards are visible to all team members." },
       { area: "Dashboard status badge", desc: "Published = visible to everyone. Draft = only visible to you and admins. Use Draft to build and test a dashboard before sharing it with the team." },
@@ -234,6 +258,34 @@ const MODULES = [
       { step: "4", text: "When you find a useful chart, click Save Insight then Pin to Dashboard → select your new dashboard" },
       { step: "5", text: "Return to the dashboard — pinned insights appear as chart cards. Add as many as needed." },
       { step: "6", text: "Click Generate Narrative for an AI-written executive summary of all your charts, then Publish to share with the team" },
+    ],
+  },
+  {
+    id: "presentation-studio",
+    label: "Presentation Studio",
+    icon: Layers,
+    color: "pink",
+    screenshot: null,
+    screenshotAlt: "",
+    overview: "Presentation Studio is Performo's built-in slide builder. Create board packs, department reviews, and executive presentations directly from your performance data. The AI generates a complete multi-slide deck from a text prompt — with title slides, KPI data cards, chart slides, bullet summaries, and a closing — ready to export as PPTX or PDF.",
+    readingGuide: [
+      { area: "Presentation list (home)", desc: "Shows all your saved presentations as cards with title, slide count, selected theme, and last modified date. Click any card to re-open the editor. Use the + New Presentation button to start a fresh deck." },
+      { area: "Slide panel (left)", desc: "Thumbnail strip showing all slides in order. Click any thumbnail to jump to that slide. Drag thumbnails to reorder slides. Right-click for duplicate or delete options." },
+      { area: "Slide canvas (centre)", desc: "The main editing area at 960×540 native resolution. Click any element — title, text block, image placeholder, or chart — to select it. A floating toolbar appears with formatting options: font, size, colour, alignment." },
+      { area: "AI Generate panel", desc: "Click the Generate button in the toolbar to open the AI generation panel. Type a prompt describing your deck (e.g. 'Q2 hotel performance review with 10 slides, focus on revenue and occupancy trends'). The AI creates a complete deck in under 30 seconds." },
+      { area: "Slide themes", desc: "Six built-in themes: Default, Dark, Corporate, Minimal, Vibrant, and Elegant. Switch theme at any time from the top toolbar — all slides update instantly. The chosen theme is preserved in PPTX and PDF exports." },
+      { area: "Element toolbar — add elements", desc: "Add new slide elements from the toolbar: Title, Subtitle, Text, Bullet List, Table, Divider, or Image placeholder. Drag to position, and resize by pulling the element corners. All elements can be formatted with the inline toolbar." },
+      { area: "Slide management buttons", desc: "Add a blank slide, duplicate the current slide, or delete it using the controls below the slide panel. Use the arrow keys after selecting a thumbnail to reorder slides quickly." },
+      { area: "Export PPTX", desc: "Downloads the full presentation as a PowerPoint file (.pptx) in 16:9 aspect ratio (10 × 5.625 inches). All slides, text, formatting, and theme colours are preserved — open directly in Microsoft PowerPoint or Google Slides." },
+      { area: "Export PDF", desc: "Downloads all slides as a multi-page PDF at full resolution. Each slide becomes one page. Suitable for sending by email, printing for boardroom meetings, or attaching to board reports." },
+    ],
+    actions: [
+      { step: "1", text: "Click + New Presentation and give it a title (e.g. 'Q2 Board Review')" },
+      { step: "2", text: "Click Generate and type a prompt — describe the topic, number of slides, and key metrics to highlight" },
+      { step: "3", text: "Review all generated slides — click each one to check the content and edit any element" },
+      { step: "4", text: "Select a theme from the toolbar to match your company's brand" },
+      { step: "5", text: "Add, remove, or reorder slides as needed using the slide panel" },
+      { step: "6", text: "Click Export PPTX or Export PDF to download your finished presentation" },
     ],
   },
   {
@@ -406,9 +458,8 @@ export default function Guide() {
               })}
             </nav>
 
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-5 mb-3 flex items-center gap-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-5 mb-3">
               Analytics Studio
-              <span className="text-[9px] bg-sky-600 text-white px-1.5 py-0.5 rounded-full font-bold">New</span>
             </p>
             <nav className="space-y-0.5">
               {MODULES.filter(m => analyticsGroup.includes(m.id)).map(m => {
@@ -460,7 +511,7 @@ export default function Guide() {
                     {m.label}
                   </button>
                 ))}
-                <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 border-t">Analytics Studio — New</div>
+                <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-100 border-t">Analytics Studio</div>
                 {MODULES.filter(m => analyticsGroup.includes(m.id)).map(m => (
                   <button
                     key={m.id}
@@ -484,9 +535,6 @@ export default function Guide() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-bold text-gray-900">{module.label}</h1>
-                  {(module as any).badge && (
-                    <span className="text-xs font-bold bg-sky-600 text-white px-2 py-0.5 rounded-full">{(module as any).badge}</span>
-                  )}
                 </div>
                 <p className="text-sm text-gray-500">Module guide · Performo AI</p>
               </div>

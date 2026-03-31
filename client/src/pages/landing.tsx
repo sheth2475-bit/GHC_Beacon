@@ -192,7 +192,6 @@ const GUIDE_STEPS = [
     title: "Build board-ready presentations",
     desc: "Upload your data or describe your topic and let AI generate a full deck. Refine individual slides, switch themes, and export to PPTX or PDF.",
     example: "Q2 Board Review: AI generates 15 slides — title, KPI data cards, revenue chart, project status, closing — in under 30 seconds.",
-    isNew: true,
   },
 ];
 
@@ -406,7 +405,6 @@ const WHY_ITEMS = [
     desc: "Upload an Excel file, ask a question in plain English, and get a chart with trend direction, anomaly detection, and top/bottom performer callouts — in seconds.",
     color: "text-indigo-500",
     bg: "bg-indigo-500/10",
-    badge: "New",
   },
   {
     icon: Layers,
@@ -414,7 +412,6 @@ const WHY_ITEMS = [
     desc: "Stop spending hours in PowerPoint. Describe your deck or upload your data, and Performo builds a complete slide presentation — KPI cards, charts, bullets — ready to export and present.",
     color: "text-fuchsia-500",
     bg: "bg-fuchsia-500/10",
-    badge: "New",
   },
   {
     icon: Zap,
@@ -470,6 +467,7 @@ export default function LandingPage() {
   const [videoError, setVideoError] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [scrolled, setScrolled] = useState(false);
 
   const closeVideoModal = () => { setVideoModalOpen(false); setVideoError(false); };
 
@@ -477,6 +475,12 @@ export default function LandingPage() {
     const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") closeVideoModal(); };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 160);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
@@ -503,6 +507,15 @@ export default function LandingPage() {
             </div>
 
             <div className="hidden lg:flex items-center gap-6">
+              {scrolled && (
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-semibold transition-colors flex items-center gap-1"
+                  data-testid="button-nav-home"
+                >
+                  ↑ Home
+                </button>
+              )}
               {NAV_LINKS.map(link => (
                 <a key={link.label} href={link.href} className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
                   {link.label}
@@ -531,6 +544,12 @@ export default function LandingPage() {
 
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-100 bg-white px-4 pb-4 pt-2 space-y-1">
+            <button
+              onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); setMobileMenuOpen(false); }}
+              className="block w-full text-left py-2 text-sm text-blue-600 font-semibold"
+            >
+              ↑ Home
+            </button>
             {NAV_LINKS.map(link => (
               <a key={link.label} href={link.href} className="block py-2 text-sm text-gray-700 font-medium" onClick={() => setMobileMenuOpen(false)}>
                 {link.label}
