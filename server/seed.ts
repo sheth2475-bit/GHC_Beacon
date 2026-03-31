@@ -578,6 +578,9 @@ export async function seedDatabase() {
       console.log("Seed: restored analytics V2 data (datasets, insights, definitions)");
     }
 
+    // ── Ensure presentation demo data ────────────────────────────
+    await seedPresentationData(companyId, existing.id);
+
     // ── Ensure platform owner ───────────────────────────────────
     await seedPlatformOwner();
 
@@ -778,6 +781,9 @@ export async function seedDatabase() {
   // ─── Workflow Center Demo Data ────────────────────────────────────────
   await seedWorkflowData(company.id, user.id);
 
+  // ─── Presentation Studio Demo Data ───────────────────────────────────
+  await seedPresentationData(company.id, user.id);
+
   await storage.upsertSubscription(company.id, {
     planName: "Growth",
     status: "Active",
@@ -950,6 +956,221 @@ async function seedWorkflowData(companyId: number, userId: number) {
   }
 
   console.log(`Seed: created ${submissions.length} workflow submissions for demo company`);
+}
+
+async function seedPresentationData(companyId: number, userId: number) {
+  const existing = await storage.listPresentations(companyId, userId);
+  if (existing.length > 0) return;
+
+  const presentations = [
+    {
+      title: "Q2 2026 Hotel Performance Review",
+      status: "published",
+      theme: "executive-dark",
+      sourceTypes: ["prompt"],
+      brief: {
+        title: "Q2 2026 Hotel Performance Review",
+        audience: "Board of Directors & Senior Leadership",
+        objective: "Present Q2 KPI performance, project portfolio status, and strategic priorities for Q3",
+        tone: "Professional",
+        deckType: "Board Presentation",
+        targetSlides: 10,
+        designStyle: "Executive",
+        instructions: "",
+        prompt: "Q2 board review covering occupancy, ADR, RevPAR, F&B performance, project portfolio, and Q3 priorities",
+      },
+      slides: [
+        {
+          id: "s1", type: "title",
+          title: "Q2 2026 Hotel Performance Review",
+          subtitle: "OYO Hospitality · Board Presentation · April 2026",
+        },
+        {
+          id: "s2", type: "agenda",
+          title: "Today's Agenda",
+          bullets: ["Q2 KPI Scorecard — Revenue & Operations", "Occupancy & Rate Analysis", "F&B Performance", "Project Portfolio Update", "People & Retention", "Q3 Strategic Priorities"],
+        },
+        {
+          id: "s3", type: "data",
+          title: "Q2 Revenue KPI Scorecard",
+          stat: [
+            { value: "AED 96.4M", label: "Total Revenue", change: "+8.2% vs Q1", trend: "up", pct: 97, color: "green" },
+            { value: "82%", label: "Occupancy Rate", change: "vs 85% target", trend: "down", pct: 82, color: "amber" },
+            { value: "AED 192", label: "Average Daily Rate", change: "+6.7% YoY", trend: "up", pct: 107, color: "green" },
+            { value: "AED 157", label: "RevPAR", change: "vs AED 153 target", trend: "up", pct: 103, color: "green" },
+          ],
+        },
+        {
+          id: "s4", type: "two-column",
+          title: "Occupancy: Seasonal Softness Contained",
+          bullets: ["Occupancy reached 82% vs 85% target — 3pp gap driven by lower leisure demand in April", "Corporate segment held strong at 91% occupancy, offsetting leisure shortfall", "RevPAR recovered to AED 157 through ADR discipline (+6.7% YoY)", "May bookings tracking at 87% — Q3 outlook positive"],
+          stat: [
+            { value: "82%", label: "Q2 Occupancy", change: "vs 85% target", trend: "down", color: "amber" },
+            { value: "AED 192", label: "ADR", change: "+6.7% YoY", trend: "up", color: "green" },
+            { value: "91%", label: "Corporate Seg.", change: "above plan", trend: "up", color: "green" },
+          ],
+        },
+        {
+          id: "s5", type: "data",
+          title: "F&B Revenue Per Cover — Progress",
+          stat: [
+            { value: "AED 138", label: "Revenue per Cover", change: "vs AED 128 Q1", trend: "up", pct: 95, color: "amber" },
+            { value: "18.2%", label: "F&B Revenue Mix", change: "vs 18% target", trend: "up", pct: 101, color: "green" },
+            { value: "4.6/5.0", label: "Guest Satisfaction", change: "3-month high", trend: "up", pct: 92, color: "green" },
+            { value: "AED 145", label: "Q3 Cover Target", change: "Menu overhaul underway", trend: "flat", pct: 0, color: "amber" },
+          ],
+        },
+        {
+          id: "s6", type: "section",
+          title: "Project Portfolio",
+          subtitle: "4 Active Strategic Initiatives",
+        },
+        {
+          id: "s7", type: "content",
+          title: "Strategic Project Status",
+          bullets: [
+            "✅ Loyalty Program Launch — 55% complete, April go-live on track",
+            "🟡 F&B Menu Overhaul — 40% complete, new pricing by 28 March",
+            "🔴 Q2 Revenue Recovery Plan — 0% complete, RFPs to be submitted by 15 March",
+            "🟡 Staff Retention Initiative — 30% complete, retention bonuses approved",
+          ],
+          emphasis: "2 of 4 projects require immediate action to avoid Q3 impact",
+          colorCode: "amber",
+        },
+        {
+          id: "s8", type: "two-column",
+          title: "People & Retention",
+          bullets: ["Employee turnover at 23% vs 18% target — housekeeping and F&B most affected", "Retention bonus programme approved: AED 500/month for >1yr tenure staff", "CHM certification programme launched for 8 supervisors", "eNPS survey planned for May to baseline engagement"],
+          stat: [
+            { value: "23%", label: "Turnover Rate", change: "vs 18% target", trend: "down", color: "red" },
+            { value: "AED 500", label: "Monthly Bonus", change: "per eligible staff", trend: "up", color: "green" },
+            { value: "8", label: "CHM Candidates", change: "in programme", trend: "up", color: "green" },
+          ],
+        },
+        {
+          id: "s9", type: "content",
+          title: "Q3 2026 Strategic Priorities",
+          bullets: [
+            "1. Drive occupancy to 87%+ through corporate RFP wins and weekend leisure packages",
+            "2. Complete Loyalty Program launch — target 500 enrolled members by end of Q3",
+            "3. Achieve AED 145 F&B revenue per cover through full menu overhaul rollout",
+            "4. Reduce staff turnover to below 20% by Q3 end through retention programme",
+            "5. Deliver Q3 Monthly Reviews within 5 days of month-end — no exceptions",
+          ],
+        },
+        {
+          id: "s10", type: "closing",
+          title: "Thank You",
+          subtitle: "Questions & Discussion",
+          bullets: ["Next board review: July 2026", "Monthly updates via Performo AI dashboard", "Contact: Dharmesh Sheth · GM · dharmesh@oyohotels.ae"],
+        },
+      ],
+      outline: [
+        { id: "o1", type: "title", title: "Title Slide", description: "Presentation title and date" },
+        { id: "o2", type: "agenda", title: "Agenda", description: "Overview of topics" },
+        { id: "o3", type: "data", title: "Q2 KPI Scorecard", description: "Revenue, occupancy, ADR, RevPAR" },
+        { id: "o4", type: "two-column", title: "Occupancy Analysis", description: "Seasonal softness and rate discipline" },
+        { id: "o5", type: "data", title: "F&B Performance", description: "Revenue per cover and guest satisfaction" },
+        { id: "o6", type: "section", title: "Project Portfolio", description: "Section break" },
+        { id: "o7", type: "content", title: "Project Status", description: "4 active initiatives" },
+        { id: "o8", type: "two-column", title: "People & Retention", description: "Turnover and retention programme" },
+        { id: "o9", type: "content", title: "Q3 Priorities", description: "Strategic priorities for next quarter" },
+        { id: "o10", type: "closing", title: "Closing", description: "Thank you and next steps" },
+      ],
+    },
+    {
+      title: "Staff Retention Initiative — March Update",
+      status: "draft",
+      theme: "corporate",
+      sourceTypes: ["prompt"],
+      brief: {
+        title: "Staff Retention Initiative — March Update",
+        audience: "HR Leadership & General Manager",
+        objective: "Update on the staff retention programme progress and next steps",
+        tone: "Professional",
+        deckType: "Operational Update",
+        targetSlides: 6,
+        designStyle: "Clean",
+        instructions: "",
+        prompt: "HR update on the staff retention initiative — current turnover, actions taken, and programme milestones",
+      },
+      slides: [
+        {
+          id: "s1", type: "title",
+          title: "Staff Retention Initiative",
+          subtitle: "March 2026 Progress Update · HR & General Management",
+        },
+        {
+          id: "s2", type: "data",
+          title: "Retention Metrics — Current Status",
+          stat: [
+            { value: "23%", label: "Current Turnover", change: "vs 18% target", trend: "down", pct: 72, color: "red" },
+            { value: "30%", label: "Initiative Progress", change: "of milestones complete", trend: "up", pct: 30, color: "amber" },
+            { value: "8", label: "Staff Exited in Feb", change: "housekeeping & F&B", trend: "down", pct: 0, color: "red" },
+            { value: "AED 500", label: "Monthly Bonus", change: "approved, rollout April 1", trend: "up", pct: 100, color: "green" },
+          ],
+        },
+        {
+          id: "s3", type: "content",
+          title: "Actions Completed in March",
+          bullets: [
+            "✅ Retention bonus of AED 500/month approved for all staff with >1yr tenure (effective April 1)",
+            "✅ CHM certification programme launched — 8 supervisors enrolled with Bureau Veritas",
+            "✅ Exit interview process formalised — all departing staff now interviewed within 48 hrs",
+            "✅ Housekeeping schedule optimised — reduced split shifts from 62% to 38% of rosters",
+          ],
+          colorCode: "green",
+        },
+        {
+          id: "s4", type: "content",
+          title: "Actions in Progress",
+          bullets: [
+            "🔄 eNPS engagement survey — launching May 1, results by May 15",
+            "🔄 Career pathing framework — Operations and HR drafting ladder for 5 departments",
+            "🔄 Competitor salary benchmarking — HR to complete by April 10",
+            "🔄 Staff recognition programme — quarterly awards, first cycle starts Q2",
+          ],
+          colorCode: "amber",
+        },
+        {
+          id: "s5", type: "two-column",
+          title: "Root Cause Analysis",
+          bullets: ["Exit interviews confirm: 61% left for higher pay at competitor hotels", "38% cited lack of career progression visibility", "Seasonal contract uncertainty (Feb–Mar) drives 'pre-emptive' exits", "Competitor activity: 2 new hotel openings in Q1 actively targeting trained F&B staff"],
+          stat: [
+            { value: "61%", label: "Left for higher pay", change: "from exit interviews", trend: "flat", color: "red" },
+            { value: "38%", label: "Career growth concern", change: "from exit interviews", trend: "flat", color: "amber" },
+          ],
+        },
+        {
+          id: "s6", type: "closing",
+          title: "Target: Below 20% Turnover by Q3",
+          subtitle: "Fatima Al Rashid · HR Director · March 2026",
+          bullets: ["April: Retention bonus live for 94 eligible staff", "May: eNPS survey results — baseline engagement score", "June: Mid-year review — first cohort of CHM candidates assessed"],
+        },
+      ],
+      outline: [
+        { id: "o1", type: "title", title: "Title Slide", description: "" },
+        { id: "o2", type: "data", title: "Retention Metrics", description: "Current KPI status" },
+        { id: "o3", type: "content", title: "Completed Actions", description: "March achievements" },
+        { id: "o4", type: "content", title: "In Progress", description: "Current workstreams" },
+        { id: "o5", type: "two-column", title: "Root Cause Analysis", description: "Exit interview findings" },
+        { id: "o6", type: "closing", title: "Closing", description: "Q3 target and milestones" },
+      ],
+    },
+  ];
+
+  for (const p of presentations) {
+    await storage.createPresentation({
+      companyId, createdBy: userId,
+      title: p.title, status: p.status, theme: p.theme,
+      sourceTypes: p.sourceTypes as any,
+      brief: p.brief as any,
+      slides: p.slides as any,
+      outline: p.outline as any,
+      version: 1,
+    });
+  }
+  console.log(`Seed: created ${presentations.length} demo presentations`);
 }
 
 async function seedPlatformOwner() {
