@@ -3,7 +3,8 @@ import { useRoute, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 import {
-  LineChart, Line, BarChart, Bar, Cell, RadarChart, Radar,
+  LineChart, Line, AreaChart, Area,
+  BarChart, Bar, Cell, RadarChart, Radar,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   ReferenceLine,
@@ -13,6 +14,8 @@ import {
   Save, Check, AlertTriangle, AlertCircle, CheckCircle2, Clock,
   Activity, Plus, Trash2, Download, Upload, FileSpreadsheet,
   RefreshCw, Building2, Edit2, BarChart2,
+  GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
+  Target, Zap, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -410,6 +413,17 @@ function AddDeptDialog({ open, onClose, onAdd }: { open:boolean; onClose:()=>voi
 // ═════════════════════════════════════════════════════════════════════════════
 // LANDING PAGE — Department cards grid
 // ═════════════════════════════════════════════════════════════════════════════
+const PERSPECTIVES: Perspective[] = ["Financial", "Customer", "Internal", "Learning"];
+const PERSP_INITIALS: Record<Perspective, string> = { Financial:"F", Customer:"C", Internal:"I", Learning:"L" };
+const PERSP_FULL: Record<Perspective, string> = { Financial:"Financial", Customer:"Customer", Internal:"Internal Process", Learning:"Learning" };
+
+function healthColor(hp: number) {
+  return hp >= 70 ? "#10b981" : hp >= 40 ? "#f59e0b" : "#ef4444";
+}
+function healthStatus(hp: number): "green"|"amber"|"red" {
+  return hp >= 70 ? "green" : hp >= 40 ? "amber" : "red";
+}
+
 function ScorecardLanding() {
   const [departments, setDepartments] = useState<BscDepartment[]>(loadDepartments);
   const [store] = useState(loadStore);
@@ -417,7 +431,10 @@ function ScorecardLanding() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const today = new Date();
-  const pk = periodKey(today.getFullYear(), today.getMonth());
+  const pk  = periodKey(today.getFullYear(), today.getMonth());
+  const ppk = today.getMonth() === 0
+    ? periodKey(today.getFullYear()-1, 11)
+    : periodKey(today.getFullYear(), today.getMonth()-1);
   const [, nav] = useLocation();
 
   const handleAdd = (d: BscDepartment) => {
@@ -455,30 +472,127 @@ function ScorecardLanding() {
   };
   const handleDragEnd = () => { setDragIndex(null); setOverIndex(null); };
 
+  // ── Company-wide health computation ─────────────────────────────────────
+  const companyStats = useMemo(() => {
+    const allKpis = departments.flatMap(d => getKpisForDept(d.id));
+    const allActs: Record<string, number|null> = {};
+    allKpis.forEach(k => { const v = store?.[pk]?.[k.id]; allActs[k.id] = v !== undefined ? Number(v) : null; });
+    const hp = healthPct(allKpis, allActs);
+    const deptHps = departments.map(d => {
+      const dk = getKpisForDept(d.id);
+      const da: Record<string, number|null> = {};
+      dk.forEach(k => { const v = store?.[pk]?.[k.id]; da[k.id] = v !== undefined ? Number(v) : null; });
+      return healthPct(dk, da);
+    });
+    return {
+      hp,
+      green: deptHps.filter(h => h >= 70).length,
+      amber: deptHps.filter(h => h >= 40 && h < 70).length,
+      red:   deptHps.filter(h => h < 40).length,
+      total: departments.length,
+    };
+  }, [departments, store, pk]);
+
   return (
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
-      <PageHeader
-        title="Balanced Scorecard"
-        description="Select a department to view its scorecard dashboard. Drag cards to reorder."
-        icon={Activity}
-        actions={
-          <Button onClick={()=>setShowAdd(true)} data-testid="button-add-department">
-            <Plus className="h-4 w-4 mr-1.5" />Add Department
-          </Button>
-        }
-      />
 
+      {/* ── Page title row ── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Activity className="h-6 w-6 text-primary" />Balanced Scorecard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Company performance at a glance · {MONTHS[today.getMonth()]} {today.getFullYear()}</p>
+        </div>
+        <Button onClick={()=>setShowAdd(true)} data-testid="button-add-department">
+          <Plus className="h-4 w-4 mr-1.5" />Add Department
+        </Button>
+      </div>
+
+      {/* ── Company health banner ── */}
+      <Card className="overflow-hidden">
+        <div className="h-1.5 w-full" style={{ background:`linear-gradient(90deg, #10b981 ${companyStats.green/companyStats.total*100}%, #f59e0b ${companyStats.green/companyStats.total*100}% ${(companyStats.green+companyStats.amber)/companyStats.total*100}%, #ef4444 ${(companyStats.green+companyStats.amber)/companyStats.total*100}%)` }} />
+        <CardContent className="p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+            {/* Big health number */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <HealthRing pct={companyStats.hp} size={72} />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Company Health Score</p>
+                <p className="text-4xl font-bold tabular-nums" style={{ color: healthColor(companyStats.hp) }}>{companyStats.hp}%</p>
+                <p className="text-xs text-muted-foreground">{companyStats.total} departments · {MONTHS[today.getMonth()]} {today.getFullYear()}</p>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden sm:block w-px h-16 bg-border" />
+
+            {/* RAG dept counts */}
+            <div className="flex gap-6">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-emerald-600">{companyStats.green}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">On Track</p>
+                <div className="w-2 h-2 rounded-full bg-emerald-500 mx-auto mt-1.5" />
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-amber-600">{companyStats.amber}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">At Risk</p>
+                <div className="w-2 h-2 rounded-full bg-amber-500 mx-auto mt-1.5" />
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-red-600">{companyStats.red}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Off Track</p>
+                <div className="w-2 h-2 rounded-full bg-red-500 mx-auto mt-1.5" />
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden sm:block w-px h-16 bg-border" />
+
+            {/* Perspective legend */}
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              {PERSPECTIVES.map(p => (
+                <div key={p} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: P_COLOR[p].accent }} />
+                  <span>{PERSP_FULL[p]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Department cards grid ── */}
+      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+        <GripVertical className="h-3.5 w-3.5" />Drag cards to reorder · Click to open scorecard
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {departments.map((dept, idx) => {
-          const kpis = getKpisForDept(dept.id);
+          const kpis  = getKpisForDept(dept.id);
           const acts: Record<string, number | null> = {};
           kpis.forEach(k => { const v = store?.[pk]?.[k.id]; acts[k.id] = v !== undefined ? Number(v) : null; });
           const hp       = healthPct(kpis, acts);
-          const onTrack  = kpis.filter(k => getStatus(k, acts[k.id]) === "green").length;
-          const atRisk   = kpis.filter(k => getStatus(k, acts[k.id]) === "amber").length;
-          const offTrack = kpis.filter(k => getStatus(k, acts[k.id]) === "red").length;
+          const hc       = healthColor(hp);
+          const hs       = healthStatus(hp);
+
+          // prev-month health for trend
+          const prevActs: Record<string, number | null> = {};
+          kpis.forEach(k => { const v = store?.[ppk]?.[k.id]; prevActs[k.id] = v !== undefined ? Number(v) : null; });
+          const prevHp = healthPct(kpis, prevActs);
+          const hpDelta = hp - prevHp;
+
+          // per-perspective dots
+          const perspDots = PERSPECTIVES.map(p => {
+            const pk2 = kpis.filter(k => k.perspective === p);
+            const pa: Record<string,number|null> = {};
+            pk2.forEach(k => { pa[k.id] = acts[k.id]; });
+            const php = healthPct(pk2, pa);
+            return { p, color: healthColor(php), initial: PERSP_INITIALS[p] };
+          });
+
           const isDragging = dragIndex === idx;
           const isOver     = overIndex === idx && dragIndex !== idx;
+          const borderColor = hs === "green" ? "#10b981" : hs === "amber" ? "#f59e0b" : "#ef4444";
 
           return (
             <Card key={dept.id}
@@ -487,51 +601,72 @@ function ScorecardLanding() {
               onDragOver={e => handleDragOver(e, idx)}
               onDrop={e => handleDrop(e, idx)}
               onDragEnd={handleDragEnd}
+              style={{ borderLeftColor: borderColor, borderLeftWidth: 4 }}
               className={cn(
-                "cursor-grab active:cursor-grabbing hover:shadow-md transition-all hover:border-primary/30 group relative overflow-hidden select-none",
+                "cursor-pointer hover:shadow-lg transition-all group relative select-none pl-0",
                 isDragging && "opacity-40 scale-95",
-                isOver && "ring-2 ring-primary border-primary",
+                isOver && "ring-2 ring-primary",
               )}
               onClick={() => !isDragging && nav(`/scorecard/department/${dept.id}`)}
               data-testid={`card-dept-${dept.id}`}>
-              {/* Coloured top strip */}
-              <div className="h-1.5 w-full" style={{ background: dept.color }} />
 
-              {/* Delete button (only on hover) */}
-              <button onClick={e=>handleDelete(dept.id,e)}
-                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1 rounded"
-                data-testid={`button-delete-dept-${dept.id}`}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl leading-none">{dept.icon}</span>
+              <CardContent className="p-4">
+                {/* Top row: drag grip + icon + name + health % */}
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <GripVertical className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors flex-shrink-0 mt-0.5" />
+                    <span className="text-xl leading-none">{dept.icon}</span>
                     <div>
-                      <p className="font-semibold text-foreground text-sm">{dept.name}</p>
+                      <p className="font-semibold text-sm leading-tight">{dept.name}</p>
                       <p className="text-xs text-muted-foreground">{kpis.length} KPIs</p>
                     </div>
                   </div>
-                  <HealthRing pct={hp} size={48} />
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-2xl font-bold tabular-nums leading-none" style={{ color: hc }}>{hp}%</p>
+                    {hpDelta !== 0 && prevHp > 0 && (
+                      <p className="text-xs flex items-center justify-end gap-0.5 mt-0.5"
+                        style={{ color: hpDelta > 0 ? "#10b981" : "#ef4444" }}>
+                        {hpDelta > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                        {Math.abs(Math.round(hpDelta))}%
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="flex items-center gap-1.5 text-emerald-600">
-                    <CheckCircle2 className="h-3.5 w-3.5" /><span className="font-semibold">{onTrack}</span> on track
-                  </span>
-                  <span className="flex items-center gap-1.5 text-amber-600">
-                    <AlertTriangle className="h-3.5 w-3.5" /><span className="font-semibold">{atRisk}</span> at risk
-                  </span>
-                  <span className="flex items-center gap-1.5 text-red-600">
-                    <AlertCircle className="h-3.5 w-3.5" /><span className="font-semibold">{offTrack}</span> off track
-                  </span>
+                {/* Perspective dots */}
+                <div className="flex gap-3 mb-3">
+                  {perspDots.map(({ p, color, initial }) => (
+                    <div key={p} title={PERSP_FULL[p as Perspective]} className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                      <span className="text-xs text-muted-foreground font-medium">{initial}</span>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="mt-3 flex items-center gap-1 text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                  View Scorecard <ChevronRight className="h-3 w-3" />
+                {/* Health bar */}
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${hp}%`, background: hc }} />
+                </div>
+
+                {/* Footer: CTA */}
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {kpis.filter(k => getStatus(k, acts[k.id]) === "green").length} green ·{" "}
+                    {kpis.filter(k => getStatus(k, acts[k.id]) === "red").length} red
+                  </span>
+                  <span className="text-xs text-primary font-medium flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Open <ArrowRight className="h-3 w-3" />
+                  </span>
                 </div>
               </CardContent>
+
+              {/* Delete button */}
+              <button onClick={e => { e.stopPropagation(); handleDelete(dept.id, e); }}
+                className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1 rounded"
+                data-testid={`button-delete-dept-${dept.id}`}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </Card>
           );
         })}
@@ -539,8 +674,7 @@ function ScorecardLanding() {
         {/* Add Department card */}
         <Card className="cursor-pointer hover:shadow-md transition-all border-dashed hover:border-primary/50 group"
           onClick={() => setShowAdd(true)} data-testid="card-add-department">
-          <div className="h-1.5 w-full bg-transparent" />
-          <CardContent className="p-5 flex flex-col items-center justify-center gap-3 min-h-[120px] text-muted-foreground group-hover:text-primary transition-colors">
+          <CardContent className="p-4 flex flex-col items-center justify-center gap-3 min-h-[148px] text-muted-foreground group-hover:text-primary transition-colors">
             <div className="h-10 w-10 rounded-xl border-2 border-dashed border-current flex items-center justify-center">
               <Plus className="h-5 w-5" />
             </div>
@@ -664,6 +798,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [saved, setSaved]   = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [sortCol, setSortCol]   = useState<string>("status");
+  const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
   const { toast } = useToast();
   const [, nav] = useLocation();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -701,6 +837,59 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const onTrack  = kpis.filter(k => getStatus(k, allActuals[k.id]) === "green").length;
   const atRisk   = kpis.filter(k => getStatus(k, allActuals[k.id]) === "amber").length;
   const offTrack = kpis.filter(k => getStatus(k, allActuals[k.id]) === "red").length;
+
+  // Movers vs last month
+  const movers = useMemo(() => {
+    type Mover = { kpi: KpiDef; curr: number; prev: number; delta: number; pct: number };
+    const items: Mover[] = kpis.flatMap(k => {
+      const curr = getActual(k.id); const prev = getActual(k.id, ppk);
+      if (curr === null || prev === null || prev === 0) return [];
+      const rawDelta = curr - prev;
+      const delta = k.lowerIsBetter ? -rawDelta : rawDelta;
+      const pct = Math.round((Math.abs(rawDelta) / Math.abs(prev)) * 100);
+      return [{ kpi: k, curr, prev, delta, pct }];
+    });
+    return {
+      improved: items.filter(i => i.delta > 0).sort((a,b) => b.delta - a.delta).slice(0,3),
+      declined: items.filter(i => i.delta < 0).sort((a,b) => a.delta - b.delta).slice(0,3),
+    };
+  }, [kpis, store, pk, ppk]);
+
+  // Sorted KPI table rows
+  const statusOrder: Record<string,number> = { red:0, amber:1, green:2, none:3 };
+  const sortedKpis = useMemo(() => {
+    const toggle = (col: string) => {
+      if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+      else { setSortCol(col); setSortDir("asc"); }
+    };
+    void toggle; // used via handleSort in JSX
+    return [...kpis].sort((a, b) => {
+      const aAct = getActual(a.id), bAct = getActual(b.id);
+      const aS = getStatus(a, aAct) || "none", bS = getStatus(b, bAct) || "none";
+      if (sortCol === "status") {
+        const d = (statusOrder[aS]??3) - (statusOrder[bS]??3);
+        return sortDir === "asc" ? d : -d;
+      }
+      if (sortCol === "name") return sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      if (sortCol === "perspective") return sortDir === "asc" ? a.perspective.localeCompare(b.perspective) : b.perspective.localeCompare(a.perspective);
+      if (sortCol === "actual") {
+        if (aAct === null && bAct === null) return 0;
+        if (aAct === null) return 1; if (bAct === null) return -1;
+        return sortDir === "asc" ? aAct - bAct : bAct - aAct;
+      }
+      return 0;
+    });
+  }, [kpis, sortCol, sortDir, store, pk]);
+
+  const handleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+  const SortIcon = ({ col }: { col: string }) => (
+    <span className="ml-1 text-muted-foreground/60">
+      {sortCol === col ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
+    </span>
+  );
 
   const saveKpi = (id:string) => {
     const val = entryVals[id]; if (!val && val !== "0") return;
@@ -898,172 +1087,238 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         </TabsList>
 
         {/* ── Dashboard ── */}
-        <TabsContent value="dashboard" className="mt-5 space-y-6">
+        <TabsContent value="dashboard" className="mt-5 space-y-5">
 
-          {/* ── Overall Performance Panel ── */}
+          {/* ── 1. Health Summary + Movement Strip ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            {/* Left: Overall health + perspective summary bars */}
+            {/* Overall health panel */}
             <Card>
-              <CardContent className="p-6 flex flex-col items-center gap-5">
-                <div className="flex flex-col items-center gap-2">
-                  <HealthRing pct={hp} size={96} />
-                  <div className="text-center">
-                    <p className="font-semibold text-sm">Overall Health Score</p>
-                    <p className="text-xs text-muted-foreground">{kpis.length} KPIs tracked</p>
-                  </div>
+              <CardContent className="p-5 flex flex-col items-center gap-4">
+                <HealthRing pct={hp} size={88} />
+                <div className="text-center">
+                  <p className="font-bold text-2xl tabular-nums" style={{ color: healthColor(hp) }}>{hp}%</p>
+                  <p className="text-sm font-medium">Overall Health Score</p>
+                  <p className="text-xs text-muted-foreground">{MONTHS[month]} {year}</p>
                 </div>
-                <div className="w-full grid grid-cols-3 gap-3 text-center pt-2 border-t">
-                  <div>
-                    <p className="text-2xl font-bold text-emerald-600">{onTrack}</p>
-                    <p className="text-xs text-muted-foreground">On Track</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-amber-600">{atRisk}</p>
-                    <p className="text-xs text-muted-foreground">At Risk</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-red-600">{offTrack}</p>
-                    <p className="text-xs text-muted-foreground">Off Track</p>
-                  </div>
-                </div>
-                {/* Perspective health bars */}
-                <div className="w-full space-y-2.5">
-                  {perspectives.map(p => {
-                    const pkpis = kpis.filter(k => k.perspective === p);
-                    const pActs: Record<string,number|null> = {};
-                    pkpis.forEach(k => { pActs[k.id] = getActual(k.id); });
-                    const php = healthPct(pkpis, pActs);
-                    const pc  = P_COLOR[p];
-                    return (
-                      <div key={p}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">{PERSP_LABEL[p].split(" /")[0]}</span>
-                          <span className="font-semibold" style={{ color: pc.accent }}>{php}%</span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width:`${php}%`, background: pc.accent, transition:"width .5s ease" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="w-full grid grid-cols-3 gap-2 text-center border-t pt-3">
+                  <div><p className="text-xl font-bold text-emerald-600">{onTrack}</p><p className="text-xs text-muted-foreground">On Track</p></div>
+                  <div><p className="text-xl font-bold text-amber-600">{atRisk}</p><p className="text-xs text-muted-foreground">At Risk</p></div>
+                  <div><p className="text-xl font-bold text-red-600">{offTrack}</p><p className="text-xs text-muted-foreground">Off Track</p></div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Right: Radar chart */}
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Performance by Perspective</CardTitle>
+            {/* Most Improved */}
+            <Card className="border-emerald-200 dark:border-emerald-900/60">
+              <CardHeader className="pb-2 pt-4 px-5">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />Most Improved vs Last Month
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                {(() => {
-                  const radarData = perspectives.map(p => {
-                    const pkpis = kpis.filter(k => k.perspective === p);
-                    const pActs: Record<string,number|null> = {};
-                    pkpis.forEach(k => { pActs[k.id] = getActual(k.id); });
-                    return { perspective: PERSP_LABEL[p].split(" /")[0], value: healthPct(pkpis, pActs), fullMark: 100 };
-                  });
-                  return (
-                    <ResponsiveContainer width="100%" height={260}>
-                      <RadarChart data={radarData}>
-                        <PolarGrid stroke="hsl(var(--border))" />
-                        <PolarAngleAxis dataKey="perspective" tick={{ fill:"hsl(var(--foreground))", fontSize:12 }} />
-                        <PolarRadiusAxis domain={[0,100]} tick={{ fill:"hsl(var(--muted-foreground))", fontSize:9 }} tickCount={3} />
-                        <Radar name="Health %" dataKey="value" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.15} strokeWidth={2} />
-                        <Tooltip
-                          contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"8px", fontSize:12 }}
-                          formatter={(v:any) => [`${v}%`, "Health Score"]}
-                        />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  );
-                })()}
+              <CardContent className="px-5 pb-4 space-y-2.5">
+                {movers.improved.length === 0
+                  ? <p className="text-xs text-muted-foreground italic">No data comparison available yet.</p>
+                  : movers.improved.map(({ kpi, curr, pct }) => {
+                    const pc = P_COLOR[kpi.perspective];
+                    return (
+                      <button key={kpi.id} onClick={() => nav(`/scorecard/kpi/${kpi.id}`)}
+                        className="w-full flex items-center justify-between gap-3 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors text-left group">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: pc.accent }} />
+                          <span className="text-sm font-medium truncate">{kpi.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{curr} {kpi.unit}</span>
+                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 border-0 text-xs">+{pct}%</Badge>
+                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
+                    );
+                  })
+                }
+              </CardContent>
+            </Card>
+
+            {/* Needs Attention */}
+            <Card className="border-red-200 dark:border-red-900/60">
+              <CardHeader className="pb-2 pt-4 px-5">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-600" />Needs Attention vs Last Month
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 pb-4 space-y-2.5">
+                {movers.declined.length === 0
+                  ? <p className="text-xs text-muted-foreground italic">No declining KPIs detected.</p>
+                  : movers.declined.map(({ kpi, curr, pct }) => {
+                    const pc = P_COLOR[kpi.perspective];
+                    return (
+                      <button key={kpi.id} onClick={() => nav(`/scorecard/kpi/${kpi.id}`)}
+                        className="w-full flex items-center justify-between gap-3 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-left group">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: pc.accent }} />
+                          <span className="text-sm font-medium truncate">{kpi.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-sm font-bold text-red-700 dark:text-red-400">{curr} {kpi.unit}</span>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 border-0 text-xs">-{pct}%</Badge>
+                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
+                    );
+                  })
+                }
               </CardContent>
             </Card>
           </div>
 
-          {/* ── Per-perspective sections ── */}
-          {perspectives.map(p => {
-            const pkpis = kpis.filter(k => k.perspective === p);
-            if (!pkpis.length) return null;
-            const pc = P_COLOR[p];
-
-            // Build bar chart data: % to target per KPI
-            const barData = pkpis.map(k => {
-              const actual = getActual(k.id);
-              const pct = actual !== null && k.target !== 0
-                ? k.lowerIsBetter
-                  ? Math.min(100, Math.max(0, Math.round((1 - Math.max(0, actual - k.target) / k.target) * 100)))
-                  : Math.min(150, Math.round((actual / k.target) * 100))
-                : null;
-              const st = getStatus(k, actual);
-              return {
-                name: k.name.length > 20 ? k.name.slice(0, 19) + "…" : k.name,
-                fullName: k.name,
-                pct: pct ?? 0,
-                hasData: actual !== null,
-                color: st === "green" ? "#10b981" : st === "amber" ? "#f59e0b" : st === "red" ? "#ef4444" : "#d1d5db",
-              };
-            });
-
-            const pOnTrack  = pkpis.filter(k => getStatus(k, getActual(k.id)) === "green").length;
-            const pAtRisk   = pkpis.filter(k => getStatus(k, getActual(k.id)) === "amber").length;
-            const pOffTrack = pkpis.filter(k => getStatus(k, getActual(k.id)) === "red").length;
-
-            return (
-              <div key={p} className="space-y-4">
-                {/* Section header */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="w-1 h-6 rounded-full" style={{ background: pc.accent }} />
-                  <h2 className="text-base font-bold">{PERSP_LABEL[p]}</h2>
-                  <Badge variant="outline" className={cn(pc.bg, pc.text, pc.border, "border text-xs")}>{pkpis.length} KPIs</Badge>
-                  <div className="flex gap-3 text-xs ml-auto">
-                    <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="h-3 w-3" />{pOnTrack} on track</span>
-                    <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" />{pAtRisk} at risk</span>
-                    <span className="flex items-center gap-1 text-red-600"><AlertCircle className="h-3 w-3" />{pOffTrack} off track</span>
-                  </div>
-                </div>
-
-                {/* Horizontal bar chart: KPI % to target */}
-                <Card>
-                  <CardHeader className="pb-0 pt-4 px-5">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">% Achievement vs Target</p>
-                  </CardHeader>
-                  <CardContent className="px-5 pb-4">
-                    <ResponsiveContainer width="100%" height={pkpis.length * 36 + 8}>
-                      <BarChart data={barData} layout="vertical" margin={{ top:4, right:40, left:4, bottom:0 }}>
-                        <XAxis type="number" domain={[0,100]} tick={{ fill:"hsl(var(--muted-foreground))", fontSize:10 }}
-                          axisLine={false} tickLine={false} unit="%" />
-                        <YAxis type="category" dataKey="name" width={140} tick={{ fill:"hsl(var(--foreground))", fontSize:11 }}
-                          axisLine={false} tickLine={false} />
-                        <Tooltip
-                          contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"8px", fontSize:11 }}
-                          formatter={(v:any, _:any, props:any) => [`${v}%`, props?.payload?.fullName || "Achievement"]}
-                        />
-                        <ReferenceLine x={100} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 3" strokeWidth={1} />
-                        <Bar dataKey="pct" radius={[0,4,4,0]} maxBarSize={20} label={{ position:"right", fontSize:10, fill:"hsl(var(--muted-foreground))", formatter:(v:any) => v ? `${v}%` : "" }}>
-                          {barData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={d.hasData ? 1 : 0.25} />)}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+          {/* ── 2. Perspective Summary (2×2 grid) ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {PERSPECTIVES.map(p => {
+              const pkpis = kpis.filter(k => k.perspective === p);
+              const pActs: Record<string,number|null> = {};
+              pkpis.forEach(k => { pActs[k.id] = getActual(k.id); });
+              const php    = healthPct(pkpis, pActs);
+              const pc     = P_COLOR[p];
+              const pGreen = pkpis.filter(k => getStatus(k, pActs[k.id]) === "green").length;
+              const pAmber = pkpis.filter(k => getStatus(k, pActs[k.id]) === "amber").length;
+              const pRed   = pkpis.filter(k => getStatus(k, pActs[k.id]) === "red").length;
+              const hc     = healthColor(php);
+              return (
+                <Card key={p} className="overflow-hidden">
+                  <div className="h-1 w-full" style={{ background: pc.accent }} />
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{PERSP_LABEL[p].split(" /")[0]}</p>
+                        <p className="text-2xl font-bold tabular-nums mt-0.5" style={{ color: hc }}>{php}%</p>
+                      </div>
+                      <span className="text-lg">{p === "Financial" ? "💰" : p === "Customer" ? "🎯" : p === "Internal" ? "⚙️" : "📈"}</span>
+                    </div>
+                    {/* Stacked RAG bar */}
+                    <div className="h-2 rounded-full overflow-hidden flex mb-2.5">
+                      <div style={{ width:`${(pGreen/pkpis.length)*100}%`, background:"#10b981" }} className="transition-all" />
+                      <div style={{ width:`${(pAmber/pkpis.length)*100}%`, background:"#f59e0b" }} className="transition-all" />
+                      <div style={{ width:`${(pRed/pkpis.length)*100}%`,   background:"#ef4444" }} className="transition-all" />
+                      {pGreen+pAmber+pRed === 0 && <div className="flex-1 bg-muted" />}
+                    </div>
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <span className="text-emerald-600 font-semibold">{pGreen}</span>
+                      <span className="text-amber-600 font-semibold">{pAmber}</span>
+                      <span className="text-red-600 font-semibold">{pRed}</span>
+                      <span className="ml-auto">{pkpis.length} KPIs</span>
+                    </div>
                   </CardContent>
                 </Card>
+              );
+            })}
+          </div>
 
-                {/* KPI cards with sparklines */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {pkpis.map(k => (
-                    <KpiEnrichedCard key={k.id} kpi={k}
-                      actual={getActual(k.id)} prevActual={getActual(k.id, ppk)}
-                      store={store} year={year} month={month}
-                      onClick={() => nav(`/scorecard/kpi/${k.id}`)}
-                    />
-                  ))}
-                </div>
+          {/* ── 3. Interactive KPI Scorecard Table ── */}
+          <Card>
+            <CardHeader className="pb-0 pt-4 px-5">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <BarChart2 className="h-4 w-4 text-muted-foreground" />KPI Scorecard — {MONTHS[month]} {year}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Click any row to view trend · Click column headers to sort</p>
               </div>
-            );
-          })}
+            </CardHeader>
+            <CardContent className="p-0 mt-3">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-y bg-muted/30">
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("status")}>Status <SortIcon col="status" /></th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("name")}>KPI Name <SortIcon col="name" /></th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("perspective")}>Perspective <SortIcon col="perspective" /></th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("actual")}>Actual <SortIcon col="actual" /></th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Target</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Variance</th>
+                      <th className="text-center px-4 py-2.5 text-xs font-semibold text-muted-foreground">vs Last Mo.</th>
+                      <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">6-Month Trend</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {sortedKpis.map(k => {
+                      const actual  = getActual(k.id);
+                      const prev    = getActual(k.id, ppk);
+                      const st      = getStatus(k, actual);
+                      const pc      = P_COLOR[k.perspective];
+                      const rawDelta  = actual !== null && prev !== null ? actual - prev : null;
+                      const goodDelta = rawDelta !== null ? (k.lowerIsBetter ? -rawDelta : rawDelta) : null;
+                      const variance  = actual !== null ? actual - k.target : null;
+                      const goodVar   = variance !== null ? (k.lowerIsBetter ? -variance : variance) : null;
+                      const rowBg = st === "red" ? "bg-red-50/40 dark:bg-red-950/10" : st === "amber" ? "bg-amber-50/40 dark:bg-amber-950/10" : "";
+                      return (
+                        <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
+                          className={cn("cursor-pointer hover:bg-muted/50 transition-colors group", rowBg)}>
+                          {/* Status dot */}
+                          <td className="px-4 py-3">
+                            <div className={cn("w-2.5 h-2.5 rounded-full mx-auto",
+                              st === "green" ? "bg-emerald-500" : st === "amber" ? "bg-amber-500" : st === "red" ? "bg-red-500" : "bg-muted-foreground/30")} />
+                          </td>
+                          {/* KPI Name */}
+                          <td className="px-4 py-3 font-medium max-w-[200px]">
+                            <span className="line-clamp-1">{k.name}</span>
+                          </td>
+                          {/* Perspective badge */}
+                          <td className="px-4 py-3">
+                            <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", pc.bg, pc.text)}>
+                              {PERSP_INITIALS[k.perspective]}
+                            </span>
+                          </td>
+                          {/* Actual */}
+                          <td className="px-4 py-3 text-right font-bold tabular-nums">
+                            {actual !== null
+                              ? <>{actual}<span className="text-xs text-muted-foreground ml-1 font-normal">{k.unit}</span></>
+                              : <span className="text-muted-foreground font-normal">—</span>}
+                          </td>
+                          {/* Target */}
+                          <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
+                            {k.target}<span className="text-xs ml-1">{k.unit}</span>
+                          </td>
+                          {/* Variance */}
+                          <td className="px-4 py-3 text-right tabular-nums font-medium">
+                            {goodVar !== null
+                              ? <span style={{ color: goodVar >= 0 ? "#10b981" : "#ef4444" }}>
+                                  {goodVar > 0 ? "+" : ""}{variance?.toFixed(1)}<span className="text-xs ml-0.5 font-normal">{k.unit}</span>
+                                </span>
+                              : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          {/* vs Last Month */}
+                          <td className="px-4 py-3 text-center">
+                            {goodDelta !== null
+                              ? <span className="inline-flex items-center gap-0.5 text-xs font-semibold"
+                                  style={{ color: goodDelta > 0 ? "#10b981" : goodDelta < 0 ? "#ef4444" : "#94a3b8" }}>
+                                  {goodDelta > 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : goodDelta < 0 ? <ArrowDownRight className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
+                                  {Math.abs(rawDelta!).toFixed(1)}
+                                </span>
+                              : <span className="text-muted-foreground/50 text-xs">—</span>}
+                          </td>
+                          {/* Sparkline */}
+                          <td className="px-4 py-3 w-32">
+                            <KpiSparkline kpi={k} store={store} year={year} month={month} />
+                          </td>
+                          {/* Drill-down arrow */}
+                          <td className="px-4 py-3">
+                            <Eye className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
+
 
         {/* ── Data Entry ── */}
         <TabsContent value="entry" className="mt-5 space-y-4">
@@ -1160,6 +1415,14 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 // ═════════════════════════════════════════════════════════════════════════════
 // KPI Detail — 12-month trend
 // ═════════════════════════════════════════════════════════════════════════════
+// Custom dot component coloured by RAG status
+const RagDot = (props: any) => {
+  const { cx, cy, payload } = props;
+  if (payload.actual === null || cx === undefined || cy === undefined) return null;
+  const c = payload.status === "green" ? "#10b981" : payload.status === "amber" ? "#f59e0b" : payload.status === "red" ? "#ef4444" : "#94a3b8";
+  return <circle cx={cx} cy={cy} r={5} fill={c} stroke="white" strokeWidth={2} />;
+};
+
 function KpiDetail({ kpiId }: { kpiId: string }) {
   const [store]   = useState(loadStore);
   const [, nav]   = useLocation();
@@ -1179,83 +1442,225 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
       const p2 = periodKey(y, m);
       const v  = store?.[p2]?.[kpiId];
       const actual = v !== undefined ? Number(v) : null;
-      rows.push({ period:`${MONTHS[m]} ${y}`, label:MONTHS[m].slice(0,3), actual, target:kpi.target, status:getStatus(kpi,actual) });
+      const status = getStatus(kpi, actual);
+      rows.push({ period:`${MONTHS[m]} ${y}`, label:MONTHS[m].slice(0,3), actual, target:kpi.target, status });
     }
     return rows;
   }, [store, kpiId]);
 
+  // Computed stats
+  const dataPoints = history.filter(h => h.actual !== null);
+  const latestRow  = [...history].reverse().find(h => h.actual !== null);
+  const prevRow    = [...history].reverse().find((h, i) => h.actual !== null && i > 0);
+  const latestVal  = latestRow?.actual ?? null;
+  const prevVal    = prevRow?.actual ?? null;
+  const variance   = latestVal !== null ? latestVal - kpi.target : null;
+  const goodVar    = variance !== null ? (kpi.lowerIsBetter ? -variance : variance) : null;
+  const monthDelta = latestVal !== null && prevVal !== null ? latestVal - prevVal : null;
+  const goodDelta  = monthDelta !== null ? (kpi.lowerIsBetter ? -monthDelta : monthDelta) : null;
+  const st         = getStatus(kpi, latestVal);
+
+  const actuals    = dataPoints.map(h => h.actual as number);
+  const bestVal    = actuals.length ? (kpi.lowerIsBetter ? Math.min(...actuals) : Math.max(...actuals)) : null;
+  const worstVal   = actuals.length ? (kpi.lowerIsBetter ? Math.max(...actuals) : Math.min(...actuals)) : null;
+  const avgVal     = actuals.length ? Math.round((actuals.reduce((s,v) => s+v, 0) / actuals.length) * 10) / 10 : null;
+  const onTargetCount = dataPoints.filter(h => h.status === "green").length;
+  const onTargetPct   = dataPoints.length ? Math.round((onTargetCount / dataPoints.length) * 100) : null;
+
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
-      <Button variant="ghost" size="sm" onClick={()=>history.length && nav(-1 as any)}
-        className="gap-1.5 text-muted-foreground" data-testid="button-back">
-        <ChevronLeft className="h-4 w-4" />Back
+    <div className="p-6 space-y-5 max-w-5xl mx-auto">
+
+      {/* Back nav */}
+      <Button variant="ghost" size="sm" onClick={() => nav(-1 as any)}
+        className="gap-1.5 text-muted-foreground -ml-2" data-testid="button-back">
+        <ChevronLeft className="h-4 w-4" />Back to Scorecard
       </Button>
 
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Badge variant="outline" className={cn(pc.bg, pc.text, pc.border, "border text-xs")}>{kpi.perspective}</Badge>
+      {/* ── Hero header ── */}
+      <Card className="overflow-hidden">
+        <div className="h-1.5 w-full" style={{ background: pc.accent }} />
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+
+            {/* Left: title + meta */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <Badge variant="outline" className={cn(pc.bg, pc.text, pc.border, "border text-xs")}>{kpi.perspective}</Badge>
+                <Badge variant="outline" className="text-xs text-muted-foreground border-border">
+                  {kpi.lowerIsBetter ? "↓ Lower is better" : "↑ Higher is better"}
+                </Badge>
+              </div>
+              <h1 className="text-2xl font-bold leading-tight">{kpi.name}</h1>
+              <p className="text-sm text-muted-foreground mt-1">Target: <strong>{kpi.target} {kpi.unit}</strong></p>
+            </div>
+
+            {/* Right: current value + delta */}
+            <div className="flex gap-6 lg:gap-8 flex-shrink-0">
+              {/* Current value */}
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">Current</p>
+                <p className="text-5xl font-bold tabular-nums leading-none"
+                  style={{ color: st === "green" ? "#10b981" : st === "amber" ? "#f59e0b" : st === "red" ? "#ef4444" : "hsl(var(--foreground))" }}>
+                  {latestVal !== null ? latestVal : "—"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">{kpi.unit}</p>
+              </div>
+              {/* Variance */}
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">vs Target</p>
+                <p className="text-3xl font-bold tabular-nums leading-none"
+                  style={{ color: goodVar !== null ? (goodVar >= 0 ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))" }}>
+                  {goodVar !== null ? (variance! > 0 ? "+" : "") + variance!.toFixed(1) : "—"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">{kpi.unit}</p>
+              </div>
+              {/* vs Last Month */}
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">vs Last Mo.</p>
+                <p className="text-3xl font-bold tabular-nums leading-none flex items-center justify-center gap-1"
+                  style={{ color: goodDelta !== null ? (goodDelta > 0 ? "#10b981" : goodDelta < 0 ? "#ef4444" : "#94a3b8") : "hsl(var(--muted-foreground))" }}>
+                  {goodDelta !== null
+                    ? <>{goodDelta > 0 ? <ArrowUpRight className="h-6 w-6" /> : goodDelta < 0 ? <ArrowDownRight className="h-6 w-6" /> : <Minus className="h-5 w-5" />}{Math.abs(monthDelta!).toFixed(1)}</>
+                    : "—"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">{kpi.unit}</p>
+              </div>
+              {/* RAG status */}
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">Status</p>
+                <div className="mt-1"><RagBadge status={st as any} /></div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Summary stats bar ── */}
+      {dataPoints.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Best Month",      value: bestVal,         icon: <Zap className="h-4 w-4 text-emerald-500" />, color: "#10b981" },
+            { label: "Worst Month",     value: worstVal,        icon: <AlertTriangle className="h-4 w-4 text-red-500" />,   color: "#ef4444" },
+            { label: "12-Mo Average",   value: avgVal,          icon: <Activity className="h-4 w-4 text-blue-500" />,       color: "#3b82f6" },
+            { label: "% Months on Target", value: onTargetPct !== null ? `${onTargetPct}%` : "—", icon: <Target className="h-4 w-4 text-violet-500" />, color: "#8b5cf6" },
+          ].map(({ label, value, icon, color }) => (
+            <Card key={label}>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${color}18` }}>
+                  {icon}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-lg font-bold tabular-nums">{value !== null ? value : "—"} <span className="text-xs font-normal text-muted-foreground">{typeof value === "number" ? kpi.unit : ""}</span></p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-        <h1 className="text-2xl font-bold">{kpi.name}</h1>
-      </div>
+      )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label:"Target",      value:`${kpi.target} ${kpi.unit}`, c:pc.accent },
-          { label:"Unit",        value:kpi.unit,                    c:"#64748b" },
-          { label:"Perspective", value:kpi.perspective,             c:pc.accent },
-          { label:"Direction",   value:kpi.lowerIsBetter ? "Lower is better" : "Higher is better", c:"#64748b" },
-        ].map(({ label, value, c }) => (
-          <Card key={label} className="border-t-[3px]" style={{ borderTopColor:c }}>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground mb-1">{label}</p>
-              <p className="font-semibold text-foreground text-sm">{value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
+      {/* ── 12-Month Trend Chart ── */}
       <Card>
-        <CardHeader><CardTitle className="text-base">12-Month Trend</CardTitle></CardHeader>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">12-Month Performance Trend</CardTitle>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="inline-block w-8 h-0.5" style={{ background: pc.accent }} /> Actual</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-8 h-0.5 border-t-2 border-dashed border-muted-foreground" /> Target</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500" /> On Track</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-amber-500" /> At Risk</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Off Track</span>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={history}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={history} margin={{ top:10, right:20, left:0, bottom:0 }}>
+              <defs>
+                <linearGradient id={`kpi-grad-${kpiId}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={pc.accent} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={pc.accent} stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="label" tick={{ fill:"hsl(var(--muted-foreground))", fontSize:11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill:"hsl(var(--muted-foreground))", fontSize:11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"8px", fontSize:12 }} />
-              <Legend formatter={v => <span className="text-xs text-muted-foreground">{v}</span>} />
-              <Line type="monotone" dataKey="actual" stroke={pc.accent} strokeWidth={2.5} dot={{ fill:pc.accent, r:4 }} connectNulls name="Actual" />
-              <Line type="monotone" dataKey="target" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="4 3" dot={false} name="Target" />
-            </LineChart>
+              <YAxis tick={{ fill:"hsl(var(--muted-foreground))", fontSize:11 }} axisLine={false} tickLine={false} width={45} />
+              <Tooltip
+                contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"10px", fontSize:12, padding:"10px 14px" }}
+                formatter={(v:any, name:string) => [v !== null ? `${v} ${kpi.unit}` : "No data", name]}
+                labelFormatter={l => `${l}`}
+              />
+              <ReferenceLine y={kpi.target} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 3" strokeWidth={1.5}
+                label={{ value:`Target: ${kpi.target}`, position:"insideTopRight", fontSize:10, fill:"hsl(var(--muted-foreground))" }} />
+              <Area type="monotone" dataKey="actual" stroke={pc.accent} strokeWidth={2.5}
+                fill={`url(#kpi-grad-${kpiId})`} connectNulls name="Actual"
+                dot={<RagDot />} activeDot={{ r:6, stroke:"white", strokeWidth:2 }} />
+              <Line type="monotone" dataKey="target" stroke="transparent" dot={false} name="Target" />
+            </AreaChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
+      {/* ── Performance History Table ── */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Performance History</CardTitle></CardHeader>
-        <CardContent className="p-0">
+        <CardHeader className="pb-0 pt-4">
+          <CardTitle className="text-base">Monthly Performance Detail</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0 mt-3">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b">
-                <tr>
-                  <th className="text-left p-4 text-muted-foreground font-medium">Period</th>
-                  <th className="text-right p-4 text-muted-foreground font-medium">Actual</th>
-                  <th className="text-right p-4 text-muted-foreground font-medium">Target</th>
-                  <th className="text-center p-4 text-muted-foreground font-medium">Status</th>
+              <thead>
+                <tr className="border-y bg-muted/30">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Period</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Actual</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Target</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Variance</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">% to Target</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {[...history].reverse().map(h => (
-                  <tr key={h.period} className="hover:bg-muted/30 transition-colors">
-                    <td className="p-4 font-medium">{h.period}</td>
-                    <td className="p-4 text-right font-bold tabular-nums">
-                      {h.actual !== null ? <>{h.actual}<span className="text-xs text-muted-foreground ml-1">{kpi.unit}</span></>
-                        : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="p-4 text-right text-muted-foreground">{h.target} {kpi.unit}</td>
-                    <td className="p-4 text-center"><RagBadge status={h.status as any} /></td>
-                  </tr>
-                ))}
+                {[...history].reverse().map((h, i) => {
+                  const variance2 = h.actual !== null ? h.actual - kpi.target : null;
+                  const goodVar2  = variance2 !== null ? (kpi.lowerIsBetter ? -variance2 : variance2) : null;
+                  const pctToTgt  = h.actual !== null && kpi.target !== 0
+                    ? kpi.lowerIsBetter
+                      ? Math.round((1 - Math.max(0, h.actual - kpi.target) / kpi.target) * 100)
+                      : Math.round((h.actual / kpi.target) * 100)
+                    : null;
+                  const rowBg = h.status === "red" ? "bg-red-50/40 dark:bg-red-950/10" : h.status === "amber" ? "bg-amber-50/40 dark:bg-amber-950/10" : h.status === "green" ? "bg-emerald-50/20 dark:bg-emerald-950/5" : "";
+                  return (
+                    <tr key={h.period} className={cn("hover:bg-muted/40 transition-colors", rowBg, i === 0 && "font-medium")}>
+                      <td className="px-4 py-3 font-medium">{h.period}</td>
+                      <td className="px-4 py-3 text-right font-bold tabular-nums">
+                        {h.actual !== null
+                          ? <>{h.actual}<span className="text-xs text-muted-foreground ml-1 font-normal">{kpi.unit}</span></>
+                          : <span className="text-muted-foreground font-normal">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">{kpi.target} {kpi.unit}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                        {goodVar2 !== null
+                          ? <span style={{ color: goodVar2 >= 0 ? "#10b981" : "#ef4444" }}>
+                              {variance2! > 0 ? "+" : ""}{variance2!.toFixed(1)} {kpi.unit}
+                            </span>
+                          : <span className="text-muted-foreground font-normal">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {pctToTgt !== null
+                          ? <div className="flex items-center justify-end gap-2">
+                              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className="h-full rounded-full"
+                                  style={{ width:`${Math.min(100, pctToTgt)}%`, background: h.status === "green" ? "#10b981" : h.status === "amber" ? "#f59e0b" : "#ef4444" }} />
+                              </div>
+                              <span className="text-xs font-medium w-9 text-right">{pctToTgt}%</span>
+                            </div>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center"><RagBadge status={h.status as any} /></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
