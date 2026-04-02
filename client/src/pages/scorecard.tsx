@@ -196,6 +196,26 @@ function loadStore(): Record<string, Record<string, number>> {
 function saveStore(d: Record<string, Record<string, number>>) {
   localStorage.setItem(STORE_KEY, JSON.stringify(d));
 }
+
+// ── Corporate sample data (Oct 2025 – Mar 2026) ───────────────────────────────
+const CORP_SAMPLE_DATA: Record<string, Record<string, number>> = {
+  "2025-10": { cr_f1:5.2, cr_f2:19.8, cr_f3:20.1, cr_f4:912, cr_c1:92.1, cr_c2:4.0, cr_c3:97.2, cr_c4:90.5, cr_i1:0.72, cr_i2:91.2, cr_i3:93.8, cr_l1:28, cr_l2:15.2, cr_l3:98,  cr_l4:68 },
+  "2025-11": { cr_f1:6.1, cr_f2:20.5, cr_f3:19.8, cr_f4:887, cr_c1:93.5, cr_c2:4.1, cr_c3:98.1, cr_c4:91.2, cr_i1:0.58, cr_i2:93.4, cr_i3:95.2, cr_l1:31, cr_l2:14.8, cr_l3:100, cr_l4:72 },
+  "2025-12": { cr_f1:7.8, cr_f2:21.2, cr_f3:19.2, cr_f4:865, cr_c1:95.8, cr_c2:4.3, cr_c3:98.7, cr_c4:93.1, cr_i1:0.41, cr_i2:95.1, cr_i3:96.9, cr_l1:38, cr_l2:13.1, cr_l3:100, cr_l4:76 },
+  "2026-01": { cr_f1:6.4, cr_f2:19.4, cr_f3:20.4, cr_f4:878, cr_c1:91.2, cr_c2:3.9, cr_c3:96.8, cr_c4:89.8, cr_i1:0.63, cr_i2:90.8, cr_i3:94.1, cr_l1:26, cr_l2:15.5, cr_l3:97,  cr_l4:70 },
+  "2026-02": { cr_f1:7.1, cr_f2:20.8, cr_f3:19.9, cr_f4:843, cr_c1:94.3, cr_c2:4.2, cr_c3:97.9, cr_c4:91.7, cr_i1:0.48, cr_i2:92.5, cr_i3:95.8, cr_l1:34, cr_l2:13.8, cr_l3:100, cr_l4:75 },
+  "2026-03": { cr_f1:8.5, cr_f2:21.9, cr_f3:18.7, cr_f4:828, cr_c1:96.1, cr_c2:4.4, cr_c3:98.3, cr_c4:92.8, cr_i1:0.35, cr_i2:94.7, cr_i3:97.2, cr_l1:41, cr_l2:11.4, cr_l3:100, cr_l4:81 },
+  "2026-04": { cr_f1:9.1, cr_f2:22.4, cr_f3:18.2, cr_f4:815, cr_c1:97.3, cr_c2:4.5, cr_c3:98.8, cr_c4:93.5, cr_i1:0.28, cr_i2:95.3, cr_i3:97.8, cr_l1:44, cr_l2:10.8, cr_l3:100, cr_l4:83 },
+};
+
+function seedCorpSampleData() {
+  const existing = loadStore();
+  const merged   = { ...existing };
+  for (const [pk, vals] of Object.entries(CORP_SAMPLE_DATA)) {
+    merged[pk] = { ...(merged[pk] || {}), ...vals };
+  }
+  saveStore(merged);
+}
 function loadDepartments(): BscDepartment[] {
   try { const d = localStorage.getItem(DEPT_KEY); return d ? JSON.parse(d) : DEFAULT_DEPARTMENTS; }
   catch { return DEFAULT_DEPARTMENTS; }
@@ -657,6 +677,17 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     const v = store?.[p]?.[id]; return v !== undefined ? Number(v) : null;
   }, [store, pk]);
 
+  // Auto-seed sample data for corporate department on first visit
+  useEffect(() => {
+    if (deptId !== "corp") return;
+    const s = loadStore();
+    const hasAnyCorpData = Object.values(s).some(v => Object.keys(v).some(k => k.startsWith("cr_")));
+    if (!hasAnyCorpData) {
+      seedCorpSampleData();
+      setStore(loadStore());
+    }
+  }, [deptId]);
+
   // Pre-fill form when period changes
   useEffect(() => {
     const pre: Record<string,string> = {};
@@ -837,6 +868,12 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4">
+          {deptId === "corp" && (
+            <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5"
+              onClick={() => { seedCorpSampleData(); setStore(loadStore()); toast({ title:"Sample data loaded", description:"7 months of Corporate data applied." }); }}>
+              <Activity className="h-3.5 w-3.5" />Load Sample Data
+            </Button>
+          )}
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Health Score</p>
             <HealthRing pct={hp} size={56} />
