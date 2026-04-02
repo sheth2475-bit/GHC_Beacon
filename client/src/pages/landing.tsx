@@ -42,7 +42,7 @@ const PLANS = [
   },
   {
     name: "Starter",
-    price: "$49",
+    price: "$5",
     period: "/month",
     desc: "For small teams tracking performance",
     color: "border-blue-200",
@@ -60,7 +60,7 @@ const PLANS = [
   },
   {
     name: "Growth",
-    price: "$149",
+    price: "$10",
     period: "/month",
     desc: "For scaling businesses running hard",
     color: "border-blue-600",
