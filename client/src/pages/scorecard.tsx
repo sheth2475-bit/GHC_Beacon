@@ -3,8 +3,10 @@ import { useRoute, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 import {
-  LineChart, Line, ResponsiveContainer, XAxis, YAxis,
-  Tooltip, CartesianGrid, Legend,
+  LineChart, Line, BarChart, Bar, Cell, RadarChart, Radar,
+  PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  ReferenceLine,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight,
@@ -532,6 +534,103 @@ function ScorecardLanding() {
   );
 }
 
+// ── KPI Sparkline (last 6 months mini chart) ─────────────────────────────────
+function KpiSparkline({ kpi, store, year, month }: { kpi: KpiDef; store: Record<string,Record<string,number>>; year: number; month: number }) {
+  const pts = useMemo(() => {
+    const arr = [];
+    for (let i = 5; i >= 0; i--) {
+      let m = month - i; let y = year;
+      while (m < 0) { m += 12; y--; }
+      const p  = periodKey(y, m);
+      const v  = store?.[p]?.[kpi.id];
+      arr.push({ label: MONTHS[m], actual: v !== undefined ? Number(v) : null, target: kpi.target });
+    }
+    return arr;
+  }, [kpi.id, store, year, month]);
+
+  const hasData = pts.some(p => p.actual !== null);
+  if (!hasData) {
+    return <div className="flex items-center justify-center h-[52px] text-xs text-muted-foreground/60 italic">No trend data</div>;
+  }
+
+  const last = pts[pts.length - 1];
+  const status = getStatus(kpi, last?.actual ?? null);
+  const color = status === "green" ? "#10b981" : status === "amber" ? "#f59e0b" : "#ef4444";
+
+  return (
+    <ResponsiveContainer width="100%" height={52}>
+      <LineChart data={pts} margin={{ top:4, right:4, bottom:4, left:4 }}>
+        <Line type="monotone" dataKey="actual" stroke={color} strokeWidth={2} dot={false} connectNulls />
+        <Line type="monotone" dataKey="target" stroke="hsl(var(--muted-foreground))" strokeWidth={1}
+          strokeDasharray="3 2" dot={false} />
+        <Tooltip
+          contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"6px", fontSize:10, padding:"2px 6px" }}
+          formatter={(v:any, name:string) => [v !== null ? `${v} ${kpi.unit}` : "—", name === "actual" ? "Actual" : "Target"]}
+          labelStyle={{ fontSize:10, color:"hsl(var(--muted-foreground))" }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Enriched KPI card with sparkline & progress bar ───────────────────────────
+function KpiEnrichedCard({ kpi, actual, prevActual, store, year, month, onClick }:
+  { kpi: KpiDef; actual: number|null; prevActual: number|null; store: Record<string,Record<string,number>>; year: number; month: number; onClick?: ()=>void }) {
+  const status = getStatus(kpi, actual);
+  const trend  = getTrend(actual, prevActual);
+  const pc     = P_COLOR[kpi.perspective];
+
+  const pctToTarget = actual !== null && kpi.target !== 0
+    ? kpi.lowerIsBetter
+      ? Math.min(100, Math.max(0, Math.round((1 - Math.max(0, actual - kpi.target) / kpi.target) * 100)))
+      : Math.min(150, Math.round((actual / kpi.target) * 100))
+    : null;
+
+  const barColor = status === "green" ? "#10b981" : status === "amber" ? "#f59e0b" : "#ef4444";
+
+  return (
+    <Card className="hover:shadow-md transition-all border-l-[3px] cursor-pointer flex flex-col"
+      style={{ borderLeftColor: pc.accent }} onClick={onClick}>
+      <CardContent className="p-4 flex flex-col gap-3 flex-1">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-foreground leading-tight">{kpi.name}</p>
+          <RagBadge status={status} />
+        </div>
+
+        {/* Value */}
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-2xl font-bold tabular-nums">
+              {actual !== null ? actual : <span className="text-muted-foreground text-base font-normal">—</span>}
+              <span className="text-xs text-muted-foreground ml-1 font-normal">{kpi.unit}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">Target: {kpi.target} {kpi.unit}</p>
+          </div>
+          <TrendArrow trend={trend} lowerIsBetter={kpi.lowerIsBetter} />
+        </div>
+
+        {/* Progress bar */}
+        {pctToTarget !== null && (
+          <div>
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>% to target</span>
+              <span className="font-semibold" style={{ color: barColor }}>{pctToTarget}%</span>
+            </div>
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all"
+                style={{ width:`${Math.min(100, pctToTarget)}%`, background: barColor }} />
+            </div>
+          </div>
+        )}
+
+        {/* Sparkline */}
+        <KpiSparkline kpi={kpi} store={store} year={year} month={month} />
+      </CardContent>
+    </Card>
+  );
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // DEPARTMENT DETAIL — Dashboard + Data Entry tabs
 // ═════════════════════════════════════════════════════════════════════════════
@@ -761,26 +860,165 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Dashboard: KPIs by perspective ── */}
-        <TabsContent value="dashboard" className="mt-5 space-y-8">
+        {/* ── Dashboard ── */}
+        <TabsContent value="dashboard" className="mt-5 space-y-6">
+
+          {/* ── Overall Performance Panel ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            {/* Left: Overall health + perspective summary bars */}
+            <Card>
+              <CardContent className="p-6 flex flex-col items-center gap-5">
+                <div className="flex flex-col items-center gap-2">
+                  <HealthRing pct={hp} size={96} />
+                  <div className="text-center">
+                    <p className="font-semibold text-sm">Overall Health Score</p>
+                    <p className="text-xs text-muted-foreground">{kpis.length} KPIs tracked</p>
+                  </div>
+                </div>
+                <div className="w-full grid grid-cols-3 gap-3 text-center pt-2 border-t">
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-600">{onTrack}</p>
+                    <p className="text-xs text-muted-foreground">On Track</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-amber-600">{atRisk}</p>
+                    <p className="text-xs text-muted-foreground">At Risk</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-red-600">{offTrack}</p>
+                    <p className="text-xs text-muted-foreground">Off Track</p>
+                  </div>
+                </div>
+                {/* Perspective health bars */}
+                <div className="w-full space-y-2.5">
+                  {perspectives.map(p => {
+                    const pkpis = kpis.filter(k => k.perspective === p);
+                    const pActs: Record<string,number|null> = {};
+                    pkpis.forEach(k => { pActs[k.id] = getActual(k.id); });
+                    const php = healthPct(pkpis, pActs);
+                    const pc  = P_COLOR[p];
+                    return (
+                      <div key={p}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-muted-foreground">{PERSP_LABEL[p].split(" /")[0]}</span>
+                          <span className="font-semibold" style={{ color: pc.accent }}>{php}%</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width:`${php}%`, background: pc.accent, transition:"width .5s ease" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Right: Radar chart */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Performance by Perspective</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const radarData = perspectives.map(p => {
+                    const pkpis = kpis.filter(k => k.perspective === p);
+                    const pActs: Record<string,number|null> = {};
+                    pkpis.forEach(k => { pActs[k.id] = getActual(k.id); });
+                    return { perspective: PERSP_LABEL[p].split(" /")[0], value: healthPct(pkpis, pActs), fullMark: 100 };
+                  });
+                  return (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <RadarChart data={radarData}>
+                        <PolarGrid stroke="hsl(var(--border))" />
+                        <PolarAngleAxis dataKey="perspective" tick={{ fill:"hsl(var(--foreground))", fontSize:12 }} />
+                        <PolarRadiusAxis domain={[0,100]} tick={{ fill:"hsl(var(--muted-foreground))", fontSize:9 }} tickCount={3} />
+                        <Radar name="Health %" dataKey="value" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.15} strokeWidth={2} />
+                        <Tooltip
+                          contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"8px", fontSize:12 }}
+                          formatter={(v:any) => [`${v}%`, "Health Score"]}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ── Per-perspective sections ── */}
           {perspectives.map(p => {
             const pkpis = kpis.filter(k => k.perspective === p);
             if (!pkpis.length) return null;
             const pc = P_COLOR[p];
+
+            // Build bar chart data: % to target per KPI
+            const barData = pkpis.map(k => {
+              const actual = getActual(k.id);
+              const pct = actual !== null && k.target !== 0
+                ? k.lowerIsBetter
+                  ? Math.min(100, Math.max(0, Math.round((1 - Math.max(0, actual - k.target) / k.target) * 100)))
+                  : Math.min(150, Math.round((actual / k.target) * 100))
+                : null;
+              const st = getStatus(k, actual);
+              return {
+                name: k.name.length > 20 ? k.name.slice(0, 19) + "…" : k.name,
+                fullName: k.name,
+                pct: pct ?? 0,
+                hasData: actual !== null,
+                color: st === "green" ? "#10b981" : st === "amber" ? "#f59e0b" : st === "red" ? "#ef4444" : "#d1d5db",
+              };
+            });
+
+            const pOnTrack  = pkpis.filter(k => getStatus(k, getActual(k.id)) === "green").length;
+            const pAtRisk   = pkpis.filter(k => getStatus(k, getActual(k.id)) === "amber").length;
+            const pOffTrack = pkpis.filter(k => getStatus(k, getActual(k.id)) === "red").length;
+
             return (
-              <div key={p}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-1 h-5 rounded-full" style={{ background:pc.accent }} />
-                  <h2 className="text-base font-semibold">{PERSP_LABEL[p]}</h2>
-                  <Badge variant="outline" className={cn(pc.bg, pc.text, pc.border, "border text-xs")}>
-                    {pkpis.length} KPIs
-                  </Badge>
+              <div key={p} className="space-y-4">
+                {/* Section header */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="w-1 h-6 rounded-full" style={{ background: pc.accent }} />
+                  <h2 className="text-base font-bold">{PERSP_LABEL[p]}</h2>
+                  <Badge variant="outline" className={cn(pc.bg, pc.text, pc.border, "border text-xs")}>{pkpis.length} KPIs</Badge>
+                  <div className="flex gap-3 text-xs ml-auto">
+                    <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="h-3 w-3" />{pOnTrack} on track</span>
+                    <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" />{pAtRisk} at risk</span>
+                    <span className="flex items-center gap-1 text-red-600"><AlertCircle className="h-3 w-3" />{pOffTrack} off track</span>
+                  </div>
                 </div>
+
+                {/* Horizontal bar chart: KPI % to target */}
+                <Card>
+                  <CardHeader className="pb-0 pt-4 px-5">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">% Achievement vs Target</p>
+                  </CardHeader>
+                  <CardContent className="px-5 pb-4">
+                    <ResponsiveContainer width="100%" height={pkpis.length * 36 + 8}>
+                      <BarChart data={barData} layout="vertical" margin={{ top:4, right:40, left:4, bottom:0 }}>
+                        <XAxis type="number" domain={[0,100]} tick={{ fill:"hsl(var(--muted-foreground))", fontSize:10 }}
+                          axisLine={false} tickLine={false} unit="%" />
+                        <YAxis type="category" dataKey="name" width={140} tick={{ fill:"hsl(var(--foreground))", fontSize:11 }}
+                          axisLine={false} tickLine={false} />
+                        <Tooltip
+                          contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"8px", fontSize:11 }}
+                          formatter={(v:any, _:any, props:any) => [`${v}%`, props?.payload?.fullName || "Achievement"]}
+                        />
+                        <ReferenceLine x={100} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 3" strokeWidth={1} />
+                        <Bar dataKey="pct" radius={[0,4,4,0]} maxBarSize={20} label={{ position:"right", fontSize:10, fill:"hsl(var(--muted-foreground))", formatter:(v:any) => v ? `${v}%` : "" }}>
+                          {barData.map((d, i) => <Cell key={i} fill={d.color} fillOpacity={d.hasData ? 1 : 0.25} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                {/* KPI cards with sparklines */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {pkpis.map(k => (
-                    <KpiCard key={k.id} kpi={k}
-                      actual={getActual(k.id)}
-                      prevActual={getActual(k.id, ppk)}
+                    <KpiEnrichedCard key={k.id} kpi={k}
+                      actual={getActual(k.id)} prevActual={getActual(k.id, ppk)}
+                      store={store} year={year} month={month}
                       onClick={() => nav(`/scorecard/kpi/${k.id}`)}
                     />
                   ))}
