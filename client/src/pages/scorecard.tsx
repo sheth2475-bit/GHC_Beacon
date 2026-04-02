@@ -392,6 +392,8 @@ function ScorecardLanding() {
   const [departments, setDepartments] = useState<BscDepartment[]>(loadDepartments);
   const [store] = useState(loadStore);
   const [showAdd, setShowAdd] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
   const today = new Date();
   const pk = periodKey(today.getFullYear(), today.getMonth());
   const [, nav] = useLocation();
@@ -409,11 +411,33 @@ function ScorecardLanding() {
     saveDepartments(updated);
   };
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setOverIndex(index);
+  };
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === dropIndex) { setDragIndex(null); setOverIndex(null); return; }
+    const reordered = [...departments];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(dropIndex, 0, moved);
+    setDepartments(reordered);
+    saveDepartments(reordered);
+    setDragIndex(null);
+    setOverIndex(null);
+  };
+  const handleDragEnd = () => { setDragIndex(null); setOverIndex(null); };
+
   return (
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
       <PageHeader
         title="Balanced Scorecard"
-        description="Select a department to view its scorecard dashboard and enter performance data"
+        description="Select a department to view its scorecard dashboard. Drag cards to reorder."
         icon={Activity}
         actions={
           <Button onClick={()=>setShowAdd(true)} data-testid="button-add-department">
@@ -423,19 +447,30 @@ function ScorecardLanding() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-        {departments.map(dept => {
+        {departments.map((dept, idx) => {
           const kpis = getKpisForDept(dept.id);
           const acts: Record<string, number | null> = {};
           kpis.forEach(k => { const v = store?.[pk]?.[k.id]; acts[k.id] = v !== undefined ? Number(v) : null; });
-          const hp     = healthPct(kpis, acts);
+          const hp       = healthPct(kpis, acts);
           const onTrack  = kpis.filter(k => getStatus(k, acts[k.id]) === "green").length;
           const atRisk   = kpis.filter(k => getStatus(k, acts[k.id]) === "amber").length;
           const offTrack = kpis.filter(k => getStatus(k, acts[k.id]) === "red").length;
+          const isDragging = dragIndex === idx;
+          const isOver     = overIndex === idx && dragIndex !== idx;
 
           return (
             <Card key={dept.id}
-              className="cursor-pointer hover:shadow-md transition-all hover:border-primary/30 group relative overflow-hidden"
-              onClick={() => nav(`/scorecard/department/${dept.id}`)}
+              draggable
+              onDragStart={e => handleDragStart(e, idx)}
+              onDragOver={e => handleDragOver(e, idx)}
+              onDrop={e => handleDrop(e, idx)}
+              onDragEnd={handleDragEnd}
+              className={cn(
+                "cursor-grab active:cursor-grabbing hover:shadow-md transition-all hover:border-primary/30 group relative overflow-hidden select-none",
+                isDragging && "opacity-40 scale-95",
+                isOver && "ring-2 ring-primary border-primary",
+              )}
+              onClick={() => !isDragging && nav(`/scorecard/department/${dept.id}`)}
               data-testid={`card-dept-${dept.id}`}>
               {/* Coloured top strip */}
               <div className="h-1.5 w-full" style={{ background: dept.color }} />
@@ -557,16 +592,44 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   // ── Excel template download ──────────────────────────────────────────────
   const downloadTemplate = () => {
     const wb = XLSX.utils.book_new();
-    const rows = [
-      ["KPI Name", "Target", "Actual", "Unit", "Perspective", "Lower is Better"],
-      ...kpis.map(k => [k.name, k.target, "", k.unit, k.perspective, k.lowerIsBetter ? "Yes" : "No"]),
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch:32 }, { wch:10 }, { wch:12 }, { wch:10 }, { wch:16 }, { wch:18 }];
-    // Style header row (if supported)
-    XLSX.utils.book_append_sheet(wb, ws, `${dept.name} - ${MONTHS[month]} ${year}`);
-    XLSX.writeFile(wb, `BSC_${dept.name.replace(/\s+/g,"_")}_${MONTHS[month]}${year}_template.xlsx`);
-    toast({ title:"Template downloaded", description:"Fill in the Actual column, then upload the file." });
+
+    // Sheet 1: Actuals for selected year — columns Jan..Dec
+    const header1 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better",
+      ...MONTHS.map(m => `${m} ${year}`)];
+    const dataRows1 = kpis.map(k => {
+      const row: (string | number)[] = [k.name, k.perspective, k.target, k.unit, k.lowerIsBetter ? "Yes" : "No"];
+      MONTHS.forEach((_, mi) => {
+        const p = periodKey(year, mi);
+        const v = store?.[p]?.[k.id];
+        row.push(v !== undefined ? Number(v) : ("" as any));
+      });
+      return row;
+    });
+    const ws1 = XLSX.utils.aoa_to_sheet([header1, ...dataRows1]);
+    ws1["!cols"] = [{ wch:32 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 },
+      ...MONTHS.map(() => ({ wch:10 }))];
+    XLSX.utils.book_append_sheet(wb, ws1, `Actuals ${year}`);
+
+    // Sheet 2: Historical — all stored periods across all years
+    const allPeriods: string[] = [];
+    const storeNow = loadStore();
+    Object.keys(storeNow).sort().forEach(p => { if (!allPeriods.includes(p)) allPeriods.push(p); });
+    const header2 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better", ...allPeriods];
+    const dataRows2 = kpis.map(k => {
+      const row: (string | number)[] = [k.name, k.perspective, k.target, k.unit, k.lowerIsBetter ? "Yes" : "No"];
+      allPeriods.forEach(p => {
+        const v = storeNow?.[p]?.[k.id];
+        row.push(v !== undefined ? Number(v) : ("" as any));
+      });
+      return row;
+    });
+    const ws2 = XLSX.utils.aoa_to_sheet([header2, ...dataRows2]);
+    ws2["!cols"] = [{ wch:32 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 },
+      ...allPeriods.map(() => ({ wch:10 }))];
+    XLSX.utils.book_append_sheet(wb, ws2, "Historical");
+
+    XLSX.writeFile(wb, `BSC_${dept.name.replace(/\s+/g,"_")}_${year}.xlsx`);
+    toast({ title:"Template downloaded", description:`Fill in the '${year}' month columns, then upload to refresh the dashboard.` });
   };
 
   // ── Excel upload & parse ─────────────────────────────────────────────────
@@ -577,33 +640,52 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     try {
       const buf = await file.arrayBuffer();
       const wb  = XLSX.read(buf, { type:"array" });
+      // Use first sheet (the Actuals sheet)
       const ws  = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { defval:"" }) as Record<string,any>[];
 
-      const updates: Record<string,number> = {};
-      let matched = 0;
+      // Detect year from sheet name (e.g. "Actuals 2026") or fall back to selected year
+      const sheetName = wb.SheetNames[0] || "";
+      const yearMatch = sheetName.match(/\d{4}/);
+      const uploadYear = yearMatch ? Number(yearMatch[0]) : year;
+
+      // Build updated store: for each row find matching KPI, then read month columns
+      const updatedStore = { ...loadStore() };
+      let totalUpdates = 0;
 
       for (const row of rows) {
-        const kpiName = String(row["KPI Name"] || row["kpi_name"] || row["KPI"] || "").trim();
-        const actualStr = String(row["Actual"] || row["actual"] || "").trim();
-        if (!kpiName || actualStr === "" || isNaN(Number(actualStr))) continue;
-
+        const kpiName = String(row["KPI Name"] || row["KPI"] || "").trim();
+        if (!kpiName) continue;
         const kpi = kpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
-        if (kpi) { updates[kpi.id] = Number(actualStr); matched++; }
+        if (!kpi) continue;
+
+        MONTHS.forEach((m, mi) => {
+          // Accept both "Jan 2026" and "Jan" as column headers
+          const val = row[`${m} ${uploadYear}`] ?? row[m] ?? "";
+          const strVal = String(val).trim();
+          if (strVal === "" || isNaN(Number(strVal))) return;
+          const p = periodKey(uploadYear, mi);
+          if (!updatedStore[p]) updatedStore[p] = {};
+          updatedStore[p][kpi.id] = Number(strVal);
+          totalUpdates++;
+        });
       }
 
-      if (!matched) { toast({ title:"No matches found", description:"Make sure KPI names match the template exactly.", variant:"destructive" }); return; }
+      if (!totalUpdates) {
+        toast({ title:"No data found", description:"Fill in the monthly actual columns in the template, then upload again.", variant:"destructive" });
+        return;
+      }
 
-      const updated = { ...store, [pk]: { ...(store[pk]||{}), ...updates } };
-      setStore(updated); saveStore(updated);
+      setStore({ ...updatedStore });
+      saveStore(updatedStore);
 
-      // Pre-fill form with uploaded values
-      const newEntryVals = { ...entryVals };
-      Object.entries(updates).forEach(([id,v]) => { newEntryVals[id] = String(v); });
-      setEntryVals(newEntryVals);
+      // Refresh form values for current period
+      const pre: Record<string,string> = {};
+      kpis.forEach(k => { const v = updatedStore[pk]?.[k.id]; if (v !== undefined) pre[k.id] = String(v); });
+      setEntryVals(pre);
 
-      toast({ title:"Upload successful", description:`${matched} KPIs updated for ${MONTHS[month]} ${year}. Dashboard refreshed.` });
-      setActiveTab("dashboard"); // auto-switch to dashboard to show update
+      toast({ title:"Upload successful", description:`${totalUpdates} data points updated for ${dept.name}. Dashboard refreshed.` });
+      setActiveTab("dashboard");
     } catch (err:any) {
       toast({ title:"Upload failed", description:err.message, variant:"destructive" });
     } finally {
