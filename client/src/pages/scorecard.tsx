@@ -10,7 +10,7 @@ import {
   TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight,
   Save, Check, AlertTriangle, AlertCircle, CheckCircle2, Clock,
   Activity, Plus, Trash2, Download, Upload, FileSpreadsheet,
-  RefreshCw, Building2, Edit2,
+  RefreshCw, Building2, Edit2, BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
