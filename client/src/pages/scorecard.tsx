@@ -610,14 +610,21 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       ...MONTHS.map(() => ({ wch:10 }))];
     XLSX.utils.book_append_sheet(wb, ws1, `Actuals ${year}`);
 
-    // Sheet 2: Historical — all stored periods across all years
-    const allPeriods: string[] = [];
+    // Sheet 2: Historical — all stored periods in "Mon YYYY" column format
     const storeNow = loadStore();
-    Object.keys(storeNow).sort().forEach(p => { if (!allPeriods.includes(p)) allPeriods.push(p); });
-    const header2 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better", ...allPeriods];
+    // Collect all unique years stored
+    const storedYears = [...new Set(Object.keys(storeNow).map(p => Number(p.slice(0,4))))].sort();
+    // Build ordered column list: Jan YYYY, Feb YYYY, ... for each stored year
+    const histCols: { label: string; year: number; mi: number }[] = [];
+    storedYears.forEach(y => {
+      MONTHS.forEach((m, mi) => histCols.push({ label: `${m} ${y}`, year: y, mi }));
+    });
+    const header2 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better",
+      ...histCols.map(c => c.label)];
     const dataRows2 = kpis.map(k => {
       const row: (string | number)[] = [k.name, k.perspective, k.target, k.unit, k.lowerIsBetter ? "Yes" : "No"];
-      allPeriods.forEach(p => {
+      histCols.forEach(({ year: y, mi }) => {
+        const p = periodKey(y, mi);
         const v = storeNow?.[p]?.[k.id];
         row.push(v !== undefined ? Number(v) : ("" as any));
       });
@@ -625,7 +632,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     });
     const ws2 = XLSX.utils.aoa_to_sheet([header2, ...dataRows2]);
     ws2["!cols"] = [{ wch:32 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 },
-      ...allPeriods.map(() => ({ wch:10 }))];
+      ...histCols.map(() => ({ wch:10 }))];
     XLSX.utils.book_append_sheet(wb, ws2, "Historical");
 
     XLSX.writeFile(wb, `BSC_${dept.name.replace(/\s+/g,"_")}_${year}.xlsx`);
@@ -644,12 +651,24 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       const ws  = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { defval:"" }) as Record<string,any>[];
 
-      // Detect year from sheet name (e.g. "Actuals 2026") or fall back to selected year
-      const sheetName = wb.SheetNames[0] || "";
-      const yearMatch = sheetName.match(/\d{4}/);
-      const uploadYear = yearMatch ? Number(yearMatch[0]) : year;
+      // Auto-detect all "Mon YYYY" columns from the header row
+      const firstRow = rows[0] || {};
+      const detectedCols: { key: string; year: number; mi: number }[] = [];
+      Object.keys(firstRow).forEach(col => {
+        const match = col.match(/^([A-Za-z]{3})\s+(\d{4})$/);
+        if (!match) return;
+        const mi = MONTHS.findIndex(m => m.toLowerCase() === match[1].toLowerCase());
+        if (mi === -1) return;
+        detectedCols.push({ key: col, year: Number(match[2]), mi });
+      });
+      // Fallback: also accept bare "Jan", "Feb"... using selected year
+      MONTHS.forEach((m, mi) => {
+        if (firstRow[m] !== undefined && !detectedCols.find(c => c.mi === mi && c.year === year)) {
+          detectedCols.push({ key: m, year, mi });
+        }
+      });
 
-      // Build updated store: for each row find matching KPI, then read month columns
+      // Build updated store across all detected columns
       const updatedStore = { ...loadStore() };
       let totalUpdates = 0;
 
@@ -659,12 +678,11 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         const kpi = kpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
         if (!kpi) continue;
 
-        MONTHS.forEach((m, mi) => {
-          // Accept both "Jan 2026" and "Jan" as column headers
-          const val = row[`${m} ${uploadYear}`] ?? row[m] ?? "";
-          const strVal = String(val).trim();
+        detectedCols.forEach(({ key, year: colYear, mi }) => {
+          const val = row[key];
+          const strVal = String(val ?? "").trim();
           if (strVal === "" || isNaN(Number(strVal))) return;
-          const p = periodKey(uploadYear, mi);
+          const p = periodKey(colYear, mi);
           if (!updatedStore[p]) updatedStore[p] = {};
           updatedStore[p][kpi.id] = Number(strVal);
           totalUpdates++;
