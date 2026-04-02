@@ -39,6 +39,7 @@ import AnalyticsExplorePage from "@/pages/analytics-explore";
 import AnalyticsDashboardComposePage from "@/pages/analytics-dashboard-compose";
 
 import GuidePage from "@/pages/guide";
+import ScorecardPage from "@/pages/scorecard";
 import WorkflowCenterPage from "@/pages/workflow-center";
 import PresentationStudioPage from "@/pages/presentation-studio";
 import OwnerLogin from "@/pages/owner-login";
@@ -79,6 +80,12 @@ function AppRouter() {
       <Route path="/analytics/datasets/:id/explore" component={AnalyticsExplorePage} />
       <Route path="/analytics/new" component={AnalyticsStudioNewPage} />
       <Route path="/analytics/:id" component={AnalyticsStudioViewPage} />
+      <Route path="/scorecard" component={ScorecardPage} />
+      <Route path="/scorecard/corporate" component={ScorecardPage} />
+      <Route path="/scorecard/department/:id" component={ScorecardPage} />
+      <Route path="/scorecard/kpi/:id" component={ScorecardPage} />
+      <Route path="/scorecard/hr" component={ScorecardPage} />
+      <Route path="/scorecard/hr/entry" component={ScorecardPage} />
       {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}
       {isAdmin && <Route path="/planner" component={PlannerPage} />}
       {isAdmin && <Route path="/settings" component={SettingsPage} />}

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Target, ListChecks,
   FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
   FolderOpen, Users2, Clock, ChevronRight,
-  RotateCcw, Ticket, ShieldCheck, FileCheck2, type LucideIcon, Presentation,
+  RotateCcw, Ticket, ShieldCheck, FileCheck2, type LucideIcon, Presentation, Activity,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -46,10 +46,12 @@ const executivePerformanceNav = [
 const adminAnalyticsNav = [
   { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
   { title: "Dashboard Planner", url: "/planner", icon: LayoutTemplate },
+  { title: "Balanced Scorecard", url: "/scorecard", icon: Activity },
 ];
 
 const executiveAnalyticsNav = [
   { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
+  { title: "Balanced Scorecard", url: "/scorecard", icon: Activity },
 ];
 
 const WF_NAV_ITEMS = [
