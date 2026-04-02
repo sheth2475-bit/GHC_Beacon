@@ -81,11 +81,8 @@ function AppRouter() {
       <Route path="/analytics/new" component={AnalyticsStudioNewPage} />
       <Route path="/analytics/:id" component={AnalyticsStudioViewPage} />
       <Route path="/scorecard" component={ScorecardPage} />
-      <Route path="/scorecard/corporate" component={ScorecardPage} />
       <Route path="/scorecard/department/:id" component={ScorecardPage} />
       <Route path="/scorecard/kpi/:id" component={ScorecardPage} />
-      <Route path="/scorecard/hr" component={ScorecardPage} />
-      <Route path="/scorecard/hr/entry" component={ScorecardPage} />
       {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}
       {isAdmin && <Route path="/planner" component={PlannerPage} />}
       {isAdmin && <Route path="/settings" component={SettingsPage} />}
