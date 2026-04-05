@@ -431,11 +431,24 @@ function ScorecardLanding() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const today = new Date();
-  const pk  = periodKey(today.getFullYear(), today.getMonth());
-  const ppk = today.getMonth() === 0
-    ? periodKey(today.getFullYear()-1, 11)
-    : periodKey(today.getFullYear(), today.getMonth()-1);
+  const [year,  setYear]  = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const pk  = periodKey(year, month);
+  const ppk = month === 0 ? periodKey(year-1, 11) : periodKey(year, month-1);
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const [, nav] = useLocation();
+
+  const shiftMonth = (delta: number) => {
+    setMonth(m => {
+      let nm = m + delta, ny = year;
+      if (nm < 0)  { nm += 12; ny--; }
+      if (nm > 11) { nm -= 12; ny++; }
+      // don't go into the future
+      if (ny > today.getFullYear() || (ny === today.getFullYear() && nm > today.getMonth())) return m;
+      setYear(ny);
+      return nm;
+    });
+  };
 
   const handleAdd = (d: BscDepartment) => {
     const updated = [...departments, d];
@@ -497,17 +510,34 @@ function ScorecardLanding() {
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Balanced Scorecard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {companyStats.total} departments · {MONTHS[today.getMonth()]} {today.getFullYear()} ·{" "}
+            {companyStats.total} departments ·{" "}
             <span style={{ color: healthColor(companyStats.hp) }} className="font-medium">{companyStats.hp}% healthy</span>
+            {" "}— based on KPIs with data entered for this period
           </p>
         </div>
-        <Button onClick={() => setShowAdd(true)} data-testid="button-add-department">
-          <Plus className="h-4 w-4 mr-1.5" />Add Department
-        </Button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Month navigator */}
+          <div className="flex items-center gap-1 border rounded-lg px-1 py-1 bg-background">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(-1)}
+              data-testid="button-prev-month">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium px-2 tabular-nums min-w-[90px] text-center">
+              {MONTHS[month]} {year}
+            </span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(1)}
+              disabled={isCurrentMonth} data-testid="button-next-month">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button onClick={() => setShowAdd(true)} data-testid="button-add-department">
+            <Plus className="h-4 w-4 mr-1.5" />Add Department
+          </Button>
+        </div>
       </div>
 
       {/* ── hint ── */}
