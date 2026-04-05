@@ -496,67 +496,18 @@ function ScorecardLanding() {
   return (
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
 
-      {/* ── Hero header ── */}
-      <div className="rounded-2xl border bg-gradient-to-br from-card to-muted/30 p-6 flex flex-col sm:flex-row sm:items-center gap-6">
-        {/* Left: title + period */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2.5 mb-1">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Activity className="h-4.5 w-4.5 text-primary h-5 w-5" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Balanced Scorecard</h1>
-          </div>
-          <p className="text-sm text-muted-foreground pl-0.5">
-            {companyStats.total} departments · {MONTHS[today.getMonth()]} {today.getFullYear()}
+      {/* ── Page header ── */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Balanced Scorecard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {companyStats.total} departments · {MONTHS[today.getMonth()]} {today.getFullYear()} ·{" "}
+            <span style={{ color: healthColor(companyStats.hp) }} className="font-medium">{companyStats.hp}% healthy</span>
           </p>
-          {/* RAG strip */}
-          <div className="mt-4 h-2 rounded-full overflow-hidden flex w-full max-w-xs" style={{ gap: 2 }}>
-            <div className="h-full rounded-l-full transition-all" style={{ width:`${(companyStats.green/companyStats.total)*100}%`, background:"#10b981" }} />
-            <div className="h-full transition-all" style={{ width:`${(companyStats.amber/companyStats.total)*100}%`, background:"#f59e0b" }} />
-            <div className="h-full rounded-r-full transition-all" style={{ width:`${(companyStats.red/companyStats.total)*100}%`, background:"#ef4444" }} />
-          </div>
         </div>
-
-        {/* Center: health score */}
-        <div className="flex items-center gap-5">
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium mb-1">Health</p>
-            <p className="text-5xl font-bold tabular-nums leading-none" style={{ color: healthColor(companyStats.hp) }}>
-              {companyStats.hp}<span className="text-2xl">%</span>
-            </p>
-          </div>
-          <div className="w-px h-12 bg-border hidden sm:block" />
-          <div className="flex gap-4 text-center">
-            <div>
-              <p className="text-2xl font-bold text-emerald-600 tabular-nums">{companyStats.green}</p>
-              <div className="flex items-center gap-1 justify-center mt-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <p className="text-xs text-muted-foreground">On Track</p>
-              </div>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-amber-600 tabular-nums">{companyStats.amber}</p>
-              <div className="flex items-center gap-1 justify-center mt-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                <p className="text-xs text-muted-foreground">At Risk</p>
-              </div>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-red-600 tabular-nums">{companyStats.red}</p>
-              <div className="flex items-center gap-1 justify-center mt-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                <p className="text-xs text-muted-foreground">Off Track</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: action */}
-        <div className="flex-shrink-0">
-          <Button onClick={() => setShowAdd(true)} data-testid="button-add-department">
-            <Plus className="h-4 w-4 mr-1.5" />Add Department
-          </Button>
-        </div>
+        <Button onClick={() => setShowAdd(true)} data-testid="button-add-department">
+          <Plus className="h-4 w-4 mr-1.5" />Add Department
+        </Button>
       </div>
 
       {/* ── hint ── */}
