@@ -496,75 +496,72 @@ function ScorecardLanding() {
   return (
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
 
-      {/* ── Page title row ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Activity className="h-6 w-6 text-primary" />Balanced Scorecard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Company performance at a glance · {MONTHS[today.getMonth()]} {today.getFullYear()}</p>
+      {/* ── Hero header ── */}
+      <div className="rounded-2xl border bg-gradient-to-br from-card to-muted/30 p-6 flex flex-col sm:flex-row sm:items-center gap-6">
+        {/* Left: title + period */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Activity className="h-4.5 w-4.5 text-primary h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">Balanced Scorecard</h1>
+          </div>
+          <p className="text-sm text-muted-foreground pl-0.5">
+            {companyStats.total} departments · {MONTHS[today.getMonth()]} {today.getFullYear()}
+          </p>
+          {/* RAG strip */}
+          <div className="mt-4 h-2 rounded-full overflow-hidden flex w-full max-w-xs" style={{ gap: 2 }}>
+            <div className="h-full rounded-l-full transition-all" style={{ width:`${(companyStats.green/companyStats.total)*100}%`, background:"#10b981" }} />
+            <div className="h-full transition-all" style={{ width:`${(companyStats.amber/companyStats.total)*100}%`, background:"#f59e0b" }} />
+            <div className="h-full rounded-r-full transition-all" style={{ width:`${(companyStats.red/companyStats.total)*100}%`, background:"#ef4444" }} />
+          </div>
         </div>
-        <Button onClick={()=>setShowAdd(true)} data-testid="button-add-department">
-          <Plus className="h-4 w-4 mr-1.5" />Add Department
-        </Button>
-      </div>
 
-      {/* ── Company health banner ── */}
-      <Card className="overflow-hidden">
-        <div className="h-1.5 w-full" style={{ background:`linear-gradient(90deg, #10b981 ${companyStats.green/companyStats.total*100}%, #f59e0b ${companyStats.green/companyStats.total*100}% ${(companyStats.green+companyStats.amber)/companyStats.total*100}%, #ef4444 ${(companyStats.green+companyStats.amber)/companyStats.total*100}%)` }} />
-        <CardContent className="p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-            {/* Big health number */}
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <HealthRing pct={companyStats.hp} size={72} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Company Health Score</p>
-                <p className="text-4xl font-bold tabular-nums" style={{ color: healthColor(companyStats.hp) }}>{companyStats.hp}%</p>
-                <p className="text-xs text-muted-foreground">{companyStats.total} departments · {MONTHS[today.getMonth()]} {today.getFullYear()}</p>
+        {/* Center: health score */}
+        <div className="flex items-center gap-5">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium mb-1">Health</p>
+            <p className="text-5xl font-bold tabular-nums leading-none" style={{ color: healthColor(companyStats.hp) }}>
+              {companyStats.hp}<span className="text-2xl">%</span>
+            </p>
+          </div>
+          <div className="w-px h-12 bg-border hidden sm:block" />
+          <div className="flex gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-emerald-600 tabular-nums">{companyStats.green}</p>
+              <div className="flex items-center gap-1 justify-center mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <p className="text-xs text-muted-foreground">On Track</p>
               </div>
             </div>
-
-            {/* Divider */}
-            <div className="hidden sm:block w-px h-16 bg-border" />
-
-            {/* RAG dept counts */}
-            <div className="flex gap-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-emerald-600">{companyStats.green}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">On Track</p>
-                <div className="w-2 h-2 rounded-full bg-emerald-500 mx-auto mt-1.5" />
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-amber-600">{companyStats.amber}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">At Risk</p>
-                <div className="w-2 h-2 rounded-full bg-amber-500 mx-auto mt-1.5" />
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-red-600">{companyStats.red}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Off Track</p>
-                <div className="w-2 h-2 rounded-full bg-red-500 mx-auto mt-1.5" />
+            <div>
+              <p className="text-2xl font-bold text-amber-600 tabular-nums">{companyStats.amber}</p>
+              <div className="flex items-center gap-1 justify-center mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <p className="text-xs text-muted-foreground">At Risk</p>
               </div>
             </div>
-
-            {/* Divider */}
-            <div className="hidden sm:block w-px h-16 bg-border" />
-
-            {/* Perspective legend */}
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              {PERSPECTIVES.map(p => (
-                <div key={p} className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: P_COLOR[p].accent }} />
-                  <span>{PERSP_FULL[p]}</span>
-                </div>
-              ))}
+            <div>
+              <p className="text-2xl font-bold text-red-600 tabular-nums">{companyStats.red}</p>
+              <div className="flex items-center gap-1 justify-center mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <p className="text-xs text-muted-foreground">Off Track</p>
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* ── Department cards grid ── */}
-      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-        <GripVertical className="h-3.5 w-3.5" />Drag cards to reorder · Click to open scorecard
+        {/* Right: action */}
+        <div className="flex-shrink-0">
+          <Button onClick={() => setShowAdd(true)} data-testid="button-add-department">
+            <Plus className="h-4 w-4 mr-1.5" />Add Department
+          </Button>
+        </div>
+      </div>
+
+      {/* ── hint ── */}
+      <p className="text-xs text-muted-foreground flex items-center gap-1.5 -mt-2">
+        <GripVertical className="h-3.5 w-3.5" />Drag to reorder · Click a card to open its scorecard
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {departments.map((dept, idx) => {
