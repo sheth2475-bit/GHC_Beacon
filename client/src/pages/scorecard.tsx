@@ -1378,11 +1378,10 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
 
   const allKpis = Object.values(DEPT_KPIS).flat();
   const kpi = allKpis.find(k => k.id === kpiId);
-  if (!kpi) return <div className="p-8 text-center text-muted-foreground">KPI not found.</div>;
 
-  const pc = P_COLOR[kpi.perspective];
-
+  // All hooks must be called before any early return
   const history = useMemo(() => {
+    if (!kpi) return [];
     const rows = [];
     for (let i = 11; i >= 0; i--) {
       let y = today.getFullYear(), m = today.getMonth() - i;
@@ -1394,7 +1393,11 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
       rows.push({ period:`${MONTHS[m]} ${y}`, label:MONTHS[m].slice(0,3), actual, target:kpi.target, status });
     }
     return rows;
-  }, [store, kpiId]);
+  }, [store, kpiId, !!kpi]);
+
+  if (!kpi) return <div className="p-8 text-center text-muted-foreground">KPI not found.</div>;
+
+  const pc = P_COLOR[kpi.perspective];
 
   // Computed stats
   const dataPoints = history.filter(h => h.actual !== null);
