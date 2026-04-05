@@ -7,7 +7,7 @@ import {
   BarChart, Bar, Cell, RadarChart, Radar,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
-  ReferenceLine,
+  ReferenceLine, LabelList,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight,
@@ -660,9 +660,15 @@ function KpiSparkline({ kpi, store, year, month }: { kpi: KpiDef; store: Record<
   const color = status === "green" ? "#10b981" : status === "amber" ? "#f59e0b" : "#ef4444";
 
   return (
-    <ResponsiveContainer width="100%" height={52}>
-      <LineChart data={pts} margin={{ top:4, right:4, bottom:4, left:4 }}>
-        <Line type="monotone" dataKey="actual" stroke={color} strokeWidth={2} dot={false} connectNulls />
+    <ResponsiveContainer width="100%" height={64}>
+      <LineChart data={pts} margin={{ top:16, right:4, bottom:4, left:4 }}>
+        <Line type="monotone" dataKey="actual" stroke={color} strokeWidth={2} dot={{ r:3, fill:color }} connectNulls>
+          <LabelList dataKey="actual" position="top" content={(props: any) => {
+            const { x, y, value } = props;
+            if (value === null || value === undefined || x === undefined || y === undefined) return null;
+            return <text x={x} y={y - 5} fill={color} fontSize={9} textAnchor="middle" fontWeight={600}>{value}</text>;
+          }} />
+        </Line>
         <Line type="monotone" dataKey="target" stroke="hsl(var(--muted-foreground))" strokeWidth={1}
           strokeDasharray="3 2" dot={false} />
         <Tooltip
@@ -1422,7 +1428,7 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
     <div className="p-6 space-y-5 max-w-5xl mx-auto">
 
       {/* Back nav */}
-      <Button variant="ghost" size="sm" onClick={() => nav(-1 as any)}
+      <Button variant="ghost" size="sm" onClick={() => window.history.back()}
         className="gap-1.5 text-muted-foreground -ml-2" data-testid="button-back">
         <ChevronLeft className="h-4 w-4" />Back to Scorecard
       </Button>
@@ -1526,8 +1532,8 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
           </div>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={history} margin={{ top:10, right:20, left:0, bottom:0 }}>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={history} margin={{ top:28, right:20, left:0, bottom:0 }}>
               <defs>
                 <linearGradient id={`kpi-grad-${kpiId}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor={pc.accent} stopOpacity={0.15} />
@@ -1546,7 +1552,15 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                 label={{ value:`Target: ${kpi.target}`, position:"insideTopRight", fontSize:10, fill:"hsl(var(--muted-foreground))" }} />
               <Area type="monotone" dataKey="actual" stroke={pc.accent} strokeWidth={2.5}
                 fill={`url(#kpi-grad-${kpiId})`} connectNulls name="Actual"
-                dot={<RagDot />} activeDot={{ r:6, stroke:"white", strokeWidth:2 }} />
+                dot={<RagDot />} activeDot={{ r:6, stroke:"white", strokeWidth:2 }}>
+                <LabelList dataKey="actual" position="top" content={(props: any) => {
+                  const { x, y, value, index } = props;
+                  if (value === null || value === undefined || x === undefined || y === undefined) return null;
+                  const entry = history[index];
+                  const c = entry?.status === "green" ? "#10b981" : entry?.status === "amber" ? "#f59e0b" : entry?.status === "red" ? "#ef4444" : "#94a3b8";
+                  return <text x={x} y={y - 8} fill={c} fontSize={10} textAnchor="middle" fontWeight={600}>{value}</text>;
+                }} />
+              </Area>
               <Line type="monotone" dataKey="target" stroke="transparent" dot={false} name="Target" />
             </AreaChart>
           </ResponsiveContainer>
