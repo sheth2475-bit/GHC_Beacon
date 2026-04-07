@@ -3341,7 +3341,7 @@ Generate the outline now — exactly ${totalSlides} slides (slide-1=title, slide
       const nonFrameSlides = (outline as any[]).filter((s: any) => !["title","agenda","closing"].includes(s.type));
       const agendaMap = nonFrameSlides.map((s: any, i: number) => `${i + 1}. ${s.title}${s.description ? ` — ${s.description}` : ""}`).join("\n");
 
-      const systemPrompt = `You are a world-class business presentation designer and strategist. Your job is to generate RICH, DETAILED, INFORMATION-DENSE slide content that a senior executive would be proud to present. Return ONLY valid JSON — an array of slide content objects matching the outline. No markdown fences, no extra text.
+      const systemPrompt = `You are a world-class business presentation designer and strategist. Your job is to generate RICH, NARRATIVE-DRIVEN, VISUALLY INTELLIGENT slide content that a senior executive would be proud to present. Return ONLY valid JSON — an array of slide content objects matching the outline. No markdown fences, no extra text.
 
 ${hasSourceFile ? `CRITICAL FILE RULES (source file is attached):
 - Base ALL numbers, metrics, and data ONLY on the file provided. Do NOT invent, estimate, or hallucinate values.
@@ -3350,53 +3350,69 @@ ${hasSourceFile ? `CRITICAL FILE RULES (source file is attached):
 - For data slides: chartData entries must come from actual column values or breakdowns in the file.
 - For stat entries: use the exact computed totals/averages from the COLUMN ANALYSIS section of the file.
 
-` : ""}═══ MANDATORY CONTENT REQUIREMENTS ═══
+` : ""}═══ SLIDE QUALITY RULES ═══
+1. Each slide communicates ONE clear idea — no dumping multiple themes onto one slide
+2. Use strong, insight-driven titles (e.g. "Occupancy Beats Target by 5pp" not "Occupancy Rate")
+3. Keep content scannable in under 5 seconds — every word earns its place
+4. Maintain consistent formatting, hierarchy, and balance across all slides
+5. Never overcrowd or leave slides vague/empty
+
+═══ VISUAL INTELLIGENCE — choose the right format automatically ═══
+- "data" type → KPI cards + chart for metrics, numbers, and percentages
+- "table" type → comparison of options, competitors, or structured data
+- "two-column" type → contrast (pros vs cons, before vs after, option A vs B, challenges vs solutions)
+- "content" type → narrative context, strategy, risks, recommendations with supporting points
+- "section" type → to introduce a new major theme
+- "quote" type → powerful testimonial, CEO quote, or insight
+For sequences/timelines or process flows, use content type with bullets as numbered steps
+
+═══ MANDATORY CONTENT FIELDS ═══
 
 Each slide object MUST include ALL applicable fields:
 
 - id: string (match the outline id exactly)
 - type: string (match the outline type exactly)
-- title: string (punchy, informative slide title — under 8 words)
+- title: string (insight-driven slide title — under 8 words, reads like a headline not a label)
 - subtitle: string — REQUIRED for title, closing, section, and quote slides. One rich sentence (20–30 words) that captures the key narrative of this slide.
 - emphasis: string — REQUIRED for ALL slide types. A bold, specific callout — a key metric, insight, decision, or action phrase. Must be concrete and data-driven (e.g., "Occupancy at 87% — 5pp above target", "3 critical gaps require Q2 action", "RevPAR growth of 14% YoY"). Never leave blank.
-- body: string — REQUIRED for content, two-column slides. A 2–3 sentence explanatory paragraph (40–60 words) that provides context, analysis, or background for the bullets. Written in flowing prose, not bullet form. This is the narrative spine of the slide.
+- body: string — REQUIRED for content and two-column slides. A 3–4 sentence narrative paragraph (55–80 words) that provides context, analysis, and the "so what" behind the data. Written in clear flowing prose — NOT bullet form. This is the primary narrative of the slide and MUST add analysis or insight NOT already captured in the bullets. The reader should understand the story from body alone.
 - bullets: string[] — for content, agenda, and two-column slides. Rules:
-    • content/two-column slides: include as many bullets as the narrative requires. Each bullet is a COMPLETE SENTENCE (subject + action + result/implication). Start with a strong verb or a specific number. Each bullet must convey a distinct, self-contained insight — not a continuation of the previous one.
-    • agenda slides: one bullet per non-title, non-closing, non-agenda slide in the deck (see AGENDA MAP below). Format each as: "[Section Topic]: [what the audience will learn or decide — 10–15 words]"
+    • content/two-column slides: each bullet is a COMPLETE SENTENCE (subject + verb + outcome/implication). Start with a strong verb or a specific number. Each bullet must convey a distinct, self-contained insight — minimum 18 words each.
+    • agenda slides: one bullet per non-title, non-closing, non-agenda slide (see AGENDA MAP). Format: "[Topic]: [what audience will learn or decide — 12–18 words]"
     • Empty array for data, quote, section slides
-- stat: array — for "data" slides — include the number of stats that best tells the story (typically 2–4):
-    { value: string (the headline metric, e.g. "87%", "14.2K", "3.2×"), label: string (concise description of what this measures), change: string (e.g. "+12% vs prior quarter", "-3pp vs target"), trend: "up"|"down"|"flat", pct: number (0–100, % of target achieved), color: "green"|"amber"|"red" }
-- chartData: array — for "data" slides — include entries that best visualise the data story:
-    { label: string, value: number }
-    Derive from real breakdowns (by region, property, product, department, quarter, etc.)
-- tableData: for "table" slides — include headers and data rows with a Status column using ✓ / ✗ / → indicators
-- quote: string — for quote slides — an inspiring, specific, attributed insight. Attribute to a real business leader or the presenter's company.
+- stat: array — for "data" slides — 2–4 stats that tell the story:
+    { value: string (headline metric: "87%", "14.2K", "3.2×"), label: string (what this measures — concise), change: string (e.g. "+12% vs prior quarter"), trend: "up"|"down"|"flat", pct: number (0–100, % of target), color: "green"|"amber"|"red" }
+- chartData: array — for "data" slides — entries that visualise the breakdown:
+    { label: string, value: number } — derive from real breakdowns (region, product, quarter, department)
+- tableData: for "table" slides — headers and rows with Status column using ✓ / ✗ / → indicators
+- quote: string — for quote slides — an inspiring, specific, attributed insight
 - colorCode: "green"|"amber"|"red" (for data slides — overall RAG status)
-- notes: string — REQUIRED for ALL slides. Speaker notes covering: key talking points not on the slide, how this slide connects to the next, and a suggested transition phrase.
+- notes: string — REQUIRED for ALL slides. Full speaker narration script (80–120 words). Must include: (1) the story this slide tells and the key insight to land, (2) 2–3 specific talking points the presenter should say out loud, (3) how this slide connects to the next one, (4) a suggested transition phrase to the next slide.
 
-═══ AGENDA MAP (use these exact topics for the agenda slide bullets) ═══
+═══ AGENDA MAP ═══
 ${agendaMap || "Derive agenda topics from the slide outline provided."}
 
-═══ NARRATIVE PRINCIPLES ═══
-- Tone: ${brief?.tone || "Executive"} — decisive, data-driven, and clear
-- Audience: ${brief?.audience || "Senior leadership"} — assume high business acumen
-- The AI decides the best number of bullets, stats, and chart entries for each slide — use whatever serves the story
-- Every slide must stand alone as a complete, information-dense unit
+═══ WRITING & TONE PRINCIPLES ═══
+- Tone: ${brief?.tone || "Executive"} — decisive, data-driven, clear, action-oriented
+- Audience: ${brief?.audience || "Senior leadership"} — assume high business acumen, no padding
 - Use SPECIFIC numbers, names, percentages — never vague generalities like "improved significantly"
+- Keep sentences short, sharp, and impactful — every sentence must earn its place
+- Focus on insights and outcomes, not descriptions
 - CURRENCY: Do NOT add any currency symbol ($, £, €, ₹, etc.) to any number unless the source data explicitly shows that symbol
-- Title slides: compelling subtitle capturing the narrative arc
-- Data slides: stats are bold headline numbers drawn from real data; notes explain the story behind the numbers
-- Closing slides: bullets[0] = specific, actionable CTA with owner and date; bullets[1] = next milestone or meeting date
+- Title slides: compelling subtitle capturing the overall narrative arc of the deck
+- Data slides: stats are bold headline numbers with trend indicators; body is empty, notes narrate the numbers
+- Closing slides: bullets[0] = specific, actionable CTA with owner and date; bullets[1] = next milestone
 - Section slides: subtitle previews the key insight to be revealed in this section
-- The body paragraph MUST add analysis or context that is NOT already stated in the bullets
+- Output must feel: clean, modern, executive-ready — not like rough notes
 
 ═══ QUALITY BAR ═══
 A slide FAILS quality if:
-- Any bullet is fewer than 15 words
-- The body field is missing or fewer than 30 words on content/two-column slides
-- The notes field is missing or fewer than 50 words
-- The emphasis field is vague (e.g., "Key insight", "Important metric") or missing
-- The agenda slide bullets do not match the actual slides in the deck`;
+- Any bullet is fewer than 18 words
+- The body field is missing or fewer than 55 words on content/two-column slides
+- The notes field is missing or fewer than 80 words
+- The emphasis field is vague ("Key insight", "Important metric") or missing
+- The agenda slide bullets do not match the actual slides in the deck
+- The body merely repeats the bullets in different words — it must ADD analysis`;
 
       const userPrompt = `Presentation: "${brief?.title || "Business Presentation"}"
 Objective: ${brief?.objective || ""}
@@ -3457,27 +3473,34 @@ Generate full slide content now.${hasSourceFile ? " SOURCE FILE IS PROVIDED — 
         messages: [
           {
             role: "system",
-            content: `You are a business presentation expert. Refine the given slide based on the user instruction.
+            content: `You are a world-class business presentation expert. Refine the given slide based on the user instruction, applying these quality principles:
 
 Return ONLY valid JSON of the complete updated slide object — no markdown fences, no extra text.
 
-CANVAS VISIBILITY RULES — only these fields render visually on each slide type:
+SLIDE QUALITY PRINCIPLES:
+1. Each slide communicates ONE clear idea with an insight-driven title (not a generic label)
+2. body field (content/two-column): must be a 3–4 sentence narrative paragraph (55–80 words) that tells the story — clear, analytical prose, not bullets
+3. bullets: each is a complete sentence (subject + verb + outcome), minimum 18 words, starts with a strong verb or number
+4. emphasis: concrete and data-driven (e.g. "Revenue up 14% YoY — ahead of plan"), never vague
+5. notes: full speaker narration script (80–120 words) with talking points, "so what", and transition to next slide
+
+CANVAS VISIBILITY RULES — only these fields render visually:
 - "title" slides: title, subtitle, emphasis
-- "agenda" slides: title, bullets (each bullet = one agenda item)
+- "agenda" slides: title, bullets
 - "section" slides: title, subtitle, emphasis
-- "content" slides: title, body (explanatory paragraph shown above bullets), bullets, emphasis
-- "two-column" slides: title, body (explanatory paragraph), bullets (first half = left col, second half = right col), emphasis
-- "data" slides: title, stat (KPI cards — update value/label/change/trend/color), chartData (bar chart — update label/value pairs), emphasis, colorCode
+- "content" slides: title, body (narrative paragraph above bullets), bullets, emphasis
+- "two-column" slides: title, body (narrative lead), bullets (split into two cols), emphasis
+- "data" slides: title, stat (KPI cards), chartData (chart), emphasis, colorCode
 - "quote" slides: title, quote
 - "closing" slides: title, bullets, emphasis
-- "table" slides: title, tableData (headers + rows)
+- "table" slides: title, tableData
 
-CRITICAL: When refining, you MUST update the fields that are VISIBLE for this slide's type.
-- For "data" slides: ALWAYS update stat entries and chartData to reflect the instruction — never just change notes or bullets (bullets are not shown on data slides)
-- For "content"/"agenda"/"closing": update bullets with substantive complete sentences
-- notes field is speaker notes (NOT visible on canvas) — update it too but it must NOT be your only change
-- Do NOT add currency symbols ($, £, €, ₹) unless they already exist in the data
-- Keep all fields from input, only modify what's relevant`,
+CRITICAL: Always update the VISIBLE fields for this slide type.
+- "data" slides: MUST update stat and chartData — not just notes
+- "content"/"two-column": MUST update body with full narrative paragraph + substantive bullets
+- notes: update as full narration script, but it must NOT be your only change
+- Do NOT add currency symbols ($, £, €, ₹) unless already present
+- Keep all fields from input; only modify what's relevant to the instruction`,
           },
           {
             role: "user",

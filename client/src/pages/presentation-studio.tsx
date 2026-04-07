@@ -909,9 +909,16 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
           <div style={{ height: HEADER_H, display: "flex", alignItems: "center", paddingLeft: 18 }}>
             <div style={{ color: t.titleColor, fontWeight: 900, fontSize: 30 }}>{slide.title}</div>
           </div>
-          {/* Body context */}
+          {/* Body paragraph — narrative lead, always visible */}
           {slide.body && (
-            <div style={{ marginBottom: 14, marginLeft: 18, color: t.bodyColor, fontSize: 15, lineHeight: 1.55, opacity: 0.72, fontStyle: "italic" }}>{slide.body}</div>
+            <div style={{
+              marginBottom: 12, marginLeft: 18,
+              padding: "9px 16px 9px 14px",
+              background: `${t.cardBg}60`,
+              borderLeft: `3px solid ${t.accent}55`,
+              borderRadius: "0 6px 6px 0",
+              color: t.bodyColor, fontSize: 13, lineHeight: 1.6, fontWeight: 400,
+            }}>{slide.body}</div>
           )}
           {/* Two columns */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, height: slide.body ? `calc(100% - ${HEADER_H}px - 60px - 22px)` : `calc(100% - ${HEADER_H}px - 22px)` }}>
@@ -1064,18 +1071,17 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     </div>
   );
 
-  // ── CONTENT SLIDE — Gamma-style card grid per bullet ──────────────────────
-  // This is the workhorse slide type: cards with numbered badges replace flat bullets
+  // ── CONTENT SLIDE — Lead narrative + Gamma-style card grid ───────────────
   const bullets = slide.bullets || [];
   const numBullets = bullets.length;
   const useTwoCols = numBullets >= 4;
   const HEADER_H = 72;
-  const emphasisH = slide.emphasis ? 46 : 0;
-  const bodyH = (slide.body && !useTwoCols) ? 44 : 0;
-  const cardAreaH = SLIDE_H - HEADER_H - emphasisH - bodyH - 22 - 18; // top/bottom padding
+  const emphasisH = slide.emphasis ? 44 : 0;
+  const bodyH = slide.body ? (useTwoCols ? 52 : 62) : 0;
+  const cardAreaH = SLIDE_H - HEADER_H - emphasisH - bodyH - 28 - 16;
   const numRows = useTwoCols ? Math.ceil(numBullets / 2) : numBullets;
-  const cardH = Math.min(84, Math.floor((cardAreaH - Math.max(0, numRows - 1) * 9) / Math.max(numRows, 1)));
-  const bulletFontSize = cardH > 64 ? (useTwoCols ? 15 : 16) : 14;
+  const cardH = Math.min(82, Math.floor((cardAreaH - Math.max(0, numRows - 1) * 8) / Math.max(numRows, 1)));
+  const bulletFontSize = cardH > 60 ? (useTwoCols ? 14 : 15) : 13;
   return (
     <div style={base}>
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} viewBox={`0 0 ${SLIDE_W} ${SLIDE_H}`} preserveAspectRatio="none">
@@ -1086,47 +1092,55 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
         <circle cx="1140" cy="620" r="130" fill={t.accent} fillOpacity="0.04"/>
         <circle cx="1220" cy="100" r="90" fill={t.accent} fillOpacity="0.03"/>
       </svg>
-      <div style={{ position: "absolute", inset: 0, padding: `0 28px 18px 28px` }}>
+      <div style={{ position: "absolute", inset: 0, padding: `0 28px 16px 28px` }}>
         {/* Header */}
         <div style={{ height: HEADER_H, display: "flex", alignItems: "center", paddingLeft: 18 }}>
           <div style={{ color: t.titleColor, fontWeight: 900, fontSize: 30, letterSpacing: "-0.5px" }}>{slide.title}</div>
         </div>
 
         <div style={{ paddingLeft: 18, paddingRight: 4 }}>
+          {/* Body paragraph — the narrative lead, always shown when present */}
+          {slide.body && (
+            <div style={{
+              marginBottom: 10,
+              padding: "10px 16px 10px 16px",
+              background: `${t.cardBg}60`,
+              borderLeft: `3px solid ${t.accent}55`,
+              borderRadius: "0 6px 6px 0",
+              color: t.bodyColor,
+              fontSize: useTwoCols ? 13 : 14,
+              lineHeight: 1.6,
+              fontWeight: 400,
+            }}>{slide.body}</div>
+          )}
+
           {/* Emphasis callout */}
           {slide.emphasis && (
-            <div style={{ marginBottom: 12, padding: "10px 18px 10px 16px", background: `${t.accent}14`, borderLeft: `5px solid ${t.accent}`, borderRadius: "0 6px 6px 0", color: t.accent, fontSize: 14, fontWeight: 700, lineHeight: 1.35, letterSpacing: "0.01em" }}>{slide.emphasis}</div>
+            <div style={{ marginBottom: 10, padding: "8px 16px 8px 16px", background: `${t.accent}14`, borderLeft: `5px solid ${t.accent}`, borderRadius: "0 6px 6px 0", color: t.accent, fontSize: 13, fontWeight: 700, lineHeight: 1.35, letterSpacing: "0.01em" }}>{slide.emphasis}</div>
           )}
 
-          {/* Body paragraph — only show in single-col layout to preserve space */}
-          {slide.body && !useTwoCols && (
-            <div style={{ marginBottom: 12, color: t.bodyColor, fontSize: 14, lineHeight: 1.58, opacity: 0.7, fontStyle: "italic" }}>{slide.body}</div>
-          )}
-
-          {/* Bullet card grid — the Gamma-style cards */}
-          <div style={{ display: "grid", gridTemplateColumns: useTwoCols ? "1fr 1fr" : "1fr", gap: 9, alignContent: "start" }}>
+          {/* Bullet card grid */}
+          <div style={{ display: "grid", gridTemplateColumns: useTwoCols ? "1fr 1fr" : "1fr", gap: 8, alignContent: "start" }}>
             {bullets.slice(0, 6).map((b, i) => (
               <div key={i} style={{
-                display: "flex", alignItems: "flex-start", gap: 14,
-                padding: `${Math.max(10, cardH * 0.14)}px 16px`,
+                display: "flex", alignItems: "flex-start", gap: 12,
+                padding: `${Math.max(9, cardH * 0.13)}px 14px`,
                 minHeight: cardH,
                 background: `${t.cardBg}80`,
                 border: `1px solid ${t.borderColor}28`,
                 borderLeft: `4px solid ${t.accent}${i === 0 ? "ff" : i === 1 ? "cc" : "88"}`,
                 borderRadius: 8,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
               }}>
-                {/* Numbered badge */}
                 <div style={{
-                  width: 28, height: 28, borderRadius: 7,
+                  width: 26, height: 26, borderRadius: 7,
                   background: `${t.accent}1c`,
-                  color: t.accent, fontSize: 11, fontWeight: 900,
+                  color: t.accent, fontSize: 10, fontWeight: 900,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0, marginTop: 2, letterSpacing: "0.02em",
+                  flexShrink: 0, marginTop: 1, letterSpacing: "0.02em",
                 }}>
                   {String(i + 1).padStart(2, "0")}
                 </div>
-                {/* Text */}
                 <span style={{ color: t.bodyColor, fontSize: bulletFontSize, lineHeight: 1.5, flex: 1 }}>{b}</span>
               </div>
             ))}
