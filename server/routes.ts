@@ -551,9 +551,18 @@ export async function registerRoutes(
   app.get("/api/dashboard-stats", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.json({ totalKpis: 0, onTrack: 0, belowTarget: 0, totalActions: 0, overdueActions: 0, completedActions: 0 });
-    const allKpis = await storage.getKpis(company.id);
-    const allActions = await storage.getActionItems(company.id);
+    const reqUser = req.user as User;
+    const isTeamMember = reqUser.role === "team_member";
+
+    let allKpis = await storage.getKpis(company.id);
+    let allActions = await storage.getActionItems(company.id);
     const today = new Date().toISOString().split("T")[0];
+
+    if (isTeamMember) {
+      const userName = reqUser.name.toLowerCase();
+      allKpis = allKpis.filter(k => k.ownerName && k.ownerName.toLowerCase() === userName);
+      allActions = allActions.filter(a => a.ownerName && a.ownerName.toLowerCase() === userName);
+    }
 
     let onTrack = 0, belowTarget = 0;
     for (const kpi of allKpis) {
@@ -1170,11 +1179,23 @@ export async function registerRoutes(
   app.get("/api/portfolio/stats", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
-    const [allProjects, allTasks, allMilestones] = await Promise.all([
+    const reqUser = req.user as User;
+    const isTeamMember = reqUser.role === "team_member";
+
+    let [allProjects, allTasks, allMilestones] = await Promise.all([
       storage.getProjects(company.id),
       storage.getTasks(company.id),
       storage.getMilestones(company.id),
     ]);
+
+    if (isTeamMember) {
+      const userName = reqUser.name.toLowerCase();
+      allProjects = allProjects.filter(p => p.owner && p.owner.toLowerCase() === userName);
+      allTasks = allTasks.filter(t => (t.assignee && t.assignee.toLowerCase() === userName) || (t.owner && t.owner.toLowerCase() === userName));
+      const projectIds = new Set(allProjects.map(p => p.id));
+      allMilestones = allMilestones.filter(m => projectIds.has(m.projectId));
+    }
+
     const today = new Date().toISOString().split("T")[0];
     const projectsWithHealth = allProjects.map(p => {
       const pt = allTasks.filter(t => t.projectId === p.id);
