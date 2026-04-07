@@ -161,8 +161,10 @@ export async function registerRoutes(
     const company = await getCompanyForUser(req);
     if (!company) return res.json(null);
     const fullCompany = await storage.getCompany(company.id);
-    const depts = await storage.getDepartments(company.id);
+    let depts = await storage.getDepartments(company.id);
     const goals = await storage.getBusinessGoals(company.id);
+    const deptIds = await getAccessibleDeptIds(req);
+    if (deptIds !== null) depts = depts.filter(d => deptIds.includes(d.id));
     res.json({ ...fullCompany, departments: depts, goals });
   });
 
@@ -213,7 +215,10 @@ export async function registerRoutes(
   app.get("/api/departments", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.json([]);
-    res.json(await storage.getDepartments(company.id));
+    let depts = await storage.getDepartments(company.id);
+    const deptIds = await getAccessibleDeptIds(req);
+    if (deptIds !== null) depts = depts.filter(d => deptIds.includes(d.id));
+    res.json(depts);
   });
 
   app.post("/api/departments", requireAdmin, async (req: Request, res: Response) => {
@@ -551,17 +556,15 @@ export async function registerRoutes(
   app.get("/api/dashboard-stats", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.json({ totalKpis: 0, onTrack: 0, belowTarget: 0, totalActions: 0, overdueActions: 0, completedActions: 0 });
-    const reqUser = req.user as User;
-    const isTeamMember = reqUser.role === "team_member";
 
     let allKpis = await storage.getKpis(company.id);
     let allActions = await storage.getActionItems(company.id);
     const today = new Date().toISOString().split("T")[0];
 
-    if (isTeamMember) {
-      const userName = reqUser.name.toLowerCase();
-      allKpis = allKpis.filter(k => k.ownerName && k.ownerName.toLowerCase() === userName);
-      allActions = allActions.filter(a => a.ownerName && a.ownerName.toLowerCase() === userName);
+    const deptIds = await getAccessibleDeptIds(req);
+    if (deptIds !== null) {
+      allKpis = allKpis.filter(k => !k.departmentId || deptIds.includes(k.departmentId));
+      allActions = allActions.filter(a => !a.departmentId || deptIds.includes(a.departmentId));
     }
 
     let onTrack = 0, belowTarget = 0;
@@ -1179,8 +1182,6 @@ export async function registerRoutes(
   app.get("/api/portfolio/stats", requireAuth, async (req: Request, res: Response) => {
     const company = await getCompanyForUser(req);
     if (!company) return res.status(404).json({ message: "Company not found" });
-    const reqUser = req.user as User;
-    const isTeamMember = reqUser.role === "team_member";
 
     let [allProjects, allTasks, allMilestones] = await Promise.all([
       storage.getProjects(company.id),
@@ -1188,11 +1189,11 @@ export async function registerRoutes(
       storage.getMilestones(company.id),
     ]);
 
-    if (isTeamMember) {
-      const userName = reqUser.name.toLowerCase();
-      allProjects = allProjects.filter(p => p.owner && p.owner.toLowerCase() === userName);
-      allTasks = allTasks.filter(t => (t.assignee && t.assignee.toLowerCase() === userName) || (t.owner && t.owner.toLowerCase() === userName));
+    const deptIds = await getAccessibleDeptIds(req);
+    if (deptIds !== null) {
+      allProjects = allProjects.filter(p => !p.departmentId || deptIds.includes(p.departmentId));
       const projectIds = new Set(allProjects.map(p => p.id));
+      allTasks = allTasks.filter(t => projectIds.has(t.projectId));
       allMilestones = allMilestones.filter(m => projectIds.has(m.projectId));
     }
 
