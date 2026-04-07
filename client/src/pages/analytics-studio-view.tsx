@@ -14,6 +14,7 @@ import {
   RefreshCw, Send, Loader2, Download, TrendingUp, AlertCircle,
   CheckCircle2, Lightbulb, MessageSquare, FileSpreadsheet, Clock,
   Check, Archive, Eye, MoreHorizontal, BookOpen, SlidersHorizontal, X as XIcon,
+  Maximize2,
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
@@ -80,14 +81,152 @@ type DashboardFull = AnalyticsDashboard & {
   chat: AnalyticsDashboardChat[];
 };
 
+/* ── Focus mode overlay ── */
+function FocusModeOverlay({ widget, onClose }: { widget: AnalyticsDashboardWidget; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex flex-col bg-background"
+      data-testid="focus-mode-overlay"
+    >
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2">
+          <Maximize2 className="h-4 w-4 text-primary" />
+          <span className="font-bold text-sm">{widget.title}</span>
+          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">Focus Mode</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border rounded-lg px-3 py-1.5 hover:bg-muted/50 transition-colors"
+          data-testid="button-exit-focus"
+        >
+          <XIcon className="h-3.5 w-3.5" />
+          Back to dashboard
+        </button>
+      </div>
+      {/* Expanded widget */}
+      <div className="flex-1 overflow-auto p-6 flex flex-col">
+        <FocusWidgetContent widget={widget} />
+      </div>
+    </div>
+  );
+}
+
+function FocusWidgetContent({ widget }: { widget: AnalyticsDashboardWidget }) {
+  if (widget.widgetType === "kpi_card") {
+    const cfg = widget.config as { metric: string; value: number; total: number; count: number; label: string } | null;
+    if (!cfg) return null;
+    const val = typeof cfg.value === "number" ? cfg.value : 0;
+    const displayVal = Number.isInteger(val) ? val.toLocaleString() : val.toFixed(2).replace(/\.?0+$/, "");
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+          <TrendingUp className="h-8 w-8 text-primary" />
+        </div>
+        <p className="text-8xl font-black tabular-nums text-foreground">{displayVal}</p>
+        <p className="text-sm text-muted-foreground">{cfg.count} data points · Total: {typeof cfg.total === "number" ? cfg.total.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}</p>
+      </div>
+    );
+  }
+
+  if (["bar_chart", "line_chart", "area_chart"].includes(widget.widgetType)) {
+    const cfg = widget.config as { data: Record<string, unknown>[]; xKey: string; yKey: string; color?: string } | null;
+    if (!cfg || !cfg.data || cfg.data.length === 0) return null;
+    const color = cfg.color || CHART_COLORS[0];
+    return (
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          {widget.widgetType === "line_chart" || widget.widgetType === "area_chart" ? (
+            <AreaChart data={cfg.data} margin={{ top: 12, right: 24, bottom: 12, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey={cfg.xKey} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
+              <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "13px" }} />
+              <Area type="monotone" dataKey={cfg.yKey} stroke={color} fill={`${color}20`} strokeWidth={2.5} dot={{ r: 4, fill: color, stroke: "hsl(var(--background))", strokeWidth: 2 }} />
+            </AreaChart>
+          ) : (
+            <BarChart data={cfg.data} barSize={36} margin={{ top: 12, right: 24, bottom: 12, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey={cfg.xKey} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
+              <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "13px" }} />
+              <Bar dataKey={cfg.yKey} fill={color} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
+  if (widget.widgetType === "pie_chart") {
+    const cfg = widget.config as { data: { name: string; value: number }[] } | null;
+    if (!cfg || !cfg.data || cfg.data.length === 0) return null;
+    return (
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={cfg.data} cx="50%" cy="45%" outerRadius="60%" innerRadius="32%" paddingAngle={3} dataKey="value" stroke="none">
+              {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "13px" }} />
+            <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={10} formatter={(v: string) => <span className="text-sm text-foreground">{v}</span>} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
+  if (widget.widgetType === "table") {
+    const cfg = widget.config as { columns: string[]; rows: Record<string, unknown>[] } | null;
+    if (!cfg || !cfg.rows || cfg.rows.length === 0) return null;
+    return (
+      <div className="rounded-xl border bg-card overflow-hidden flex flex-col min-h-0 flex-1">
+        <div className="px-4 py-2.5 border-b bg-muted/30 shrink-0">
+          <p className="text-xs text-muted-foreground">{cfg.rows.length} rows</p>
+        </div>
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-muted/50">
+              <tr>{cfg.columns.map(c => <th key={c} className="px-4 py-2.5 text-left font-semibold text-muted-foreground whitespace-nowrap">{c.replace(/_/g, " ")}</th>)}</tr>
+            </thead>
+            <tbody>
+              {cfg.rows.map((row, i) => (
+                <tr key={i} className="border-t border-border/50 hover:bg-muted/20">
+                  {cfg.columns.map(c => <td key={c} className="px-4 py-2 whitespace-nowrap text-foreground/80">{String(row[c] ?? "—")}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 /* ── KPI Card widget ── */
-function KpiCard({ widget }: { widget: AnalyticsDashboardWidget }) {
+function KpiCard({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFocus: () => void }) {
   const cfg = widget.config as { metric: string; value: number; total: number; count: number; label: string } | null;
   if (!cfg) return null;
   const val = typeof cfg.value === "number" ? cfg.value : 0;
   const displayVal = Number.isInteger(val) ? val.toLocaleString() : val.toFixed(2).replace(/\.?0+$/, "");
   return (
-    <div className="rounded-xl border bg-card p-4 hover:shadow-sm transition-all" data-testid={`widget-kpi-${widget.id}`}>
+    <div className="group relative rounded-xl border bg-card p-4 hover:shadow-sm transition-all" data-testid={`widget-kpi-${widget.id}`}>
+      <button
+        onClick={onFocus}
+        className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted border border-transparent hover:border-border"
+        title="Focus mode"
+        data-testid={`button-focus-widget-${widget.id}`}
+      >
+        <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
       <div className="flex items-start justify-between gap-2 mb-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide leading-none">{widget.title}</p>
         <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 shrink-0">
@@ -101,13 +240,21 @@ function KpiCard({ widget }: { widget: AnalyticsDashboardWidget }) {
 }
 
 /* ── Chart widget ── */
-function ChartWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
+function ChartWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFocus: () => void }) {
   const cfg = widget.config as { data: Record<string, unknown>[]; xKey: string; yKey: string; color?: string } | null;
   if (!cfg || !cfg.data || cfg.data.length === 0) return null;
   const color = cfg.color || CHART_COLORS[0];
 
   return (
-    <div className="rounded-xl border bg-card p-4" data-testid={`widget-chart-${widget.id}`}>
+    <div className="group relative rounded-xl border bg-card p-4" data-testid={`widget-chart-${widget.id}`}>
+      <button
+        onClick={onFocus}
+        className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted border border-transparent hover:border-border"
+        title="Focus mode"
+        data-testid={`button-focus-widget-${widget.id}`}
+      >
+        <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
       <p className="text-sm font-bold mb-3">{widget.title}</p>
       <ResponsiveContainer width="100%" height={220}>
         {widget.widgetType === "line_chart" || widget.widgetType === "area_chart" ? (
@@ -133,11 +280,19 @@ function ChartWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
 }
 
 /* ── Pie chart widget ── */
-function PieWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
+function PieWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFocus: () => void }) {
   const cfg = widget.config as { data: { name: string; value: number }[] } | null;
   if (!cfg || !cfg.data || cfg.data.length === 0) return null;
   return (
-    <div className="rounded-xl border bg-card p-4" data-testid={`widget-pie-${widget.id}`}>
+    <div className="group relative rounded-xl border bg-card p-4" data-testid={`widget-pie-${widget.id}`}>
+      <button
+        onClick={onFocus}
+        className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted border border-transparent hover:border-border"
+        title="Focus mode"
+        data-testid={`button-focus-widget-${widget.id}`}
+      >
+        <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
       <p className="text-sm font-bold mb-2">{widget.title}</p>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
@@ -153,15 +308,25 @@ function PieWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
 }
 
 /* ── Data table widget ── */
-function TableWidget({ widget }: { widget: AnalyticsDashboardWidget }) {
+function TableWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFocus: () => void }) {
   const cfg = widget.config as { columns: string[]; rows: Record<string, unknown>[] } | null;
   if (!cfg || !cfg.rows || cfg.rows.length === 0) return null;
   const cols = cfg.columns.slice(0, 8);
   return (
-    <div className="rounded-xl border bg-card overflow-hidden" data-testid={`widget-table-${widget.id}`}>
-      <div className="px-4 py-2.5 border-b bg-muted/30">
-        <p className="text-sm font-bold">{widget.title}</p>
-        <p className="text-[10px] text-muted-foreground">{cfg.rows.length} rows</p>
+    <div className="group relative rounded-xl border bg-card overflow-hidden" data-testid={`widget-table-${widget.id}`}>
+      <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-bold">{widget.title}</p>
+          <p className="text-[10px] text-muted-foreground">{cfg.rows.length} rows</p>
+        </div>
+        <button
+          onClick={onFocus}
+          className="opacity-0 group-hover:opacity-100 transition-opacity flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted border border-transparent hover:border-border"
+          title="Focus mode"
+          data-testid={`button-focus-widget-${widget.id}`}
+        >
+          <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
       </div>
       <div className="overflow-x-auto max-h-64">
         <table className="w-full text-xs">
@@ -262,6 +427,7 @@ export default function AnalyticsStudioViewPage() {
   const [filterCol, setFilterCol] = useState<string>("");
   const [filterVal, setFilterVal] = useState<string>("");
   const [refreshing, setRefreshing] = useState(false);
+  const [focusedWidget, setFocusedWidget] = useState<AnalyticsDashboardWidget | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data: dash, isLoading } = useQuery<DashboardFull>({ queryKey: ["/api/analytics/dashboards", id], queryFn: () => fetch(`/api/analytics/dashboards/${id}`).then(r => r.json()) });
@@ -370,6 +536,9 @@ export default function AnalyticsStudioViewPage() {
 
   return (
     <div className="h-full overflow-auto">
+      {focusedWidget && (
+        <FocusModeOverlay widget={focusedWidget} onClose={() => setFocusedWidget(null)} />
+      )}
       <div className="p-5 max-w-screen-xl mx-auto space-y-4">
 
         {/* Top bar */}
@@ -537,26 +706,26 @@ export default function AnalyticsStudioViewPage() {
                 {/* KPI cards */}
                 {kpiWidgets.length > 0 && (
                   <div className={`grid gap-3 ${kpiWidgets.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : kpiWidgets.length === 3 ? "grid-cols-3" : kpiWidgets.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
-                    {kpiWidgets.map(w => <KpiCard key={w.id} widget={w} />)}
+                    {kpiWidgets.map(w => <KpiCard key={w.id} widget={w} onFocus={() => setFocusedWidget(w)} />)}
                   </div>
                 )}
 
                 {/* Charts */}
                 {chartWidgets.length > 0 && (
                   <div className={`grid gap-4 ${chartWidgets.length >= 2 ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
-                    {chartWidgets.map(w => <ChartWidget key={w.id} widget={w} />)}
+                    {chartWidgets.map(w => <ChartWidget key={w.id} widget={w} onFocus={() => setFocusedWidget(w)} />)}
                   </div>
                 )}
 
                 {/* Pie charts */}
                 {pieWidgets.length > 0 && (
                   <div className={`grid gap-4 ${pieWidgets.length >= 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 max-w-sm"}`}>
-                    {pieWidgets.map(w => <PieWidget key={w.id} widget={w} />)}
+                    {pieWidgets.map(w => <PieWidget key={w.id} widget={w} onFocus={() => setFocusedWidget(w)} />)}
                   </div>
                 )}
 
                 {/* Table */}
-                {tableWidgets.map(w => <TableWidget key={w.id} widget={w} />)}
+                {tableWidgets.map(w => <TableWidget key={w.id} widget={w} onFocus={() => setFocusedWidget(w)} />)}
 
                 {/* Prompt to generate narrative */}
                 {!dash.narrative && (
