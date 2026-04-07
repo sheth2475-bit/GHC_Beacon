@@ -3380,15 +3380,17 @@ ${agendaMap || "Derive agenda topics from the slide outline provided."}
 ═══ DESIGN PRINCIPLES ═══
 - Tone: ${brief?.tone || "Executive"} — decisive, data-driven, and clear
 - Audience: ${brief?.audience || "Senior leadership"} — assume high business acumen
-- Every slide must be information-dense: title + emphasis + body paragraph + 5 detailed bullets = a complete, standalone slide
+- VISUAL CARD LAYOUT: Each bullet will render as its own numbered card in the slide. Write bullets that stand alone as a clear, self-contained insight — not continuations of each other.
+- Every slide must be information-dense: title + emphasis + body paragraph + 5–6 detailed bullets = a complete, standalone slide
 - Use SPECIFIC numbers, names, percentages — never vague generalities like "improved significantly"
 - CURRENCY: Do NOT add any currency symbol ($, £, €, ₹, etc.) to any number unless the source data explicitly shows that symbol
 - Title slides: compelling subtitle capturing the narrative arc; emphasis = period label (e.g., "Q2 2026 BOARD REVIEW")
-- Data slides: stat values from real data; notes explain the story behind the numbers
+- Data slides: stat values must be real, bold headline numbers (e.g. "87%", "14.2K", "$2.4M"); the value field must be SHORT (under 6 chars); notes explain the story behind the numbers
 - Closing slides: bullets[0] = specific, actionable CTA with owner and date; bullets[1] = next milestone or meeting date
 - Section slides: subtitle previews the key insight to be revealed in this section
-- Two-column slides: colA bullets = one perspective/side; colB bullets = contrasting/complementary perspective
+- Two-column slides: emphasis field = "Left Column Title — Right Column Title" (use em-dash separator); colA bullets = one perspective/side; colB bullets = contrasting/complementary perspective
 - The body paragraph MUST add analysis or context that is NOT already stated in the bullets
+- For content slides with 4+ bullets: prefer 6 bullets since the layout auto-switches to a 2-column card grid which looks premium
 
 ═══ QUALITY BAR ═══
 A slide FAILS quality if:
@@ -3411,7 +3413,7 @@ Generate full slide content now.${hasSourceFile ? " SOURCE FILE IS PROVIDED — 
         model: "gpt-4o",
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
         temperature: 0.65,
-        max_tokens: 10000,
+        max_tokens: 16000,
       });
 
       const raw = completion.choices[0].message.content || "[]";
