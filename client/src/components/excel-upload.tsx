@@ -36,6 +36,19 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
     window.open(templateUrl, "_blank");
   };
 
+  /** Convert a cell value to a string, turning JS Dates into YYYY-MM-DD. */
+  function normalizeCellValue(v: unknown): string {
+    if (v === null || v === undefined) return "";
+    if (v instanceof Date) {
+      if (isNaN(v.getTime())) return "";
+      const y = v.getFullYear();
+      const m = String(v.getMonth() + 1).padStart(2, "0");
+      const d = String(v.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    return String(v);
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -46,11 +59,20 @@ export function ExcelUpload({ templateUrl, uploadUrl, entityName, onSuccess, col
 
     try {
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: "array" });
+      const wb = XLSX.read(buffer, { type: "array", cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rawData = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
+      const rawData = XLSX.utils.sheet_to_json(ws, { defval: "", cellDates: true }) as Record<string, any>[];
 
-      const nonEmpty = rawData.filter(row => Object.values(row).some(v => v !== ""));
+      // Normalize all cell values — convert Date objects to YYYY-MM-DD strings
+      const normalizedData = rawData.map(row => {
+        const out: Record<string, any> = {};
+        for (const [k, v] of Object.entries(row)) {
+          out[k] = normalizeCellValue(v);
+        }
+        return out;
+      });
+
+      const nonEmpty = normalizedData.filter(row => Object.values(row).some(v => v !== ""));
 
       if (nonEmpty.length === 0) {
         toast({ title: "Empty file", description: "No data rows found in the file", variant: "destructive" });

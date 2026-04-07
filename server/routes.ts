@@ -13,18 +13,69 @@ import multer from "multer";
 
 const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-/** Normalises a date string to YYYY-MM-DD for DB storage.
- *  Accepts DD-MM-YYYY (from Excel uploads) or YYYY-MM-DD (legacy / browser date pickers). */
-function parseDateStr(raw: string | null | undefined): string | null {
-  if (!raw) return null;
+/** Normalises a date value to YYYY-MM-DD for DB storage.
+ *  Handles: JS Date objects (from cellDates:true), DD-MM-YYYY, YYYY-MM-DD,
+ *  MM/DD/YYYY, DD/MM/YYYY, Excel serial numbers, and most ISO variants. */
+function parseDateStr(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+
+  // JS Date object (produced by XLSX cellDates:true)
+  if (raw instanceof Date) {
+    if (isNaN(raw.getTime())) return null;
+    const y = raw.getFullYear();
+    const m = String(raw.getMonth() + 1).padStart(2, "0");
+    const d = String(raw.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
   const s = String(raw).trim();
   if (!s) return null;
+
+  // Excel serial number (e.g. 45000)
+  if (/^\d{4,5}$/.test(s)) {
+    const serial = Number(s);
+    if (serial > 25568 && serial < 60000) { // ~1970-2064
+      const epoch = (serial - 25569) * 86400000;
+      const dt = new Date(epoch);
+      if (!isNaN(dt.getTime())) {
+        const y = dt.getUTCFullYear();
+        const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+        const d = String(dt.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+    }
+  }
+
   // DD-MM-YYYY
-  const ddmmyyyy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
-  // YYYY-MM-DD (already correct)
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  return s;
+  const ddmmyyyy = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2,"0")}-${ddmmyyyy[1].padStart(2,"0")}`;
+
+  // YYYY-MM-DD (already correct, also catches ISO datetime prefix)
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  // MM/DD/YYYY or DD/MM/YYYY — try parsing via Date; favour YYYY result
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const dt = new Date(s);
+    if (!isNaN(dt.getTime())) {
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, "0");
+      const d = String(dt.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // Generic Date.parse fallback
+  const ts = Date.parse(s);
+  if (!isNaN(ts)) {
+    const dt = new Date(ts);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  return s; // return as-is if nothing matched
 }
 
 function computeProjectHealth(
@@ -1618,11 +1669,24 @@ Keep it practical: 5-12 columns. Include columns for dates, key metrics, dimensi
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
       try {
-        const wb = XLSX.read(req.file.buffer, { type: "buffer" });
+        const wb = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
         // Try 'Data' sheet first, else first sheet
         const sheetName = wb.SheetNames.includes("Data") ? "Data" : wb.SheetNames[0];
         const ws = wb.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { raw: false, defval: "" });
+        const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "", cellDates: true });
+        // Normalize Date objects → YYYY-MM-DD strings so rows are JSON-serialisable
+        const rows = rawRows.map(row => {
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(row)) {
+            if (v instanceof Date && !isNaN(v.getTime())) {
+              const y = v.getFullYear(), mo = String(v.getMonth() + 1).padStart(2, "0"), d = String(v.getDate()).padStart(2, "0");
+              out[k] = `${y}-${mo}-${d}`;
+            } else {
+              out[k] = v;
+            }
+          }
+          return out;
+        });
 
         // Get template config for validation
         const templateCols = (dash.templateConfig || []) as { key: string; name: string; required: boolean; type: string }[];
@@ -2995,13 +3059,29 @@ Return a JSON object:
 
       let text = "";
 
+      /** Normalise Date objects in parsed rows to YYYY-MM-DD strings. */
+      function normalizeDates(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+        return rows.map(row => {
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(row)) {
+            if (v instanceof Date && !isNaN(v.getTime())) {
+              const y = v.getFullYear(), mo = String(v.getMonth() + 1).padStart(2, "0"), d = String(v.getDate()).padStart(2, "0");
+              out[k] = `${y}-${mo}-${d}`;
+            } else {
+              out[k] = v;
+            }
+          }
+          return out;
+        });
+      }
+
       if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
-        const wb = XLSX.read(file.buffer, { type: "buffer" });
+        const wb = XLSX.read(file.buffer, { type: "buffer", cellDates: true });
         const parts: string[] = [`FILE: ${file.originalname}`];
         wb.SheetNames.slice(0, 5).forEach(sn => {
           const ws = wb.Sheets[sn];
-          const rows = XLSX.utils.sheet_to_json(ws, { defval: null }) as Record<string, unknown>[];
-          parts.push(buildSheetSummary(sn, rows));
+          const rawRows = XLSX.utils.sheet_to_json(ws, { defval: null, cellDates: true }) as Record<string, unknown>[];
+          parts.push(buildSheetSummary(sn, normalizeDates(rawRows)));
         });
         text = parts.join("\n\n").slice(0, 18000);
       } else if (name.endsWith(".csv") || mime.includes("csv")) {
