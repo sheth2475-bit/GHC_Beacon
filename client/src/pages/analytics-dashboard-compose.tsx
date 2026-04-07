@@ -16,6 +16,7 @@ import {
   X, ArrowUp, ArrowDown,
   AlertTriangle, Lightbulb, ChevronRight, ChevronDown, ChevronUp,
   RefreshCw, SlidersHorizontal, Filter, Search, Calendar, Database,
+  Maximize2,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -480,10 +481,158 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
   return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">Preview unavailable</div>;
 }
 
-function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filteredData }: {
+/* ── Full-size chart for focus mode ── */
+function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filteredData?: unknown }) {
+  const baseCfg = insight.chartConfig as Record<string, unknown> | null;
+  const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
+  if (!cfg) return <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No data</div>;
+  const { chartType } = insight;
+  const data = cfg.data as Record<string, unknown>;
+
+  if (chartType === "kpi" && data) {
+    const kpi = data as { value: number; label: string; count?: number };
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        <div className="text-8xl font-black tracking-tight">{formatValue(kpi.value)}</div>
+        <p className="text-lg text-muted-foreground">{kpi.label}</p>
+        {kpi.count && <p className="text-sm text-muted-foreground">{kpi.count.toLocaleString()} records</p>}
+      </div>
+    );
+  }
+
+  if ((chartType === "bar" || chartType === "line") && data) {
+    const seriesData = (data as { data?: { name: string; value: number }[] }).data || [];
+    const displayData = seriesData.map(d => ({ ...d, shortName: d.name, value: typeof d.value === "number" ? d.value : Number(d.value) }));
+    if (chartType === "bar") return (
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={displayData} margin={{ top: 24, right: 20, left: 0, bottom: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="shortName" tick={{ fontSize: 11, fill: "currentColor" }} angle={displayData.length > 10 ? -35 : 0} textAnchor={displayData.length > 10 ? "end" : "middle"} interval={0} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => formatValue(v)} width={52} />
+            <Tooltip formatter={(v, _n, p) => [formatValue(Number(v)), p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
+            <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[5, 5, 0, 0]}>
+              <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    );
+    return (
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={displayData} margin={{ top: 24, right: 20, left: 0, bottom: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="shortName" tick={{ fontSize: 11, fill: "currentColor" }} angle={displayData.length > 10 ? -35 : 0} textAnchor={displayData.length > 10 ? "end" : "middle"} interval={0} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => formatValue(v)} width={52} />
+            <Tooltip formatter={(v, _n, p) => [formatValue(Number(v)), p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
+            <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill={CHART_COLORS[0] + "20"} dot={displayData.length <= 20 ? { r: 4, fill: CHART_COLORS[0] } : false}>
+              {displayData.length <= 16 && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />}
+            </Area>
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
+  if (chartType === "pie" && data) {
+    const pieData = (data as { data?: { name: string; value: number }[] }).data || [];
+    const slices = pieData.slice(0, 10);
+    const total = slices.reduce((s, d) => s + d.value, 0);
+    return (
+      <div className="flex-1 min-h-0 flex flex-col gap-4">
+        <ResponsiveContainer width="100%" height="80%">
+          <RechartPie>
+            <Pie data={slices} cx="50%" cy="50%" outerRadius="55%" innerRadius="28%" dataKey="value" paddingAngle={2}
+              label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                if (percent < 0.05) return null;
+                const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+                const x = cx + r * Math.cos(-midAngle * Math.PI / 180);
+                const y = cy + r * Math.sin(-midAngle * Math.PI / 180);
+                return <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 12, fontWeight: 700 }}>{`${(percent * 100).toFixed(0)}%`}</text>;
+              }} labelLine={false}>
+              {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <Tooltip formatter={v => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+          </RechartPie>
+        </ResponsiveContainer>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center">
+          {slices.map((d, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="text-sm text-muted-foreground">{d.name}</span>
+              <span className="text-sm font-bold">{total ? `${((d.value / total) * 100).toFixed(1)}%` : ""}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (chartType === "table" && data) {
+    const tableData = data as { rows?: Record<string, unknown>[]; columns?: string[] };
+    const rows = tableData.rows || [];
+    const cols = tableData.columns || [];
+    return (
+      <div className="flex-1 rounded-xl border bg-card overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-muted/50"><tr>{cols.map(c => <th key={c} className="px-4 py-2.5 text-left font-semibold text-muted-foreground whitespace-nowrap">{c}</th>)}</tr></thead>
+          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50 hover:bg-muted/20">{cols.map(c => <td key={c} className="px-4 py-2 whitespace-nowrap">{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Preview unavailable</div>;
+}
+
+/* ── Focus mode overlay ── */
+function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFull; filteredData?: unknown; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const smartNarrative = generateSmartNarrative(item.insight, filteredData);
+  const narrativeText = smartNarrative || item.insight.narrative;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col bg-background" data-testid="focus-mode-overlay">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2">
+          <Maximize2 className="h-4 w-4 text-primary" />
+          <span className="font-bold text-sm">{item.titleOverride || item.insight.title}</span>
+          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize">{item.insight.chartType} · Focus Mode</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border rounded-lg px-3 py-1.5 hover:bg-muted/50 transition-colors"
+          data-testid="button-exit-focus"
+        >
+          <X className="h-3.5 w-3.5" />
+          Back to dashboard
+        </button>
+      </div>
+      {/* Chart area */}
+      <div className="flex-1 overflow-hidden p-6 flex flex-col min-h-0">
+        <FullChart insight={item.insight} filteredData={filteredData} />
+      </div>
+      {/* Narrative footer */}
+      {narrativeText && (
+        <div className="shrink-0 border-t bg-muted/20 px-6 py-3 max-h-28 overflow-auto">
+          <p className="text-xs text-muted-foreground leading-relaxed">{narrativeText}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filteredData, onFocus }: {
   item: InsightFull; idx: number; total: number;
   onRemove: () => void; onMoveUp: () => void; onMoveDown: () => void;
-  filteredData?: unknown;
+  filteredData?: unknown; onFocus: () => void;
 }) {
   const chartLabel: Record<string, string> = { kpi: "KPI Card", bar: "Bar", line: "Line", pie: "Pie", table: "Table" };
   return (
@@ -496,6 +645,9 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
             <span className="text-[10px] text-muted-foreground">{chartLabel[item.insight.chartType] || item.insight.chartType}</span>
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
+            <button onClick={onFocus} className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/60" title="Focus mode" data-testid={`button-focus-widget-${item.id}`}>
+              <Maximize2 className="h-3 w-3 text-muted-foreground" />
+            </button>
             {idx > 0 && <button onClick={onMoveUp} className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/60"><ArrowUp className="h-3 w-3" /></button>}
             {idx < total - 1 && <button onClick={onMoveDown} className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/60"><ArrowDown className="h-3 w-3" /></button>}
             <button onClick={onRemove} className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-500/10 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
@@ -535,6 +687,8 @@ export default function AnalyticsDashboardComposePage() {
   const [generatingNarrative, setGeneratingNarrative] = useState(false);
   const [narrativeOpen, setNarrativeOpen] = useState(false);
   const [filterPaneOpen, setFilterPaneOpen] = useState(false);
+  const [focusedItem, setFocusedItem] = useState<InsightFull | null>(null);
+  const [focusedItemFilteredData, setFocusedItemFilteredData] = useState<unknown>(undefined);
   // Pending = what user is editing in the pane (not yet applied to charts)
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   // Applied = what actually drives chart computation (updated only on Apply)
@@ -860,6 +1014,13 @@ export default function AnalyticsDashboardComposePage() {
 
   return (
     <div className="h-full flex overflow-hidden">
+      {focusedItem && (
+        <FocusInsightOverlay
+          item={focusedItem}
+          filteredData={focusedItemFilteredData}
+          onClose={() => { setFocusedItem(null); setFocusedItemFilteredData(undefined); }}
+        />
+      )}
 
       {/* ── Main scrollable area ── */}
       <div className="flex-1 overflow-auto min-w-0">
@@ -1014,6 +1175,7 @@ export default function AnalyticsDashboardComposePage() {
                       onMoveUp={() => handleMoveUp(idx)}
                       onMoveDown={() => handleMoveDown(idx)}
                       filteredData={overrideData}
+                      onFocus={() => { setFocusedItem(item); setFocusedItemFilteredData(overrideData); }}
                     />
                   );
                 })}
