@@ -620,8 +620,8 @@ function SlideCanvas({ slide, theme }: { slide: Slide; theme: Theme }) {
     const arrow = s.trend === "up" ? "▲" : s.trend === "down" ? "▼" : "→";
     const pct = Math.min(Math.max(s.pct ?? 75, 0), 100);
     return (
-      <div style={{ background: t.cardBg, borderRadius: 12, padding: "20px 22px 16px", display: "flex", flexDirection: "column", borderTop: `5px solid ${bColor}`, border: `1px solid ${t.borderColor}40`, borderTopColor: bColor, boxShadow: `0 4px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)` }}>
-        <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 1, color: t.accent, letterSpacing: "-2px", marginBottom: 6 }}>{s.value}</div>
+      <div style={{ background: t.cardBg, borderRadius: 12, padding: "20px 22px 16px", display: "flex", flexDirection: "column", border: `1px solid ${t.borderColor}40`, borderTop: `5px solid ${bColor}`, boxShadow: `0 4px 20px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.05)` }}>
+        <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 1, color: bColor, letterSpacing: "-2px", marginBottom: 6 }}>{s.value}</div>
         <div style={{ color: t.bodyColor, fontSize: 15, opacity: 0.85, lineHeight: 1.3, marginBottom: 8, fontWeight: 500 }}>{s.label}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           {s.change && <span style={{ color: arrowColor, fontSize: 12, fontWeight: 700 }}>{arrow} {s.change}</span>}
@@ -1483,8 +1483,8 @@ function HomeView({
   const { toast } = useToast();
   const [prompt, setPrompt] = useState("");
   const [sources, setSources] = useState<SourceType[]>([]);
-  const [slideCount, setSlideCount] = useState(5);
-  const [theme, setTheme] = useState<Theme>("executive-dark");
+  const [slideCount, setSlideCount] = useState(3);
+  const [theme, setTheme] = useState<Theme>("clean-light");
   const [fileText, setFileText] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
