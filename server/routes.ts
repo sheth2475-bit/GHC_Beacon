@@ -2174,6 +2174,7 @@ You can help the user understand their data, suggest chart types, explain insigh
         const existingCols = await storage.getAnalyticsDatasetColumns(datasetId);
         const existingMap = new Map(existingCols.map(c => [c.columnName, c]));
 
+        const newColumnSet = new Set(newColumns);
         const colDefs = newColumns.map((col, i) => {
           const existing = existingMap.get(col);
           if (existing) {
@@ -2197,7 +2198,25 @@ You can help the user understand their data, suggest chart types, explain insigh
           return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
         });
 
-        const savedCols = await storage.upsertAnalyticsDatasetColumns(datasetId, colDefs);
+        // Re-append any formula (virtual computed) columns that don't exist in the file —
+        // they must survive file replacement so insights that reference them still work
+        const formulaOnlyCols = existingCols
+          .filter(c => c.isFormula && c.formulaExpression && !newColumnSet.has(c.columnName))
+          .map((c, j) => ({
+            columnName: c.columnName,
+            label: c.label,
+            columnType: c.columnType,
+            aggregation: c.aggregation,
+            format: c.format || "number",
+            dateFormat: c.dateFormat || null,
+            dateGrains: c.dateGrains || [],
+            isFormula: true,
+            formulaExpression: c.formulaExpression,
+            position: newColumns.length + j,
+          }));
+        const allColDefs = [...colDefs, ...formulaOnlyCols];
+
+        const savedCols = await storage.upsertAnalyticsDatasetColumns(datasetId, allColDefs);
         const updated = await storage.getAnalyticsDataset(datasetId);
         res.json({ ...updated, columns: savedCols, rowCount: rows.length });
       } catch (err) {
