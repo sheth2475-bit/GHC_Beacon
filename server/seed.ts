@@ -2,7 +2,8 @@ import { storage } from "./storage";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { db } from "./db";
-import { platformOwners } from "@shared/schema";
+import { platformOwners, workflowSubmissions } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
 
@@ -578,6 +579,9 @@ export async function seedDatabase() {
       console.log("Seed: restored analytics V2 data (datasets, insights, definitions)");
     }
 
+    // ── Ensure workflow groups ────────────────────────────────────
+    await seedWorkflowGroups(companyId, existing.id);
+
     // ── Ensure presentation demo data ────────────────────────────
     await seedPresentationData(companyId, existing.id);
 
@@ -780,6 +784,7 @@ export async function seedDatabase() {
 
   // ─── Workflow Center Demo Data ────────────────────────────────────────
   await seedWorkflowData(company.id, user.id);
+  await seedWorkflowGroups(company.id, user.id);
 
   // ─── Presentation Studio Demo Data ───────────────────────────────────
   await seedPresentationData(company.id, user.id);
@@ -956,6 +961,62 @@ async function seedWorkflowData(companyId: number, userId: number) {
   }
 
   console.log(`Seed: created ${submissions.length} workflow submissions for demo company`);
+}
+
+async function seedWorkflowGroups(companyId: number, userId: number) {
+  const existing = await storage.getWorkflowGroups(companyId);
+  if (existing.length > 0) return;
+
+  // Create groups for each workflow type
+  type GroupDef = { workflowType: string; name: string; description: string; categoryMatch: string[] };
+  const groupDefs: GroupDef[] = [
+    // Service Desk groups
+    { workflowType: "service_ticket", name: "IT Helpdesk", description: "Technical support for PMS, POS, network, devices and all software-related issues across the property.", categoryMatch: ["IT"] },
+    { workflowType: "service_ticket", name: "Engineering & Maintenance", description: "Facilities management, room repairs, HVAC, electrical, plumbing and preventive maintenance requests.", categoryMatch: ["Engineering"] },
+    { workflowType: "service_ticket", name: "Admin & Operations Desk", description: "Cross-departmental requests covering security, marketing, HR admin, and general operations.", categoryMatch: ["Security", "Marketing", "HR", "Administration"] },
+
+    // Recurring Task groups
+    { workflowType: "recurring_task", name: "Finance & Reporting", description: "Monthly P&L reviews, budget submissions, forecasting updates and financial reporting cycles.", categoryMatch: ["Finance"] },
+    { workflowType: "recurring_task", name: "Operations & Safety", description: "Safety walkthroughs, housekeeping audits, engineering checks and operational compliance tasks.", categoryMatch: ["Operations"] },
+    { workflowType: "recurring_task", name: "People & Guest Experience", description: "Staff performance reviews, guest satisfaction reports, training schedules and HR compliance tasks.", categoryMatch: ["HR", "Guest Experience", "Human Resources"] },
+
+    // License categories
+    { workflowType: "license", name: "Legal & Compliance Licenses", description: "Trade licenses, liquor licenses, health permits and all statutory licenses required for hotel operations.", categoryMatch: ["Legal & Compliance"] },
+    { workflowType: "license", name: "Technology & Software Licenses", description: "PMS, POS, Office 365, and all third-party software subscription licenses.", categoryMatch: ["IT", "Technology"] },
+    { workflowType: "license", name: "Food Safety Licenses", description: "Municipality food handling, HACCP-related permits and kitchen hygiene licenses.", categoryMatch: ["Food Safety"] },
+
+    // Certificate groups
+    { workflowType: "certificate", name: "Safety & Regulatory Certificates", description: "Fire safety, elevator inspection, civil defence and statutory property certificates.", categoryMatch: ["Safety & Compliance"] },
+    { workflowType: "certificate", name: "Food & Hygiene Certifications", description: "HACCP, food handler and kitchen hygiene certifications for F&B operations.", categoryMatch: ["Food Safety"] },
+    { workflowType: "certificate", name: "Sustainability & Environmental", description: "ISO 14001, Green Globe, environmental management and sustainability certifications.", categoryMatch: ["Sustainability"] },
+    { workflowType: "certificate", name: "Professional Certifications", description: "Individual professional qualifications, hospitality certifications and CPD-linked credentials for key staff.", categoryMatch: ["HR", "General Management"] },
+  ];
+
+  // Create all groups and record their IDs
+  const groupMap: { id: number; workflowType: string; categoryMatch: string[] }[] = [];
+  for (const g of groupDefs) {
+    const group = await storage.createWorkflowGroup({
+      companyId, createdBy: userId,
+      workflowType: g.workflowType,
+      name: g.name, description: g.description,
+    });
+    groupMap.push({ id: group.id, workflowType: g.workflowType, categoryMatch: g.categoryMatch });
+  }
+
+  // Assign existing submissions to groups based on workflowType + category
+  const submissions = await storage.getWorkflowSubmissions(companyId);
+  for (const sub of submissions) {
+    if (sub.groupId) continue; // already assigned
+    // Find best group: same workflowType + category appears in categoryMatch
+    const candidates = groupMap.filter(g => g.workflowType === sub.workflowType);
+    const best = candidates.find(g => g.categoryMatch.some(c => sub.category?.toLowerCase().includes(c.toLowerCase())))
+      || candidates[0]; // fallback to first group of that type
+    if (best) {
+      await db.update(workflowSubmissions).set({ groupId: best.id }).where(eq(workflowSubmissions.id, sub.id));
+    }
+  }
+
+  console.log(`Seed: created ${groupDefs.length} workflow groups for demo company`);
 }
 
 async function seedPresentationData(companyId: number, userId: number) {
