@@ -42,11 +42,12 @@ interface Submission {
   recurrenceType?: string; vendorName?: string; issueAuthority?: string;
   licenseType?: string; slaTarget?: string;
   serviceDeskId?: number;
+  groupId?: number;
   createdAt: string; updatedAt: string;
   comments?: Comment[]; activity?: ActivityEntry[];
 }
-interface ServiceDeskEntry {
-  id: number; name: string; description?: string; icon?: string; color?: string; createdAt: string;
+interface WorkflowGroupEntry {
+  id: number; name: string; description?: string; workflowType: string; createdAt: string;
 }
 interface Comment { id: number; authorName: string; content: string; isInternal: boolean; createdAt: string; }
 interface ActivityEntry { id: number; actorName: string; action: string; oldValue?: string; newValue?: string; field?: string; createdAt: string; }
@@ -106,6 +107,20 @@ const BOARD_COLS: Record<WorkflowType, string[]> = {
   recurring_task: ["Scheduled", "Due Soon", "In Progress", "Completed"],
   license: ["Active", "Expiring Soon", "Renewal in Progress", "Renewed"],
   certificate: ["Active", "Expiring Soon", "Renewal in Progress", "Renewed"],
+};
+
+const GROUP_META: Record<WorkflowType, { heading: string; singular: string; btnLabel: string; emptyTitle: string; emptyDesc: string; placeholder: string; viewBtn: string }> = {
+  service_ticket: { heading: "Service Desks", singular: "Desk", btnLabel: "New Service Desk", emptyTitle: "No Service Desks Yet", emptyDesc: "Create your first service desk to start tracking tickets.", placeholder: "e.g. IT Services Desk, Facility Management, HR", viewBtn: "View Tickets" },
+  recurring_task: { heading: "Task Groups", singular: "Group", btnLabel: "New Group", emptyTitle: "No Task Groups Yet", emptyDesc: "Create a group to organise your recurring tasks by team or function.", placeholder: "e.g. Finance Team, IT Operations, HR Department", viewBtn: "View Tasks" },
+  license: { heading: "License Categories", singular: "Category", btnLabel: "New Category", emptyTitle: "No License Categories Yet", emptyDesc: "Create categories to organise licenses by type or department.", placeholder: "e.g. Software Licenses, Business Licenses, Trade Licenses", viewBtn: "View Licenses" },
+  certificate: { heading: "Certificate Groups", singular: "Group", btnLabel: "New Group", emptyTitle: "No Certificate Groups Yet", emptyDesc: "Create groups to organise certificates by standard or domain.", placeholder: "e.g. ISO Standards, Safety Certifications, Professional Certifications", viewBtn: "View Certificates" },
+};
+
+const TERMINAL_BY_TYPE: Record<WorkflowType, string[]> = {
+  service_ticket: ["Resolved", "Closed"],
+  recurring_task: ["Completed"],
+  license: ["Expired", "Renewed"],
+  certificate: ["Expired", "Renewed"],
 };
 
 const AUTOMATION_RULES: Record<WorkflowType, { id: string; trigger: string; action: string; icon: typeof Workflow; enabled: boolean }[]> = {
@@ -988,10 +1003,10 @@ function TypeOverview({ wfType, submissions, onSelect, onNew, setTypeTab }: {
 }
 
 // ── Create dialog ─────────────────────────────────────────────────────────────
-function CreateDialog({ open, onClose, defaultType, departments, defaultServiceDeskId }: {
+function CreateDialog({ open, onClose, defaultType, departments, defaultGroupId }: {
   open: boolean; onClose: () => void; defaultType?: WorkflowType;
   departments: { id: number; name: string }[];
-  defaultServiceDeskId?: number;
+  defaultGroupId?: number;
 }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1032,7 +1047,7 @@ function CreateDialog({ open, onClose, defaultType, departments, defaultServiceD
   function submit() {
     if (!form.title.trim()) { toast({ title: "Title is required", variant: "destructive" }); return; }
     const extra: Record<string, unknown> = { ...form, workflowType: type, status: defaults[type], requesterName: form.requesterName || user?.name };
-    if (type === "service_ticket" && defaultServiceDeskId) extra.serviceDeskId = defaultServiceDeskId;
+    if (defaultGroupId) extra.groupId = defaultGroupId;
     mut.mutate(extra);
   }
 
@@ -1339,46 +1354,47 @@ export default function WorkflowCenterPage() {
   const [detailSub, setDetailSub] = useState<Submission | null>(null);
   const [automationRules, setAutomationRules] = useState(AUTOMATION_RULES);
   const [analyticsFilter, setAnalyticsFilter] = useState<"all" | WorkflowType>("all");
-  const [selectedDeskId, setSelectedDeskId] = useState<number | null>(null);
-  const [createDeskOpen, setCreateDeskOpen] = useState(false);
-  const [deskForm, setDeskForm] = useState({ name: "", description: "" });
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [groupForm, setGroupForm] = useState({ name: "", description: "" });
 
   // Keep section in sync when the URL changes externally (e.g. sidebar link click)
   useEffect(() => {
     setSection(sectionFromUrl);
     setTypeTab("overview");
-    if (sectionFromUrl !== "service_desk") setSelectedDeskId(null);
+    setSelectedGroupId(null);
   }, [sectionFromUrl]);
 
   const { data: allSubs = [], refetch: refetchSubs } = useQuery<Submission[]>({ queryKey: ["/api/workflow/submissions"], enabled: !!user });
   const { data: analytics } = useQuery<Analytics>({ queryKey: ["/api/workflow/analytics"], enabled: !!user });
   const { data: company } = useQuery<{ departments: { id: number; name: string }[] }>({ queryKey: ["/api/company"], enabled: !!user });
-  const { data: serviceDesks = [], refetch: refetchDesks } = useQuery<ServiceDeskEntry[]>({ queryKey: ["/api/service-desks"], enabled: !!user });
+  const { data: allGroups = [] } = useQuery<WorkflowGroupEntry[]>({ queryKey: ["/api/workflow-groups"], enabled: !!user });
   const { data: detailFull, refetch: refetchDetail } = useQuery<Submission>({
     queryKey: ["/api/workflow/submissions", detailSub?.id],
     queryFn: () => fetch(`/api/workflow/submissions/${detailSub?.id}`, { credentials: "include" }).then(r => r.json()),
     enabled: !!detailSub,
   });
 
-  const createDeskMut = useMutation({
-    mutationFn: (d: Record<string, string>) => apiRequest("POST", "/api/service-desks", d),
+  const createGroupMut = useMutation({
+    mutationFn: (d: Record<string, string>) => apiRequest("POST", "/api/workflow-groups", d),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service-desks"] });
-      toast({ title: "Service Desk created" });
-      setCreateDeskOpen(false);
-      setDeskForm({ name: "", description: "" });
+      queryClient.invalidateQueries({ queryKey: ["/api/workflow-groups"] });
+      const meta = currentWfType ? GROUP_META[currentWfType] : null;
+      toast({ title: `${meta?.singular || "Group"} created` });
+      setCreateGroupOpen(false);
+      setGroupForm({ name: "", description: "" });
     },
-    onError: () => toast({ title: "Failed to create desk", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to create group", variant: "destructive" }),
   });
 
-  const deleteDeskMut = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/service-desks/${id}`),
+  const deleteGroupMut = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/workflow-groups/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service-desks"] });
-      if (selectedDeskId !== null) setSelectedDeskId(null);
-      toast({ title: "Service Desk deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/workflow-groups"] });
+      setSelectedGroupId(null);
+      toast({ title: "Group deleted" });
     },
-    onError: () => toast({ title: "Failed to delete desk", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to delete group", variant: "destructive" }),
   });
 
   const departments = company?.departments || [];
@@ -1387,7 +1403,7 @@ export default function WorkflowCenterPage() {
   function goSection(s: string) {
     setSection(s);
     setTypeTab("overview");
-    if (s !== "service_desk") setSelectedDeskId(null);
+    setSelectedGroupId(null);
     navigate(s === "home" ? "/workflow" : `/workflow?s=${s}`);
   }
   function openCreate(type?: WorkflowType) { setCreateType(type); setCreateOpen(true); }
@@ -1437,31 +1453,34 @@ export default function WorkflowCenterPage() {
           ))}
         </div>
 
-        {/* Per-type secondary tab bar — hidden on service-desk landing */}
-        {currentWfType && !(section === "service_desk" && selectedDeskId === null) && (
+        {/* Per-type secondary tab bar — hidden on groups landing */}
+        {currentWfType && selectedGroupId !== null && (
           <div className={`flex items-center gap-1 px-6 py-2 border-b ${currentWf?.bg}`}>
-            {section === "service_desk" && selectedDeskId !== null && (
-              <button onClick={() => setSelectedDeskId(null)} className="mr-2 p-1 rounded hover:bg-white/40 dark:hover:bg-black/20 transition-colors" title="Back to Service Desks">
-                <ChevronRight className="h-4 w-4 rotate-180 text-muted-foreground" />
-              </button>
-            )}
+            <button onClick={() => setSelectedGroupId(null)} className="mr-2 p-1 rounded hover:bg-white/40 dark:hover:bg-black/20 transition-colors" title="Back to groups">
+              <ChevronRight className="h-4 w-4 rotate-180 text-muted-foreground" />
+            </button>
             <div className={`p-1.5 rounded-lg bg-white/60 dark:bg-black/20 mr-2`}>
               {currentWf && <currentWf.icon className={`h-4 w-4 ${currentWf.color}`} />}
             </div>
             <h1 className={`text-sm font-bold mr-1 ${currentWf?.color}`}>
-              {section === "service_desk" && selectedDeskId !== null
-                ? (serviceDesks.find(d => d.id === selectedDeskId)?.name || "Service Desk")
-                : currentWf?.label}
+              {allGroups.find(g => g.id === selectedGroupId)?.name || currentWf?.label}
             </h1>
-            {section === "service_desk" && selectedDeskId !== null && (
-              <span className="text-xs text-muted-foreground mr-3">/ Service Desk</span>
-            )}
+            <span className="text-xs text-muted-foreground mr-3">/ {currentWf?.label}</span>
             {["overview", "config", "records", "analytics"].map(t => (
               <button key={t} onClick={() => setTypeTab(t)} data-testid={`tab-type-${t}`}
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all capitalize ${typeTab === t ? "bg-white dark:bg-black/30 shadow-sm font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-white/40 dark:hover:bg-black/20"}`}>
                 {t}
               </button>
             ))}
+          </div>
+        )}
+        {/* Per-type secondary tab bar on group landing (no group selected, show section header) */}
+        {currentWfType && selectedGroupId === null && (
+          <div className={`flex items-center gap-1 px-6 py-2 border-b ${currentWf?.bg}`}>
+            <div className={`p-1.5 rounded-lg bg-white/60 dark:bg-black/20 mr-2`}>
+              {currentWf && <currentWf.icon className={`h-4 w-4 ${currentWf.color}`} />}
+            </div>
+            <h1 className={`text-sm font-bold ${currentWf?.color}`}>{currentWf?.label}</h1>
           </div>
         )}
 
@@ -1546,122 +1565,133 @@ export default function WorkflowCenterPage() {
             </div>
           )}
 
-          {/* ═══ SERVICE DESK LANDING ═══ */}
-          {section === "service_desk" && selectedDeskId === null && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <h1 className="text-xl font-bold">Service Desks</h1>
-                  <p className="text-sm text-muted-foreground">Create and manage service desks, then track tickets within each desk.</p>
-                </div>
-                <Button onClick={() => setCreateDeskOpen(true)} className="gap-2" data-testid="btn-create-desk">
-                  <Plus className="h-4 w-4" />New Service Desk
-                </Button>
-              </div>
-
-              {serviceDesks.length === 0 ? (
-                <div className="rounded-xl border-2 border-dashed border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/20 p-12 text-center">
-                  <Ticket className="h-10 w-10 mx-auto text-violet-400 mb-3" />
-                  <h3 className="font-semibold text-lg mb-1">No Service Desks Yet</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Create your first service desk (e.g., IT Services, Facility Management, HR) to start tracking tickets.</p>
-                  <Button onClick={() => setCreateDeskOpen(true)} className="gap-2"><Plus className="h-4 w-4" />Create First Desk</Button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {serviceDesks.map(desk => {
-                    const deskTickets = allSubs.filter(s => s.workflowType === "service_ticket" && s.serviceDeskId === desk.id);
-                    const openTickets = deskTickets.filter(s => !["Resolved", "Closed"].includes(s.status));
-                    const overdueTickets = deskTickets.filter(isOverdue);
-                    return (
-                      <div key={desk.id} className="rounded-xl border bg-card hover:shadow-md transition-all group border-l-4 border-violet-400">
-                        <div className="p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2.5 rounded-lg bg-violet-50 dark:bg-violet-950/40">
-                                <Ticket className="h-5 w-5 text-violet-600" />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-sm leading-tight">{desk.name}</h3>
-                                {desk.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{desk.description}</p>}
-                              </div>
-                            </div>
-                            <button onClick={e => { e.stopPropagation(); deleteDeskMut.mutate(desk.id); }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500"
-                              title="Delete desk" data-testid={`btn-delete-desk-${desk.id}`}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
-                            <span className="font-medium text-foreground">{deskTickets.length}</span> total
-                            <span className="text-blue-600 font-medium">{openTickets.length}</span> open
-                            {overdueTickets.length > 0 && <span className="text-red-600 font-medium">{overdueTickets.length} overdue</span>}
-                          </div>
-                          <Button size="sm" className="w-full h-7 text-xs" onClick={() => { setSelectedDeskId(desk.id); setTypeTab("overview"); }}
-                            data-testid={`btn-open-desk-${desk.id}`}>
-                            View Tickets <ChevronRight className="h-3 w-3 ml-1" />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Create Desk Dialog */}
-              <Dialog open={createDeskOpen} onOpenChange={v => !v && setCreateDeskOpen(false)}>
-                <DialogContent className="max-w-md">
-                  <DialogHeader><DialogTitle className="flex items-center gap-2"><Ticket className="h-5 w-5 text-violet-600" />New Service Desk</DialogTitle></DialogHeader>
-                  <div className="space-y-3 py-1">
-                    <div>
-                      <Label className="text-xs">Desk Name *</Label>
-                      <Input value={deskForm.name} onChange={e => setDeskForm(f => ({ ...f, name: e.target.value }))}
-                        placeholder="e.g. IT Services Desk, Facility Management, HR" className="mt-1" data-testid="input-desk-name" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Description</Label>
-                      <Textarea value={deskForm.description} onChange={e => setDeskForm(f => ({ ...f, description: e.target.value }))}
-                        placeholder="What types of tickets does this desk handle?" className="mt-1 text-sm" rows={3} data-testid="input-desk-description" />
-                    </div>
+          {/* ═══ GROUPS LANDING (all 4 workflow types) ═══ */}
+          {currentWfType && selectedGroupId === null && (() => {
+            const meta = GROUP_META[currentWfType];
+            const wf = WF_TYPES[currentWfType];
+            const Icon = wf.icon;
+            const typeGroups = allGroups.filter(g => g.workflowType === currentWfType);
+            return (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h1 className="text-xl font-bold">{meta.heading}</h1>
+                    <p className="text-sm text-muted-foreground">{meta.emptyDesc}</p>
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setCreateDeskOpen(false)}>Cancel</Button>
-                    <Button onClick={() => { if (!deskForm.name.trim()) { toast({ title: "Desk name is required", variant: "destructive" }); return; } createDeskMut.mutate(deskForm); }}
-                      disabled={createDeskMut.isPending} data-testid="btn-submit-desk">
-                      {createDeskMut.isPending ? "Creating…" : "Create Desk"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          )}
+                  <Button onClick={() => setCreateGroupOpen(true)} className="gap-2" data-testid="btn-create-group">
+                    <Plus className="h-4 w-4" />{meta.btnLabel}
+                  </Button>
+                </div>
 
-          {/* ═══ WORKFLOW TYPE SECTIONS ═══ */}
-          {currentWfType && !(section === "service_desk" && selectedDeskId === null) && (
-            <>
-              {typeTab === "overview" && (
-                <TypeOverview wfType={currentWfType}
-                  submissions={section === "service_desk" && selectedDeskId !== null ? allSubs.filter(s => s.workflowType === "service_ticket" && s.serviceDeskId === selectedDeskId) : allSubs}
-                  onSelect={openDetail} onNew={() => openCreate(currentWfType)} setTypeTab={setTypeTab} />
-              )}
-              {typeTab === "config" && (
-                <TypeConfig wfType={currentWfType} automationRules={automationRules} toggleRule={toggleRule} editRule={editRule} onRunAutomations={() => {}} />
-              )}
-              {typeTab === "records" && (
-                <RecordsView
-                  submissions={section === "service_desk" && selectedDeskId !== null
-                    ? allSubs.filter(s => s.workflowType === "service_ticket" && s.serviceDeskId === selectedDeskId)
-                    : allSubs.filter(s => s.workflowType === currentWfType)}
-                  wfType={currentWfType} onSelect={openDetail} onNew={() => openCreate(currentWfType)} />
-              )}
-              {typeTab === "analytics" && (
-                <TypeAnalytics
-                  submissions={section === "service_desk" && selectedDeskId !== null
-                    ? allSubs.filter(s => s.workflowType === "service_ticket" && s.serviceDeskId === selectedDeskId)
-                    : allSubs}
-                  wfType={currentWfType} />
-              )}
-            </>
-          )}
+                {typeGroups.length === 0 ? (
+                  <div className={`rounded-xl border-2 border-dashed p-12 text-center ${wf.bg}`} style={{ borderColor: "currentColor", opacity: 1 }}>
+                    <div className={`inline-flex p-3 rounded-xl ${wf.bg} mb-3`}>
+                      <Icon className={`h-10 w-10 ${wf.color}`} />
+                    </div>
+                    <h3 className="font-semibold text-lg mb-1">{meta.emptyTitle}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{meta.emptyDesc}</p>
+                    <Button onClick={() => setCreateGroupOpen(true)} className="gap-2"><Plus className="h-4 w-4" />{meta.btnLabel}</Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {typeGroups.map(group => {
+                      const groupSubs = allSubs.filter(s => s.workflowType === currentWfType && s.groupId === group.id);
+                      const terminal = TERMINAL_BY_TYPE[currentWfType];
+                      const openCount = groupSubs.filter(s => !terminal.includes(s.status)).length;
+                      const overdueCount = groupSubs.filter(isOverdue).length;
+                      return (
+                        <div key={group.id} className={`rounded-xl border bg-card hover:shadow-md transition-all group/card border-l-4 ${wf.accent}`}>
+                          <div className="p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2.5 rounded-lg ${wf.bg}`}>
+                                  <Icon className={`h-5 w-5 ${wf.color}`} />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-sm leading-tight">{group.name}</h3>
+                                  {group.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{group.description}</p>}
+                                </div>
+                              </div>
+                              <button onClick={e => { e.stopPropagation(); deleteGroupMut.mutate(group.id); }}
+                                className="opacity-0 group-hover/card:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500"
+                                title="Delete group" data-testid={`btn-delete-group-${group.id}`}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                              <span className="font-medium text-foreground">{groupSubs.length}</span> total
+                              <span className="text-blue-600 font-medium">{openCount}</span> open
+                              {overdueCount > 0 && <span className="text-red-600 font-medium">{overdueCount} overdue</span>}
+                            </div>
+                            <Button size="sm" className="w-full h-7 text-xs" onClick={() => { setSelectedGroupId(group.id); setTypeTab("overview"); }}
+                              data-testid={`btn-open-group-${group.id}`}>
+                              {meta.viewBtn} <ChevronRight className="h-3 w-3 ml-1" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Create Group Dialog */}
+                <Dialog open={createGroupOpen} onOpenChange={v => !v && setCreateGroupOpen(false)}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Icon className={`h-5 w-5 ${wf.color}`} />New {meta.singular}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3 py-1">
+                      <div>
+                        <Label className="text-xs">{meta.singular} Name *</Label>
+                        <Input value={groupForm.name} onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))}
+                          placeholder={meta.placeholder} className="mt-1" data-testid="input-group-name" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Description</Label>
+                        <Textarea value={groupForm.description} onChange={e => setGroupForm(f => ({ ...f, description: e.target.value }))}
+                          placeholder={`What does this ${meta.singular.toLowerCase()} manage?`} className="mt-1 text-sm" rows={3} data-testid="input-group-description" />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setCreateGroupOpen(false)}>Cancel</Button>
+                      <Button
+                        onClick={() => {
+                          if (!groupForm.name.trim()) { toast({ title: `${meta.singular} name is required`, variant: "destructive" }); return; }
+                          createGroupMut.mutate({ ...groupForm, workflowType: currentWfType });
+                        }}
+                        disabled={createGroupMut.isPending} data-testid="btn-submit-group">
+                        {createGroupMut.isPending ? "Creating…" : `Create ${meta.singular}`}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            );
+          })()}
+
+          {/* ═══ WORKFLOW TYPE SECTIONS (inside a group) ═══ */}
+          {currentWfType && selectedGroupId !== null && (() => {
+            const groupSubs = allSubs.filter(s => s.workflowType === currentWfType && s.groupId === selectedGroupId);
+            return (
+              <>
+                {typeTab === "overview" && (
+                  <TypeOverview wfType={currentWfType} submissions={groupSubs}
+                    onSelect={openDetail} onNew={() => openCreate(currentWfType)} setTypeTab={setTypeTab} />
+                )}
+                {typeTab === "config" && (
+                  <TypeConfig wfType={currentWfType} automationRules={automationRules} toggleRule={toggleRule} editRule={editRule} onRunAutomations={() => {}} />
+                )}
+                {typeTab === "records" && (
+                  <RecordsView submissions={groupSubs} wfType={currentWfType} onSelect={openDetail} onNew={() => openCreate(currentWfType)} />
+                )}
+                {typeTab === "analytics" && (
+                  <TypeAnalytics submissions={groupSubs} wfType={currentWfType} />
+                )}
+              </>
+            );
+          })()}
 
           {/* ═══ ANALYTICS (global) ═══ */}
           {section === "analytics" && (
@@ -1805,7 +1835,7 @@ export default function WorkflowCenterPage() {
 
       {/* ── Dialogs ── */}
       <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} defaultType={createType} departments={departments}
-        defaultServiceDeskId={section === "service_desk" && selectedDeskId !== null ? selectedDeskId : undefined} />
+        defaultGroupId={selectedGroupId !== null ? selectedGroupId : undefined} />
       {detailSub && (
         <DetailDialog sub={detailFull || detailSub} onClose={() => setDetailSub(null)}
           onUpdate={() => { refetchDetail(); refetchSubs(); queryClient.invalidateQueries({ queryKey: ["/api/workflow/analytics"] }); }} />

@@ -441,6 +441,7 @@ export const workflowSubmissions = pgTable("workflow_submissions", {
   holderEmail: text("holder_email"),
   slaTarget: text("sla_target"),
   serviceDeskId: integer("service_desk_id"),
+  groupId: integer("group_id"),
   customFields: jsonb("custom_fields").default(sql`'{}'::jsonb`),
   tags: text("tags").array().default(sql`ARRAY[]::text[]`),
   completedAt: timestamp("completed_at"),
@@ -472,7 +473,19 @@ export const workflowActivity = pgTable("workflow_activity", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-// ─── Service Desks ────────────────────────────────────────────────────────────
+// ─── Workflow Groups (unified grouping for all 4 workflow types) ──────────────
+export const workflowGroups = pgTable("workflow_groups", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  workflowType: text("workflow_type").notNull(), // recurring_task | service_ticket | license | certificate
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ─── Service Desks (kept for backward compatibility, superseded by workflowGroups) ──
 export const serviceDesks = pgTable("service_desks", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),
@@ -490,6 +503,7 @@ export const insertWorkflowSubmissionSchema = createInsertSchema(workflowSubmiss
 export const insertWorkflowCommentSchema = createInsertSchema(workflowComments).omit({ id: true, createdAt: true });
 export const insertWorkflowActivitySchema = createInsertSchema(workflowActivity).omit({ id: true, createdAt: true });
 export const insertServiceDeskSchema = createInsertSchema(serviceDesks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWorkflowGroupSchema = createInsertSchema(workflowGroups).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type WorkflowTemplate = typeof workflowTemplates.$inferSelect;
 export type InsertWorkflowTemplate = z.infer<typeof insertWorkflowTemplateSchema>;
@@ -501,6 +515,8 @@ export type WorkflowActivity = typeof workflowActivity.$inferSelect;
 export type InsertWorkflowActivity = z.infer<typeof insertWorkflowActivitySchema>;
 export type ServiceDesk = typeof serviceDesks.$inferSelect;
 export type InsertServiceDesk = z.infer<typeof insertServiceDeskSchema>;
+export type WorkflowGroup = typeof workflowGroups.$inferSelect;
+export type InsertWorkflowGroup = z.infer<typeof insertWorkflowGroupSchema>;
 
 // ─── Analytics Studio ─────────────────────────────────────────────────────────
 

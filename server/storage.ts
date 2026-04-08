@@ -253,6 +253,12 @@ export interface IStorage {
   createServiceDesk(data: import("@shared/schema").InsertServiceDesk): Promise<import("@shared/schema").ServiceDesk>;
   updateServiceDesk(id: number, data: Partial<import("@shared/schema").InsertServiceDesk>): Promise<import("@shared/schema").ServiceDesk>;
   deleteServiceDesk(id: number): Promise<void>;
+
+  // Workflow Groups
+  getWorkflowGroups(companyId: number, workflowType?: string): Promise<import("@shared/schema").WorkflowGroup[]>;
+  createWorkflowGroup(data: import("@shared/schema").InsertWorkflowGroup): Promise<import("@shared/schema").WorkflowGroup>;
+  updateWorkflowGroup(id: number, data: Partial<import("@shared/schema").InsertWorkflowGroup>): Promise<import("@shared/schema").WorkflowGroup>;
+  deleteWorkflowGroup(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1115,6 +1121,28 @@ export class DatabaseStorage implements IStorage {
   async deleteServiceDesk(id: number) {
     const { serviceDesks } = await import("@shared/schema");
     await db.delete(serviceDesks).where(eq(serviceDesks.id, id));
+  }
+
+  async getWorkflowGroups(companyId: number, workflowType?: string) {
+    const { workflowGroups } = await import("@shared/schema");
+    const conditions = workflowType
+      ? and(eq(workflowGroups.companyId, companyId), eq(workflowGroups.workflowType, workflowType))
+      : eq(workflowGroups.companyId, companyId);
+    return db.select().from(workflowGroups).where(conditions).orderBy(workflowGroups.name);
+  }
+  async createWorkflowGroup(data: import("@shared/schema").InsertWorkflowGroup) {
+    const { workflowGroups } = await import("@shared/schema");
+    const [row] = await db.insert(workflowGroups).values(data).returning();
+    return row;
+  }
+  async updateWorkflowGroup(id: number, data: Partial<import("@shared/schema").InsertWorkflowGroup>) {
+    const { workflowGroups } = await import("@shared/schema");
+    const [row] = await db.update(workflowGroups).set({ ...data, updatedAt: new Date() }).where(eq(workflowGroups.id, id)).returning();
+    return row;
+  }
+  async deleteWorkflowGroup(id: number) {
+    const { workflowGroups } = await import("@shared/schema");
+    await db.delete(workflowGroups).where(eq(workflowGroups.id, id));
   }
 }
 

@@ -3575,6 +3575,40 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     } catch (err: any) { res.status(500).json({ message: err.message || "Slide refinement failed" }); }
   });
 
+  // ── Workflow Groups ────────────────────────────────────────────────────────
+  app.get("/api/workflow-groups", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const groups = await storage.getWorkflowGroups(user.companyId, req.query.type as string | undefined);
+      res.json(groups);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/workflow-groups", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { insertWorkflowGroupSchema } = await import("@shared/schema");
+      const parsed = insertWorkflowGroupSchema.safeParse({ ...req.body, companyId: user.companyId, createdBy: user.id });
+      if (!parsed.success) return res.status(400).json({ message: "Validation failed", errors: parsed.error.errors });
+      const group = await storage.createWorkflowGroup(parsed.data);
+      res.status(201).json(group);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/workflow-groups/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const group = await storage.updateWorkflowGroup(Number(req.params.id), req.body);
+      res.json(group);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/workflow-groups/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWorkflowGroup(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // ── Service Desks ─────────────────────────────────────────────────────────
   app.get("/api/service-desks", requireAuth, async (req: Request, res: Response) => {
     try {
