@@ -399,13 +399,13 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             contentStyle={{ fontSize: 11, borderRadius: 6 }}
             labelFormatter={() => ""}
           />
-          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 20 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
-            {count <= 16 && (
+          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
+            {count <= 40 && (
               <LabelList
                 dataKey="value"
                 position="top"
                 formatter={(v: number) => formatValue(v)}
-                style={{ fontSize: 8, fill: "currentColor", fontWeight: 600 }}
+                style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
               />
             )}
           </Area>
@@ -455,7 +455,8 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <div key={i} className="flex items-center gap-1 min-w-0">
               <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
               <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={d.name}>{d.name}</span>
-              <span className="text-[9px] font-semibold shrink-0">{total ? `${((d.value / total) * 100).toFixed(0)}%` : ""}</span>
+              <span className="text-[9px] font-semibold shrink-0">{formatValue(d.value)}</span>
+              <span className="text-[9px] text-muted-foreground shrink-0">{total ? `(${((d.value / total) * 100).toFixed(0)}%)` : ""}</span>
             </div>
           ))}
         </div>
@@ -526,8 +527,8 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <XAxis dataKey="shortName" tick={{ fontSize: 11, fill: "currentColor" }} angle={displayData.length > 10 ? -35 : 0} textAnchor={displayData.length > 10 ? "end" : "middle"} interval={0} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={v => formatValue(v)} width={52} />
             <Tooltip formatter={(v, _n, p) => [formatValue(Number(v)), p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
-            <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill={CHART_COLORS[0] + "20"} dot={displayData.length <= 20 ? { r: 4, fill: CHART_COLORS[0] } : false}>
-              {displayData.length <= 16 && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />}
+            <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill={CHART_COLORS[0] + "20"} dot={displayData.length <= 40 ? { r: 4, fill: CHART_COLORS[0] } : false}>
+              {displayData.length <= 40 && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={{ fontSize: displayData.length > 20 ? 9 : 10, fill: "currentColor", fontWeight: 700 }} />}
             </Area>
           </AreaChart>
         </ResponsiveContainer>
@@ -561,7 +562,8 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <div key={i} className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
               <span className="text-sm text-muted-foreground">{d.name}</span>
-              <span className="text-sm font-bold">{total ? `${((d.value / total) * 100).toFixed(1)}%` : ""}</span>
+              <span className="text-sm font-bold">{formatValue(d.value)}</span>
+              <span className="text-sm text-muted-foreground">{total ? `(${((d.value / total) * 100).toFixed(1)}%)` : ""}</span>
             </div>
           ))}
         </div>

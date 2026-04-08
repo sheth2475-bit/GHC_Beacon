@@ -1962,8 +1962,10 @@ You can help the user understand their data, suggest chart types, explain insigh
             expr = expr.replace(/\[[^\]]+\]/g, "0"); // safety: replace any remaining [refs] with 0
             // eslint-disable-next-line no-new-func
             const result = new Function(`"use strict"; return (${expr})`)();
-            out[col.columnName] = typeof result === "number" && isFinite(result) ? Math.round(result * 1000) / 1000 : 0;
-          } catch { out[col.columnName] = 0; }
+            const computed = typeof result === "number" && isFinite(result) ? Math.round(result * 1000) / 1000 : 0;
+            out[col.columnName] = computed;
+            out[col.label] = computed; // also store by label so measure lookups work
+          } catch { out[col.columnName] = 0; out[col.label] = 0; }
         }
         return out;
       });
