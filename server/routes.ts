@@ -1203,6 +1203,11 @@ export async function registerRoutes(
       const pm = allMilestones.filter(m => m.projectId === p.id);
       return computeProjectHealth(p, pt, pm);
     });
+
+    const taskIds = allTasks.map(t => t.id);
+    const allSubtasks = await storage.getSubtasksByTaskIds(taskIds);
+    const delayedSubtasks = allSubtasks.filter(s => s.dueDate && s.dueDate < today && !s.completed && s.status !== "Completed").length;
+
     const stats = {
       total: allProjects.length,
       active: allProjects.filter(p => p.status === "In Progress" || p.status === "Not Started").length,
@@ -1210,6 +1215,7 @@ export async function registerRoutes(
       atRisk: projectsWithHealth.filter(h => h === "Red").length,
       overdueTasks: allTasks.filter(t => t.dueDate && t.dueDate < today && t.status !== "Completed").length,
       upcomingMilestones: allMilestones.filter(m => m.status === "Upcoming" && m.dueDate && m.dueDate >= today).length,
+      delayedSubtasks,
     };
     res.json(stats);
   });

@@ -120,7 +120,7 @@ export default function DashboardPage() {
   const { data: kpis } = useQuery<Kpi[]>({ queryKey: ["/api/kpis"] });
   const { data: departments } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: portfolioStats } = useQuery<{
-    total: number; active: number; completed: number; atRisk: number; overdueTasks: number; upcomingMilestones: number;
+    total: number; active: number; completed: number; atRisk: number; overdueTasks: number; upcomingMilestones: number; delayedSubtasks: number;
   }>({ queryKey: ["/api/portfolio/stats"] });
   const { data: projects = [] } = useQuery<(Project & { health: string; taskCount: number; completedTaskCount: number })[]>({ queryKey: ["/api/projects"] });
   const { data: milestones = [] } = useQuery<MilestoneType[]>({ queryKey: ["/api/milestones"] });
@@ -205,6 +205,7 @@ export default function DashboardPage() {
     { title: "Active Projects", value: portfolioStats?.active || 0, icon: Briefcase, iconBg: "bg-blue-500/10", iconColor: "text-primary", topBar: "bg-gradient-to-r from-primary to-primary/60", link: "/portfolio", accent: "text-primary" },
     { title: "At Risk", value: portfolioStats?.atRisk || 0, icon: AlertTriangle, iconBg: "bg-red-500/10", iconColor: "text-red-500", topBar: "bg-gradient-to-r from-red-500 to-red-400", link: "/portfolio", accent: "text-red-500" },
     { title: "Overdue Tasks", value: portfolioStats?.overdueTasks || 0, icon: Clock, iconBg: "bg-orange-500/10", iconColor: "text-orange-500", topBar: "bg-gradient-to-r from-orange-500 to-amber-400", link: "/portfolio", accent: "text-orange-500" },
+    { title: "Delayed Subtasks", value: portfolioStats?.delayedSubtasks || 0, icon: AlertCircle, iconBg: "bg-red-500/10", iconColor: "text-red-500", topBar: "bg-gradient-to-r from-red-400 to-rose-400", link: "/portfolio", accent: "text-red-500" },
   ];
   const actionGroup = [
     { title: "Total Actions", value: stats?.totalActions || 0, icon: ListChecks, iconBg: "bg-blue-500/10", iconColor: "text-blue-600", topBar: "bg-gradient-to-r from-blue-500 to-blue-400", pct: pctCompleted, pctLabel: "done", link: "/actions", accent: "text-blue-600" },

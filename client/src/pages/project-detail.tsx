@@ -76,6 +76,7 @@ function subStatusPill(s: string) {
   if (s === "Completed") return "text-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400";
   if (s === "In Progress") return "text-violet-700 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400";
   if (s === "At Risk") return "text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400";
+  if (s === "Delayed") return "text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400";
   return "text-muted-foreground bg-muted";
 }
 
@@ -146,6 +147,10 @@ function TaskCard({
   const totalSubs = task.subtasks?.length || 0;
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = task.dueDate && task.dueDate < today && task.status !== "Completed";
+  const delayedSubCount = task.subtasks?.filter(s => {
+    const prog = (s as any).progress ?? (s.completed ? 100 : 0);
+    return !s.completed && prog < 100 && s.status !== "Completed" && (s as any).dueDate && (s as any).dueDate < today;
+  }).length || 0;
   const owner = (task as any).owner || task.assignee;
 
   const computedProgress = totalSubs > 0
@@ -211,7 +216,14 @@ function TaskCard({
           </div>
           {task.description && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{task.description}</p>}
           {totalSubs > 0 && (
-            <span className="text-[10px] text-muted-foreground/70">{doneCount}/{totalSubs} tasks</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground/70">{doneCount}/{totalSubs} tasks</span>
+              {delayedSubCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-medium">
+                  {delayedSubCount} delayed
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -282,10 +294,11 @@ function TaskCard({
           {task.subtasks.map(sub => {
             const subProg = (sub as any).progress ?? (sub.completed ? 100 : 0);
             const subDone = subProg >= 100 || sub.completed;
+            const subIsDelayed = !subDone && (sub as any).dueDate && (sub as any).dueDate < today;
             return (
               <div
                 key={sub.id}
-                className="group/sub flex items-center border-b last:border-b-0 hover:bg-muted/30 transition-colors min-h-[38px]"
+                className={`group/sub flex items-center border-b last:border-b-0 transition-colors min-h-[38px] ${subIsDelayed ? "bg-red-500/5 hover:bg-red-500/10" : "hover:bg-muted/30"}`}
                 data-testid={`row-subtask-${sub.id}`}
               >
                 {/* Indent spacer (28px) */}
@@ -326,7 +339,7 @@ function TaskCard({
                 {/* Due date (105px) */}
                 <div className="w-[105px] shrink-0 px-2 hidden md:block">
                   {(sub as any).dueDate ? (
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <span className={`text-[11px] flex items-center gap-1 ${subIsDelayed ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                       <Calendar className="h-2.5 w-2.5 shrink-0" />
                       {formatDate((sub as any).dueDate)}
                     </span>
@@ -335,8 +348,8 @@ function TaskCard({
 
                 {/* Status pill (90px) — instead of priority for subtasks */}
                 <div className="w-[90px] shrink-0 px-2 hidden md:block">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${subStatusPill(subDone ? "Completed" : (sub as any).status || "Not Started")}`}>
-                    {subDone ? "Completed" : ((sub as any).status || "Not Started")}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${subStatusPill(subDone ? "Completed" : subIsDelayed ? "Delayed" : (sub as any).status || "Not Started")}`}>
+                    {subDone ? "Completed" : subIsDelayed ? "Delayed" : ((sub as any).status || "Not Started")}
                   </span>
                 </div>
 
