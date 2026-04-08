@@ -246,6 +246,13 @@ export interface IStorage {
   // Workflow Center — Activity
   getWorkflowActivity(submissionId: number): Promise<import("@shared/schema").WorkflowActivity[]>;
   createWorkflowActivity(data: import("@shared/schema").InsertWorkflowActivity): Promise<import("@shared/schema").WorkflowActivity>;
+
+  // Service Desks
+  getServiceDesks(companyId: number): Promise<import("@shared/schema").ServiceDesk[]>;
+  getServiceDesk(id: number): Promise<import("@shared/schema").ServiceDesk | undefined>;
+  createServiceDesk(data: import("@shared/schema").InsertServiceDesk): Promise<import("@shared/schema").ServiceDesk>;
+  updateServiceDesk(id: number, data: Partial<import("@shared/schema").InsertServiceDesk>): Promise<import("@shared/schema").ServiceDesk>;
+  deleteServiceDesk(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1084,6 +1091,30 @@ export class DatabaseStorage implements IStorage {
     const { presentationVersions } = await import("@shared/schema");
     const [row] = await db.insert(presentationVersions).values(data).returning();
     return row;
+  }
+
+  async getServiceDesks(companyId: number) {
+    const { serviceDesks } = await import("@shared/schema");
+    return db.select().from(serviceDesks).where(eq(serviceDesks.companyId, companyId)).orderBy(serviceDesks.name);
+  }
+  async getServiceDesk(id: number) {
+    const { serviceDesks } = await import("@shared/schema");
+    const [row] = await db.select().from(serviceDesks).where(eq(serviceDesks.id, id));
+    return row;
+  }
+  async createServiceDesk(data: import("@shared/schema").InsertServiceDesk) {
+    const { serviceDesks } = await import("@shared/schema");
+    const [row] = await db.insert(serviceDesks).values(data).returning();
+    return row;
+  }
+  async updateServiceDesk(id: number, data: Partial<import("@shared/schema").InsertServiceDesk>) {
+    const { serviceDesks } = await import("@shared/schema");
+    const [row] = await db.update(serviceDesks).set({ ...data, updatedAt: new Date() }).where(eq(serviceDesks.id, id)).returning();
+    return row;
+  }
+  async deleteServiceDesk(id: number) {
+    const { serviceDesks } = await import("@shared/schema");
+    await db.delete(serviceDesks).where(eq(serviceDesks.id, id));
   }
 }
 

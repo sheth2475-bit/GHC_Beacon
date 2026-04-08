@@ -856,7 +856,7 @@ export default function ProjectDetailPage() {
       {/* Progress */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
             <div>
               <p className="text-2xl font-bold">{project.progress ?? 0}%</p>
               <p className="text-xs text-muted-foreground">Overall Progress</p>
@@ -867,8 +867,16 @@ export default function ProjectDetailPage() {
               <p className="text-xs text-muted-foreground">Total Initiatives</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{completedCount}</p>
+              <p className="text-2xl font-bold">{allSubtasks.length}</p>
+              <p className="text-xs text-muted-foreground">Total Subtasks</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{allSubtasks.filter(s => s.completed || s.status === "Completed").length}</p>
               <p className="text-xs text-muted-foreground">Completed</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{allSubtasks.filter(s => !s.completed && s.status !== "Completed" && s.dueDate && new Date(s.dueDate) < new Date()).length}</p>
+              <p className="text-xs text-muted-foreground">Delayed</p>
             </div>
             <div>
               <p className="text-2xl font-bold">{milestones.length}</p>

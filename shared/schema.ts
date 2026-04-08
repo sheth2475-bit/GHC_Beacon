@@ -440,6 +440,7 @@ export const workflowSubmissions = pgTable("workflow_submissions", {
   holderName: text("holder_name"),
   holderEmail: text("holder_email"),
   slaTarget: text("sla_target"),
+  serviceDeskId: integer("service_desk_id"),
   customFields: jsonb("custom_fields").default(sql`'{}'::jsonb`),
   tags: text("tags").array().default(sql`ARRAY[]::text[]`),
   completedAt: timestamp("completed_at"),
@@ -471,10 +472,24 @@ export const workflowActivity = pgTable("workflow_activity", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ─── Service Desks ────────────────────────────────────────────────────────────
+export const serviceDesks = pgTable("service_desks", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  icon: text("icon").default("ticket"),
+  color: text("color").default("violet"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const insertWorkflowTemplateSchema = createInsertSchema(workflowTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertWorkflowSubmissionSchema = createInsertSchema(workflowSubmissions).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 export const insertWorkflowCommentSchema = createInsertSchema(workflowComments).omit({ id: true, createdAt: true });
 export const insertWorkflowActivitySchema = createInsertSchema(workflowActivity).omit({ id: true, createdAt: true });
+export const insertServiceDeskSchema = createInsertSchema(serviceDesks).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type WorkflowTemplate = typeof workflowTemplates.$inferSelect;
 export type InsertWorkflowTemplate = z.infer<typeof insertWorkflowTemplateSchema>;
@@ -484,6 +499,8 @@ export type WorkflowComment = typeof workflowComments.$inferSelect;
 export type InsertWorkflowComment = z.infer<typeof insertWorkflowCommentSchema>;
 export type WorkflowActivity = typeof workflowActivity.$inferSelect;
 export type InsertWorkflowActivity = z.infer<typeof insertWorkflowActivitySchema>;
+export type ServiceDesk = typeof serviceDesks.$inferSelect;
+export type InsertServiceDesk = z.infer<typeof insertServiceDeskSchema>;
 
 // ─── Analytics Studio ─────────────────────────────────────────────────────────
 

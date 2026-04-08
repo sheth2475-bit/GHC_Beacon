@@ -3575,6 +3575,40 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     } catch (err: any) { res.status(500).json({ message: err.message || "Slide refinement failed" }); }
   });
 
+  // ── Service Desks ─────────────────────────────────────────────────────────
+  app.get("/api/service-desks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const desks = await storage.getServiceDesks(user.companyId);
+      res.json(desks);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/service-desks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { insertServiceDeskSchema } = await import("@shared/schema");
+      const parsed = insertServiceDeskSchema.safeParse({ ...req.body, companyId: user.companyId, createdBy: user.id });
+      if (!parsed.success) return res.status(400).json({ message: "Validation failed", errors: parsed.error.errors });
+      const desk = await storage.createServiceDesk(parsed.data);
+      res.status(201).json(desk);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/service-desks/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const desk = await storage.updateServiceDesk(Number(req.params.id), req.body);
+      res.json(desk);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/service-desks/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteServiceDesk(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });
