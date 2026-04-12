@@ -4,7 +4,7 @@ import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
   BarChart3, CheckSquare, FolderKanban, LineChart, Workflow,
   LayoutGrid, Presentation, ClipboardList, Sparkles, CheckCircle2,
-  Zap, TrendingUp, Star, Activity, Users, Download, X, Loader2
+  TrendingUp, Star, Activity, Users, Download, X, Loader2, Mic
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -16,7 +16,7 @@ type Chapter = {
   icon: React.ComponentType<any>; color: string; beats: Beat[];
 };
 
-// ─── Chapters — Sales-optimised narration, timed caption beats ─────────────
+// ─── Chapters (no "close" chapter) ──────────────────────────────────────────
 
 const CHAPTERS: Chapter[] = [
   {
@@ -99,14 +99,6 @@ const CHAPTERS: Chapter[] = [
       { from: 0.70, to: 1,    text: "Every review builds a running performance record your leadership can rely on month after month." },
     ],
   },
-  {
-    id: "close", title: "Start Your Free Trial", subtitle: "Strategy meets execution — every day",
-    duration: 13, icon: Zap, color: "#3b82f6",
-    beats: [
-      { from: 0,    to: 0.48, text: "Performo AI — where strategy meets execution, every single day." },
-      { from: 0.48, to: 1,    text: "Join leadership teams already using Performo to drive performance. Start your free trial today." },
-    ],
-  },
 ];
 
 const TOTAL_DURATION = CHAPTERS.reduce((s, c) => s + c.duration, 0);
@@ -117,6 +109,10 @@ function getCaption(chapter: Chapter, progress: number): string {
   const beat = chapter.beats.find(b => progress >= b.from && progress < b.to)
     || chapter.beats[chapter.beats.length - 1];
   return beat?.text ?? "";
+}
+
+function getNarration(chapter: Chapter): string {
+  return chapter.beats.map(b => b.text).join(" ");
 }
 
 // ─── Visual Components ───────────────────────────────────────────────────────
@@ -181,7 +177,7 @@ function ActionsVisual({ progress }: { progress: number }) {
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-white font-semibold text-sm">Action Items</span>
         <div className="flex gap-2 text-[10px]">
-          {[["#3b82f6","3 In Progress"],["#ef4444","1 Overdue"],["#10b981","1 Completed"]].map(([c,l]) =>
+          {[["#3b82f6","3 In Progress"],["#ef4444","1 Overdue"],["#10b981","1 Done"]].map(([c,l]) =>
             <span key={l} style={{ color: c as string }}>{l}</span>)}
         </div>
       </div>
@@ -285,7 +281,7 @@ function AnalyticsVisual({ progress }: { progress: number }) {
             {[["Total Revenue","AED 4.2M","#10b981"],["Best Month","Dec · AED 412K","#06b6d4"],["YoY Growth","+12%","#3b82f6"]].map(([l,v,c]) =>
               <div key={l} className="rounded-lg p-1.5 text-center" style={{ background:"rgba(255,255,255,0.05)" }}>
                 <div className="text-[8px] text-white/40 mb-0.5">{l}</div>
-                <div className="text-[10px] text-white font-bold" style={{ color: c as string }}>{v}</div>
+                <div className="text-[10px] font-bold" style={{ color: c as string }}>{v}</div>
               </div>)}
           </div>
         </div>
@@ -302,7 +298,7 @@ function AnalyticsVisual({ progress }: { progress: number }) {
           })}
           <div className="mt-auto rounded-lg p-2 border border-cyan-500/25 bg-cyan-500/8 text-[9px] text-cyan-400"
             style={{ opacity: progress > 0.75 ? 1 : 0, transition: "opacity 0.5s" }}>
-            ✨ AI: "Revenue peaks Q4 — driven by occupancy uplift from Oct"
+            ✨ "Revenue peaks Q4 — driven by occupancy uplift from Oct"
           </div>
         </div>
       </div>
@@ -318,9 +314,9 @@ function WorkflowVisual({ progress }: { progress: number }) {
     { name: "Safety Certificates", type: "Certificates", total: 5, open: 3, overdue: 0, color: "#06b6d4" },
   ];
   const tickets = [
-    { ref: "ST-042", title: "PMS login issue — Front Desk", priority: "High", status: "Open" },
-    { ref: "RT-018", title: "Monthly P&L Report submission", due: "Apr 30", status: "Due Soon" },
-    { ref: "LIC-007", title: "Trade License renewal", expiry: "May 15", status: "Overdue" },
+    { ref: "ST-042", title: "PMS login issue — Front Desk", status: "Open" },
+    { ref: "RT-018", title: "Monthly P&L Report submission", status: "Due Soon" },
+    { ref: "LIC-007", title: "Trade License renewal", status: "Overdue" },
   ];
   return (
     <div className="w-full h-full p-4 flex flex-col gap-2.5">
@@ -364,10 +360,10 @@ function WorkflowVisual({ progress }: { progress: number }) {
 
 function ScorecardVisual({ progress }: { progress: number }) {
   const persp = [
-    { label: "Financial", Icon: TrendingUp, kpis:["RevPAR","GOP Margin","ADR","Budget Variance"], score: 78, color:"#10b981" },
-    { label: "Customer", Icon: Star, kpis:["Guest Score","Repeat Rate","NPS","Response Rate"], score: 85, color:"#3b82f6" },
-    { label: "Internal Processes", Icon: Activity, kpis:["Occupancy","Room Turnaround","Maintenance SLA"], score: 62, color:"#f59e0b" },
-    { label: "Learning & Growth", Icon: Users, kpis:["Staff Turnover","Training Hours","Engagement"], score: 54, color:"#ef4444" },
+    { label: "Financial", Icon: TrendingUp, kpis:["RevPAR","GOP Margin","ADR"], score: 78, color:"#10b981" },
+    { label: "Customer", Icon: Star, kpis:["Guest Score","Repeat Rate","NPS"], score: 85, color:"#3b82f6" },
+    { label: "Internal Processes", Icon: Activity, kpis:["Occupancy","Room Turnaround","SLA"], score: 62, color:"#f59e0b" },
+    { label: "Learning & Growth", Icon: Users, kpis:["Staff Turnover","Training Hrs","Engagement"], score: 54, color:"#ef4444" },
   ];
   return (
     <div className="w-full h-full p-4 flex flex-col gap-2.5">
@@ -395,7 +391,7 @@ function ScorecardVisual({ progress }: { progress: number }) {
               <div className="h-1 bg-white/10 rounded-full overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-1100" style={{ width: show ? `${p.score}%` : "0%", background: p.color }} />
               </div>
-              <div className="text-[9px] text-white/35 truncate">{p.kpis.slice(0,3).join(" · ")}</div>
+              <div className="text-[9px] text-white/35">{p.kpis.join(" · ")}</div>
             </div>
           );
         })}
@@ -522,280 +518,229 @@ function IntroVisual({ progress }: { progress: number }) {
   );
 }
 
-function CloseVisual({ progress }: { progress: number }) {
-  return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-5 text-center px-6">
-      <div className="transition-all duration-700" style={{ opacity: progress > 0.08 ? 1 : 0, transform: progress > 0.08 ? "translateY(0)" : "translateY(18px)" }}>
-        <div className="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mx-auto mb-4">
-          <Zap className="w-7 h-7 text-blue-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Ready to Drive Performance?</h2>
-        <p className="text-white/45 text-sm max-w-xs mx-auto leading-relaxed">Every module connected. Every insight actionable. Strategy to execution — in one platform.</p>
-      </div>
-      <div className="transition-all duration-700 flex flex-col gap-3 items-center"
-        style={{ opacity: progress > 0.4 ? 1 : 0, transform: progress > 0.4 ? "translateY(0)" : "translateY(12px)" }}>
-        <div className="text-white/50 text-xs">Explore with demo credentials</div>
-        <div className="flex gap-3 flex-wrap justify-center text-xs">
-          <div className="bg-white/8 border border-white/12 rounded-lg px-3 py-2 text-white/70">
-            <span className="text-white/35">Admin: </span>demo@performo.ai / demo123
-          </div>
-          <div className="bg-white/8 border border-white/12 rounded-lg px-3 py-2 text-white/70">
-            <span className="text-white/35">Exec: </span>exec@performo.ai / exec123
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const VISUALS: Record<string, (p:{progress:number})=>JSX.Element> = {
   intro: IntroVisual, kpi: KpiVisual, actions: ActionsVisual,
   portfolio: PortfolioVisual, analytics: AnalyticsVisual, workflow: WorkflowVisual,
-  scorecard: ScorecardVisual, presentations: PresentationVisual,
-  reviews: ReviewsVisual, close: CloseVisual,
+  scorecard: ScorecardVisual, presentations: PresentationVisual, reviews: ReviewsVisual,
 };
 
-// ─── Canvas Frame Drawing (for MP4 export) ──────────────────────────────────
-
-function hexToRgb(hex: string) {
-  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  return { r, g, b };
-}
+// ─── Canvas Export Frame Drawing ─────────────────────────────────────────────
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lineH: number) {
   const words = text.split(" ");
-  let line = "";
-  let lines: string[] = [];
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = word; }
+  let line = "", lines: string[] = [];
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
     else line = test;
   }
   if (line) lines.push(line);
   lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
-  return lines.length * lineH;
+  return lines.length;
 }
 
-// Polyfill for older browsers
-if (typeof CanvasRenderingContext2D !== "undefined" && !CanvasRenderingContext2D.prototype.roundRect) {
-  CanvasRenderingContext2D.prototype.roundRect = function(x: number, y: number, w: number, h: number, r: number) {
-    r = Math.min(r, w/2, h/2);
-    this.beginPath();
-    this.moveTo(x+r, y); this.lineTo(x+w-r, y); this.arcTo(x+w,y,x+w,y+r,r);
-    this.lineTo(x+w, y+h-r); this.arcTo(x+w,y+h,x+w-r,y+h,r);
-    this.lineTo(x+r, y+h); this.arcTo(x,y+h,x,y+h-r,r);
-    this.lineTo(x, y+r); this.arcTo(x,y,x+r,y,r);
-    this.closePath();
-  };
-}
-
-function drawExportFrame(
-  ctx: CanvasRenderingContext2D, W: number, H: number,
-  chIdx: number, progress: number, captionText: string,
-  totalProgress: number
-) {
-  const ch = CHAPTERS[chIdx];
-  const { r, g, b } = hexToRgb(ch.color);
-
-  // Background
-  ctx.fillStyle = "#080c14";
-  ctx.fillRect(0, 0, W, H);
-  const grad = ctx.createRadialGradient(W*0.3, H*0.3, 0, W*0.3, H*0.3, W*0.7);
-  grad.addColorStop(0, `rgba(${r},${g},${b},0.08)`);
-  grad.addColorStop(1, "transparent");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Header bar
-  ctx.fillStyle = "rgba(255,255,255,0.04)";
-  ctx.fillRect(0, 0, W, 56);
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0,56); ctx.lineTo(W,56); ctx.stroke();
-
-  // Logo
-  ctx.fillStyle = `rgba(${r},${g},${b},0.2)`;
-  ctx.beginPath(); ctx.roundRect(20, 14, 28, 28, 6); ctx.fill();
-  ctx.fillStyle = ch.color;
-  ctx.font = "bold 14px 'Arial'";
-  ctx.textAlign = "center";
-  ctx.fillText("✦", 34, 33);
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 15px 'Arial'";
-  ctx.textAlign = "left";
-  ctx.fillText("Performo AI", 58, 33);
-
-  // Chapter title in header
-  ctx.fillStyle = ch.color;
-  ctx.font = "bold 13px 'Arial'";
-  ctx.textAlign = "right";
-  ctx.fillText(ch.title, W - 20, 27);
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-  ctx.font = "11px 'Arial'";
-  ctx.fillText(ch.subtitle, W - 20, 44);
-
-  // Main content area — chapter-specific cards
-  const contentY = 80, contentH = H - 80 - 160;
-  const items = getChapterExportContent(chIdx, progress);
-  const itemW = items.length <= 2 ? W*0.45 : W*0.29;
-  const itemsX = (W - (items.length * itemW + (items.length-1)*12)) / 2;
-
-  items.forEach((item, i) => {
-    const show = progress > i * (0.8/items.length);
-    const alpha = Math.min((progress - i*(0.8/items.length))*8, 1);
-    if (alpha <= 0) return;
-    const ix = itemsX + i*(itemW+12);
-    const iy = contentY + (1-alpha)*20;
-
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
-    ctx.beginPath(); ctx.roundRect(ix, iy, itemW, contentH, 12); ctx.fill();
-    ctx.strokeStyle = `rgba(${r},${g},${b},0.25)`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.roundRect(ix, iy, itemW, contentH, 12); ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // Item label
-    ctx.fillStyle = ch.color;
-    ctx.font = "bold 11px 'Arial'";
-    ctx.textAlign = "left";
-    ctx.fillText(item.label, ix+16, iy+28);
-
-    // Item value
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold ${items.length<=2?"32":"26"}px 'Arial'`;
-    ctx.fillText(item.value, ix+16, iy+68);
-
-    // Item sub
-    if (item.sub) {
-      ctx.fillStyle = "rgba(255,255,255,0.45)";
-      ctx.font = "12px 'Arial'";
-      wrapText(ctx, item.sub, ix+16, iy+90, itemW-32, 18);
-    }
-
-    // Progress bar inside card
-    if (item.pct !== undefined) {
-      const barY = iy + contentH - 30;
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
-      ctx.beginPath(); ctx.roundRect(ix+16, barY, itemW-32, 6, 3); ctx.fill();
-      ctx.fillStyle = ch.color;
-      ctx.beginPath(); ctx.roundRect(ix+16, barY, (itemW-32)*item.pct, 6, 3); ctx.fill();
-    }
-  });
-
-  // Caption area
-  const capY = H - 148;
-  ctx.fillStyle = "rgba(255,255,255,0.04)";
-  ctx.beginPath(); ctx.roundRect(40, capY, W-80, 80, 10); ctx.fill();
-  if (captionText) {
-    ctx.fillStyle = "rgba(255,255,255,0.88)";
-    ctx.font = "15px 'Arial'";
-    ctx.textAlign = "center";
-    wrapText(ctx, captionText, W/2, capY+28, W-120, 24);
-  }
-
-  // Overall progress bar at bottom
-  const pbY = H - 44;
-  ctx.fillStyle = "rgba(255,255,255,0.06)";
-  ctx.beginPath(); ctx.roundRect(40, pbY, W-80, 6, 3); ctx.fill();
-  ctx.fillStyle = ch.color;
-  ctx.beginPath(); ctx.roundRect(40, pbY, (W-80)*totalProgress, 6, 3); ctx.fill();
-
-  // Chapter dots
-  const dotY = H - 22;
-  CHAPTERS.forEach((c, i) => {
-    const dotX = W/2 - (CHAPTERS.length*16)/2 + i*16 + 8;
-    ctx.fillStyle = i === chIdx ? c.color : "rgba(255,255,255,0.15)";
-    ctx.beginPath(); ctx.arc(dotX, dotY, i === chIdx ? 4 : 3, 0, Math.PI*2); ctx.fill();
-  });
-
-  // Bottom label
-  ctx.fillStyle = "rgba(255,255,255,0.2)";
-  ctx.font = "11px 'Arial'";
-  ctx.textAlign = "left";
-  ctx.fillText("performo.ai", 40, H - 16);
-  ctx.textAlign = "right";
-  ctx.fillText(`${chIdx+1} / ${CHAPTERS.length} — ${ch.title}`, W-40, H-16);
+function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r, y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x, y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
 }
 
 type ExportItem = { label: string; value: string; sub?: string; pct?: number };
-function getChapterExportContent(idx: number, progress: number): ExportItem[] {
-  const ch = CHAPTERS[idx];
-  if (ch.id === "intro") return [
-    { label:"KPIs & Analytics", value:"10+", sub:"Live metrics, charts and AI-powered insights" },
-    { label:"Workflow Modules", value:"4", sub:"Service desk, tasks, licenses, certificates" },
+
+function getChapterCards(chId: string): ExportItem[] {
+  if (chId === "intro") return [
+    { label:"Modules Included", value:"8", sub:"KPIs, Actions, Portfolio, Analytics, Workflow, Scorecard, Presentations, Reviews", pct:1 },
     { label:"AI Features", value:"5+", sub:"Insights, narratives, slides, assistant, auto-alerts" },
+    { label:"Data Sources", value:"Live", sub:"Real-time KPIs, uploaded datasets, workflow submissions" },
   ];
-  if (ch.id === "kpi") return [
-    { label:"KPIs Tracked", value:"10", sub:"Across 4 departments", pct: 1 },
-    { label:"On Track", value:"6", sub:"Green · meeting or exceeding target", pct: 0.6 },
-    { label:"Occupancy Rate", value:"82%", sub:"Target 85% · +4% vs last month", pct: 0.82 },
+  if (chId === "kpi") return [
+    { label:"KPIs Tracked", value:"10", sub:"Across Finance, Operations, HR & Sales", pct:1 },
+    { label:"On Track", value:"6 / 10", sub:"Green status — meeting or exceeding target", pct:0.6 },
+    { label:"Occupancy Rate", value:"82%", sub:"Target 85% · +4% vs prior month", pct:0.82 },
   ];
-  if (ch.id === "actions") return [
-    { label:"Total Actions", value:"6", sub:"Across all departments", pct: 1 },
-    { label:"In Progress", value:"3", sub:"Actively being worked on", pct: 0.5 },
-    { label:"Overdue", value:"1", sub:"Fire safety audit — escalated", pct: 0.17 },
+  if (chId === "actions") return [
+    { label:"Total Actions", value:"6", sub:"Across all departments with assigned owners", pct:1 },
+    { label:"In Progress", value:"3", sub:"Being actively worked on this week", pct:0.5 },
+    { label:"Overdue", value:"1", sub:"Fire safety audit — automatically flagged", pct:0.17 },
   ];
-  if (ch.id === "portfolio") return [
-    { label:"Active Projects", value:"3", sub:"Strategic initiatives in delivery", pct: 1 },
-    { label:"Avg Completion", value:"62%", sub:"Across all projects", pct: 0.62 },
-    { label:"Tasks Complete", value:"24/37", sub:"Milestones: 7 of 12 hit", pct: 0.65 },
+  if (chId === "portfolio") return [
+    { label:"Active Projects", value:"3", sub:"Strategic initiatives currently in delivery", pct:1 },
+    { label:"Avg Completion", value:"62%", sub:"Across all active projects", pct:0.62 },
+    { label:"Tasks Complete", value:"24/37", sub:"Milestones: 7 of 12 hit on time", pct:0.65 },
   ];
-  if (ch.id === "analytics") return [
-    { label:"Datasets Uploaded", value:"3", sub:"Excel data auto-parsed", pct: 1 },
-    { label:"Insights Generated", value:"16", sub:"AI-detected trends and anomalies", pct: 0.85 },
-    { label:"Revenue 2025", value:"AED 4.2M", sub:"Peak December · +12% YoY", pct: 0.72 },
+  if (chId === "analytics") return [
+    { label:"Datasets Uploaded", value:"3", sub:"Excel files auto-parsed into datasets", pct:1 },
+    { label:"AI Insights", value:"16", sub:"Automatically detected trends and anomalies", pct:0.85 },
+    { label:"Revenue 2025", value:"AED 4.2M", sub:"Peak December · +12% year-on-year", pct:0.72 },
   ];
-  if (ch.id === "workflow") return [
-    { label:"Workflow Groups", value:"13", sub:"Across 4 module types", pct: 1 },
-    { label:"Total Items", value:"18", sub:"Tickets, tasks, licenses, certs", pct: 0.85 },
-    { label:"Overdue", value:"2", sub:"Auto-flagged for escalation", pct: 0.11 },
+  if (chId === "workflow") return [
+    { label:"Workflow Groups", value:"13", sub:"Across IT, Finance, Legal, Safety modules", pct:1 },
+    { label:"Total Items", value:"18", sub:"Tickets, tasks, licenses, certificates tracked", pct:0.85 },
+    { label:"Overdue Alerts", value:"2", sub:"Auto-flagged and escalated for action", pct:0.11 },
   ];
-  if (ch.id === "scorecard") return [
-    { label:"Financial Score", value:"78", sub:"RevPAR · GOP Margin · ADR", pct: 0.78 },
-    { label:"Customer Score", value:"85", sub:"Guest satisfaction above target", pct: 0.85 },
-    { label:"Overall Strategy", value:"70", sub:"Weighted across 4 perspectives", pct: 0.70 },
+  if (chId === "scorecard") return [
+    { label:"Financial Score", value:"78 / 100", sub:"RevPAR · GOP Margin · ADR · Budget Variance", pct:0.78 },
+    { label:"Customer Score", value:"85 / 100", sub:"Guest Satisfaction above target", pct:0.85 },
+    { label:"Strategic Score", value:"70 / 100", sub:"Weighted average across all 4 perspectives", pct:0.70 },
   ];
-  if (ch.id === "presentations") return [
-    { label:"Slides Generated", value:"6", sub:"Q2 Board Pack · AI-authored", pct: 1 },
-    { label:"Time Saved", value:"~4hrs", sub:"vs manual PowerPoint creation" },
-    { label:"Data Sources", value:"Live", sub:"KPIs, analytics, actions auto-pulled" },
+  if (chId === "presentations") return [
+    { label:"Slides Generated", value:"6", sub:"Q2 Board Pack — AI authored in seconds", pct:1 },
+    { label:"Time Saved", value:"~4 Hours", sub:"vs manual PowerPoint creation and data gathering" },
+    { label:"Data Source", value:"Live KPIs", sub:"Auto-pulled from your Performo AI dashboard" },
   ];
-  if (ch.id === "reviews") return [
-    { label:"Review Completed", value:"Mar 2026", sub:"AI narrative in 30 seconds" },
-    { label:"Commitments Captured", value:"4", sub:"With named owners and dates", pct: 0.5 },
-    { label:"Risk Areas Flagged", value:"2", sub:"Staff turnover · Safety audit", pct: 0.2 },
-  ];
-  if (ch.id === "close") return [
-    { label:"Modules Included", value:"8", sub:"All in one platform", pct: 1 },
-    { label:"Setup Time", value:"< 1 hour", sub:"Onboard your team fast" },
-    { label:"Free Trial", value:"Available", sub:"No credit card required" },
+  if (chId === "reviews") return [
+    { label:"Review Generated", value:"Mar 2026", sub:"Full AI narrative ready in under 30 seconds" },
+    { label:"Commitments Captured", value:"4", sub:"Each with named owner and due date", pct:0.5 },
+    { label:"Risks Flagged", value:"2", sub:"Staff turnover and safety audit overdue", pct:0.2 },
   ];
   return [];
 }
 
+function drawExportFrame(
+  ctx: CanvasRenderingContext2D, W: number, H: number,
+  ch: Chapter, progress: number, captionText: string, totalProgress: number
+) {
+  // Background
+  ctx.fillStyle = "#080c14";
+  ctx.fillRect(0, 0, W, H);
+  const g = ctx.createRadialGradient(W*0.25, H*0.25, 0, W*0.25, H*0.25, W*0.65);
+  const hex = ch.color;
+  const r = parseInt(hex.slice(1,3),16), gv = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  g.addColorStop(0, `rgba(${r},${gv},${b},0.09)`);
+  g.addColorStop(1, "transparent");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = "rgba(255,255,255,0.035)";
+  rrect(ctx, 0, 0, W, 60, 0); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,60); ctx.lineTo(W,60); ctx.stroke();
+
+  // Logo circle
+  ctx.fillStyle = `rgba(${r},${gv},${b},0.22)`;
+  rrect(ctx, 22, 15, 30, 30, 7); ctx.fill();
+  ctx.fillStyle = ch.color; ctx.font = "bold 15px Arial"; ctx.textAlign = "center";
+  ctx.fillText("✦", 37, 35);
+
+  // Brand name
+  ctx.fillStyle = "#ffffff"; ctx.font = "bold 16px Arial"; ctx.textAlign = "left";
+  ctx.fillText("Performo AI", 62, 35);
+  ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.font = "11px Arial";
+  ctx.fillText("Performance Management Platform", 62, 50);
+
+  // Chapter title (right)
+  ctx.fillStyle = ch.color; ctx.font = "bold 14px Arial"; ctx.textAlign = "right";
+  ctx.fillText(ch.title, W - 22, 30);
+  ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.font = "11px Arial";
+  ctx.fillText(ch.subtitle, W - 22, 47);
+
+  // Content cards
+  const cards = getChapterCards(ch.id);
+  const marginX = 40, contentY = 90, contentH = H - 90 - 170;
+  const gap = 16;
+  const cardW = (W - marginX*2 - gap*(cards.length-1)) / cards.length;
+
+  cards.forEach((card, i) => {
+    const alpha = Math.min(Math.max((progress - i*(0.75/cards.length))*5, 0), 1);
+    if (alpha <= 0) return;
+    const cx = marginX + i*(cardW+gap);
+    const cy = contentY + (1-alpha)*16;
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = `rgba(${r},${gv},${b},0.1)`;
+    rrect(ctx, cx, cy, cardW, contentH, 14); ctx.fill();
+    ctx.strokeStyle = `rgba(${r},${gv},${b},0.3)`; ctx.lineWidth = 1.5;
+    rrect(ctx, cx, cy, cardW, contentH, 14); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Label
+    ctx.fillStyle = ch.color; ctx.font = "bold 11px Arial"; ctx.textAlign = "left";
+    ctx.fillText(card.label, cx+18, cy+28);
+
+    // Value
+    const valSize = card.value.length > 8 ? 26 : 36;
+    ctx.fillStyle = "#ffffff"; ctx.font = `bold ${valSize}px Arial`;
+    ctx.fillText(card.value, cx+18, cy+74);
+
+    // Sub text
+    if (card.sub) {
+      ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.font = "12px Arial";
+      wrapText(ctx, card.sub, cx+18, cy+96, cardW-36, 18);
+    }
+
+    // Progress bar
+    if (card.pct !== undefined) {
+      const bY = cy + contentH - 28, bW = cardW - 36;
+      ctx.fillStyle = "rgba(255,255,255,0.1)";
+      rrect(ctx, cx+18, bY, bW, 6, 3); ctx.fill();
+      ctx.fillStyle = ch.color;
+      rrect(ctx, cx+18, bY, bW*card.pct, 6, 3); ctx.fill();
+    }
+  });
+
+  // Caption box
+  const capY = H - 155;
+  ctx.fillStyle = "rgba(255,255,255,0.04)";
+  rrect(ctx, 40, capY, W-80, 80, 10); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1;
+  rrect(ctx, 40, capY, W-80, 80, 10); ctx.stroke();
+
+  if (captionText) {
+    ctx.fillStyle = "rgba(255,255,255,0.88)"; ctx.font = "15px Arial"; ctx.textAlign = "center";
+    wrapText(ctx, captionText, W/2, capY + 28, W - 140, 24);
+  }
+
+  // Progress bar
+  const pbY = H - 52;
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  rrect(ctx, 40, pbY, W-80, 8, 4); ctx.fill();
+  ctx.fillStyle = ch.color;
+  rrect(ctx, 40, pbY, Math.max((W-80)*totalProgress, 8), 8, 4); ctx.fill();
+
+  // Chapter dots
+  CHAPTERS.forEach((c, i) => {
+    const dotX = W/2 - (CHAPTERS.length*18)/2 + i*18 + 9;
+    ctx.fillStyle = c.id === ch.id ? c.color : "rgba(255,255,255,0.15)";
+    ctx.beginPath(); ctx.arc(dotX, H-28, c.id === ch.id ? 5 : 3.5, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Footer text
+  ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.font = "11px Arial"; ctx.textAlign = "left";
+  ctx.fillText("performo.ai", 40, H - 16);
+  ctx.textAlign = "right";
+  ctx.fillText(`${CHAPTERS.findIndex(c => c.id === ch.id)+1} of ${CHAPTERS.length} — ${ch.title}`, W-40, H-16);
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
+
+type RecPhase = "idle" | "audio" | "recording" | "done" | "error";
 
 export default function DemoPage() {
   const [, navigate] = useLocation();
   const [chIdx, setChIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [elapsed, setElapsed] = useState(0); // within chapter
+  const [elapsed, setElapsed] = useState(0);
   const [totalElapsed, setTotalElapsed] = useState(0);
   const [caption, setCaption] = useState("");
 
-  // Recording
-  const [recording, setRecording] = useState(false);
+  // Export state
+  const [recPhase, setRecPhase] = useState<RecPhase>("idle");
   const [recProgress, setRecProgress] = useState(0);
-  const [recDone, setRecDone] = useState<string|null>(null);
+  const [recAudioProgress, setRecAudioProgress] = useState(0);
+  const [recUrl, setRecUrl] = useState<string|null>(null);
   const [recError, setRecError] = useState<string|null>(null);
+  const [recMime, setRecMime] = useState<string>("");
 
   const intervalRef = useRef<ReturnType<typeof setInterval>|null>(null);
-  const speechRef = useRef<SpeechSynthesisUtterance|null>(null);
-  const recCanvasRef = useRef<HTMLCanvasElement|null>(null);
-  const recBlobsRef = useRef<Blob[]>([]);
   const recorderRef = useRef<MediaRecorder|null>(null);
+  const recBlobsRef = useRef<Blob[]>([]);
+  const abortRef = useRef(false);
 
   const chapter = CHAPTERS[chIdx];
   const chProgress = elapsed / chapter.duration;
@@ -810,24 +755,19 @@ export default function DemoPage() {
   const speakChapter = useCallback((idx: number) => {
     stopSpeech();
     if (muted || typeof window === "undefined" || !window.speechSynthesis) return;
-    const utt = new SpeechSynthesisUtterance(CHAPTERS[idx].beats.map(b => b.text).join(" "));
+    const utt = new SpeechSynthesisUtterance(getNarration(CHAPTERS[idx]));
     utt.rate = 0.9; utt.pitch = 1.0; utt.volume = 0.95;
     const voices = window.speechSynthesis.getVoices();
     const voice = voices.find(v => v.name.includes("Google UK English Female") || v.name.includes("Samantha") || v.name.includes("Karen"))
       || voices.find(v => v.lang === "en-GB") || voices.find(v => v.lang.startsWith("en"));
     if (voice) utt.voice = voice;
-    speechRef.current = utt;
     window.speechSynthesis.speak(utt);
   }, [muted, stopSpeech]);
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
-
   const goChapter = useCallback((idx: number, autoSpeak = false) => {
     stopSpeech();
-    setChIdx(idx);
-    setElapsed(0);
-    const baseElapsed = CHAPTERS.slice(0,idx).reduce((s,c) => s+c.duration, 0);
-    setTotalElapsed(baseElapsed);
+    setChIdx(idx); setElapsed(0);
+    setTotalElapsed(CHAPTERS.slice(0,idx).reduce((s,c) => s+c.duration, 0));
     if (autoSpeak) speakChapter(idx);
   }, [stopSpeech, speakChapter]);
 
@@ -850,13 +790,7 @@ export default function DemoPage() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [playing, chIdx, goChapter, stopSpeech]);
 
-  // ── Caption sync ─────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    setCaption(getCaption(chapter, chProgress));
-  }, [chapter, chProgress]);
-
-  // ── Controls ─────────────────────────────────────────────────────────────────
+  useEffect(() => { setCaption(getCaption(chapter, chProgress)); }, [chapter, chProgress]);
 
   const togglePlay = () => {
     if (!playing) { setPlaying(true); speakChapter(chIdx); }
@@ -864,103 +798,154 @@ export default function DemoPage() {
   };
 
   const toggleMute = () => {
-    setMuted(m => {
-      if (!m) stopSpeech();
-      else if (playing) speakChapter(chIdx);
-      return !m;
-    });
+    setMuted(m => { if (!m) stopSpeech(); else if (playing) speakChapter(chIdx); return !m; });
   };
 
   useEffect(() => () => { stopSpeech(); if (intervalRef.current) clearInterval(intervalRef.current); }, [stopSpeech]);
 
-  // ── MP4/WebM Export ──────────────────────────────────────────────────────────
+  // ── Export: Full Video + TTS Audio ──────────────────────────────────────────
 
-  const getBestMimeType = () => {
+  const getBestMime = () => {
     if (typeof MediaRecorder === "undefined") return null;
-    const types = [
-      "video/mp4; codecs=avc1.42E01E",
-      "video/mp4",
-      "video/webm; codecs=vp9",
-      "video/webm; codecs=vp8",
-      "video/webm",
-    ];
-    return types.find(t => MediaRecorder.isTypeSupported(t)) ?? null;
+    for (const t of ["video/mp4; codecs=avc1.42E01E","video/mp4","video/webm; codecs=vp9","video/webm"])
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    return null;
   };
 
   const startExport = useCallback(async () => {
-    const mimeType = getBestMimeType();
-    if (!mimeType) { setRecError("Your browser does not support video recording. Please try Chrome or Safari."); return; }
+    const mime = getBestMime();
+    if (!mime) { setRecError("Your browser doesn't support video recording. Try Chrome or Safari."); setRecPhase("error"); return; }
+
+    abortRef.current = false;
+    setRecPhase("audio");
+    setRecProgress(0);
+    setRecAudioProgress(0);
+    setRecUrl(null);
+    setRecError(null);
+    setRecMime(mime);
+
+    // ── Phase 1: Fetch TTS audio for all chapters ────────────────────────────
+    let audioBuffers: AudioBuffer[] = [];
+    let audioCtx: AudioContext;
+    try {
+      audioCtx = new AudioContext();
+      await audioCtx.resume();
+
+      for (let i = 0; i < CHAPTERS.length; i++) {
+        if (abortRef.current) return;
+        setRecAudioProgress((i) / CHAPTERS.length);
+        const narration = getNarration(CHAPTERS[i]);
+        const resp = await fetch("/api/demo/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: narration }),
+        });
+        if (!resp.ok) throw new Error(`TTS failed for chapter ${i+1}: ${await resp.text()}`);
+        const arrayBuf = await resp.arrayBuffer();
+        const decoded = await audioCtx.decodeAudioData(arrayBuf);
+        audioBuffers.push(decoded);
+      }
+      setRecAudioProgress(1);
+    } catch (e: any) {
+      setRecError(`Audio generation failed: ${e.message}`);
+      setRecPhase("error");
+      return;
+    }
+
+    if (abortRef.current) return;
+
+    // ── Phase 2: Record canvas + audio ──────────────────────────────────────
+    setRecPhase("recording");
 
     const W = 1280, H = 720, FPS = 30;
     const canvas = document.createElement("canvas");
     canvas.width = W; canvas.height = H;
-    recCanvasRef.current = canvas;
     const ctx = canvas.getContext("2d")!;
-    const stream = canvas.captureStream(FPS);
+
+    // Audio destination (captures audio into the recording stream)
+    const audioDest = audioCtx!.createMediaStreamDestination();
+    const canvasStream = canvas.captureStream(FPS);
+    const combinedStream = new MediaStream([
+      ...canvasStream.getVideoTracks(),
+      ...audioDest.stream.getAudioTracks(),
+    ]);
 
     recBlobsRef.current = [];
-    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
+    const recorder = new MediaRecorder(combinedStream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
     recorderRef.current = recorder;
     recorder.ondataavailable = e => { if (e.data.size > 0) recBlobsRef.current.push(e.data); };
     recorder.onstop = () => {
-      const blob = new Blob(recBlobsRef.current, { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      setRecDone(url);
-      setRecording(false);
+      const blob = new Blob(recBlobsRef.current, { type: mime });
+      setRecUrl(URL.createObjectURL(blob));
+      setRecPhase("done");
     };
-
-    setRecording(true);
-    setRecProgress(0);
-    setRecError(null);
-    setRecDone(null);
     recorder.start(500);
 
-    const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
-    let frameCount = 0;
-    const totalFrames = Math.ceil(TOTAL_DURATION * FPS);
-    let currentChIdx = 0;
-    let currentElapsed = 0;
+    // State tracked as refs so draw loop can access current values
+    const currentChIdx = { v: 0 };
+    const chapterStartTime = { v: audioCtx!.currentTime };
+    const totalAudioDur = audioBuffers.reduce((s, b) => s + b.duration, 0);
+    let currentSrc: AudioBufferSourceNode | null = null;
 
-    const drawLoop = () => {
-      if (!recorderRef.current || recorderRef.current.state === "inactive") return;
-      const ch = CHAPTERS[currentChIdx];
-      const prog = Math.min(currentElapsed / ch.duration, 1);
-      const capText = getCaption(ch, prog);
-      const totProg = (CHAPTERS.slice(0,currentChIdx).reduce((s,c)=>s+c.duration,0) + currentElapsed) / TOTAL_DURATION;
-      drawExportFrame(ctx, W, H, currentChIdx, prog, capText, totProg);
-
-      frameCount++;
-      setRecProgress(frameCount / totalFrames);
-
-      currentElapsed += 1/FPS;
-      if (currentElapsed >= ch.duration) { currentChIdx++; currentElapsed = 0; }
-
-      if (currentChIdx >= CHAPTERS.length || (recorderRef.current && recorderRef.current.state === "inactive")) {
-        recorder.stop();
+    function scheduleNextChapter(idx: number) {
+      if (idx >= CHAPTERS.length || abortRef.current) {
+        setTimeout(() => recorder.stop(), 500);
         return;
       }
+      currentChIdx.v = idx;
+      chapterStartTime.v = audioCtx!.currentTime;
+      const src = audioCtx!.createBufferSource();
+      src.buffer = audioBuffers[idx];
+      src.connect(audioDest);
+      currentSrc = src;
+      src.onended = () => scheduleNextChapter(idx + 1);
+      src.start();
+    }
+
+    scheduleNextChapter(0);
+
+    function drawLoop() {
+      if (abortRef.current) { recorder.stop(); return; }
+      const idx = currentChIdx.v;
+      if (idx >= CHAPTERS.length) return;
+
+      const ch = CHAPTERS[idx];
+      const audioDur = audioBuffers[idx].duration;
+      const chElapsed = Math.max(0, audioCtx!.currentTime - chapterStartTime.v);
+      const progress = Math.min(chElapsed / audioDur, 1);
+
+      const prevAudioDur = audioBuffers.slice(0, idx).reduce((s,b) => s+b.duration, 0);
+      const totalElapsed = prevAudioDur + chElapsed;
+      const totalProg = Math.min(totalElapsed / totalAudioDur, 1);
+
+      const capText = getCaption(ch, progress);
+      drawExportFrame(ctx, W, H, ch, progress, capText, totalProg);
+      setRecProgress(totalProg);
+
       requestAnimationFrame(drawLoop);
-    };
+    }
     requestAnimationFrame(drawLoop);
   }, []);
 
   const cancelExport = () => {
+    abortRef.current = true;
     if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
-    setRecording(false); setRecProgress(0);
+    setRecPhase("idle");
+    setRecProgress(0);
   };
 
   const downloadExport = () => {
-    if (!recDone) return;
-    const mimeType = getBestMimeType() ?? "video/webm";
-    const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+    if (!recUrl) return;
+    const ext = recMime.startsWith("video/mp4") ? "mp4" : "webm";
     const a = document.createElement("a");
-    a.href = recDone; a.download = `performo-ai-product-demo.${ext}`; a.click();
+    a.href = recUrl; a.download = `performo-ai-demo.${ext}`; a.click();
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   const Visual = VISUALS[chapter.id];
   const fmtTime = (s: number) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+  const showModal = recPhase !== "idle";
 
   return (
     <div className="fixed inset-0 bg-[#080c14] flex flex-col select-none overflow-hidden">
@@ -975,9 +960,8 @@ export default function DemoPage() {
           <span className="text-white/25 text-xs ml-1">· Product Demo</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={startExport} disabled={recording}
-            className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/8 transition-all disabled:opacity-40"
-          >
+          <button onClick={startExport} disabled={recPhase !== "idle"}
+            className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/8 transition-all disabled:opacity-40">
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Export Video</span>
           </button>
@@ -997,11 +981,11 @@ export default function DemoPage() {
             const isActive = i === chIdx, isPast = i < chIdx;
             return (
               <button key={ch.id} onClick={() => goChapter(i, playing)}
-                className="flex items-center gap-2.5 px-3 py-2.5 text-left transition-all relative"
+                className="flex items-center gap-2.5 px-3 py-2.5 text-left transition-all"
                 style={{ background: isActive ? `${ch.color}12` : "transparent", borderLeft: `3px solid ${isActive ? ch.color : "transparent"}` }}>
                 <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
                   style={{ background: isActive ? `${ch.color}22` : "rgba(255,255,255,0.04)", border:`1px solid ${isActive?ch.color+"40":"transparent"}` }}>
-                  <ch.icon className="w-3 h-3" style={{ color: isActive ? ch.color : isPast ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.25)" }} />
+                  <ch.icon className="w-3 h-3" style={{ color: isActive ? ch.color : "rgba(255,255,255,0.25)" }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] font-medium truncate" style={{ color: isActive?"white":"rgba(255,255,255,0.38)" }}>{ch.title}</div>
@@ -1014,13 +998,12 @@ export default function DemoPage() {
           })}
         </div>
 
-        {/* Main screen */}
+        {/* Screen */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Video area */}
           <div className="flex-1 relative overflow-hidden"
             style={{ background:`radial-gradient(ellipse at 25% 25%, ${chapter.color}07 0%, transparent 55%), #080c14` }}>
 
-            {/* Chapter badge */}
+            {/* Chapter header */}
             <div className="absolute top-0 left-0 right-0 px-5 pt-3.5 z-10" style={{ background:"linear-gradient(to bottom,rgba(0,0,0,0.45),transparent)" }}>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background:`${chapter.color}22`, border:`1px solid ${chapter.color}35` }}>
@@ -1032,11 +1015,10 @@ export default function DemoPage() {
               </div>
             </div>
 
-            {/* Visual panel */}
+            {/* Visual */}
             <div className="absolute inset-0 flex items-center justify-center px-5 pt-12 pb-24">
               <div className="w-full max-w-2xl h-full max-h-[320px] rounded-2xl overflow-hidden"
-                style={{ background:"rgba(255,255,255,0.035)", border:`1px solid ${chapter.color}18`,
-                  boxShadow:`0 0 80px ${chapter.color}0c` }}>
+                style={{ background:"rgba(255,255,255,0.035)", border:`1px solid ${chapter.color}18`, boxShadow:`0 0 80px ${chapter.color}0c` }}>
                 <Visual progress={chProgress} />
               </div>
             </div>
@@ -1049,7 +1031,7 @@ export default function DemoPage() {
               </p>
             </div>
 
-            {/* Play overlay when paused */}
+            {/* Play overlay */}
             {!playing && (
               <div className="absolute inset-0 flex items-center justify-center cursor-pointer z-20" onClick={togglePlay}>
                 <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur border border-white/18 flex items-center justify-center hover:bg-white/18 transition-all hover:scale-105">
@@ -1059,10 +1041,9 @@ export default function DemoPage() {
             )}
           </div>
 
-          {/* Controls bar */}
+          {/* Controls */}
           <div className="bg-black/80 border-t border-white/8 px-4 py-3 flex-shrink-0">
-            {/* Progress bar */}
-            <div className="mb-3 cursor-pointer relative">
+            <div className="mb-3 relative">
               <div className="h-1 bg-white/8 rounded-full overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-100"
                   style={{ width:`${totalPct*100}%`, background:`linear-gradient(to right,${chapter.color},${chapter.color}cc)` }} />
@@ -1071,33 +1052,28 @@ export default function DemoPage() {
                 {CHAPTERS.map((ch,i) => {
                   if (i===0) return null;
                   const pct=(CHAPTERS.slice(0,i).reduce((s,c)=>s+c.duration,0)/TOTAL_DURATION)*100;
-                  return <div key={ch.id} className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2.5 bg-white/15 rounded-full" style={{ left:`${pct}%` }} />;
+                  return <div key={ch.id} className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2.5 bg-white/15" style={{ left:`${pct}%` }} />;
                 })}
               </div>
             </div>
-
-            {/* Button row */}
             <div className="flex items-center gap-3">
               <button onClick={() => goChapter(Math.max(0,chIdx-1), playing)} disabled={chIdx===0} className="text-white/45 hover:text-white transition-colors disabled:opacity-25">
                 <SkipBack className="w-4 h-4" />
               </button>
-              <button onClick={togglePlay} className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-105"
+              <button onClick={togglePlay} className="w-8 h-8 rounded-full flex items-center justify-center hover:scale-105 transition-all"
                 style={{ background:chapter.color }}>
                 {playing ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
               </button>
               <button onClick={() => goChapter(Math.min(CHAPTERS.length-1,chIdx+1), playing)} disabled={chIdx===CHAPTERS.length-1} className="text-white/45 hover:text-white transition-colors disabled:opacity-25">
                 <SkipForward className="w-4 h-4" />
               </button>
-              <div className="text-white/35 text-xs tabular-nums">
-                {fmtTime(totalElapsed)} / {fmtTime(TOTAL_DURATION)}
-              </div>
+              <div className="text-white/35 text-xs tabular-nums">{fmtTime(totalElapsed)} / {fmtTime(TOTAL_DURATION)}</div>
               <div className="flex-1" />
               <button onClick={toggleMute} className="text-white/45 hover:text-white transition-colors">
                 {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
               <span className="text-white/25 text-[11px] hidden sm:inline">{chapter.title}</span>
             </div>
-
             {/* Mobile chapter strip */}
             <div className="flex gap-1.5 mt-2.5 overflow-x-auto lg:hidden">
               {CHAPTERS.map((ch,i) => {
@@ -1116,59 +1092,94 @@ export default function DemoPage() {
         </div>
       </div>
 
-      {/* ─── Recording Modal ─────────────────────────────────────────────── */}
-      {(recording || recDone || recError) && (
+      {/* ─── Export Modal ────────────────────────────────────────────────────── */}
+      {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
           <div className="bg-[#0f1520] border border-white/12 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <Download className="w-4 h-4 text-blue-400" />
                 <span className="text-white font-semibold text-sm">Export Demo Video</span>
               </div>
-              {!recording && (
-                <button onClick={() => { setRecDone(null); setRecError(null); }} className="text-white/40 hover:text-white">
+              {(recPhase === "done" || recPhase === "error") && (
+                <button onClick={() => setRecPhase("idle")} className="text-white/40 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               )}
             </div>
 
-            {recording && (
-              <>
-                <div className="flex items-center gap-3 mb-3">
-                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
-                  <p className="text-white/70 text-sm">Rendering demo — please wait…</p>
+            {/* Phase: Generating audio */}
+            {recPhase === "audio" && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <Mic className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-white text-sm font-medium">Generating narration audio…</div>
+                    <div className="text-white/45 text-xs mt-0.5">Creating AI voice for {CHAPTERS.length} chapters</div>
+                  </div>
                 </div>
-                <div className="h-2 bg-white/8 rounded-full overflow-hidden mb-1">
-                  <div className="h-full bg-blue-500 rounded-full transition-all duration-100" style={{ width:`${recProgress*100}%` }} />
+                <div>
+                  <div className="flex justify-between text-xs text-white/45 mb-1.5">
+                    <span>Chapter {Math.min(Math.ceil(recAudioProgress * CHAPTERS.length) + 1, CHAPTERS.length)} of {CHAPTERS.length}</span>
+                    <span>{Math.round(recAudioProgress*100)}%</span>
+                  </div>
+                  <div className="h-2 bg-white/8 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width:`${recAudioProgress*100}%` }} />
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/35 text-xs">{Math.round(recProgress*100)}% complete</span>
-                  <button onClick={cancelExport} className="text-red-400 hover:text-red-300 text-xs">Cancel</button>
-                </div>
-                <p className="text-white/30 text-xs mt-3 text-center">This may take 1–2 minutes. Do not close this page.</p>
-              </>
+                <p className="text-white/30 text-xs text-center">This usually takes 30–60 seconds. Do not close this page.</p>
+                <button onClick={cancelExport} className="w-full text-red-400 hover:text-red-300 text-xs py-1.5 transition-colors">Cancel</button>
+              </div>
             )}
 
-            {recDone && (
-              <>
-                <div className="flex items-center gap-2 mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
-                  <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                  <p className="text-green-300 text-sm">Video ready — click below to download.</p>
+            {/* Phase: Recording */}
+            {recPhase === "recording" && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  <div>
+                    <div className="text-white text-sm font-medium">Recording video with narration…</div>
+                    <div className="text-white/45 text-xs mt-0.5">HD 1280×720 · Voice + animation in sync</div>
+                  </div>
                 </div>
-                <div className="text-white/40 text-xs mb-4 leading-relaxed">
-                  Format: {getBestMimeType()?.startsWith("video/mp4") ? "MP4 (H.264)" : "WebM (VP9)"} · 1280×720 HD · ~{TOTAL_DURATION}s<br/>
-                  Narration: play the demo in your browser for full voice narration.
+                <div>
+                  <div className="flex justify-between text-xs text-white/45 mb-1.5">
+                    <span>{fmtTime(recProgress * TOTAL_DURATION)} elapsed</span>
+                    <span>{Math.round(recProgress*100)}%</span>
+                  </div>
+                  <div className="h-2 bg-white/8 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 rounded-full transition-all duration-200" style={{ width:`${recProgress*100}%` }} />
+                  </div>
+                </div>
+                <p className="text-white/30 text-xs text-center">Recording at real-time speed. Do not close this page.</p>
+                <button onClick={cancelExport} className="w-full text-red-400 hover:text-red-300 text-xs py-1.5 transition-colors">Cancel</button>
+              </div>
+            )}
+
+            {/* Phase: Done */}
+            {recPhase === "done" && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                  <p className="text-green-300 text-sm">Video ready — complete with voice narration!</p>
+                </div>
+                <div className="text-white/40 text-xs leading-relaxed p-3 bg-white/4 rounded-xl">
+                  Format: {recMime.startsWith("video/mp4") ? "MP4 (H.264)" : "WebM (VP9)"} · 1280×720 HD<br/>
+                  Contains all {CHAPTERS.length} chapters with AI voice narration synced to each section.
                 </div>
                 <button onClick={downloadExport}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
                   <Download className="w-4 h-4" />
-                  Download {getBestMimeType()?.startsWith("video/mp4") ? "MP4" : "WebM"} Video
+                  Download {recMime.startsWith("video/mp4") ? "MP4" : "WebM"} Video
                 </button>
-              </>
+              </div>
             )}
 
-            {recError && (
-              <div className="text-red-400 text-sm p-3 bg-red-500/10 border border-red-500/20 rounded-xl">{recError}</div>
+            {/* Phase: Error */}
+            {recPhase === "error" && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
+                {recError}
+              </div>
             )}
           </div>
         </div>

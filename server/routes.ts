@@ -3664,6 +3664,30 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── Demo TTS (public — no auth required) ─────────────────────────────────
+  app.post("/api/demo/tts", async (req: Request, res: Response) => {
+    try {
+      const { text } = req.body;
+      if (!text || typeof text !== "string" || text.length > 3000) {
+        return res.status(400).json({ message: "Invalid text" });
+      }
+      const { getOaiV2 } = await import("./ai");
+      const oai = getOaiV2();
+      const speech = await oai.audio.speech.create({
+        model: "tts-1",
+        voice: "nova",
+        input: text,
+        response_format: "mp3",
+      });
+      const buffer = Buffer.from(await speech.arrayBuffer());
+      res.set("Content-Type", "audio/mpeg");
+      res.set("Cache-Control", "public, max-age=7200");
+      res.send(buffer);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });
