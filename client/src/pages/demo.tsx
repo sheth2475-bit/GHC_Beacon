@@ -4,7 +4,7 @@ import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
   BarChart3, CheckSquare, FolderKanban, LineChart, Workflow,
   LayoutGrid, Presentation, ClipboardList, Sparkles, CheckCircle2,
-  TrendingUp, Star, Activity, Users, Download, X
+  TrendingUp, Star, Activity, Users
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -16,94 +16,132 @@ type Chapter = {
   icon: React.ComponentType<any>; color: string; beats: Beat[];
 };
 
-// ─── Chapters (no "close" chapter) ──────────────────────────────────────────
+// ─── Chapters ────────────────────────────────────────────────────────────────
+// duration is a generous visual-animation time; chapter advancement is driven
+// by speech-synthesis onend so narration always finishes naturally.
 
 const CHAPTERS: Chapter[] = [
   {
-    id: "intro", title: "Welcome to Performo AI", subtitle: "Complete Performance Platform",
-    duration: 13, icon: Sparkles, color: "#3b82f6",
+    id: "intro",
+    title: "Welcome to Performo AI",
+    subtitle: "Complete Performance Platform",
+    duration: 28,
+    icon: Sparkles,
+    color: "#3b82f6",
     beats: [
-      { from: 0,    to: 0.45, text: "Meet Performo AI — the complete performance management platform that connects strategy to daily execution." },
-      { from: 0.45, to: 1,    text: "From KPIs to workflow to boardroom presentations, every module works together in one intelligent system." },
+      { from: 0,    to: 0.42, text: "Meet Performo AI — the complete performance management platform that connects strategy to daily execution." },
+      { from: 0.42, to: 1,    text: "From KPIs to workflow to boardroom presentations, every module works together in one intelligent system." },
     ],
   },
   {
-    id: "kpi", title: "KPI Dashboard", subtitle: "Live metric visibility for every team",
-    duration: 24, icon: BarChart3, color: "#10b981",
+    id: "kpi",
+    title: "KPI Dashboard",
+    subtitle: "Live metric visibility for every team",
+    duration: 40,
+    icon: BarChart3,
+    color: "#10b981",
     beats: [
-      { from: 0,    to: 0.30, text: "Your KPI Dashboard puts every critical metric in one place — live, colour-coded, and instantly actionable." },
-      { from: 0.30, to: 0.62, text: "Traffic lights tell the whole story at a glance — green for on track, amber for at risk, red for action needed." },
-      { from: 0.62, to: 1,    text: "Drill into any KPI for trend history, monthly actuals, targets, and the owner responsible for delivery." },
+      { from: 0,    to: 0.28, text: "Your KPI Dashboard puts every critical metric in one place — live, colour-coded, and instantly actionable." },
+      { from: 0.28, to: 0.60, text: "Traffic lights tell the whole story at a glance — green for on track, amber for at risk, red for action needed." },
+      { from: 0.60, to: 1,    text: "Drill into any KPI for trend history, monthly actuals, targets, and the owner responsible for delivery." },
     ],
   },
   {
-    id: "actions", title: "Actions & Accountability", subtitle: "From insight to execution",
-    duration: 20, icon: CheckSquare, color: "#f59e0b",
+    id: "actions",
+    title: "Actions & Accountability",
+    subtitle: "From insight to execution",
+    duration: 38,
+    icon: CheckSquare,
+    color: "#f59e0b",
     beats: [
-      { from: 0,    to: 0.40, text: "Every insight in Performo AI can be turned into an accountable action with a single click." },
-      { from: 0.40, to: 0.72, text: "Assign owners, set due dates, and track progress in real time — from Not Started to Completed." },
-      { from: 0.72, to: 1,    text: "Overdue items surface automatically, so every commitment is visible and nothing slips through." },
+      { from: 0,    to: 0.35, text: "Every insight in Performo AI can be turned into an accountable action with a single click." },
+      { from: 0.35, to: 0.68, text: "Assign owners, set due dates, and track progress in real time — from Not Started to Completed." },
+      { from: 0.68, to: 1,    text: "Overdue items surface automatically, so every commitment is visible and nothing slips through the cracks." },
     ],
   },
   {
-    id: "portfolio", title: "Portfolio & Projects", subtitle: "Strategic initiatives at a glance",
-    duration: 22, icon: FolderKanban, color: "#8b5cf6",
+    id: "portfolio",
+    title: "Portfolio & Projects",
+    subtitle: "Strategic initiatives at a glance",
+    duration: 38,
+    icon: FolderKanban,
+    color: "#8b5cf6",
     beats: [
-      { from: 0,    to: 0.35, text: "The Portfolio module gives leadership a real-time view of every strategic initiative in one dashboard." },
-      { from: 0.35, to: 0.68, text: "See project health, milestone completion, and task progress at a glance — with risk status instantly visible." },
-      { from: 0.68, to: 1,    text: "Drill into any project for full detail — tasks, subtasks, team workload, and blockers — all connected." },
+      { from: 0,    to: 0.33, text: "The Portfolio module gives leadership a real-time view of every strategic initiative in one dashboard." },
+      { from: 0.33, to: 0.66, text: "See project health, milestone completion, and task progress at a glance — with risk status instantly visible." },
+      { from: 0.66, to: 1,    text: "Drill into any project for full detail — tasks, subtasks, team workload, and blockers — all in one place." },
     ],
   },
   {
-    id: "analytics", title: "Analytics Studio", subtitle: "Upload data, unlock insights instantly",
-    duration: 26, icon: LineChart, color: "#06b6d4",
+    id: "analytics",
+    title: "Analytics Studio",
+    subtitle: "Upload data, unlock insights instantly",
+    duration: 48,
+    icon: LineChart,
+    color: "#06b6d4",
     beats: [
-      { from: 0,    to: 0.28, text: "Upload any Excel file and Performo AI builds rich, interactive charts and datasets in seconds." },
-      { from: 0.28, to: 0.55, text: "Build custom dashboards with drag-and-drop widgets — bar charts, line trends, pie breakdowns, KPI cards." },
-      { from: 0.55, to: 0.78, text: "Create formula columns, apply filters, and let the AI generate narrative insights from your data automatically." },
-      { from: 0.78, to: 1,    text: "Ask the AI assistant any business question in plain English — your data answers." },
+      { from: 0,    to: 0.24, text: "Upload any Excel file and Performo AI builds rich, interactive charts and datasets in seconds." },
+      { from: 0.24, to: 0.48, text: "Build custom dashboards with drag-and-drop widgets — bar charts, line trends, pie breakdowns, and KPI cards." },
+      { from: 0.48, to: 0.74, text: "Create formula columns, apply filters, and let the AI generate narrative insights from your data automatically." },
+      { from: 0.74, to: 1,    text: "Ask the AI assistant any business question in plain English — and your data answers instantly." },
     ],
   },
   {
-    id: "workflow", title: "Workflow Center", subtitle: "Operational discipline across every team",
-    duration: 22, icon: Workflow, color: "#f43f5e",
+    id: "workflow",
+    title: "Workflow Center",
+    subtitle: "Operational discipline across every team",
+    duration: 38,
+    icon: Workflow,
+    color: "#f43f5e",
     beats: [
-      { from: 0,    to: 0.35, text: "The Workflow Center brings operational structure to every department — from IT to Finance to Compliance." },
-      { from: 0.35, to: 0.68, text: "Manage service desk tickets, recurring tasks, license renewals, and certificate tracking in smart groups." },
-      { from: 0.68, to: 1,    text: "Due dates, status tracking, and automatic overdue alerts ensure nothing is missed or forgotten." },
+      { from: 0,    to: 0.33, text: "The Workflow Center brings operational structure to every department — from IT to Finance to Compliance." },
+      { from: 0.33, to: 0.65, text: "Manage service desk tickets, recurring tasks, license renewals, and certificate tracking in smart groups." },
+      { from: 0.65, to: 1,    text: "Due dates, status tracking, and automatic overdue alerts ensure nothing is missed or forgotten." },
     ],
   },
   {
-    id: "scorecard", title: "Balanced Scorecard", subtitle: "One strategic view across four perspectives",
-    duration: 18, icon: LayoutGrid, color: "#0ea5e9",
+    id: "scorecard",
+    title: "Balanced Scorecard",
+    subtitle: "One strategic view across four perspectives",
+    duration: 30,
+    icon: LayoutGrid,
+    color: "#0ea5e9",
     beats: [
-      { from: 0,    to: 0.42, text: "The Balanced Scorecard maps every KPI across four strategic perspectives in a single view." },
-      { from: 0.42, to: 1,    text: "Financial, Customer, Internal Processes, and Learning & Growth — your entire strategy on one screen." },
+      { from: 0,    to: 0.44, text: "The Balanced Scorecard maps every KPI across four strategic perspectives in a single unified view." },
+      { from: 0.44, to: 1,    text: "Financial, Customer, Internal Processes, and Learning & Growth — your entire strategy on one screen, at a glance." },
     ],
   },
   {
-    id: "presentations", title: "Presentation Studio", subtitle: "Board-ready slides in seconds",
-    duration: 20, icon: Presentation, color: "#d946ef",
+    id: "presentations",
+    title: "Presentation Studio",
+    subtitle: "Board-ready slides in seconds",
+    duration: 38,
+    icon: Presentation,
+    color: "#d946ef",
     beats: [
-      { from: 0,    to: 0.38, text: "Presentation Studio generates board-ready slides from your live Performo AI data in seconds." },
-      { from: 0.38, to: 0.70, text: "Describe what you need — the AI builds polished slides with your KPIs, charts, and strategic commentary." },
-      { from: 0.70, to: 1,    text: "Export, present, and impress — no manual copy-paste, no stale data, no design effort." },
+      { from: 0,    to: 0.34, text: "Presentation Studio generates board-ready slides from your live Performo AI data in seconds." },
+      { from: 0.34, to: 0.67, text: "Describe what you need — the AI builds polished slides with your KPIs, charts, and strategic commentary." },
+      { from: 0.67, to: 1,    text: "Export, present, and impress — no manual copy-paste, no stale data, no design effort required." },
     ],
   },
   {
-    id: "reviews", title: "Monthly Reviews", subtitle: "Structured, AI-powered performance conversations",
-    duration: 20, icon: ClipboardList, color: "#84cc16",
+    id: "reviews",
+    title: "Monthly Reviews",
+    subtitle: "Structured, AI-powered performance conversations",
+    duration: 38,
+    icon: ClipboardList,
+    color: "#84cc16",
     beats: [
-      { from: 0,    to: 0.38, text: "Monthly Reviews bring structure and accountability to your leadership performance conversations." },
-      { from: 0.38, to: 0.70, text: "The AI generates the narrative from your live data — wins, risks, team commitments, and follow-ups." },
-      { from: 0.70, to: 1,    text: "Every review builds a running performance record your leadership can rely on month after month." },
+      { from: 0,    to: 0.34, text: "Monthly Reviews bring structure and accountability to your leadership performance conversations." },
+      { from: 0.34, to: 0.67, text: "The AI generates the narrative from your live data — wins, risks, team commitments, and follow-ups." },
+      { from: 0.67, to: 1,    text: "Every review builds a running performance record your leadership can rely on month after month." },
     ],
   },
 ];
 
 const TOTAL_DURATION = CHAPTERS.reduce((s, c) => s + c.duration, 0);
 
-// ─── Caption helper ──────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getCaption(chapter: Chapter, progress: number): string {
   const beat = chapter.beats.find(b => progress >= b.from && progress < b.to)
@@ -139,11 +177,11 @@ function KpiVisual({ progress }: { progress: number }) {
       </div>
       <div className="grid grid-cols-3 gap-2 flex-1">
         {kpis.map((k, i) => {
-          const show = progress > i * 0.1;
+          const show = progress > i * 0.13;
           return (
-            <div key={k.name} className="rounded-xl p-3 flex flex-col gap-2 transition-all duration-500"
+            <div key={k.name} className="rounded-xl p-3 flex flex-col gap-2 transition-all duration-700"
               style={{ background:"rgba(255,255,255,0.06)", border:`1.5px solid ${sc[k.status]}35`,
-                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(14px)" }}>
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(16px)" }}>
               <div className="flex items-center justify-between">
                 <span className="text-white/55 text-[10px] leading-tight">{k.name}</span>
                 <div className="w-2.5 h-2.5 rounded-full" style={{ background: sc[k.status] }} />
@@ -151,7 +189,7 @@ function KpiVisual({ progress }: { progress: number }) {
               <div className="text-white font-bold text-sm">{k.value}</div>
               <div className="text-white/35 text-[10px]">Target {k.target}</div>
               <div className="h-1 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-1000"
+                <div className="h-full rounded-full transition-all duration-1200"
                   style={{ width: show ? `${k.pct}%` : "0%", background: sc[k.status] }} />
               </div>
             </div>
@@ -183,10 +221,10 @@ function ActionsVisual({ progress }: { progress: number }) {
       </div>
       <div className="flex flex-col gap-1.5">
         {items.map((a, i) => {
-          const show = progress > i * 0.12;
+          const show = progress > i * 0.14;
           return (
-            <div key={a.title} className="rounded-lg px-3 py-2 flex items-center gap-3 transition-all duration-500"
-              style={{ background:"rgba(255,255,255,0.055)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(-16px)" }}>
+            <div key={a.title} className="rounded-lg px-3 py-2 flex items-center gap-3 transition-all duration-700"
+              style={{ background:"rgba(255,255,255,0.055)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(-18px)" }}>
               <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sc[a.status] }} />
               <div className="flex-1 min-w-0">
                 <div className="text-white text-[11px] font-medium truncate">{a.title}</div>
@@ -216,11 +254,11 @@ function PortfolioVisual({ progress }: { progress: number }) {
       </div>
       <div className="flex flex-col gap-2.5 flex-1">
         {projects.map((p, i) => {
-          const show = progress > i * 0.22;
+          const show = progress > i * 0.25;
           return (
-            <div key={p.name} className="rounded-xl p-3.5 transition-all duration-600"
+            <div key={p.name} className="rounded-xl p-3.5 transition-all duration-700"
               style={{ background:"rgba(255,255,255,0.065)", border:`1.5px solid ${p.color}28`,
-                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(16px)" }}>
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(18px)" }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white text-[11px] font-semibold">{p.name}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full"
@@ -228,7 +266,7 @@ function PortfolioVisual({ progress }: { progress: number }) {
               </div>
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1200"
+                  <div className="h-full rounded-full transition-all duration-1500"
                     style={{ width: show ? `${p.pct}%` : "0%", background: p.color }} />
                 </div>
                 <span className="text-white font-medium text-[11px] w-8 text-right">{p.pct}%</span>
@@ -261,10 +299,10 @@ function AnalyticsVisual({ progress }: { progress: number }) {
         <div className="flex-1 flex flex-col gap-1">
           <div className="flex items-end gap-1 flex-1 px-1">
             {bars.map((h, i) => {
-              const show = progress > i * 0.065;
+              const show = progress > i * 0.07;
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-                  <div className="w-full rounded-t transition-all duration-600 relative"
+                  <div className="w-full rounded-t transition-all duration-800 relative"
                     style={{ height: show ? `${h}%` : "0%",
                       background: i === 11 ? "linear-gradient(to top,#06b6d4,#3b82f6)" : "rgba(6,182,212,0.35)",
                       border: "1px solid rgba(6,182,212,0.25)" }}>
@@ -279,7 +317,7 @@ function AnalyticsVisual({ progress }: { progress: number }) {
           </div>
           <div className="grid grid-cols-3 gap-1.5 mt-1">
             {[["Total Revenue","AED 4.2M","#10b981"],["Best Month","Dec · AED 412K","#06b6d4"],["YoY Growth","+12%","#3b82f6"]].map(([l,v,c]) =>
-              <div key={l} className="rounded-lg p-1.5 text-center" style={{ background:"rgba(255,255,255,0.05)" }}>
+              <div key={l} className="rounded-lg p-1.5 text-center" style={{ background:"rgba(255,255,255,0.05)", opacity: progress > 0.45 ? 1 : 0, transition:"opacity 0.8s" }}>
                 <div className="text-[8px] text-white/40 mb-0.5">{l}</div>
                 <div className="text-[10px] font-bold" style={{ color: c as string }}>{v}</div>
               </div>)}
@@ -288,16 +326,16 @@ function AnalyticsVisual({ progress }: { progress: number }) {
         <div className="w-28 flex flex-col gap-1.5">
           <div className="text-[9px] text-white/40 mb-0.5">Dashboard Widgets</div>
           {widgets.map((w, i) => {
-            const show = progress > 0.3 + i * 0.12;
+            const show = progress > 0.32 + i * 0.14;
             return (
-              <div key={w} className="rounded-lg p-2 text-[9px] text-white/60 border border-white/8 transition-all duration-400"
-                style={{ background:"rgba(255,255,255,0.05)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(8px)" }}>
+              <div key={w} className="rounded-lg p-2 text-[9px] text-white/60 border border-white/8 transition-all duration-600"
+                style={{ background:"rgba(255,255,255,0.05)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(10px)" }}>
                 {w}
               </div>
             );
           })}
           <div className="mt-auto rounded-lg p-2 border border-cyan-500/25 bg-cyan-500/8 text-[9px] text-cyan-400"
-            style={{ opacity: progress > 0.75 ? 1 : 0, transition: "opacity 0.5s" }}>
+            style={{ opacity: progress > 0.78 ? 1 : 0, transition: "opacity 0.8s" }}>
             ✨ "Revenue peaks Q4 — driven by occupancy uplift from Oct"
           </div>
         </div>
@@ -323,9 +361,9 @@ function WorkflowVisual({ progress }: { progress: number }) {
       <span className="text-white font-semibold text-sm mb-0.5">Workflow Center — 4 Modules</span>
       <div className="grid grid-cols-2 gap-2">
         {groups.map((g, i) => {
-          const show = progress > i * 0.15;
+          const show = progress > i * 0.18;
           return (
-            <div key={g.name} className="rounded-xl p-2.5 transition-all duration-500"
+            <div key={g.name} className="rounded-xl p-2.5 transition-all duration-700"
               style={{ background:"rgba(255,255,255,0.055)", border:`1.5px solid ${g.color}28`,
                 opacity: show ? 1 : 0, transform: show ? "scale(1)" : "scale(0.9)" }}>
               <div className="text-[9px] font-medium mb-0.5" style={{ color: g.color }}>{g.type}</div>
@@ -341,10 +379,10 @@ function WorkflowVisual({ progress }: { progress: number }) {
       </div>
       <div className="flex flex-col gap-1 mt-1">
         {tickets.map((t, i) => {
-          const show = progress > 0.55 + i * 0.12;
+          const show = progress > 0.60 + i * 0.13;
           return (
-            <div key={t.ref} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2 transition-all duration-400"
-              style={{ background:"rgba(255,255,255,0.04)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(-12px)" }}>
+            <div key={t.ref} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2 transition-all duration-600"
+              style={{ background:"rgba(255,255,255,0.04)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(-14px)" }}>
               <span className="text-[9px] text-white/30 w-12">{t.ref}</span>
               <span className="text-[10px] text-white/70 flex-1 truncate">{t.title}</span>
               <span className="text-[9px] px-1.5 py-0.5 rounded-full"
@@ -373,11 +411,11 @@ function ScorecardVisual({ progress }: { progress: number }) {
       </div>
       <div className="grid grid-cols-2 gap-2 flex-1">
         {persp.map((p, i) => {
-          const show = progress > i * 0.18;
+          const show = progress > i * 0.20;
           return (
-            <div key={p.label} className="rounded-xl p-3 flex flex-col gap-2 transition-all duration-600"
+            <div key={p.label} className="rounded-xl p-3 flex flex-col gap-2 transition-all duration-700"
               style={{ background:`${p.color}0e`, border:`1.5px solid ${p.color}28`,
-                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(12px)" }}>
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(14px)" }}>
               <div className="flex items-center gap-1.5">
                 <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background:`${p.color}20` }}>
                   <p.Icon className="w-3 h-3" style={{ color: p.color }} />
@@ -389,7 +427,7 @@ function ScorecardVisual({ progress }: { progress: number }) {
                 <span className="text-white/35 text-xs mb-0.5">/100</span>
               </div>
               <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-1100" style={{ width: show ? `${p.score}%` : "0%", background: p.color }} />
+                <div className="h-full rounded-full transition-all duration-1400" style={{ width: show ? `${p.score}%` : "0%", background: p.color }} />
               </div>
               <div className="text-[9px] text-white/35">{p.kpis.join(" · ")}</div>
             </div>
@@ -410,7 +448,7 @@ function PresentationVisual({ progress }: { progress: number }) {
     { n:"05", title:"Key Risks & Mitigations", sub:"Staff turnover · Safety audit" },
     { n:"06", title:"Q3 Priorities & Commitments", sub:"5 initiatives · ownership assigned" },
   ];
-  const promptChars = Math.floor(prompt.length * Math.min(progress * 3, 1));
+  const promptChars = Math.floor(prompt.length * Math.min(progress * 3.5, 1));
   return (
     <div className="w-full h-full p-4 flex flex-col gap-2.5">
       <div className="flex items-center justify-between mb-0.5">
@@ -424,9 +462,9 @@ function PresentationVisual({ progress }: { progress: number }) {
       </div>
       <div className="grid grid-cols-3 gap-1.5 flex-1">
         {slides.map((s, i) => {
-          const show = progress > 0.28 + i * 0.11;
+          const show = progress > 0.30 + i * 0.12;
           return (
-            <div key={s.n} className="rounded-lg p-2 flex flex-col items-center justify-center text-center gap-1 transition-all duration-500"
+            <div key={s.n} className="rounded-lg p-2 flex flex-col items-center justify-center text-center gap-1 transition-all duration-700"
               style={{ background: i === 0 ? "linear-gradient(135deg,#3b82f618,#8b5cf618)" : "rgba(255,255,255,0.055)",
                 border:"1px solid rgba(255,255,255,0.08)", opacity: show ? 1 : 0, transform: show ? "scale(1)" : "scale(0.88)" }}>
               <div className="text-[8px] text-white/30">Slide {s.n}</div>
@@ -442,14 +480,14 @@ function PresentationVisual({ progress }: { progress: number }) {
 
 function ReviewsVisual({ progress }: { progress: number }) {
   const narrative = "March delivered strong results with occupancy at 82% and guest satisfaction holding above target at 4.6. RevPAR improved 6% month-on-month. Staff turnover at 24% remains the primary risk for Q2 — targeted retention actions are in progress.";
-  const narChars = Math.floor(narrative.length * Math.min(progress * 2.5, 1));
+  const narChars = Math.floor(narrative.length * Math.min(progress * 3, 1));
   return (
     <div className="w-full h-full p-4 flex flex-col gap-2.5">
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-white font-semibold text-sm">March 2026 — Monthly Review</span>
         <Badge className="bg-lime-500/20 text-lime-300 border border-lime-500/25 text-[10px]">Review Complete</Badge>
       </div>
-      <div className="rounded-xl p-3 bg-white/[0.05] border border-white/8" style={{ opacity: progress > 0.05 ? 1 : 0, transition:"opacity 0.5s" }}>
+      <div className="rounded-xl p-3 bg-white/[0.05] border border-white/8" style={{ opacity: progress > 0.05 ? 1 : 0, transition:"opacity 0.8s" }}>
         <div className="text-[9px] text-white/35 mb-1.5">✨ AI-Generated Narrative</div>
         <p className="text-white/80 text-[11px] leading-relaxed">
           {narrative.slice(0, narChars)}
@@ -463,11 +501,11 @@ function ReviewsVisual({ progress }: { progress: number }) {
           { label:"📋 Team Commitments", items:["L&D programme launch","Safety audit by Apr 15"], color:"#3b82f6" },
           { label:"🎯 Q2 Focus Areas", items:["Reach 85% occupancy","Reduce turnover to 22%"], color:"#f59e0b" },
         ].map((s, i) => {
-          const show = progress > 0.35 + i * 0.14;
+          const show = progress > 0.38 + i * 0.15;
           return (
-            <div key={s.label} className="rounded-xl p-2.5 transition-all duration-500"
+            <div key={s.label} className="rounded-xl p-2.5 transition-all duration-700"
               style={{ background:`${s.color}0d`, border:`1px solid ${s.color}22`,
-                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(8px)" }}>
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(10px)" }}>
               <div className="text-[9px] font-semibold mb-1" style={{ color:s.color }}>{s.label}</div>
               {s.items.map(it => <div key={it} className="text-[9px] text-white/55 leading-tight">· {it}</div>)}
             </div>
@@ -491,7 +529,7 @@ function IntroVisual({ progress }: { progress: number }) {
   ];
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-5 px-4">
-      <div className="text-center transition-all duration-700" style={{ opacity: progress > 0.05 ? 1 : 0, transform: progress > 0.05 ? "scale(1)" : "scale(0.85)" }}>
+      <div className="text-center transition-all duration-800" style={{ opacity: progress > 0.05 ? 1 : 0, transform: progress > 0.05 ? "scale(1)" : "scale(0.85)" }}>
         <div className="flex items-center gap-3 mb-2 justify-center">
           <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-blue-400" />
@@ -502,10 +540,10 @@ function IntroVisual({ progress }: { progress: number }) {
       </div>
       <div className="grid grid-cols-4 gap-2.5">
         {modules.map(({ Icon, label, color }, i) => {
-          const show = progress > 0.18 + i * 0.08;
+          const show = progress > 0.22 + i * 0.09;
           return (
-            <div key={label} className="flex flex-col items-center gap-1.5 transition-all duration-500"
-              style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(12px)" }}>
+            <div key={label} className="flex flex-col items-center gap-1.5 transition-all duration-600"
+              style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(14px)" }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background:`${color}18`, border:`1.5px solid ${color}35` }}>
                 <Icon className="w-5 h-5" style={{ color }} />
               </div>
@@ -524,201 +562,7 @@ const VISUALS: Record<string, (p:{progress:number})=>JSX.Element> = {
   scorecard: ScorecardVisual, presentations: PresentationVisual, reviews: ReviewsVisual,
 };
 
-// ─── Canvas Export Frame Drawing ─────────────────────────────────────────────
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lineH: number) {
-  const words = text.split(" ");
-  let line = "", lines: string[] = [];
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
-    else line = test;
-  }
-  if (line) lines.push(line);
-  lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
-  return lines.length;
-}
-
-function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  r = Math.min(r, w/2, h/2);
-  ctx.beginPath();
-  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.arcTo(x+w,y,x+w,y+r,r);
-  ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
-  ctx.lineTo(x+r, y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
-  ctx.lineTo(x, y+r); ctx.arcTo(x,y,x+r,y,r);
-  ctx.closePath();
-}
-
-type ExportItem = { label: string; value: string; sub?: string; pct?: number };
-
-function getChapterCards(chId: string): ExportItem[] {
-  if (chId === "intro") return [
-    { label:"Modules Included", value:"8", sub:"KPIs, Actions, Portfolio, Analytics, Workflow, Scorecard, Presentations, Reviews", pct:1 },
-    { label:"AI Features", value:"5+", sub:"Insights, narratives, slides, assistant, auto-alerts" },
-    { label:"Data Sources", value:"Live", sub:"Real-time KPIs, uploaded datasets, workflow submissions" },
-  ];
-  if (chId === "kpi") return [
-    { label:"KPIs Tracked", value:"10", sub:"Across Finance, Operations, HR & Sales", pct:1 },
-    { label:"On Track", value:"6 / 10", sub:"Green status — meeting or exceeding target", pct:0.6 },
-    { label:"Occupancy Rate", value:"82%", sub:"Target 85% · +4% vs prior month", pct:0.82 },
-  ];
-  if (chId === "actions") return [
-    { label:"Total Actions", value:"6", sub:"Across all departments with assigned owners", pct:1 },
-    { label:"In Progress", value:"3", sub:"Being actively worked on this week", pct:0.5 },
-    { label:"Overdue", value:"1", sub:"Fire safety audit — automatically flagged", pct:0.17 },
-  ];
-  if (chId === "portfolio") return [
-    { label:"Active Projects", value:"3", sub:"Strategic initiatives currently in delivery", pct:1 },
-    { label:"Avg Completion", value:"62%", sub:"Across all active projects", pct:0.62 },
-    { label:"Tasks Complete", value:"24/37", sub:"Milestones: 7 of 12 hit on time", pct:0.65 },
-  ];
-  if (chId === "analytics") return [
-    { label:"Datasets Uploaded", value:"3", sub:"Excel files auto-parsed into datasets", pct:1 },
-    { label:"AI Insights", value:"16", sub:"Automatically detected trends and anomalies", pct:0.85 },
-    { label:"Revenue 2025", value:"AED 4.2M", sub:"Peak December · +12% year-on-year", pct:0.72 },
-  ];
-  if (chId === "workflow") return [
-    { label:"Workflow Groups", value:"13", sub:"Across IT, Finance, Legal, Safety modules", pct:1 },
-    { label:"Total Items", value:"18", sub:"Tickets, tasks, licenses, certificates tracked", pct:0.85 },
-    { label:"Overdue Alerts", value:"2", sub:"Auto-flagged and escalated for action", pct:0.11 },
-  ];
-  if (chId === "scorecard") return [
-    { label:"Financial Score", value:"78 / 100", sub:"RevPAR · GOP Margin · ADR · Budget Variance", pct:0.78 },
-    { label:"Customer Score", value:"85 / 100", sub:"Guest Satisfaction above target", pct:0.85 },
-    { label:"Strategic Score", value:"70 / 100", sub:"Weighted average across all 4 perspectives", pct:0.70 },
-  ];
-  if (chId === "presentations") return [
-    { label:"Slides Generated", value:"6", sub:"Q2 Board Pack — AI authored in seconds", pct:1 },
-    { label:"Time Saved", value:"~4 Hours", sub:"vs manual PowerPoint creation and data gathering" },
-    { label:"Data Source", value:"Live KPIs", sub:"Auto-pulled from your Performo AI dashboard" },
-  ];
-  if (chId === "reviews") return [
-    { label:"Review Generated", value:"Mar 2026", sub:"Full AI narrative ready in under 30 seconds" },
-    { label:"Commitments Captured", value:"4", sub:"Each with named owner and due date", pct:0.5 },
-    { label:"Risks Flagged", value:"2", sub:"Staff turnover and safety audit overdue", pct:0.2 },
-  ];
-  return [];
-}
-
-function drawExportFrame(
-  ctx: CanvasRenderingContext2D, W: number, H: number,
-  ch: Chapter, progress: number, captionText: string, totalProgress: number
-) {
-  // Background
-  ctx.fillStyle = "#080c14";
-  ctx.fillRect(0, 0, W, H);
-  const g = ctx.createRadialGradient(W*0.25, H*0.25, 0, W*0.25, H*0.25, W*0.65);
-  const hex = ch.color;
-  const r = parseInt(hex.slice(1,3),16), gv = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  g.addColorStop(0, `rgba(${r},${gv},${b},0.09)`);
-  g.addColorStop(1, "transparent");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-
-  // Header
-  ctx.fillStyle = "rgba(255,255,255,0.035)";
-  rrect(ctx, 0, 0, W, 60, 0); ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0,60); ctx.lineTo(W,60); ctx.stroke();
-
-  // Logo circle
-  ctx.fillStyle = `rgba(${r},${gv},${b},0.22)`;
-  rrect(ctx, 22, 15, 30, 30, 7); ctx.fill();
-  ctx.fillStyle = ch.color; ctx.font = "bold 15px Arial"; ctx.textAlign = "center";
-  ctx.fillText("✦", 37, 35);
-
-  // Brand name
-  ctx.fillStyle = "#ffffff"; ctx.font = "bold 16px Arial"; ctx.textAlign = "left";
-  ctx.fillText("Performo AI", 62, 35);
-  ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.font = "11px Arial";
-  ctx.fillText("Performance Management Platform", 62, 50);
-
-  // Chapter title (right)
-  ctx.fillStyle = ch.color; ctx.font = "bold 14px Arial"; ctx.textAlign = "right";
-  ctx.fillText(ch.title, W - 22, 30);
-  ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.font = "11px Arial";
-  ctx.fillText(ch.subtitle, W - 22, 47);
-
-  // Content cards
-  const cards = getChapterCards(ch.id);
-  const marginX = 40, contentY = 90, contentH = H - 90 - 170;
-  const gap = 16;
-  const cardW = (W - marginX*2 - gap*(cards.length-1)) / cards.length;
-
-  cards.forEach((card, i) => {
-    const alpha = Math.min(Math.max((progress - i*(0.75/cards.length))*5, 0), 1);
-    if (alpha <= 0) return;
-    const cx = marginX + i*(cardW+gap);
-    const cy = contentY + (1-alpha)*16;
-
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = `rgba(${r},${gv},${b},0.1)`;
-    rrect(ctx, cx, cy, cardW, contentH, 14); ctx.fill();
-    ctx.strokeStyle = `rgba(${r},${gv},${b},0.3)`; ctx.lineWidth = 1.5;
-    rrect(ctx, cx, cy, cardW, contentH, 14); ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // Label
-    ctx.fillStyle = ch.color; ctx.font = "bold 11px Arial"; ctx.textAlign = "left";
-    ctx.fillText(card.label, cx+18, cy+28);
-
-    // Value
-    const valSize = card.value.length > 8 ? 26 : 36;
-    ctx.fillStyle = "#ffffff"; ctx.font = `bold ${valSize}px Arial`;
-    ctx.fillText(card.value, cx+18, cy+74);
-
-    // Sub text
-    if (card.sub) {
-      ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.font = "12px Arial";
-      wrapText(ctx, card.sub, cx+18, cy+96, cardW-36, 18);
-    }
-
-    // Progress bar
-    if (card.pct !== undefined) {
-      const bY = cy + contentH - 28, bW = cardW - 36;
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
-      rrect(ctx, cx+18, bY, bW, 6, 3); ctx.fill();
-      ctx.fillStyle = ch.color;
-      rrect(ctx, cx+18, bY, bW*card.pct, 6, 3); ctx.fill();
-    }
-  });
-
-  // Caption box
-  const capY = H - 155;
-  ctx.fillStyle = "rgba(255,255,255,0.04)";
-  rrect(ctx, 40, capY, W-80, 80, 10); ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1;
-  rrect(ctx, 40, capY, W-80, 80, 10); ctx.stroke();
-
-  if (captionText) {
-    ctx.fillStyle = "rgba(255,255,255,0.88)"; ctx.font = "15px Arial"; ctx.textAlign = "center";
-    wrapText(ctx, captionText, W/2, capY + 28, W - 140, 24);
-  }
-
-  // Progress bar
-  const pbY = H - 52;
-  ctx.fillStyle = "rgba(255,255,255,0.07)";
-  rrect(ctx, 40, pbY, W-80, 8, 4); ctx.fill();
-  ctx.fillStyle = ch.color;
-  rrect(ctx, 40, pbY, Math.max((W-80)*totalProgress, 8), 8, 4); ctx.fill();
-
-  // Chapter dots
-  CHAPTERS.forEach((c, i) => {
-    const dotX = W/2 - (CHAPTERS.length*18)/2 + i*18 + 9;
-    ctx.fillStyle = c.id === ch.id ? c.color : "rgba(255,255,255,0.15)";
-    ctx.beginPath(); ctx.arc(dotX, H-28, c.id === ch.id ? 5 : 3.5, 0, Math.PI*2); ctx.fill();
-  });
-
-  // Footer text
-  ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.font = "11px Arial"; ctx.textAlign = "left";
-  ctx.fillText("performo.ai", 40, H - 16);
-  ctx.textAlign = "right";
-  ctx.fillText(`${CHAPTERS.findIndex(c => c.id === ch.id)+1} of ${CHAPTERS.length} — ${ch.title}`, W-40, H-16);
-}
-
 // ─── Main Component ──────────────────────────────────────────────────────────
-
-type RecPhase = "idle" | "confirm" | "recording" | "done" | "error";
 
 export default function DemoPage() {
   const [, navigate] = useLocation();
@@ -729,201 +573,120 @@ export default function DemoPage() {
   const [totalElapsed, setTotalElapsed] = useState(0);
   const [caption, setCaption] = useState("");
 
-  // Export state
-  const [recPhase, setRecPhase] = useState<RecPhase>("idle");
-  const [recProgress, setRecProgress] = useState(0);
-  const [recUrl, setRecUrl] = useState<string|null>(null);
-  const [recError, setRecError] = useState<string|null>(null);
-  const [recMime, setRecMime] = useState<string>("");
-
   const intervalRef = useRef<ReturnType<typeof setInterval>|null>(null);
-  const recorderRef = useRef<MediaRecorder|null>(null);
-  const recBlobsRef = useRef<Blob[]>([]);
-  const abortRef = useRef(false);
-  // Live refs so the draw loop reads the exact demo state each frame
+  // Whether speech is currently running for the active chapter
+  const speechDoneRef = useRef(false);
+  // Ref so the interval closure can read latest chIdx without stale closure
   const chIdxRef = useRef(0);
-  const elapsedRef = useRef(0);
-  const totalElapsedRef = useRef(0);
+  useEffect(() => { chIdxRef.current = chIdx; }, [chIdx]);
 
   const chapter = CHAPTERS[chIdx];
-  const chProgress = elapsed / chapter.duration;
-  const totalPct = totalElapsed / TOTAL_DURATION;
+  const chProgress = Math.min(elapsed / chapter.duration, 1);
+  const totalPct = Math.min(totalElapsed / TOTAL_DURATION, 1);
 
-  // ── Speech ──────────────────────────────────────────────────────────────────
+  // ── Speech ───────────────────────────────────────────────────────────────────
 
   const stopSpeech = useCallback(() => {
     if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+    speechDoneRef.current = false;
   }, []);
 
-  const speakChapter = useCallback((idx: number) => {
+  const speakChapter = useCallback((idx: number, onDone: () => void) => {
     stopSpeech();
-    if (muted || typeof window === "undefined" || !window.speechSynthesis) return;
+    if (muted || typeof window === "undefined" || !window.speechSynthesis) {
+      // Muted: just let the timer drive chapter advancement naturally
+      speechDoneRef.current = true;
+      return;
+    }
     const utt = new SpeechSynthesisUtterance(getNarration(CHAPTERS[idx]));
-    utt.rate = 0.9; utt.pitch = 1.0; utt.volume = 0.95;
+    utt.rate = 0.88; utt.pitch = 1.0; utt.volume = 0.95;
     const voices = window.speechSynthesis.getVoices();
     const voice = voices.find(v => v.name.includes("Google UK English Female") || v.name.includes("Samantha") || v.name.includes("Karen"))
       || voices.find(v => v.lang === "en-GB") || voices.find(v => v.lang.startsWith("en"));
     if (voice) utt.voice = voice;
+    utt.onend = () => {
+      speechDoneRef.current = true;
+      onDone();
+    };
+    utt.onerror = () => {
+      speechDoneRef.current = true;
+      onDone();
+    };
+    speechDoneRef.current = false;
     window.speechSynthesis.speak(utt);
   }, [muted, stopSpeech]);
+
+  // ── Chapter navigation ────────────────────────────────────────────────────────
+
+  const advanceChapter = useCallback(() => {
+    const nextIdx = chIdxRef.current + 1;
+    if (nextIdx < CHAPTERS.length) {
+      setChIdx(nextIdx);
+      setElapsed(0);
+      setTotalElapsed(CHAPTERS.slice(0, nextIdx).reduce((s,c) => s+c.duration, 0));
+    } else {
+      setPlaying(false);
+      stopSpeech();
+    }
+  }, [stopSpeech]);
 
   const goChapter = useCallback((idx: number, autoSpeak = false) => {
     stopSpeech();
     setChIdx(idx); setElapsed(0);
-    setTotalElapsed(CHAPTERS.slice(0,idx).reduce((s,c) => s+c.duration, 0));
-    if (autoSpeak) speakChapter(idx);
-  }, [stopSpeech, speakChapter]);
+    setTotalElapsed(CHAPTERS.slice(0, idx).reduce((s,c) => s+c.duration, 0));
+    if (autoSpeak) speakChapter(idx, advanceChapter);
+  }, [stopSpeech, speakChapter, advanceChapter]);
 
-  // ── Timer ───────────────────────────────────────────────────────────────────
+  // ── Timer — drives the visual animation progress only ─────────────────────────
+  // Chapter advancement is driven by speech onend (not by the timer running out).
+  // When muted, timer also drives advancement once elapsed >= duration.
 
   useEffect(() => {
     if (!playing) { if (intervalRef.current) clearInterval(intervalRef.current); return; }
     intervalRef.current = setInterval(() => {
       setElapsed(prev => {
         const next = prev + 0.1;
-        if (next >= CHAPTERS[chIdx].duration) {
-          const nextIdx = chIdx + 1;
-          if (nextIdx < CHAPTERS.length) { goChapter(nextIdx, true); return 0; }
-          else { setPlaying(false); stopSpeech(); return CHAPTERS[chIdx].duration; }
+        // When muted, advance on timer (no speech to wait for)
+        if (muted && next >= CHAPTERS[chIdxRef.current].duration) {
+          setTimeout(advanceChapter, 0);
+          return CHAPTERS[chIdxRef.current].duration;
         }
-        elapsedRef.current = next;
         return next;
       });
-      setTotalElapsed(prev => {
-        const next = Math.min(prev + 0.1, TOTAL_DURATION);
-        totalElapsedRef.current = next;
-        return next;
-      });
+      setTotalElapsed(prev => Math.min(prev + 0.1, TOTAL_DURATION));
     }, 100);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [playing, chIdx, goChapter, stopSpeech]);
-
-  // Keep chapter index ref in sync
-  useEffect(() => { chIdxRef.current = chIdx; elapsedRef.current = 0; }, [chIdx]);
+  }, [playing, muted, advanceChapter]);
 
   useEffect(() => { setCaption(getCaption(chapter, chProgress)); }, [chapter, chProgress]);
 
   const togglePlay = () => {
-    if (!playing) { setPlaying(true); speakChapter(chIdx); }
-    else { setPlaying(false); stopSpeech(); }
+    if (!playing) {
+      setPlaying(true);
+      speakChapter(chIdx, advanceChapter);
+    } else {
+      setPlaying(false);
+      stopSpeech();
+    }
   };
 
   const toggleMute = () => {
-    setMuted(m => { if (!m) stopSpeech(); else if (playing) speakChapter(chIdx); return !m; });
+    setMuted(m => {
+      if (!m) stopSpeech();
+      else if (playing) speakChapter(chIdx, advanceChapter);
+      return !m;
+    });
   };
 
-  useEffect(() => () => { stopSpeech(); if (intervalRef.current) clearInterval(intervalRef.current); }, [stopSpeech]);
-
-  // ── Export: Real-time canvas capture + tab audio (no external API) ──────────
-
-  const getBestMime = () => {
-    if (typeof MediaRecorder === "undefined") return null;
-    for (const t of ["video/mp4; codecs=avc1.42E01E","video/mp4","video/webm; codecs=vp9","video/webm"])
-      if (MediaRecorder.isTypeSupported(t)) return t;
-    return null;
-  };
-
-  const beginRecording = useCallback(async () => {
-    const mime = getBestMime();
-    if (!mime) { setRecError("Your browser doesn't support video recording. Try Chrome."); setRecPhase("error"); return; }
-
-    abortRef.current = false;
-    setRecProgress(0);
-    setRecUrl(null);
-    setRecError(null);
-    setRecMime(mime);
-
-    // ── Step 1: Request tab audio via getDisplayMedia ────────────────────────
-    // This captures the browser's speech synthesis output alongside any tab audio.
-    let displayStream: MediaStream | null = null;
-    try {
-      displayStream = await (navigator.mediaDevices as any).getDisplayMedia({
-        video: true,   // required by spec — we discard the video track
-        audio: true,
-        preferCurrentTab: true,  // Chrome 94+: auto-highlights current tab
-      });
-    } catch (e: any) {
-      // User cancelled or browser doesn't support audio capture — record video-only
-      displayStream = null;
-    }
-
-    // ── Step 2: Set up offscreen canvas (1280×720 HD) ───────────────────────
-    const W = 1280, H = 720, FPS = 30;
-    const canvas = document.createElement("canvas");
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext("2d")!;
-    const canvasStream = canvas.captureStream(FPS);
-
-    // Combine: canvas video + optional tab audio
-    const tracks = [...canvasStream.getVideoTracks()];
-    if (displayStream) tracks.push(...displayStream.getAudioTracks());
-    const combinedStream = new MediaStream(tracks);
-
-    // ── Step 3: Start MediaRecorder ──────────────────────────────────────────
-    recBlobsRef.current = [];
-    const recorder = new MediaRecorder(combinedStream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
-    recorderRef.current = recorder;
-    recorder.ondataavailable = e => { if (e.data.size > 0) recBlobsRef.current.push(e.data); };
-    recorder.onstop = () => {
-      if (displayStream) displayStream!.getTracks().forEach(t => t.stop());
-      const blob = new Blob(recBlobsRef.current, { type: mime });
-      setRecUrl(URL.createObjectURL(blob));
-      setRecPhase("done");
-    };
-    recorder.start(500);
-    setRecPhase("recording");
-
-    // ── Step 4: Reset demo to start and play ─────────────────────────────────
-    // Set muted=false so speech synthesis fires (captured by tab audio)
-    setMuted(false);
-    goChapter(0, true);
-    setPlaying(true);
-
-    // ── Step 5: Draw loop — mirrors live demo state to recording canvas ───────
-    function drawLoop() {
-      if (abortRef.current) { recorder.stop(); return; }
-
-      const idx = chIdxRef.current;
-      const ch = CHAPTERS[idx];
-      const elSec = elapsedRef.current;
-      const totSec = totalElapsedRef.current;
-      const progress = Math.min(elSec / ch.duration, 1);
-      const totalProg = Math.min(totSec / TOTAL_DURATION, 1);
-      const capText = getCaption(ch, progress);
-
-      drawExportFrame(ctx, W, H, ch, progress, capText, totalProg);
-      setRecProgress(totalProg);
-
-      // Stop when demo finishes (last chapter, near end)
-      if (idx >= CHAPTERS.length - 1 && progress >= 0.99) {
-        setTimeout(() => recorder.stop(), 800);
-        return;
-      }
-      requestAnimationFrame(drawLoop);
-    }
-    requestAnimationFrame(drawLoop);
-  }, [goChapter]);
-
-  const cancelExport = useCallback(() => {
-    abortRef.current = true;
-    if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
-    stopSpeech(); setPlaying(false);
-    setRecPhase("idle");
-    setRecProgress(0);
+  useEffect(() => () => {
+    stopSpeech();
+    if (intervalRef.current) clearInterval(intervalRef.current);
   }, [stopSpeech]);
 
-  const downloadExport = () => {
-    if (!recUrl) return;
-    const ext = recMime.startsWith("video/mp4") ? "mp4" : "webm";
-    const a = document.createElement("a");
-    a.href = recUrl; a.download = `performo-ai-demo.${ext}`; a.click();
-  };
-
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  // ─── Render ───────────────────────────────────────────────────────────────────
 
   const Visual = VISUALS[chapter.id];
   const fmtTime = (s: number) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
-  const showModal = recPhase !== "idle";
 
   return (
     <div className="fixed inset-0 bg-[#080c14] flex flex-col select-none overflow-hidden">
@@ -937,17 +700,10 @@ export default function DemoPage() {
           <span className="text-white font-semibold text-sm">Performo AI</span>
           <span className="text-white/25 text-xs ml-1">· Product Demo</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setRecPhase("confirm")} disabled={recPhase !== "idle"}
-            className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/8 transition-all disabled:opacity-40">
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export Video</span>
-          </button>
-          <button onClick={() => { stopSpeech(); navigate("/"); }}
-            className="text-white/35 hover:text-white/75 text-xs transition-colors px-3 py-1.5 rounded-lg hover:bg-white/8">
-            Sign In →
-          </button>
-        </div>
+        <button onClick={() => { stopSpeech(); navigate("/"); }}
+          className="text-white/35 hover:text-white/75 text-xs transition-colors px-3 py-1.5 rounded-lg hover:bg-white/8">
+          Sign In →
+        </button>
       </div>
 
       {/* Layout */}
@@ -967,7 +723,7 @@ export default function DemoPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] font-medium truncate" style={{ color: isActive?"white":"rgba(255,255,255,0.38)" }}>{ch.title}</div>
-                  <div className="text-[10px]" style={{ color: isActive?ch.color:"rgba(255,255,255,0.2)" }}>{ch.duration}s</div>
+                  <div className="text-[10px]" style={{ color: isActive?ch.color:"rgba(255,255,255,0.2)" }}>{fmtTime(ch.duration)}</div>
                 </div>
                 {isPast && <CheckCircle2 className="w-3 h-3 text-white/18 flex-shrink-0" />}
                 {isActive && playing && <div className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background:ch.color }} />}
@@ -1003,7 +759,7 @@ export default function DemoPage() {
 
             {/* Caption */}
             <div className="absolute bottom-0 left-0 right-0 px-8 pb-4 z-10"
-              style={{ opacity: caption ? 1 : 0, transition:"opacity 0.3s", background:"linear-gradient(to top,rgba(0,0,0,0.65),transparent)" }}>
+              style={{ opacity: caption ? 1 : 0, transition:"opacity 0.4s", background:"linear-gradient(to top,rgba(0,0,0,0.65),transparent)" }}>
               <p className="text-white/90 text-sm text-center leading-relaxed max-w-2xl mx-auto" style={{ textShadow:"0 1px 6px rgba(0,0,0,0.9)" }}>
                 {caption}
               </p>
@@ -1023,7 +779,7 @@ export default function DemoPage() {
           <div className="bg-black/80 border-t border-white/8 px-4 py-3 flex-shrink-0">
             <div className="mb-3 relative">
               <div className="h-1 bg-white/8 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-100"
+                <div className="h-full rounded-full transition-all duration-200"
                   style={{ width:`${totalPct*100}%`, background:`linear-gradient(to right,${chapter.color},${chapter.color}cc)` }} />
               </div>
               <div className="absolute inset-0 flex">
@@ -1069,104 +825,6 @@ export default function DemoPage() {
           </div>
         </div>
       </div>
-
-      {/* ─── Export Modal ────────────────────────────────────────────────────── */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
-          <div className="bg-[#0f1520] border border-white/12 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <Download className="w-4 h-4 text-blue-400" />
-                <span className="text-white font-semibold text-sm">Export Demo Video</span>
-              </div>
-              {(recPhase === "confirm" || recPhase === "done" || recPhase === "error") && (
-                <button onClick={() => { cancelExport(); setRecPhase("idle"); }} className="text-white/40 hover:text-white">
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Phase: Confirm */}
-            {recPhase === "confirm" && (
-              <div className="space-y-4">
-                <div className="space-y-2.5 p-3.5 bg-white/4 border border-white/8 rounded-xl text-white/55 text-xs leading-relaxed">
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-400 mt-0.5">①</span>
-                    <span>Click <strong className="text-white/80">Start Recording</strong> — your browser will ask you to share this tab. Select the tab and click <strong className="text-white/80">Share</strong>.</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-400 mt-0.5">②</span>
-                    <span>The demo resets to the beginning and plays all {CHAPTERS.length} chapters automatically with voice narration.</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-400 mt-0.5">③</span>
-                    <span>When it finishes (~{Math.ceil(TOTAL_DURATION/60)} min), your MP4 video with voice is ready to download.</span>
-                  </div>
-                </div>
-                <p className="text-white/30 text-xs text-center">Do not switch tabs or close the page while recording.</p>
-                <button onClick={beginRecording}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
-                  <Download className="w-4 h-4" />
-                  Start Recording
-                </button>
-              </div>
-            )}
-
-            {/* Phase: Recording */}
-            {recPhase === "recording" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                  <div>
-                    <div className="text-white text-sm font-medium">Recording in progress…</div>
-                    <div className="text-white/45 text-xs mt-0.5">HD 1280×720 · Voice + animation captured live</div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs text-white/45 mb-1.5">
-                    <span>{fmtTime(recProgress * TOTAL_DURATION)} / {fmtTime(TOTAL_DURATION)}</span>
-                    <span>{Math.round(recProgress*100)}%</span>
-                  </div>
-                  <div className="h-2 bg-white/8 rounded-full overflow-hidden">
-                    <div className="h-full bg-red-500 rounded-full transition-all duration-200" style={{ width:`${recProgress*100}%` }} />
-                  </div>
-                </div>
-                <p className="text-white/30 text-xs text-center">Keep this tab active until recording completes.</p>
-                <button onClick={cancelExport} className="w-full text-red-400 hover:text-red-300 text-xs py-1.5 transition-colors">Cancel</button>
-              </div>
-            )}
-
-            {/* Phase: Done */}
-            {recPhase === "done" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
-                  <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                  <p className="text-green-300 text-sm">Your video is ready — voice and animation included!</p>
-                </div>
-                <div className="text-white/40 text-xs leading-relaxed p-3 bg-white/4 rounded-xl">
-                  Format: {recMime.startsWith("video/mp4") ? "MP4 (H.264)" : "WebM (VP9)"} · 1280×720 HD<br/>
-                  All {CHAPTERS.length} chapters · narration captured live from the demo.
-                </div>
-                <button onClick={downloadExport}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
-                  <Download className="w-4 h-4" />
-                  Download {recMime.startsWith("video/mp4") ? "MP4" : "WebM"} Video
-                </button>
-              </div>
-            )}
-
-            {/* Phase: Error */}
-            {recPhase === "error" && (
-              <div className="space-y-3">
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
-                  {recError}
-                </div>
-                <button onClick={() => setRecPhase("confirm")} className="w-full text-white/45 hover:text-white text-xs py-1.5 transition-colors">Try again</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
