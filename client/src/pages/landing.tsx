@@ -463,16 +463,13 @@ const DEMO_QUESTIONS = [
 export default function LandingPage() {
   const [, navigate] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [videoModalOpen, setVideoModalOpen] = useState(false);
-  const [videoError, setVideoError] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
 
-  const closeVideoModal = () => { setVideoModalOpen(false); setVideoError(false); };
 
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") closeVideoModal(); };
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileMenuOpen(false); };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
@@ -620,7 +617,7 @@ export default function LandingPage() {
               Start for free — no credit card <ArrowRight className="h-4 w-4" />
             </button>
             <button
-              onClick={() => setVideoModalOpen(true)}
+              onClick={() => navigate("/demo")}
               className="flex items-center gap-2 text-gray-700 text-base font-semibold px-6 py-3.5 rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all"
               data-testid="button-hero-demo"
             >
@@ -1050,7 +1047,7 @@ export default function LandingPage() {
                 className="absolute inset-0 w-full h-full object-cover object-top opacity-40"
               />
               <button
-                onClick={() => setVideoModalOpen(true)}
+                onClick={() => navigate("/demo")}
                 className="relative z-10 flex flex-col items-center gap-3 group"
                 data-testid="button-play-demo"
               >
@@ -1354,45 +1351,6 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* ══ VIDEO MODAL ════════════════════════════════════════════════════════ */}
-      {videoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={closeVideoModal}>
-          <div className="relative w-full max-w-3xl bg-gray-900 rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 bg-gray-800 border-b border-gray-700">
-              <span className="text-sm font-semibold text-white">Performo AI — Product Demo</span>
-              <button onClick={closeVideoModal} className="text-gray-400 hover:text-white transition-colors">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="aspect-video bg-gray-950 flex items-center justify-center">
-              {!videoError ? (
-                <video
-                  key="demo-video"
-                  controls
-                  autoPlay
-                  className="w-full h-full"
-                  onError={() => setVideoError(true)}
-                >
-                  <source src="/guide/demo.mp4" type="video/mp4" />
-                </video>
-              ) : (
-                <div className="text-center p-8">
-                  <div className="h-16 w-16 rounded-full bg-blue-600/20 flex items-center justify-center mx-auto mb-4">
-                    <Play className="h-7 w-7 text-blue-400" />
-                  </div>
-                  <p className="text-gray-400 text-sm mb-4">Demo video coming soon.</p>
-                  <button
-                    onClick={() => { closeVideoModal(); goToLogin(); }}
-                    className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
-                  >
-                    Try the live demo instead <ArrowRight className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

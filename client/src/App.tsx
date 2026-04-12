@@ -39,6 +39,7 @@ import AnalyticsExplorePage from "@/pages/analytics-explore";
 import AnalyticsDashboardComposePage from "@/pages/analytics-dashboard-compose";
 
 import GuidePage from "@/pages/guide";
+import DemoPage from "@/pages/demo";
 import ScorecardPage from "@/pages/scorecard";
 import WorkflowCenterPage from "@/pages/workflow-center";
 import PresentationStudioPage from "@/pages/presentation-studio";
@@ -116,8 +117,10 @@ function AppLayout() {
     );
   }
 
+  const path = location.replace(/\/+$/, "");
+  if (path === "/demo") return <DemoPage />;
+
   if (!user) {
-    const path = location.replace(/\/+$/, "");
     if (path === "/login") return <AuthPage />;
     if (path === "/guide") return <GuidePage />;
     return <LandingPage />;
