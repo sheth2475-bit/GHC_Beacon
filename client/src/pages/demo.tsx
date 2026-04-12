@@ -2,196 +2,202 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
-  ChevronRight, BarChart3, CheckSquare, FolderKanban,
-  LineChart, Workflow, LayoutGrid, Presentation, ClipboardList,
-  Sparkles, ArrowRight, Target, TrendingUp, TrendingDown,
-  AlertCircle, CheckCircle2, Clock, Users, Building2, Star,
-  Activity, PieChart, FileText, Calendar, Zap, Shield
+  BarChart3, CheckSquare, FolderKanban, LineChart, Workflow,
+  LayoutGrid, Presentation, ClipboardList, Sparkles, CheckCircle2,
+  Zap, TrendingUp, Star, Activity, Users, Download, X, Loader2
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 
-const CHAPTERS = [
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+type Beat = { from: number; to: number; text: string };
+type Chapter = {
+  id: string; title: string; subtitle: string; duration: number;
+  icon: React.ComponentType<any>; color: string; beats: Beat[];
+};
+
+// ─── Chapters — Sales-optimised narration, timed caption beats ─────────────
+
+const CHAPTERS: Chapter[] = [
   {
-    id: "intro",
-    title: "Welcome to Performo AI",
-    duration: 10,
-    icon: Sparkles,
-    color: "#3b82f6",
-    narration: "Welcome to Performo AI — the all-in-one performance management platform built for SMEs. In the next few minutes, you'll see how every module works together to turn your strategy into measurable results.",
+    id: "intro", title: "Welcome to Performo AI", subtitle: "Complete Performance Platform",
+    duration: 13, icon: Sparkles, color: "#3b82f6",
+    beats: [
+      { from: 0,    to: 0.45, text: "Meet Performo AI — the complete performance management platform that connects strategy to daily execution." },
+      { from: 0.45, to: 1,    text: "From KPIs to workflow to boardroom presentations, every module works together in one intelligent system." },
+    ],
   },
   {
-    id: "kpi",
-    title: "KPI Dashboard",
-    duration: 22,
-    icon: BarChart3,
-    color: "#10b981",
-    narration: "The KPI module gives your team live visibility into every metric that matters. Traffic-light ratings — green, amber, red — make it instantly clear where you're on track, at risk, or falling behind. Click any KPI to drill into its trend history, targets, and department-level breakdowns.",
+    id: "kpi", title: "KPI Dashboard", subtitle: "Live metric visibility for every team",
+    duration: 24, icon: BarChart3, color: "#10b981",
+    beats: [
+      { from: 0,    to: 0.30, text: "Your KPI Dashboard puts every critical metric in one place — live, colour-coded, and instantly actionable." },
+      { from: 0.30, to: 0.62, text: "Traffic lights tell the whole story at a glance — green for on track, amber for at risk, red for action needed." },
+      { from: 0.62, to: 1,    text: "Drill into any KPI for trend history, monthly actuals, targets, and the owner responsible for delivery." },
+    ],
   },
   {
-    id: "actions",
-    title: "Actions & Accountability",
-    duration: 18,
-    icon: CheckSquare,
-    color: "#f59e0b",
-    narration: "Turn insights into execution. The Actions module tracks every initiative, assigns clear ownership, and monitors progress — so nothing falls through the cracks. Filter by owner, department, or due date to see exactly where things stand.",
+    id: "actions", title: "Actions & Accountability", subtitle: "From insight to execution",
+    duration: 20, icon: CheckSquare, color: "#f59e0b",
+    beats: [
+      { from: 0,    to: 0.40, text: "Every insight in Performo AI can be turned into an accountable action with a single click." },
+      { from: 0.40, to: 0.72, text: "Assign owners, set due dates, and track progress in real time — from Not Started to Completed." },
+      { from: 0.72, to: 1,    text: "Overdue items surface automatically, so every commitment is visible and nothing slips through." },
+    ],
   },
   {
-    id: "portfolio",
-    title: "Portfolio & Projects",
-    duration: 20,
-    icon: FolderKanban,
-    color: "#8b5cf6",
-    narration: "The Portfolio module gives leadership a clear view of every strategic initiative. Track milestones, monitor task completion, and manage team workload — all in one place. Drill into any project for a full breakdown of tasks, subtasks, and progress.",
+    id: "portfolio", title: "Portfolio & Projects", subtitle: "Strategic initiatives at a glance",
+    duration: 22, icon: FolderKanban, color: "#8b5cf6",
+    beats: [
+      { from: 0,    to: 0.35, text: "The Portfolio module gives leadership a real-time view of every strategic initiative in one dashboard." },
+      { from: 0.35, to: 0.68, text: "See project health, milestone completion, and task progress at a glance — with risk status instantly visible." },
+      { from: 0.68, to: 1,    text: "Drill into any project for full detail — tasks, subtasks, team workload, and blockers — all connected." },
+    ],
   },
   {
-    id: "analytics",
-    title: "Analytics Studio",
-    duration: 22,
-    icon: LineChart,
-    color: "#06b6d4",
-    narration: "Upload your Excel data and Performo AI automatically builds rich charts and insights. Compose custom dashboards with drag-and-drop widgets, create calculated formula columns, and ask the AI assistant any question about your data in plain language.",
+    id: "analytics", title: "Analytics Studio", subtitle: "Upload data, unlock insights instantly",
+    duration: 26, icon: LineChart, color: "#06b6d4",
+    beats: [
+      { from: 0,    to: 0.28, text: "Upload any Excel file and Performo AI builds rich, interactive charts and datasets in seconds." },
+      { from: 0.28, to: 0.55, text: "Build custom dashboards with drag-and-drop widgets — bar charts, line trends, pie breakdowns, KPI cards." },
+      { from: 0.55, to: 0.78, text: "Create formula columns, apply filters, and let the AI generate narrative insights from your data automatically." },
+      { from: 0.78, to: 1,    text: "Ask the AI assistant any business question in plain English — your data answers." },
+    ],
   },
   {
-    id: "workflow",
-    title: "Workflow Center",
-    duration: 20,
-    icon: Workflow,
-    color: "#f43f5e",
-    narration: "The Workflow Center manages service desk tickets, recurring tasks, licenses, and certificates — all organised into logical groups with due dates, status tracking, and automated overdue alerts. No more chasing on email.",
+    id: "workflow", title: "Workflow Center", subtitle: "Operational discipline across every team",
+    duration: 22, icon: Workflow, color: "#f43f5e",
+    beats: [
+      { from: 0,    to: 0.35, text: "The Workflow Center brings operational structure to every department — from IT to Finance to Compliance." },
+      { from: 0.35, to: 0.68, text: "Manage service desk tickets, recurring tasks, license renewals, and certificate tracking in smart groups." },
+      { from: 0.68, to: 1,    text: "Due dates, status tracking, and automatic overdue alerts ensure nothing is missed or forgotten." },
+    ],
   },
   {
-    id: "scorecard",
-    title: "Balanced Scorecard",
-    duration: 16,
-    icon: LayoutGrid,
-    color: "#0ea5e9",
-    narration: "Map your KPIs across the four balanced scorecard perspectives — Financial, Customer, Internal Processes, and Learning & Growth — giving leadership a single strategic view of the entire business.",
+    id: "scorecard", title: "Balanced Scorecard", subtitle: "One strategic view across four perspectives",
+    duration: 18, icon: LayoutGrid, color: "#0ea5e9",
+    beats: [
+      { from: 0,    to: 0.42, text: "The Balanced Scorecard maps every KPI across four strategic perspectives in a single view." },
+      { from: 0.42, to: 1,    text: "Financial, Customer, Internal Processes, and Learning & Growth — your entire strategy on one screen." },
+    ],
   },
   {
-    id: "presentations",
-    title: "Presentation Studio",
-    duration: 16,
-    icon: Presentation,
-    color: "#d946ef",
-    narration: "Generate professional presentations from your live data in seconds. Tell Performo AI what you need, and it builds slides with your KPIs, charts, and strategic insights — ready to present to your board or leadership team.",
+    id: "presentations", title: "Presentation Studio", subtitle: "Board-ready slides in seconds",
+    duration: 20, icon: Presentation, color: "#d946ef",
+    beats: [
+      { from: 0,    to: 0.38, text: "Presentation Studio generates board-ready slides from your live Performo AI data in seconds." },
+      { from: 0.38, to: 0.70, text: "Describe what you need — the AI builds polished slides with your KPIs, charts, and strategic commentary." },
+      { from: 0.70, to: 1,    text: "Export, present, and impress — no manual copy-paste, no stale data, no design effort." },
+    ],
   },
   {
-    id: "reviews",
-    title: "Monthly Reviews",
-    duration: 16,
-    icon: ClipboardList,
-    color: "#84cc16",
-    narration: "Run structured monthly performance reviews with AI-generated narratives. Highlight wins, flag risks, track commitments, and build a running record of your organisation's performance story over time.",
+    id: "reviews", title: "Monthly Reviews", subtitle: "Structured, AI-powered performance conversations",
+    duration: 20, icon: ClipboardList, color: "#84cc16",
+    beats: [
+      { from: 0,    to: 0.38, text: "Monthly Reviews bring structure and accountability to your leadership performance conversations." },
+      { from: 0.38, to: 0.70, text: "The AI generates the narrative from your live data — wins, risks, team commitments, and follow-ups." },
+      { from: 0.70, to: 1,    text: "Every review builds a running performance record your leadership can rely on month after month." },
+    ],
   },
   {
-    id: "close",
-    title: "Get Started Today",
-    duration: 12,
-    icon: Zap,
-    color: "#3b82f6",
-    narration: "Performo AI — where strategy meets execution. Every module, every insight, every action — connected in one intelligent platform. Sign up today and have your team up and running in under an hour.",
+    id: "close", title: "Start Your Free Trial", subtitle: "Strategy meets execution — every day",
+    duration: 13, icon: Zap, color: "#3b82f6",
+    beats: [
+      { from: 0,    to: 0.48, text: "Performo AI — where strategy meets execution, every single day." },
+      { from: 0.48, to: 1,    text: "Join leadership teams already using Performo to drive performance. Start your free trial today." },
+    ],
   },
 ];
 
 const TOTAL_DURATION = CHAPTERS.reduce((s, c) => s + c.duration, 0);
 
+// ─── Caption helper ──────────────────────────────────────────────────────────
+
+function getCaption(chapter: Chapter, progress: number): string {
+  const beat = chapter.beats.find(b => progress >= b.from && progress < b.to)
+    || chapter.beats[chapter.beats.length - 1];
+  return beat?.text ?? "";
+}
+
+// ─── Visual Components ───────────────────────────────────────────────────────
+
 function KpiVisual({ progress }: { progress: number }) {
   const kpis = [
-    { name: "Occupancy Rate", value: "82%", target: "85%", status: "amber", trend: "up" },
-    { name: "RevPAR", value: "AED 561", target: "AED 578", status: "amber", trend: "up" },
-    { name: "Guest Score", value: "4.6", target: "4.5", status: "green", trend: "up" },
-    { name: "Staff Turnover", value: "24%", target: "20%", status: "red", trend: "down" },
-    { name: "GOP Margin", value: "36%", target: "35%", status: "green", trend: "up" },
-    { name: "ADR", value: "AED 685", target: "AED 680", status: "green", trend: "up" },
+    { name: "Occupancy Rate", value: "82%", target: "85%", status: "amber", pct: 82 },
+    { name: "RevPAR", value: "AED 561", target: "AED 578", status: "amber", pct: 75 },
+    { name: "Guest Score", value: "4.6 / 5", target: "4.5", status: "green", pct: 92 },
+    { name: "GOP Margin", value: "36%", target: "35%", status: "green", pct: 90 },
+    { name: "Staff Turnover", value: "24%", target: "20%", status: "red", pct: 48 },
+    { name: "ADR", value: "AED 685", target: "AED 680", status: "green", pct: 88 },
   ];
-  const colors: Record<string, string> = { green: "#10b981", amber: "#f59e0b", red: "#ef4444" };
+  const sc: Record<string, string> = { green: "#10b981", amber: "#f59e0b", red: "#ef4444" };
   return (
-    <div className="w-full h-full p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between mb-1">
+    <div className="w-full h-full p-4 flex flex-col gap-2.5">
+      <div className="flex items-center justify-between mb-0.5">
         <span className="text-white font-semibold text-sm">KPI Performance — April 2026</span>
-        <Badge className="bg-white/10 text-white text-[10px]">10 KPIs</Badge>
+        <div className="flex gap-2 text-[10px]">
+          {[["🟢","3 On Track"],["🟡","2 At Risk"],["🔴","1 Off Track"]].map(([e,l]) =>
+            <span key={l} className="text-white/50">{e} {l}</span>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-2 flex-1">
         {kpis.map((k, i) => {
-          const show = progress > i * 0.13;
+          const show = progress > i * 0.1;
           return (
-            <div
-              key={k.name}
-              className="rounded-xl p-3 flex flex-col gap-1.5 transition-all duration-500"
-              style={{
-                background: "rgba(255,255,255,0.07)",
-                border: `1.5px solid ${colors[k.status]}40`,
-                opacity: show ? 1 : 0,
-                transform: show ? "translateY(0)" : "translateY(12px)",
-              }}
-            >
+            <div key={k.name} className="rounded-xl p-3 flex flex-col gap-2 transition-all duration-500"
+              style={{ background:"rgba(255,255,255,0.06)", border:`1.5px solid ${sc[k.status]}35`,
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(14px)" }}>
               <div className="flex items-center justify-between">
-                <span className="text-white/60 text-[10px] leading-tight">{k.name}</span>
-                <div className="w-2.5 h-2.5 rounded-full" style={{ background: colors[k.status] }} />
+                <span className="text-white/55 text-[10px] leading-tight">{k.name}</span>
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: sc[k.status] }} />
               </div>
-              <div className="text-white font-bold text-base leading-none">{k.value}</div>
-              <div className="text-white/40 text-[10px]">Target: {k.target}</div>
+              <div className="text-white font-bold text-sm">{k.value}</div>
+              <div className="text-white/35 text-[10px]">Target {k.target}</div>
               <div className="h-1 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-1000"
-                  style={{ width: show ? "75%" : "0%", background: colors[k.status] }}
-                />
+                <div className="h-full rounded-full transition-all duration-1000"
+                  style={{ width: show ? `${k.pct}%` : "0%", background: sc[k.status] }} />
               </div>
             </div>
           );
         })}
-      </div>
-      <div className="flex gap-3 text-[11px]">
-        {[["🟢", "On Track", "3"], ["🟡", "At Risk", "2"], ["🔴", "Off Track", "1"]].map(([e, l, n]) => (
-          <div key={l} className="flex items-center gap-1.5 text-white/60">
-            <span>{e}</span><span>{n} {l}</span>
-          </div>
-        ))}
       </div>
     </div>
   );
 }
 
 function ActionsVisual({ progress }: { progress: number }) {
-  const actions = [
-    { title: "Finalise Q2 Revenue Strategy", owner: "Dharmesh", due: "Apr 20", status: "In Progress", priority: "High" },
-    { title: "Complete Fire Safety Audit", owner: "Noura", due: "Apr 15", status: "Overdue", priority: "High" },
-    { title: "Launch Guest Loyalty Programme", owner: "Ravi", due: "May 1", status: "Not Started", priority: "Medium" },
-    { title: "Update Staff Training Matrix", owner: "Noura", due: "Apr 30", status: "In Progress", priority: "Medium" },
-    { title: "Review F&B Supplier Contracts", owner: "Dharmesh", due: "Apr 25", status: "Completed", priority: "Low" },
+  const items = [
+    { title: "Finalise Q2 Revenue Strategy", owner: "Dharmesh Sheth", due: "Apr 20", status: "In Progress" },
+    { title: "Fire Safety Audit — All Floors", owner: "Noura Bin Rashid", due: "Apr 15", status: "Overdue" },
+    { title: "Launch Guest Loyalty Programme", owner: "Ravi Mehta", due: "May 1", status: "Not Started" },
+    { title: "Update Staff Training Matrix", owner: "Noura Bin Rashid", due: "Apr 30", status: "In Progress" },
+    { title: "Review F&B Supplier Contracts", owner: "Dharmesh Sheth", due: "Apr 25", status: "Completed" },
+    { title: "Q1 Performance Board Report", owner: "Ravi Mehta", due: "Apr 18", status: "In Progress" },
   ];
-  const statusColors: Record<string, string> = {
-    "In Progress": "#3b82f6", "Overdue": "#ef4444", "Not Started": "#6b7280", "Completed": "#10b981",
-  };
+  const sc: Record<string, string> = { "In Progress":"#3b82f6","Overdue":"#ef4444","Not Started":"#6b7280","Completed":"#10b981" };
   return (
     <div className="w-full h-full p-4 flex flex-col gap-2">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-0.5">
         <span className="text-white font-semibold text-sm">Action Items</span>
-        <span className="text-white/40 text-xs">6 items</span>
+        <div className="flex gap-2 text-[10px]">
+          {[["#3b82f6","3 In Progress"],["#ef4444","1 Overdue"],["#10b981","1 Completed"]].map(([c,l]) =>
+            <span key={l} style={{ color: c as string }}>{l}</span>)}
+        </div>
       </div>
       <div className="flex flex-col gap-1.5">
-        {actions.map((a, i) => {
-          const show = progress > i * 0.15;
+        {items.map((a, i) => {
+          const show = progress > i * 0.12;
           return (
-            <div
-              key={a.title}
-              className="rounded-lg px-3 py-2 flex items-center gap-3 transition-all duration-500"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                opacity: show ? 1 : 0,
-                transform: show ? "translateX(0)" : "translateX(-16px)",
-              }}
-            >
-              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: statusColors[a.status] }} />
+            <div key={a.title} className="rounded-lg px-3 py-2 flex items-center gap-3 transition-all duration-500"
+              style={{ background:"rgba(255,255,255,0.055)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(-16px)" }}>
+              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sc[a.status] }} />
               <div className="flex-1 min-w-0">
-                <div className="text-white text-xs font-medium truncate">{a.title}</div>
+                <div className="text-white text-[11px] font-medium truncate">{a.title}</div>
                 <div className="text-white/40 text-[10px]">{a.owner} · Due {a.due}</div>
               </div>
-              <div className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: `${statusColors[a.status]}20`, color: statusColors[a.status] }}>
-                {a.status}
-              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0"
+                style={{ background:`${sc[a.status]}18`, color: sc[a.status] }}>{a.status}</span>
             </div>
           );
         })}
@@ -202,41 +208,38 @@ function ActionsVisual({ progress }: { progress: number }) {
 
 function PortfolioVisual({ progress }: { progress: number }) {
   const projects = [
-    { name: "Hotel Brand Refresh 2026", status: "On Track", tasks: 12, done: 8, pct: 67, color: "#10b981" },
-    { name: "PMS Migration to Cloud", status: "At Risk", tasks: 18, done: 9, pct: 50, color: "#f59e0b" },
-    { name: "Staff L&D Programme", status: "On Track", tasks: 10, done: 7, pct: 70, color: "#10b981" },
+    { name: "Hotel Brand Refresh 2026", status: "On Track", pct: 67, tasks: "8/12", milestones: "3/4", color: "#10b981" },
+    { name: "PMS Migration to Cloud", status: "At Risk", pct: 50, tasks: "9/18", milestones: "2/5", color: "#f59e0b" },
+    { name: "Staff L&D Programme Q2", status: "On Track", pct: 70, tasks: "7/10", milestones: "2/3", color: "#10b981" },
   ];
   return (
     <div className="w-full h-full p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-0.5">
         <span className="text-white font-semibold text-sm">Strategic Portfolio</span>
-        <Badge className="bg-white/10 text-white text-[10px]">3 Projects</Badge>
+        <Badge className="bg-white/10 text-white/70 border-white/10 text-[10px]">3 Active Projects</Badge>
       </div>
-      <div className="flex flex-col gap-3 flex-1">
+      <div className="flex flex-col gap-2.5 flex-1">
         {projects.map((p, i) => {
-          const show = progress > i * 0.2;
+          const show = progress > i * 0.22;
           return (
-            <div
-              key={p.name}
-              className="rounded-xl p-3 transition-all duration-600"
-              style={{
-                background: "rgba(255,255,255,0.07)",
-                border: `1.5px solid ${p.color}30`,
-                opacity: show ? 1 : 0,
-                transform: show ? "translateY(0)" : "translateY(16px)",
-              }}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <span className="text-white text-xs font-semibold leading-snug">{p.name}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full ml-2 flex-shrink-0" style={{ background: `${p.color}20`, color: p.color }}>{p.status}</span>
+            <div key={p.name} className="rounded-xl p-3.5 transition-all duration-600"
+              style={{ background:"rgba(255,255,255,0.065)", border:`1.5px solid ${p.color}28`,
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(16px)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-white text-[11px] font-semibold">{p.name}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full"
+                  style={{ background:`${p.color}18`, color: p.color }}>{p.status}</span>
               </div>
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1200" style={{ width: show ? `${p.pct}%` : "0%", background: p.color }} />
+                  <div className="h-full rounded-full transition-all duration-1200"
+                    style={{ width: show ? `${p.pct}%` : "0%", background: p.color }} />
                 </div>
-                <span className="text-white/60 text-[10px] w-8 text-right">{p.pct}%</span>
+                <span className="text-white font-medium text-[11px] w-8 text-right">{p.pct}%</span>
               </div>
-              <div className="text-white/40 text-[10px]">{p.done}/{p.tasks} tasks complete</div>
+              <div className="flex gap-4 text-[10px] text-white/40">
+                <span>Tasks {p.tasks}</span><span>Milestones {p.milestones}</span>
+              </div>
             </div>
           );
         })}
@@ -246,44 +249,62 @@ function PortfolioVisual({ progress }: { progress: number }) {
 }
 
 function AnalyticsVisual({ progress }: { progress: number }) {
-  const bars = [62, 78, 55, 88, 72, 91, 65, 84, 70, 95, 60, 82];
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const bars = [58, 72, 61, 84, 70, 88, 65, 79, 74, 90, 68, 95];
+  const months = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+  const widgets = ["Revenue Trend","Occupancy Rate","Guest Score Avg","GOP Analysis"];
   return (
-    <div className="w-full h-full p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-white font-semibold text-sm">Revenue Analytics — 2025</span>
-        <div className="flex gap-2">
-          <Badge className="bg-cyan-500/20 text-cyan-400 text-[10px] border border-cyan-500/30">Bar Chart</Badge>
-          <Badge className="bg-white/10 text-white/60 text-[10px]">AI Insights ✨</Badge>
+    <div className="w-full h-full p-4 flex flex-col gap-2">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-white font-semibold text-sm">Analytics Studio — Revenue 2025</span>
+        <div className="flex gap-1.5">
+          {["📊 Dashboard","✨ AI Insights","📁 Datasets"].map(l =>
+            <span key={l} className="text-[9px] px-2 py-0.5 rounded-md bg-white/8 text-white/50 border border-white/10">{l}</span>)}
         </div>
       </div>
-      <div className="flex items-end gap-1.5 flex-1 px-2">
-        {bars.map((h, i) => {
-          const show = progress > i * 0.07;
-          return (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div className="w-full rounded-t-md transition-all duration-700 relative" style={{
-                height: show ? `${h}%` : "0%",
-                background: i === 11 ? "linear-gradient(to top, #06b6d4, #3b82f6)" : "rgba(6,182,212,0.4)",
-                border: "1px solid rgba(6,182,212,0.3)",
-              }}>
-                {i === 11 && show && (
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-cyan-400 font-bold whitespace-nowrap">↑ Best</div>
-                )}
-              </div>
-              <span className="text-[8px] text-white/30">{months[i]}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-1">
-        {[["Total Revenue", "AED 4.2M", "+12%", "#10b981"], ["Avg Monthly", "AED 350K", "+8%", "#3b82f6"], ["Peak Month", "Dec (AED 412K)", "", "#f59e0b"]].map(([l, v, c, col]) => (
-          <div key={l} className="rounded-lg p-2 text-center" style={{ background: "rgba(255,255,255,0.05)" }}>
-            <div className="text-[9px] text-white/40">{l}</div>
-            <div className="text-xs text-white font-bold">{v}</div>
-            {c && <div className="text-[9px] font-medium" style={{ color: col }}>{c}</div>}
+      <div className="flex gap-2 flex-1">
+        <div className="flex-1 flex flex-col gap-1">
+          <div className="flex items-end gap-1 flex-1 px-1">
+            {bars.map((h, i) => {
+              const show = progress > i * 0.065;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                  <div className="w-full rounded-t transition-all duration-600 relative"
+                    style={{ height: show ? `${h}%` : "0%",
+                      background: i === 11 ? "linear-gradient(to top,#06b6d4,#3b82f6)" : "rgba(6,182,212,0.35)",
+                      border: "1px solid rgba(6,182,212,0.25)" }}>
+                    {i === 11 && show && (
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] text-cyan-300 font-bold whitespace-nowrap">Peak</div>
+                    )}
+                  </div>
+                  <span className="text-[7px] text-white/25">{months[i]}</span>
+                </div>
+              );
+            })}
           </div>
-        ))}
+          <div className="grid grid-cols-3 gap-1.5 mt-1">
+            {[["Total Revenue","AED 4.2M","#10b981"],["Best Month","Dec · AED 412K","#06b6d4"],["YoY Growth","+12%","#3b82f6"]].map(([l,v,c]) =>
+              <div key={l} className="rounded-lg p-1.5 text-center" style={{ background:"rgba(255,255,255,0.05)" }}>
+                <div className="text-[8px] text-white/40 mb-0.5">{l}</div>
+                <div className="text-[10px] text-white font-bold" style={{ color: c as string }}>{v}</div>
+              </div>)}
+          </div>
+        </div>
+        <div className="w-28 flex flex-col gap-1.5">
+          <div className="text-[9px] text-white/40 mb-0.5">Dashboard Widgets</div>
+          {widgets.map((w, i) => {
+            const show = progress > 0.3 + i * 0.12;
+            return (
+              <div key={w} className="rounded-lg p-2 text-[9px] text-white/60 border border-white/8 transition-all duration-400"
+                style={{ background:"rgba(255,255,255,0.05)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(8px)" }}>
+                {w}
+              </div>
+            );
+          })}
+          <div className="mt-auto rounded-lg p-2 border border-cyan-500/25 bg-cyan-500/8 text-[9px] text-cyan-400"
+            style={{ opacity: progress > 0.75 ? 1 : 0, transition: "opacity 0.5s" }}>
+            ✨ AI: "Revenue peaks Q4 — driven by occupancy uplift from Oct"
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -296,33 +317,43 @@ function WorkflowVisual({ progress }: { progress: number }) {
     { name: "Legal & Compliance Licenses", type: "Licenses", total: 4, open: 2, overdue: 1, color: "#8b5cf6" },
     { name: "Safety Certificates", type: "Certificates", total: 5, open: 3, overdue: 0, color: "#06b6d4" },
   ];
+  const tickets = [
+    { ref: "ST-042", title: "PMS login issue — Front Desk", priority: "High", status: "Open" },
+    { ref: "RT-018", title: "Monthly P&L Report submission", due: "Apr 30", status: "Due Soon" },
+    { ref: "LIC-007", title: "Trade License renewal", expiry: "May 15", status: "Overdue" },
+  ];
   return (
-    <div className="w-full h-full p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-white font-semibold text-sm">Workflow Center</span>
-        <span className="text-white/40 text-xs">4 modules · 18 items</span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 flex-1">
+    <div className="w-full h-full p-4 flex flex-col gap-2.5">
+      <span className="text-white font-semibold text-sm mb-0.5">Workflow Center — 4 Modules</span>
+      <div className="grid grid-cols-2 gap-2">
         {groups.map((g, i) => {
-          const show = progress > i * 0.18;
+          const show = progress > i * 0.15;
           return (
-            <div
-              key={g.name}
-              className="rounded-xl p-3 transition-all duration-500"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: `1.5px solid ${g.color}30`,
-                opacity: show ? 1 : 0,
-                transform: show ? "scale(1)" : "scale(0.9)",
-              }}
-            >
+            <div key={g.name} className="rounded-xl p-2.5 transition-all duration-500"
+              style={{ background:"rgba(255,255,255,0.055)", border:`1.5px solid ${g.color}28`,
+                opacity: show ? 1 : 0, transform: show ? "scale(1)" : "scale(0.9)" }}>
               <div className="text-[9px] font-medium mb-0.5" style={{ color: g.color }}>{g.type}</div>
-              <div className="text-white text-xs font-semibold leading-snug mb-2">{g.name}</div>
-              <div className="flex gap-2 text-[10px]">
-                <div className="flex flex-col"><span className="text-white font-bold text-sm">{g.total}</span><span className="text-white/40">Total</span></div>
-                <div className="flex flex-col"><span className="text-blue-400 font-bold text-sm">{g.open}</span><span className="text-white/40">Open</span></div>
-                {g.overdue > 0 && <div className="flex flex-col"><span className="text-red-400 font-bold text-sm">{g.overdue}</span><span className="text-white/40">Overdue</span></div>}
+              <div className="text-white text-[11px] font-semibold leading-snug mb-1.5">{g.name}</div>
+              <div className="flex gap-3 text-[10px]">
+                <span className="text-white/60">{g.total} Total</span>
+                <span className="text-blue-400">{g.open} Open</span>
+                {g.overdue > 0 && <span className="text-red-400">{g.overdue} Overdue</span>}
               </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-col gap-1 mt-1">
+        {tickets.map((t, i) => {
+          const show = progress > 0.55 + i * 0.12;
+          return (
+            <div key={t.ref} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2 transition-all duration-400"
+              style={{ background:"rgba(255,255,255,0.04)", opacity: show ? 1 : 0, transform: show ? "translateX(0)" : "translateX(-12px)" }}>
+              <span className="text-[9px] text-white/30 w-12">{t.ref}</span>
+              <span className="text-[10px] text-white/70 flex-1 truncate">{t.title}</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full"
+                style={{ background: t.status === "Overdue" ? "#ef444418" : t.status === "Due Soon" ? "#f59e0b18" : "#3b82f618",
+                  color: t.status === "Overdue" ? "#ef4444" : t.status === "Due Soon" ? "#f59e0b" : "#3b82f6" }}>{t.status}</span>
             </div>
           );
         })}
@@ -332,47 +363,39 @@ function WorkflowVisual({ progress }: { progress: number }) {
 }
 
 function ScorecardVisual({ progress }: { progress: number }) {
-  const perspectives = [
-    { label: "Financial", icon: TrendingUp, kpis: ["RevPAR", "GOP Margin", "ADR"], score: 78, color: "#10b981" },
-    { label: "Customer", icon: Star, kpis: ["Guest Score", "Repeat Rate", "NPS"], score: 85, color: "#3b82f6" },
-    { label: "Internal Processes", icon: Activity, kpis: ["Room Turnaround", "Occupancy", "Maintenance"], score: 62, color: "#f59e0b" },
-    { label: "Learning & Growth", icon: Users, kpis: ["Turnover", "Training Hrs", "Engagement"], score: 54, color: "#ef4444" },
+  const persp = [
+    { label: "Financial", Icon: TrendingUp, kpis:["RevPAR","GOP Margin","ADR","Budget Variance"], score: 78, color:"#10b981" },
+    { label: "Customer", Icon: Star, kpis:["Guest Score","Repeat Rate","NPS","Response Rate"], score: 85, color:"#3b82f6" },
+    { label: "Internal Processes", Icon: Activity, kpis:["Occupancy","Room Turnaround","Maintenance SLA"], score: 62, color:"#f59e0b" },
+    { label: "Learning & Growth", Icon: Users, kpis:["Staff Turnover","Training Hours","Engagement"], score: 54, color:"#ef4444" },
   ];
   return (
-    <div className="w-full h-full p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-white font-semibold text-sm">Balanced Scorecard</span>
-        <Badge className="bg-white/10 text-white text-[10px]">Q1 2026</Badge>
+    <div className="w-full h-full p-4 flex flex-col gap-2.5">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-white font-semibold text-sm">Balanced Scorecard — Q1 2026</span>
+        <Badge className="bg-white/10 text-white/60 border-white/10 text-[10px]">10 KPIs mapped</Badge>
       </div>
       <div className="grid grid-cols-2 gap-2 flex-1">
-        {perspectives.map((p, i) => {
-          const show = progress > i * 0.2;
-          const Icon = p.icon;
+        {persp.map((p, i) => {
+          const show = progress > i * 0.18;
           return (
-            <div
-              key={p.label}
-              className="rounded-xl p-3 flex flex-col gap-2 transition-all duration-600"
-              style={{
-                background: `${p.color}10`,
-                border: `1.5px solid ${p.color}30`,
-                opacity: show ? 1 : 0,
-                transform: show ? "translateY(0)" : "translateY(10px)",
-              }}
-            >
+            <div key={p.label} className="rounded-xl p-3 flex flex-col gap-2 transition-all duration-600"
+              style={{ background:`${p.color}0e`, border:`1.5px solid ${p.color}28`,
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(12px)" }}>
               <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: `${p.color}20` }}>
-                  <Icon className="w-3 h-3" style={{ color: p.color }} />
+                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background:`${p.color}20` }}>
+                  <p.Icon className="w-3 h-3" style={{ color: p.color }} />
                 </div>
                 <span className="text-white text-[11px] font-semibold">{p.label}</span>
               </div>
               <div className="flex items-end gap-1">
-                <span className="text-2xl font-bold" style={{ color: p.color }}>{p.score}</span>
-                <span className="text-white/40 text-xs mb-0.5">/100</span>
+                <span className="text-2xl font-bold leading-none" style={{ color: p.color }}>{p.score}</span>
+                <span className="text-white/35 text-xs mb-0.5">/100</span>
               </div>
               <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-1000" style={{ width: show ? `${p.score}%` : "0%", background: p.color }} />
+                <div className="h-full rounded-full transition-all duration-1100" style={{ width: show ? `${p.score}%` : "0%", background: p.color }} />
               </div>
-              <div className="text-[9px] text-white/40">{p.kpis.join(" · ")}</div>
+              <div className="text-[9px] text-white/35 truncate">{p.kpis.slice(0,3).join(" · ")}</div>
             </div>
           );
         })}
@@ -382,37 +405,37 @@ function ScorecardVisual({ progress }: { progress: number }) {
 }
 
 function PresentationVisual({ progress }: { progress: number }) {
+  const prompt = "Q2 2026 board presentation — KPI performance, project status, and strategic priorities";
   const slides = [
-    { title: "Q1 Performance Review", subtitle: "OYO Hospitality — April 2026", type: "cover" },
-    { title: "KPI Dashboard", subtitle: "6 of 10 KPIs on track", type: "kpi" },
-    { title: "Revenue Analysis", subtitle: "AED 4.2M total · +12% YoY", type: "chart" },
-    { title: "Strategic Actions", subtitle: "5 initiatives in progress", type: "actions" },
+    { n:"01", title:"Q2 2026 Performance Review", sub:"OYO Hospitality — Confidential" },
+    { n:"02", title:"KPI Dashboard Overview", sub:"6 of 10 KPIs on track · 2 at risk" },
+    { n:"03", title:"Revenue & Financial Analysis", sub:"AED 4.2M total · +12% YoY" },
+    { n:"04", title:"Strategic Portfolio Status", sub:"3 projects · 67% avg completion" },
+    { n:"05", title:"Key Risks & Mitigations", sub:"Staff turnover · Safety audit" },
+    { n:"06", title:"Q3 Priorities & Commitments", sub:"5 initiatives · ownership assigned" },
   ];
+  const promptChars = Math.floor(prompt.length * Math.min(progress * 3, 1));
   return (
-    <div className="w-full h-full p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between mb-1">
+    <div className="w-full h-full p-4 flex flex-col gap-2.5">
+      <div className="flex items-center justify-between mb-0.5">
         <span className="text-white font-semibold text-sm">Presentation Studio</span>
-        <Badge className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px]">AI Generated ✨</Badge>
+        <Badge className="bg-purple-500/20 text-purple-300 border border-purple-500/25 text-[10px]">✨ AI Generated</Badge>
       </div>
-      <div className="grid grid-cols-2 gap-2 flex-1">
+      <div className="rounded-lg p-2.5 border border-purple-500/20 bg-purple-500/5 text-[10px] text-purple-300" style={{ opacity: progress > 0 ? 1 : 0 }}>
+        <span className="text-purple-500/60 mr-1">Prompt:</span>
+        {prompt.slice(0, promptChars)}
+        {promptChars < prompt.length && <span className="inline-block w-0.5 h-3 bg-purple-400 ml-0.5 animate-pulse align-middle" />}
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 flex-1">
         {slides.map((s, i) => {
-          const show = progress > i * 0.2;
+          const show = progress > 0.28 + i * 0.11;
           return (
-            <div
-              key={s.title}
-              className="rounded-xl p-3 flex flex-col items-center justify-center text-center gap-1 transition-all duration-500"
-              style={{
-                background: i === 0
-                  ? "linear-gradient(135deg, #3b82f620, #8b5cf620)"
-                  : "rgba(255,255,255,0.06)",
-                border: "1.5px solid rgba(255,255,255,0.1)",
-                opacity: show ? 1 : 0,
-                transform: show ? "scale(1)" : "scale(0.85)",
-              }}
-            >
-              <div className="text-[9px] text-white/40 uppercase tracking-wider">Slide {i + 1}</div>
-              <div className="text-white text-[11px] font-semibold leading-snug">{s.title}</div>
-              <div className="text-white/50 text-[10px]">{s.subtitle}</div>
+            <div key={s.n} className="rounded-lg p-2 flex flex-col items-center justify-center text-center gap-1 transition-all duration-500"
+              style={{ background: i === 0 ? "linear-gradient(135deg,#3b82f618,#8b5cf618)" : "rgba(255,255,255,0.055)",
+                border:"1px solid rgba(255,255,255,0.08)", opacity: show ? 1 : 0, transform: show ? "scale(1)" : "scale(0.88)" }}>
+              <div className="text-[8px] text-white/30">Slide {s.n}</div>
+              <div className="text-[9px] text-white font-semibold leading-snug">{s.title}</div>
+              <div className="text-[8px] text-white/40 leading-tight">{s.sub}</div>
             </div>
           );
         })}
@@ -422,40 +445,35 @@ function PresentationVisual({ progress }: { progress: number }) {
 }
 
 function ReviewsVisual({ progress }: { progress: number }) {
+  const narrative = "March delivered strong results with occupancy at 82% and guest satisfaction holding above target at 4.6. RevPAR improved 6% month-on-month. Staff turnover at 24% remains the primary risk for Q2 — targeted retention actions are in progress.";
+  const narChars = Math.floor(narrative.length * Math.min(progress * 2.5, 1));
   return (
-    <div className="w-full h-full p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-white font-semibold text-sm">March 2026 Performance Review</span>
-        <Badge className="bg-lime-500/20 text-lime-300 border border-lime-500/30 text-[10px]">Completed</Badge>
+    <div className="w-full h-full p-4 flex flex-col gap-2.5">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-white font-semibold text-sm">March 2026 — Monthly Review</span>
+        <Badge className="bg-lime-500/20 text-lime-300 border border-lime-500/25 text-[10px]">Review Complete</Badge>
       </div>
-      <div
-        className="rounded-xl p-3 transition-all duration-500"
-        style={{
-          background: "rgba(255,255,255,0.06)",
-          opacity: progress > 0.1 ? 1 : 0,
-        }}
-      >
-        <div className="text-[10px] text-white/40 mb-1">AI-Generated Narrative</div>
-        <p className="text-white/80 text-xs leading-relaxed">
-          March was a strong month for OYO Hospitality with occupancy reaching 82% — just 3 points below target. RevPAR improved by 6% month-on-month driven by rate optimisation. Guest satisfaction remained above target at 4.6. Staff turnover remains the key risk area requiring focused attention in Q2.
+      <div className="rounded-xl p-3 bg-white/[0.05] border border-white/8" style={{ opacity: progress > 0.05 ? 1 : 0, transition:"opacity 0.5s" }}>
+        <div className="text-[9px] text-white/35 mb-1.5">✨ AI-Generated Narrative</div>
+        <p className="text-white/80 text-[11px] leading-relaxed">
+          {narrative.slice(0, narChars)}
+          {narChars < narrative.length && <span className="inline-block w-0.5 h-3 bg-white/60 ml-0.5 animate-pulse align-middle" />}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2 flex-1">
         {[
-          { label: "Key Wins", items: ["RevPAR up 6% MoM", "Guest score 4.6 ✓"], color: "#10b981", icon: "🏆" },
-          { label: "Risks", items: ["Turnover at 24%", "2 overdue action items"], color: "#ef4444", icon: "⚠️" },
-          { label: "Commitments", items: ["L&D programme launch", "Safety audit completion"], color: "#3b82f6", icon: "📋" },
-          { label: "Next Month Focus", items: ["Hit 85% occupancy", "Reduce turnover to 22%"], color: "#f59e0b", icon: "🎯" },
+          { label:"🏆 Key Wins", items:["RevPAR +6% MoM","Guest score 4.6 ✓","ADR above target"], color:"#10b981" },
+          { label:"⚠️ Key Risks", items:["Turnover at 24%","Fire audit overdue","2 stalled actions"], color:"#ef4444" },
+          { label:"📋 Team Commitments", items:["L&D programme launch","Safety audit by Apr 15"], color:"#3b82f6" },
+          { label:"🎯 Q2 Focus Areas", items:["Reach 85% occupancy","Reduce turnover to 22%"], color:"#f59e0b" },
         ].map((s, i) => {
-          const show = progress > 0.15 + i * 0.15;
+          const show = progress > 0.35 + i * 0.14;
           return (
-            <div
-              key={s.label}
-              className="rounded-xl p-2.5 transition-all duration-500"
-              style={{ background: `${s.color}10`, border: `1px solid ${s.color}25`, opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(8px)" }}
-            >
-              <div className="text-[10px] font-semibold mb-1" style={{ color: s.color }}>{s.icon} {s.label}</div>
-              {s.items.map(it => <div key={it} className="text-[10px] text-white/60 leading-tight">· {it}</div>)}
+            <div key={s.label} className="rounded-xl p-2.5 transition-all duration-500"
+              style={{ background:`${s.color}0d`, border:`1px solid ${s.color}22`,
+                opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(8px)" }}>
+              <div className="text-[9px] font-semibold mb-1" style={{ color:s.color }}>{s.label}</div>
+              {s.items.map(it => <div key={it} className="text-[9px] text-white/55 leading-tight">· {it}</div>)}
             </div>
           );
         })}
@@ -465,43 +483,37 @@ function ReviewsVisual({ progress }: { progress: number }) {
 }
 
 function IntroVisual({ progress }: { progress: number }) {
+  const modules = [
+    { Icon: BarChart3, label: "KPI Dashboard", color: "#10b981" },
+    { Icon: CheckSquare, label: "Actions", color: "#f59e0b" },
+    { Icon: FolderKanban, label: "Portfolio", color: "#8b5cf6" },
+    { Icon: LineChart, label: "Analytics Studio", color: "#06b6d4" },
+    { Icon: Workflow, label: "Workflow Center", color: "#f43f5e" },
+    { Icon: LayoutGrid, label: "Scorecard", color: "#0ea5e9" },
+    { Icon: Presentation, label: "Presentations", color: "#d946ef" },
+    { Icon: ClipboardList, label: "Monthly Reviews", color: "#84cc16" },
+  ];
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-6">
-      <div
-        className="transition-all duration-700"
-        style={{ opacity: progress > 0.05 ? 1 : 0, transform: progress > 0.05 ? "scale(1)" : "scale(0.8)" }}
-      >
+    <div className="w-full h-full flex flex-col items-center justify-center gap-5 px-4">
+      <div className="text-center transition-all duration-700" style={{ opacity: progress > 0.05 ? 1 : 0, transform: progress > 0.05 ? "scale(1)" : "scale(0.85)" }}>
         <div className="flex items-center gap-3 mb-2 justify-center">
           <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-blue-400" />
           </div>
           <span className="text-3xl font-bold text-white tracking-tight">Performo <span className="text-blue-400">AI</span></span>
         </div>
-        <p className="text-center text-white/50 text-sm">Performance Management · Powered by AI</p>
+        <p className="text-white/45 text-sm">Complete Performance Management · Powered by AI</p>
       </div>
-      <div className="flex gap-4 flex-wrap justify-center">
-        {[
-          { icon: BarChart3, label: "KPIs", color: "#10b981" },
-          { icon: CheckSquare, label: "Actions", color: "#f59e0b" },
-          { icon: FolderKanban, label: "Portfolio", color: "#8b5cf6" },
-          { icon: LineChart, label: "Analytics", color: "#06b6d4" },
-          { icon: Workflow, label: "Workflow", color: "#f43f5e" },
-          { icon: LayoutGrid, label: "Scorecard", color: "#0ea5e9" },
-          { icon: Presentation, label: "Presentations", color: "#d946ef" },
-          { icon: ClipboardList, label: "Reviews", color: "#84cc16" },
-        ].map((m, i) => {
-          const show = progress > 0.15 + i * 0.09;
-          const Icon = m.icon;
+      <div className="grid grid-cols-4 gap-2.5">
+        {modules.map(({ Icon, label, color }, i) => {
+          const show = progress > 0.18 + i * 0.08;
           return (
-            <div
-              key={m.label}
-              className="flex flex-col items-center gap-1.5 transition-all duration-500"
-              style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(12px)" }}
-            >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${m.color}20`, border: `1.5px solid ${m.color}40` }}>
-                <Icon className="w-4.5 h-4.5" style={{ color: m.color }} />
+            <div key={label} className="flex flex-col items-center gap-1.5 transition-all duration-500"
+              style={{ opacity: show ? 1 : 0, transform: show ? "translateY(0)" : "translateY(12px)" }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background:`${color}18`, border:`1.5px solid ${color}35` }}>
+                <Icon className="w-5 h-5" style={{ color }} />
               </div>
-              <span className="text-[10px] text-white/50">{m.label}</span>
+              <span className="text-[9px] text-white/45 text-center leading-tight">{label}</span>
             </div>
           );
         })}
@@ -513,274 +525,534 @@ function IntroVisual({ progress }: { progress: number }) {
 function CloseVisual({ progress }: { progress: number }) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-5 text-center px-6">
-      <div className="transition-all duration-700" style={{ opacity: progress > 0.1 ? 1 : 0, transform: progress > 0.1 ? "translateY(0)" : "translateY(20px)" }}>
+      <div className="transition-all duration-700" style={{ opacity: progress > 0.08 ? 1 : 0, transform: progress > 0.08 ? "translateY(0)" : "translateY(18px)" }}>
         <div className="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mx-auto mb-4">
           <Zap className="w-7 h-7 text-blue-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Ready to Transform Your Performance?</h2>
-        <p className="text-white/50 text-sm max-w-xs mx-auto">Every module. Every insight. Every action — connected in one intelligent platform.</p>
+        <h2 className="text-2xl font-bold text-white mb-2">Ready to Drive Performance?</h2>
+        <p className="text-white/45 text-sm max-w-xs mx-auto leading-relaxed">Every module connected. Every insight actionable. Strategy to execution — in one platform.</p>
       </div>
-      <div
-        className="flex flex-col gap-2 items-center transition-all duration-700"
-        style={{ opacity: progress > 0.4 ? 1 : 0, transform: progress > 0.4 ? "translateY(0)" : "translateY(12px)" }}
-      >
-        <div className="text-white/70 text-sm">Login with demo credentials to explore:</div>
+      <div className="transition-all duration-700 flex flex-col gap-3 items-center"
+        style={{ opacity: progress > 0.4 ? 1 : 0, transform: progress > 0.4 ? "translateY(0)" : "translateY(12px)" }}>
+        <div className="text-white/50 text-xs">Explore with demo credentials</div>
         <div className="flex gap-3 flex-wrap justify-center text-xs">
-          <div className="bg-white/10 rounded-lg px-3 py-2 text-white/80"><span className="text-white/40">Admin:</span> demo@performo.ai / demo123</div>
-          <div className="bg-white/10 rounded-lg px-3 py-2 text-white/80"><span className="text-white/40">Exec:</span> exec@performo.ai / exec123</div>
+          <div className="bg-white/8 border border-white/12 rounded-lg px-3 py-2 text-white/70">
+            <span className="text-white/35">Admin: </span>demo@performo.ai / demo123
+          </div>
+          <div className="bg-white/8 border border-white/12 rounded-lg px-3 py-2 text-white/70">
+            <span className="text-white/35">Exec: </span>exec@performo.ai / exec123
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-const CHAPTER_VISUALS: Record<string, (props: { progress: number }) => JSX.Element> = {
-  intro: IntroVisual,
-  kpi: KpiVisual,
-  actions: ActionsVisual,
-  portfolio: PortfolioVisual,
-  analytics: AnalyticsVisual,
-  workflow: WorkflowVisual,
-  scorecard: ScorecardVisual,
-  presentations: PresentationVisual,
-  reviews: ReviewsVisual,
-  close: CloseVisual,
+const VISUALS: Record<string, (p:{progress:number})=>JSX.Element> = {
+  intro: IntroVisual, kpi: KpiVisual, actions: ActionsVisual,
+  portfolio: PortfolioVisual, analytics: AnalyticsVisual, workflow: WorkflowVisual,
+  scorecard: ScorecardVisual, presentations: PresentationVisual,
+  reviews: ReviewsVisual, close: CloseVisual,
 };
+
+// ─── Canvas Frame Drawing (for MP4 export) ──────────────────────────────────
+
+function hexToRgb(hex: string) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return { r, g, b };
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lineH: number) {
+  const words = text.split(" ");
+  let line = "";
+  let lines: string[] = [];
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = word; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
+  return lines.length * lineH;
+}
+
+// Polyfill for older browsers
+if (typeof CanvasRenderingContext2D !== "undefined" && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x: number, y: number, w: number, h: number, r: number) {
+    r = Math.min(r, w/2, h/2);
+    this.beginPath();
+    this.moveTo(x+r, y); this.lineTo(x+w-r, y); this.arcTo(x+w,y,x+w,y+r,r);
+    this.lineTo(x+w, y+h-r); this.arcTo(x+w,y+h,x+w-r,y+h,r);
+    this.lineTo(x+r, y+h); this.arcTo(x,y+h,x,y+h-r,r);
+    this.lineTo(x, y+r); this.arcTo(x,y,x+r,y,r);
+    this.closePath();
+  };
+}
+
+function drawExportFrame(
+  ctx: CanvasRenderingContext2D, W: number, H: number,
+  chIdx: number, progress: number, captionText: string,
+  totalProgress: number
+) {
+  const ch = CHAPTERS[chIdx];
+  const { r, g, b } = hexToRgb(ch.color);
+
+  // Background
+  ctx.fillStyle = "#080c14";
+  ctx.fillRect(0, 0, W, H);
+  const grad = ctx.createRadialGradient(W*0.3, H*0.3, 0, W*0.3, H*0.3, W*0.7);
+  grad.addColorStop(0, `rgba(${r},${g},${b},0.08)`);
+  grad.addColorStop(1, "transparent");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Header bar
+  ctx.fillStyle = "rgba(255,255,255,0.04)";
+  ctx.fillRect(0, 0, W, 56);
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,56); ctx.lineTo(W,56); ctx.stroke();
+
+  // Logo
+  ctx.fillStyle = `rgba(${r},${g},${b},0.2)`;
+  ctx.beginPath(); ctx.roundRect(20, 14, 28, 28, 6); ctx.fill();
+  ctx.fillStyle = ch.color;
+  ctx.font = "bold 14px 'Arial'";
+  ctx.textAlign = "center";
+  ctx.fillText("✦", 34, 33);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 15px 'Arial'";
+  ctx.textAlign = "left";
+  ctx.fillText("Performo AI", 58, 33);
+
+  // Chapter title in header
+  ctx.fillStyle = ch.color;
+  ctx.font = "bold 13px 'Arial'";
+  ctx.textAlign = "right";
+  ctx.fillText(ch.title, W - 20, 27);
+  ctx.fillStyle = "rgba(255,255,255,0.35)";
+  ctx.font = "11px 'Arial'";
+  ctx.fillText(ch.subtitle, W - 20, 44);
+
+  // Main content area — chapter-specific cards
+  const contentY = 80, contentH = H - 80 - 160;
+  const items = getChapterExportContent(chIdx, progress);
+  const itemW = items.length <= 2 ? W*0.45 : W*0.29;
+  const itemsX = (W - (items.length * itemW + (items.length-1)*12)) / 2;
+
+  items.forEach((item, i) => {
+    const show = progress > i * (0.8/items.length);
+    const alpha = Math.min((progress - i*(0.8/items.length))*8, 1);
+    if (alpha <= 0) return;
+    const ix = itemsX + i*(itemW+12);
+    const iy = contentY + (1-alpha)*20;
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
+    ctx.beginPath(); ctx.roundRect(ix, iy, itemW, contentH, 12); ctx.fill();
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.25)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(ix, iy, itemW, contentH, 12); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Item label
+    ctx.fillStyle = ch.color;
+    ctx.font = "bold 11px 'Arial'";
+    ctx.textAlign = "left";
+    ctx.fillText(item.label, ix+16, iy+28);
+
+    // Item value
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${items.length<=2?"32":"26"}px 'Arial'`;
+    ctx.fillText(item.value, ix+16, iy+68);
+
+    // Item sub
+    if (item.sub) {
+      ctx.fillStyle = "rgba(255,255,255,0.45)";
+      ctx.font = "12px 'Arial'";
+      wrapText(ctx, item.sub, ix+16, iy+90, itemW-32, 18);
+    }
+
+    // Progress bar inside card
+    if (item.pct !== undefined) {
+      const barY = iy + contentH - 30;
+      ctx.fillStyle = "rgba(255,255,255,0.1)";
+      ctx.beginPath(); ctx.roundRect(ix+16, barY, itemW-32, 6, 3); ctx.fill();
+      ctx.fillStyle = ch.color;
+      ctx.beginPath(); ctx.roundRect(ix+16, barY, (itemW-32)*item.pct, 6, 3); ctx.fill();
+    }
+  });
+
+  // Caption area
+  const capY = H - 148;
+  ctx.fillStyle = "rgba(255,255,255,0.04)";
+  ctx.beginPath(); ctx.roundRect(40, capY, W-80, 80, 10); ctx.fill();
+  if (captionText) {
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.font = "15px 'Arial'";
+    ctx.textAlign = "center";
+    wrapText(ctx, captionText, W/2, capY+28, W-120, 24);
+  }
+
+  // Overall progress bar at bottom
+  const pbY = H - 44;
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  ctx.beginPath(); ctx.roundRect(40, pbY, W-80, 6, 3); ctx.fill();
+  ctx.fillStyle = ch.color;
+  ctx.beginPath(); ctx.roundRect(40, pbY, (W-80)*totalProgress, 6, 3); ctx.fill();
+
+  // Chapter dots
+  const dotY = H - 22;
+  CHAPTERS.forEach((c, i) => {
+    const dotX = W/2 - (CHAPTERS.length*16)/2 + i*16 + 8;
+    ctx.fillStyle = i === chIdx ? c.color : "rgba(255,255,255,0.15)";
+    ctx.beginPath(); ctx.arc(dotX, dotY, i === chIdx ? 4 : 3, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Bottom label
+  ctx.fillStyle = "rgba(255,255,255,0.2)";
+  ctx.font = "11px 'Arial'";
+  ctx.textAlign = "left";
+  ctx.fillText("performo.ai", 40, H - 16);
+  ctx.textAlign = "right";
+  ctx.fillText(`${chIdx+1} / ${CHAPTERS.length} — ${ch.title}`, W-40, H-16);
+}
+
+type ExportItem = { label: string; value: string; sub?: string; pct?: number };
+function getChapterExportContent(idx: number, progress: number): ExportItem[] {
+  const ch = CHAPTERS[idx];
+  if (ch.id === "intro") return [
+    { label:"KPIs & Analytics", value:"10+", sub:"Live metrics, charts and AI-powered insights" },
+    { label:"Workflow Modules", value:"4", sub:"Service desk, tasks, licenses, certificates" },
+    { label:"AI Features", value:"5+", sub:"Insights, narratives, slides, assistant, auto-alerts" },
+  ];
+  if (ch.id === "kpi") return [
+    { label:"KPIs Tracked", value:"10", sub:"Across 4 departments", pct: 1 },
+    { label:"On Track", value:"6", sub:"Green · meeting or exceeding target", pct: 0.6 },
+    { label:"Occupancy Rate", value:"82%", sub:"Target 85% · +4% vs last month", pct: 0.82 },
+  ];
+  if (ch.id === "actions") return [
+    { label:"Total Actions", value:"6", sub:"Across all departments", pct: 1 },
+    { label:"In Progress", value:"3", sub:"Actively being worked on", pct: 0.5 },
+    { label:"Overdue", value:"1", sub:"Fire safety audit — escalated", pct: 0.17 },
+  ];
+  if (ch.id === "portfolio") return [
+    { label:"Active Projects", value:"3", sub:"Strategic initiatives in delivery", pct: 1 },
+    { label:"Avg Completion", value:"62%", sub:"Across all projects", pct: 0.62 },
+    { label:"Tasks Complete", value:"24/37", sub:"Milestones: 7 of 12 hit", pct: 0.65 },
+  ];
+  if (ch.id === "analytics") return [
+    { label:"Datasets Uploaded", value:"3", sub:"Excel data auto-parsed", pct: 1 },
+    { label:"Insights Generated", value:"16", sub:"AI-detected trends and anomalies", pct: 0.85 },
+    { label:"Revenue 2025", value:"AED 4.2M", sub:"Peak December · +12% YoY", pct: 0.72 },
+  ];
+  if (ch.id === "workflow") return [
+    { label:"Workflow Groups", value:"13", sub:"Across 4 module types", pct: 1 },
+    { label:"Total Items", value:"18", sub:"Tickets, tasks, licenses, certs", pct: 0.85 },
+    { label:"Overdue", value:"2", sub:"Auto-flagged for escalation", pct: 0.11 },
+  ];
+  if (ch.id === "scorecard") return [
+    { label:"Financial Score", value:"78", sub:"RevPAR · GOP Margin · ADR", pct: 0.78 },
+    { label:"Customer Score", value:"85", sub:"Guest satisfaction above target", pct: 0.85 },
+    { label:"Overall Strategy", value:"70", sub:"Weighted across 4 perspectives", pct: 0.70 },
+  ];
+  if (ch.id === "presentations") return [
+    { label:"Slides Generated", value:"6", sub:"Q2 Board Pack · AI-authored", pct: 1 },
+    { label:"Time Saved", value:"~4hrs", sub:"vs manual PowerPoint creation" },
+    { label:"Data Sources", value:"Live", sub:"KPIs, analytics, actions auto-pulled" },
+  ];
+  if (ch.id === "reviews") return [
+    { label:"Review Completed", value:"Mar 2026", sub:"AI narrative in 30 seconds" },
+    { label:"Commitments Captured", value:"4", sub:"With named owners and dates", pct: 0.5 },
+    { label:"Risk Areas Flagged", value:"2", sub:"Staff turnover · Safety audit", pct: 0.2 },
+  ];
+  if (ch.id === "close") return [
+    { label:"Modules Included", value:"8", sub:"All in one platform", pct: 1 },
+    { label:"Setup Time", value:"< 1 hour", sub:"Onboard your team fast" },
+    { label:"Free Trial", value:"Available", sub:"No credit card required" },
+  ];
+  return [];
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function DemoPage() {
   const [, navigate] = useLocation();
-  const [chapterIdx, setChapterIdx] = useState(0);
+  const [chIdx, setChIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [elapsedInChapter, setElapsedInChapter] = useState(0);
+  const [elapsed, setElapsed] = useState(0); // within chapter
   const [totalElapsed, setTotalElapsed] = useState(0);
-  const [captionText, setCaptionText] = useState("");
-  const [captionVisible, setCaptionVisible] = useState(false);
+  const [caption, setCaption] = useState("");
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // Recording
+  const [recording, setRecording] = useState(false);
+  const [recProgress, setRecProgress] = useState(0);
+  const [recDone, setRecDone] = useState<string|null>(null);
+  const [recError, setRecError] = useState<string|null>(null);
 
-  const chapter = CHAPTERS[chapterIdx];
-  const chapterProgress = elapsedInChapter / chapter.duration;
+  const intervalRef = useRef<ReturnType<typeof setInterval>|null>(null);
+  const speechRef = useRef<SpeechSynthesisUtterance|null>(null);
+  const recCanvasRef = useRef<HTMLCanvasElement|null>(null);
+  const recBlobsRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<MediaRecorder|null>(null);
+
+  const chapter = CHAPTERS[chIdx];
+  const chProgress = elapsed / chapter.duration;
+  const totalPct = totalElapsed / TOTAL_DURATION;
+
+  // ── Speech ──────────────────────────────────────────────────────────────────
 
   const stopSpeech = useCallback(() => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
   }, []);
 
   const speakChapter = useCallback((idx: number) => {
     stopSpeech();
     if (muted || typeof window === "undefined" || !window.speechSynthesis) return;
-    const utt = new SpeechSynthesisUtterance(CHAPTERS[idx].narration);
-    utt.rate = 0.92;
-    utt.pitch = 1.0;
-    utt.volume = 1;
+    const utt = new SpeechSynthesisUtterance(CHAPTERS[idx].beats.map(b => b.text).join(" "));
+    utt.rate = 0.9; utt.pitch = 1.0; utt.volume = 0.95;
     const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-      v.name.includes("Google UK English Female") ||
-      v.name.includes("Samantha") ||
-      v.name.includes("Karen") ||
-      v.name.includes("Daniel") ||
-      v.lang === "en-GB"
-    ) || voices.find(v => v.lang.startsWith("en")) || voices[0];
-    if (preferred) utt.voice = preferred;
+    const voice = voices.find(v => v.name.includes("Google UK English Female") || v.name.includes("Samantha") || v.name.includes("Karen"))
+      || voices.find(v => v.lang === "en-GB") || voices.find(v => v.lang.startsWith("en"));
+    if (voice) utt.voice = voice;
     speechRef.current = utt;
     window.speechSynthesis.speak(utt);
   }, [muted, stopSpeech]);
 
-  const goToChapter = useCallback((idx: number, autoPlay = false) => {
+  // ── Navigation ──────────────────────────────────────────────────────────────
+
+  const goChapter = useCallback((idx: number, autoSpeak = false) => {
     stopSpeech();
-    setChapterIdx(idx);
-    setElapsedInChapter(0);
-    const elapsed = CHAPTERS.slice(0, idx).reduce((s, c) => s + c.duration, 0);
-    setTotalElapsed(elapsed);
-    if (autoPlay) {
-      speakChapter(idx);
-    }
+    setChIdx(idx);
+    setElapsed(0);
+    const baseElapsed = CHAPTERS.slice(0,idx).reduce((s,c) => s+c.duration, 0);
+    setTotalElapsed(baseElapsed);
+    if (autoSpeak) speakChapter(idx);
   }, [stopSpeech, speakChapter]);
 
+  // ── Timer ───────────────────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (!playing) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
+    if (!playing) { if (intervalRef.current) clearInterval(intervalRef.current); return; }
     intervalRef.current = setInterval(() => {
-      setElapsedInChapter(prev => {
+      setElapsed(prev => {
         const next = prev + 0.1;
-        if (next >= chapter.duration) {
-          const nextIdx = chapterIdx + 1;
-          if (nextIdx < CHAPTERS.length) {
-            goToChapter(nextIdx, true);
-            return 0;
-          } else {
-            setPlaying(false);
-            stopSpeech();
-            return chapter.duration;
-          }
+        if (next >= CHAPTERS[chIdx].duration) {
+          const nextIdx = chIdx + 1;
+          if (nextIdx < CHAPTERS.length) { goChapter(nextIdx, true); return 0; }
+          else { setPlaying(false); stopSpeech(); return CHAPTERS[chIdx].duration; }
         }
         return next;
       });
-      setTotalElapsed(prev => {
-        const max = TOTAL_DURATION;
-        return Math.min(prev + 0.1, max);
-      });
+      setTotalElapsed(prev => Math.min(prev + 0.1, TOTAL_DURATION));
     }, 100);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [playing, chapter.duration, chapterIdx, goToChapter, stopSpeech]);
+  }, [playing, chIdx, goChapter, stopSpeech]);
+
+  // ── Caption sync ─────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    setCaption(getCaption(chapter, chProgress));
+  }, [chapter, chProgress]);
+
+  // ── Controls ─────────────────────────────────────────────────────────────────
 
   const togglePlay = () => {
-    if (!playing) {
-      setPlaying(true);
-      speakChapter(chapterIdx);
-    } else {
-      setPlaying(false);
-      stopSpeech();
-    }
+    if (!playing) { setPlaying(true); speakChapter(chIdx); }
+    else { setPlaying(false); stopSpeech(); }
   };
 
   const toggleMute = () => {
     setMuted(m => {
       if (!m) stopSpeech();
-      else if (playing) speakChapter(chapterIdx);
+      else if (playing) speakChapter(chIdx);
       return !m;
     });
   };
 
-  useEffect(() => {
-    const words = chapter.narration.split(" ");
-    const wordsPerSecond = 2.5;
-    const wordIdx = Math.min(Math.floor(elapsedInChapter * wordsPerSecond), words.length);
-    const visible = words.slice(0, wordIdx).join(" ");
-    setCaptionText(visible);
-    setCaptionVisible(visible.length > 0);
-  }, [elapsedInChapter, chapter.narration]);
+  useEffect(() => () => { stopSpeech(); if (intervalRef.current) clearInterval(intervalRef.current); }, [stopSpeech]);
 
-  useEffect(() => {
-    return () => {
-      stopSpeech();
-      if (intervalRef.current) clearInterval(intervalRef.current);
+  // ── MP4/WebM Export ──────────────────────────────────────────────────────────
+
+  const getBestMimeType = () => {
+    if (typeof MediaRecorder === "undefined") return null;
+    const types = [
+      "video/mp4; codecs=avc1.42E01E",
+      "video/mp4",
+      "video/webm; codecs=vp9",
+      "video/webm; codecs=vp8",
+      "video/webm",
+    ];
+    return types.find(t => MediaRecorder.isTypeSupported(t)) ?? null;
+  };
+
+  const startExport = useCallback(async () => {
+    const mimeType = getBestMimeType();
+    if (!mimeType) { setRecError("Your browser does not support video recording. Please try Chrome or Safari."); return; }
+
+    const W = 1280, H = 720, FPS = 30;
+    const canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = H;
+    recCanvasRef.current = canvas;
+    const ctx = canvas.getContext("2d")!;
+    const stream = canvas.captureStream(FPS);
+
+    recBlobsRef.current = [];
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
+    recorderRef.current = recorder;
+    recorder.ondataavailable = e => { if (e.data.size > 0) recBlobsRef.current.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(recBlobsRef.current, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      setRecDone(url);
+      setRecording(false);
     };
-  }, [stopSpeech]);
 
-  const Visual = CHAPTER_VISUALS[chapter.id];
-  const totalPct = (totalElapsed / TOTAL_DURATION) * 100;
+    setRecording(true);
+    setRecProgress(0);
+    setRecError(null);
+    setRecDone(null);
+    recorder.start(500);
+
+    const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+    let frameCount = 0;
+    const totalFrames = Math.ceil(TOTAL_DURATION * FPS);
+    let currentChIdx = 0;
+    let currentElapsed = 0;
+
+    const drawLoop = () => {
+      if (!recorderRef.current || recorderRef.current.state === "inactive") return;
+      const ch = CHAPTERS[currentChIdx];
+      const prog = Math.min(currentElapsed / ch.duration, 1);
+      const capText = getCaption(ch, prog);
+      const totProg = (CHAPTERS.slice(0,currentChIdx).reduce((s,c)=>s+c.duration,0) + currentElapsed) / TOTAL_DURATION;
+      drawExportFrame(ctx, W, H, currentChIdx, prog, capText, totProg);
+
+      frameCount++;
+      setRecProgress(frameCount / totalFrames);
+
+      currentElapsed += 1/FPS;
+      if (currentElapsed >= ch.duration) { currentChIdx++; currentElapsed = 0; }
+
+      if (currentChIdx >= CHAPTERS.length || (recorderRef.current && recorderRef.current.state === "inactive")) {
+        recorder.stop();
+        return;
+      }
+      requestAnimationFrame(drawLoop);
+    };
+    requestAnimationFrame(drawLoop);
+  }, []);
+
+  const cancelExport = () => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+    setRecording(false); setRecProgress(0);
+  };
+
+  const downloadExport = () => {
+    if (!recDone) return;
+    const mimeType = getBestMimeType() ?? "video/webm";
+    const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+    const a = document.createElement("a");
+    a.href = recDone; a.download = `performo-ai-product-demo.${ext}`; a.click();
+  };
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
+
+  const Visual = VISUALS[chapter.id];
+  const fmtTime = (s: number) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col select-none" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="fixed inset-0 bg-[#080c14] flex flex-col select-none overflow-hidden">
+
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-black/80 border-b border-white/10 z-20">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-black/60 border-b border-white/8 z-20 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-500/35 flex items-center justify-center">
             <Sparkles className="w-3.5 h-3.5 text-blue-400" />
           </div>
           <span className="text-white font-semibold text-sm">Performo AI</span>
-          <span className="text-white/30 text-xs ml-1">· Product Demo</span>
+          <span className="text-white/25 text-xs ml-1">· Product Demo</span>
         </div>
-        <button
-          onClick={() => { stopSpeech(); navigate("/"); }}
-          className="text-white/40 hover:text-white/80 text-xs transition-colors px-3 py-1.5 rounded-lg hover:bg-white/10"
-        >
-          Sign In →
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={startExport} disabled={recording}
+            className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/8 transition-all disabled:opacity-40"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Export Video</span>
+          </button>
+          <button onClick={() => { stopSpeech(); navigate("/"); }}
+            className="text-white/35 hover:text-white/75 text-xs transition-colors px-3 py-1.5 rounded-lg hover:bg-white/8">
+            Sign In →
+          </button>
+        </div>
       </div>
 
-      {/* Main content area */}
+      {/* Layout */}
       <div className="flex flex-1 min-h-0">
-        {/* Chapter sidebar */}
-        <div className="hidden lg:flex flex-col w-52 bg-black/60 border-r border-white/10 overflow-y-auto py-2">
+
+        {/* Sidebar */}
+        <div className="hidden lg:flex flex-col w-52 bg-black/50 border-r border-white/8 overflow-y-auto py-2 flex-shrink-0">
           {CHAPTERS.map((ch, i) => {
-            const Icon = ch.icon;
-            const isActive = i === chapterIdx;
-            const isPast = i < chapterIdx;
+            const isActive = i === chIdx, isPast = i < chIdx;
             return (
-              <button
-                key={ch.id}
-                onClick={() => { goToChapter(i, playing); }}
+              <button key={ch.id} onClick={() => goChapter(i, playing)}
                 className="flex items-center gap-2.5 px-3 py-2.5 text-left transition-all relative"
-                style={{
-                  background: isActive ? `${ch.color}15` : "transparent",
-                  borderLeft: `3px solid ${isActive ? ch.color : "transparent"}`,
-                }}
-              >
-                <div
-                  className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{
-                    background: isActive ? `${ch.color}25` : isPast ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.05)",
-                    border: `1px solid ${isActive ? ch.color + "50" : "transparent"}`,
-                  }}
-                >
-                  <Icon className="w-3 h-3" style={{ color: isActive ? ch.color : isPast ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.3)" }} />
+                style={{ background: isActive ? `${ch.color}12` : "transparent", borderLeft: `3px solid ${isActive ? ch.color : "transparent"}` }}>
+                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+                  style={{ background: isActive ? `${ch.color}22` : "rgba(255,255,255,0.04)", border:`1px solid ${isActive?ch.color+"40":"transparent"}` }}>
+                  <ch.icon className="w-3 h-3" style={{ color: isActive ? ch.color : isPast ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.25)" }} />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-medium truncate" style={{ color: isActive ? "white" : "rgba(255,255,255,0.4)" }}>{ch.title}</div>
-                  <div className="text-[10px]" style={{ color: isActive ? ch.color : "rgba(255,255,255,0.2)" }}>{ch.duration}s</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-medium truncate" style={{ color: isActive?"white":"rgba(255,255,255,0.38)" }}>{ch.title}</div>
+                  <div className="text-[10px]" style={{ color: isActive?ch.color:"rgba(255,255,255,0.2)" }}>{ch.duration}s</div>
                 </div>
-                {isPast && (
-                  <CheckCircle2 className="w-3 h-3 text-white/25 flex-shrink-0" />
-                )}
-                {isActive && playing && (
-                  <div className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: ch.color }} />
-                )}
+                {isPast && <CheckCircle2 className="w-3 h-3 text-white/18 flex-shrink-0" />}
+                {isActive && playing && <div className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background:ch.color }} />}
               </button>
             );
           })}
         </div>
 
-        {/* Video screen */}
-        <div className="flex-1 flex flex-col">
-          {/* Screen */}
-          <div
-            className="flex-1 relative overflow-hidden"
-            style={{
-              background: `radial-gradient(ellipse at 30% 30%, ${chapter.color}08 0%, transparent 60%), #0a0a0f`,
-            }}
-          >
-            {/* Chapter header */}
-            <div className="absolute top-0 left-0 right-0 px-5 pt-4 pb-2 z-10" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)" }}>
+        {/* Main screen */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Video area */}
+          <div className="flex-1 relative overflow-hidden"
+            style={{ background:`radial-gradient(ellipse at 25% 25%, ${chapter.color}07 0%, transparent 55%), #080c14` }}>
+
+            {/* Chapter badge */}
+            <div className="absolute top-0 left-0 right-0 px-5 pt-3.5 z-10" style={{ background:"linear-gradient(to bottom,rgba(0,0,0,0.45),transparent)" }}>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: `${chapter.color}25`, border: `1px solid ${chapter.color}40` }}>
-                  <chapter.icon className="w-3.5 h-3.5" style={{ color: chapter.color }} />
+                <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background:`${chapter.color}22`, border:`1px solid ${chapter.color}35` }}>
+                  <chapter.icon className="w-3.5 h-3.5" style={{ color:chapter.color }} />
                 </div>
-                <span className="text-white/80 text-sm font-semibold">{chapter.title}</span>
-                <span className="text-white/30 text-xs ml-auto">{chapterIdx + 1} / {CHAPTERS.length}</span>
+                <span className="text-white/80 text-[13px] font-semibold">{chapter.title}</span>
+                <span className="text-white/30 text-[11px]">· {chapter.subtitle}</span>
+                <span className="text-white/25 text-[11px] ml-auto">{chIdx+1}/{CHAPTERS.length}</span>
               </div>
             </div>
 
-            {/* Visual content */}
-            <div className="absolute inset-0 flex items-center justify-center px-5 pt-14 pb-20">
-              <div
-                className="w-full max-w-2xl h-full max-h-80 rounded-2xl overflow-hidden"
-                style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: `1px solid ${chapter.color}20`,
-                  boxShadow: `0 0 60px ${chapter.color}10`,
-                }}
-              >
-                <Visual progress={chapterProgress} />
+            {/* Visual panel */}
+            <div className="absolute inset-0 flex items-center justify-center px-5 pt-12 pb-24">
+              <div className="w-full max-w-2xl h-full max-h-[320px] rounded-2xl overflow-hidden"
+                style={{ background:"rgba(255,255,255,0.035)", border:`1px solid ${chapter.color}18`,
+                  boxShadow:`0 0 80px ${chapter.color}0c` }}>
+                <Visual progress={chProgress} />
               </div>
             </div>
 
             {/* Caption */}
-            <div
-              className="absolute bottom-0 left-0 right-0 px-8 pb-5 transition-opacity duration-300"
-              style={{ opacity: captionVisible ? 1 : 0, background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)" }}
-            >
-              <p className="text-white/90 text-sm text-center leading-relaxed max-w-2xl mx-auto" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>
-                {captionText}
-                {playing && captionText.length < chapter.narration.length && (
-                  <span className="inline-block w-0.5 h-4 bg-white/60 ml-0.5 animate-pulse align-middle" />
-                )}
+            <div className="absolute bottom-0 left-0 right-0 px-8 pb-4 z-10"
+              style={{ opacity: caption ? 1 : 0, transition:"opacity 0.3s", background:"linear-gradient(to top,rgba(0,0,0,0.65),transparent)" }}>
+              <p className="text-white/90 text-sm text-center leading-relaxed max-w-2xl mx-auto" style={{ textShadow:"0 1px 6px rgba(0,0,0,0.9)" }}>
+                {caption}
               </p>
             </div>
 
             {/* Play overlay when paused */}
             {!playing && (
-              <div
-                className="absolute inset-0 flex items-center justify-center cursor-pointer z-20"
-                onClick={togglePlay}
-              >
-                <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-white/20 transition-all hover:scale-105">
+              <div className="absolute inset-0 flex items-center justify-center cursor-pointer z-20" onClick={togglePlay}>
+                <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur border border-white/18 flex items-center justify-center hover:bg-white/18 transition-all hover:scale-105">
                   <Play className="w-7 h-7 text-white ml-1" />
                 </div>
               </div>
@@ -788,90 +1060,53 @@ export default function DemoPage() {
           </div>
 
           {/* Controls bar */}
-          <div className="bg-black/90 border-t border-white/10 px-4 py-3">
-            {/* Overall progress bar */}
-            <div className="mb-3 relative group cursor-pointer">
-              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-100"
-                  style={{
-                    width: `${totalPct}%`,
-                    background: `linear-gradient(to right, ${chapter.color}, ${chapter.color}cc)`,
-                  }}
-                />
+          <div className="bg-black/80 border-t border-white/8 px-4 py-3 flex-shrink-0">
+            {/* Progress bar */}
+            <div className="mb-3 cursor-pointer relative">
+              <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-100"
+                  style={{ width:`${totalPct*100}%`, background:`linear-gradient(to right,${chapter.color},${chapter.color}cc)` }} />
               </div>
-              {/* Chapter markers */}
               <div className="absolute inset-0 flex">
-                {CHAPTERS.map((ch, i) => {
-                  if (i === 0) return null;
-                  const pct = (CHAPTERS.slice(0, i).reduce((s, c) => s + c.duration, 0) / TOTAL_DURATION) * 100;
-                  return (
-                    <div
-                      key={ch.id}
-                      className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2 bg-white/20 rounded-full"
-                      style={{ left: `${pct}%` }}
-                    />
-                  );
+                {CHAPTERS.map((ch,i) => {
+                  if (i===0) return null;
+                  const pct=(CHAPTERS.slice(0,i).reduce((s,c)=>s+c.duration,0)/TOTAL_DURATION)*100;
+                  return <div key={ch.id} className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2.5 bg-white/15 rounded-full" style={{ left:`${pct}%` }} />;
                 })}
               </div>
             </div>
 
-            {/* Control buttons */}
+            {/* Button row */}
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => goToChapter(Math.max(0, chapterIdx - 1), playing)}
-                className="text-white/50 hover:text-white transition-colors"
-                disabled={chapterIdx === 0}
-              >
+              <button onClick={() => goChapter(Math.max(0,chIdx-1), playing)} disabled={chIdx===0} className="text-white/45 hover:text-white transition-colors disabled:opacity-25">
                 <SkipBack className="w-4 h-4" />
               </button>
-
-              <button
-                onClick={togglePlay}
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-105"
-                style={{ background: chapter.color }}
-              >
+              <button onClick={togglePlay} className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-105"
+                style={{ background:chapter.color }}>
                 {playing ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
               </button>
-
-              <button
-                onClick={() => goToChapter(Math.min(CHAPTERS.length - 1, chapterIdx + 1), playing)}
-                className="text-white/50 hover:text-white transition-colors"
-                disabled={chapterIdx === CHAPTERS.length - 1}
-              >
+              <button onClick={() => goChapter(Math.min(CHAPTERS.length-1,chIdx+1), playing)} disabled={chIdx===CHAPTERS.length-1} className="text-white/45 hover:text-white transition-colors disabled:opacity-25">
                 <SkipForward className="w-4 h-4" />
               </button>
-
-              <div className="text-white/40 text-xs tabular-nums">
-                {Math.floor(totalElapsed / 60)}:{String(Math.floor(totalElapsed % 60)).padStart(2, "0")} / {Math.floor(TOTAL_DURATION / 60)}:{String(TOTAL_DURATION % 60).padStart(2, "0")}
+              <div className="text-white/35 text-xs tabular-nums">
+                {fmtTime(totalElapsed)} / {fmtTime(TOTAL_DURATION)}
               </div>
-
               <div className="flex-1" />
-
-              <button onClick={toggleMute} className="text-white/50 hover:text-white transition-colors">
+              <button onClick={toggleMute} className="text-white/45 hover:text-white transition-colors">
                 {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
-
-              <span className="text-white/30 text-[11px] hidden sm:inline">{chapter.title}</span>
+              <span className="text-white/25 text-[11px] hidden sm:inline">{chapter.title}</span>
             </div>
 
-            {/* Mobile chapter list */}
-            <div className="flex gap-1.5 mt-2.5 overflow-x-auto lg:hidden pb-0.5">
-              {CHAPTERS.map((ch, i) => {
-                const Icon = ch.icon;
-                const isActive = i === chapterIdx;
+            {/* Mobile chapter strip */}
+            <div className="flex gap-1.5 mt-2.5 overflow-x-auto lg:hidden">
+              {CHAPTERS.map((ch,i) => {
+                const isActive = i === chIdx;
                 return (
-                  <button
-                    key={ch.id}
-                    onClick={() => goToChapter(i, playing)}
+                  <button key={ch.id} onClick={() => goChapter(i, playing)}
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] whitespace-nowrap flex-shrink-0 transition-all"
-                    style={{
-                      background: isActive ? `${ch.color}20` : "rgba(255,255,255,0.05)",
-                      border: `1px solid ${isActive ? ch.color + "40" : "transparent"}`,
-                      color: isActive ? "white" : "rgba(255,255,255,0.4)",
-                    }}
-                  >
-                    <Icon className="w-3 h-3" style={{ color: isActive ? ch.color : "rgba(255,255,255,0.3)" }} />
+                    style={{ background: isActive?`${ch.color}18`:"rgba(255,255,255,0.05)", border:`1px solid ${isActive?ch.color+"35":"transparent"}`, color: isActive?"white":"rgba(255,255,255,0.35)" }}>
+                    <ch.icon className="w-3 h-3" style={{ color: isActive?ch.color:"rgba(255,255,255,0.28)" }} />
                     {ch.title}
                   </button>
                 );
@@ -880,6 +1115,64 @@ export default function DemoPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── Recording Modal ─────────────────────────────────────────────── */}
+      {(recording || recDone || recError) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+          <div className="bg-[#0f1520] border border-white/12 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Download className="w-4 h-4 text-blue-400" />
+                <span className="text-white font-semibold text-sm">Export Demo Video</span>
+              </div>
+              {!recording && (
+                <button onClick={() => { setRecDone(null); setRecError(null); }} className="text-white/40 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {recording && (
+              <>
+                <div className="flex items-center gap-3 mb-3">
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
+                  <p className="text-white/70 text-sm">Rendering demo — please wait…</p>
+                </div>
+                <div className="h-2 bg-white/8 rounded-full overflow-hidden mb-1">
+                  <div className="h-full bg-blue-500 rounded-full transition-all duration-100" style={{ width:`${recProgress*100}%` }} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/35 text-xs">{Math.round(recProgress*100)}% complete</span>
+                  <button onClick={cancelExport} className="text-red-400 hover:text-red-300 text-xs">Cancel</button>
+                </div>
+                <p className="text-white/30 text-xs mt-3 text-center">This may take 1–2 minutes. Do not close this page.</p>
+              </>
+            )}
+
+            {recDone && (
+              <>
+                <div className="flex items-center gap-2 mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                  <p className="text-green-300 text-sm">Video ready — click below to download.</p>
+                </div>
+                <div className="text-white/40 text-xs mb-4 leading-relaxed">
+                  Format: {getBestMimeType()?.startsWith("video/mp4") ? "MP4 (H.264)" : "WebM (VP9)"} · 1280×720 HD · ~{TOTAL_DURATION}s<br/>
+                  Narration: play the demo in your browser for full voice narration.
+                </div>
+                <button onClick={downloadExport}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+                  <Download className="w-4 h-4" />
+                  Download {getBestMimeType()?.startsWith("video/mp4") ? "MP4" : "WebM"} Video
+                </button>
+              </>
+            )}
+
+            {recError && (
+              <div className="text-red-400 text-sm p-3 bg-red-500/10 border border-red-500/20 rounded-xl">{recError}</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
