@@ -4,7 +4,7 @@ import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
   BarChart3, CheckSquare, FolderKanban, LineChart, Workflow,
   LayoutGrid, Presentation, ClipboardList, Sparkles, CheckCircle2,
-  TrendingUp, Star, Activity, Users, Download, X, Loader2, Mic
+  TrendingUp, Star, Activity, Users, Download, X
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -718,7 +718,7 @@ function drawExportFrame(
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-type RecPhase = "idle" | "audio" | "recording" | "done" | "error";
+type RecPhase = "idle" | "confirm" | "recording" | "done" | "error";
 
 export default function DemoPage() {
   const [, navigate] = useLocation();
@@ -732,7 +732,6 @@ export default function DemoPage() {
   // Export state
   const [recPhase, setRecPhase] = useState<RecPhase>("idle");
   const [recProgress, setRecProgress] = useState(0);
-  const [recAudioProgress, setRecAudioProgress] = useState(0);
   const [recUrl, setRecUrl] = useState<string|null>(null);
   const [recError, setRecError] = useState<string|null>(null);
   const [recMime, setRecMime] = useState<string>("");
@@ -741,6 +740,10 @@ export default function DemoPage() {
   const recorderRef = useRef<MediaRecorder|null>(null);
   const recBlobsRef = useRef<Blob[]>([]);
   const abortRef = useRef(false);
+  // Live refs so the draw loop reads the exact demo state each frame
+  const chIdxRef = useRef(0);
+  const elapsedRef = useRef(0);
+  const totalElapsedRef = useRef(0);
 
   const chapter = CHAPTERS[chIdx];
   const chProgress = elapsed / chapter.duration;
@@ -783,12 +786,20 @@ export default function DemoPage() {
           if (nextIdx < CHAPTERS.length) { goChapter(nextIdx, true); return 0; }
           else { setPlaying(false); stopSpeech(); return CHAPTERS[chIdx].duration; }
         }
+        elapsedRef.current = next;
         return next;
       });
-      setTotalElapsed(prev => Math.min(prev + 0.1, TOTAL_DURATION));
+      setTotalElapsed(prev => {
+        const next = Math.min(prev + 0.1, TOTAL_DURATION);
+        totalElapsedRef.current = next;
+        return next;
+      });
     }, 100);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [playing, chIdx, goChapter, stopSpeech]);
+
+  // Keep chapter index ref in sync
+  useEffect(() => { chIdxRef.current = chIdx; elapsedRef.current = 0; }, [chIdx]);
 
   useEffect(() => { setCaption(getCaption(chapter, chProgress)); }, [chapter, chProgress]);
 
@@ -803,7 +814,7 @@ export default function DemoPage() {
 
   useEffect(() => () => { stopSpeech(); if (intervalRef.current) clearInterval(intervalRef.current); }, [stopSpeech]);
 
-  // ── Export: Full Video + TTS Audio ──────────────────────────────────────────
+  // ── Export: Real-time canvas capture + tab audio (no external API) ──────────
 
   const getBestMime = () => {
     if (typeof MediaRecorder === "undefined") return null;
@@ -812,127 +823,94 @@ export default function DemoPage() {
     return null;
   };
 
-  const startExport = useCallback(async () => {
+  const beginRecording = useCallback(async () => {
     const mime = getBestMime();
-    if (!mime) { setRecError("Your browser doesn't support video recording. Try Chrome or Safari."); setRecPhase("error"); return; }
+    if (!mime) { setRecError("Your browser doesn't support video recording. Try Chrome."); setRecPhase("error"); return; }
 
     abortRef.current = false;
-    setRecPhase("audio");
     setRecProgress(0);
-    setRecAudioProgress(0);
     setRecUrl(null);
     setRecError(null);
     setRecMime(mime);
 
-    // ── Phase 1: Fetch TTS audio for all chapters ────────────────────────────
-    let audioBuffers: AudioBuffer[] = [];
-    let audioCtx: AudioContext;
+    // ── Step 1: Request tab audio via getDisplayMedia ────────────────────────
+    // This captures the browser's speech synthesis output alongside any tab audio.
+    let displayStream: MediaStream | null = null;
     try {
-      audioCtx = new AudioContext();
-      await audioCtx.resume();
-
-      for (let i = 0; i < CHAPTERS.length; i++) {
-        if (abortRef.current) return;
-        setRecAudioProgress((i) / CHAPTERS.length);
-        const narration = getNarration(CHAPTERS[i]);
-        const resp = await fetch("/api/demo/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: narration }),
-        });
-        if (!resp.ok) throw new Error(`TTS failed for chapter ${i+1}: ${await resp.text()}`);
-        const arrayBuf = await resp.arrayBuffer();
-        const decoded = await audioCtx.decodeAudioData(arrayBuf);
-        audioBuffers.push(decoded);
-      }
-      setRecAudioProgress(1);
+      displayStream = await (navigator.mediaDevices as any).getDisplayMedia({
+        video: true,   // required by spec — we discard the video track
+        audio: true,
+        preferCurrentTab: true,  // Chrome 94+: auto-highlights current tab
+      });
     } catch (e: any) {
-      setRecError(`Audio generation failed: ${e.message}`);
-      setRecPhase("error");
-      return;
+      // User cancelled or browser doesn't support audio capture — record video-only
+      displayStream = null;
     }
 
-    if (abortRef.current) return;
-
-    // ── Phase 2: Record canvas + audio ──────────────────────────────────────
-    setRecPhase("recording");
-
+    // ── Step 2: Set up offscreen canvas (1280×720 HD) ───────────────────────
     const W = 1280, H = 720, FPS = 30;
     const canvas = document.createElement("canvas");
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d")!;
-
-    // Audio destination (captures audio into the recording stream)
-    const audioDest = audioCtx!.createMediaStreamDestination();
     const canvasStream = canvas.captureStream(FPS);
-    const combinedStream = new MediaStream([
-      ...canvasStream.getVideoTracks(),
-      ...audioDest.stream.getAudioTracks(),
-    ]);
 
+    // Combine: canvas video + optional tab audio
+    const tracks = [...canvasStream.getVideoTracks()];
+    if (displayStream) tracks.push(...displayStream.getAudioTracks());
+    const combinedStream = new MediaStream(tracks);
+
+    // ── Step 3: Start MediaRecorder ──────────────────────────────────────────
     recBlobsRef.current = [];
     const recorder = new MediaRecorder(combinedStream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
     recorderRef.current = recorder;
     recorder.ondataavailable = e => { if (e.data.size > 0) recBlobsRef.current.push(e.data); };
     recorder.onstop = () => {
+      if (displayStream) displayStream!.getTracks().forEach(t => t.stop());
       const blob = new Blob(recBlobsRef.current, { type: mime });
       setRecUrl(URL.createObjectURL(blob));
       setRecPhase("done");
     };
     recorder.start(500);
+    setRecPhase("recording");
 
-    // State tracked as refs so draw loop can access current values
-    const currentChIdx = { v: 0 };
-    const chapterStartTime = { v: audioCtx!.currentTime };
-    const totalAudioDur = audioBuffers.reduce((s, b) => s + b.duration, 0);
-    let currentSrc: AudioBufferSourceNode | null = null;
+    // ── Step 4: Reset demo to start and play ─────────────────────────────────
+    // Set muted=false so speech synthesis fires (captured by tab audio)
+    setMuted(false);
+    goChapter(0, true);
+    setPlaying(true);
 
-    function scheduleNextChapter(idx: number) {
-      if (idx >= CHAPTERS.length || abortRef.current) {
-        setTimeout(() => recorder.stop(), 500);
-        return;
-      }
-      currentChIdx.v = idx;
-      chapterStartTime.v = audioCtx!.currentTime;
-      const src = audioCtx!.createBufferSource();
-      src.buffer = audioBuffers[idx];
-      src.connect(audioDest);
-      currentSrc = src;
-      src.onended = () => scheduleNextChapter(idx + 1);
-      src.start();
-    }
-
-    scheduleNextChapter(0);
-
+    // ── Step 5: Draw loop — mirrors live demo state to recording canvas ───────
     function drawLoop() {
       if (abortRef.current) { recorder.stop(); return; }
-      const idx = currentChIdx.v;
-      if (idx >= CHAPTERS.length) return;
 
+      const idx = chIdxRef.current;
       const ch = CHAPTERS[idx];
-      const audioDur = audioBuffers[idx].duration;
-      const chElapsed = Math.max(0, audioCtx!.currentTime - chapterStartTime.v);
-      const progress = Math.min(chElapsed / audioDur, 1);
-
-      const prevAudioDur = audioBuffers.slice(0, idx).reduce((s,b) => s+b.duration, 0);
-      const totalElapsed = prevAudioDur + chElapsed;
-      const totalProg = Math.min(totalElapsed / totalAudioDur, 1);
-
+      const elSec = elapsedRef.current;
+      const totSec = totalElapsedRef.current;
+      const progress = Math.min(elSec / ch.duration, 1);
+      const totalProg = Math.min(totSec / TOTAL_DURATION, 1);
       const capText = getCaption(ch, progress);
+
       drawExportFrame(ctx, W, H, ch, progress, capText, totalProg);
       setRecProgress(totalProg);
 
+      // Stop when demo finishes (last chapter, near end)
+      if (idx >= CHAPTERS.length - 1 && progress >= 0.99) {
+        setTimeout(() => recorder.stop(), 800);
+        return;
+      }
       requestAnimationFrame(drawLoop);
     }
     requestAnimationFrame(drawLoop);
-  }, []);
+  }, [goChapter]);
 
-  const cancelExport = () => {
+  const cancelExport = useCallback(() => {
     abortRef.current = true;
     if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+    stopSpeech(); setPlaying(false);
     setRecPhase("idle");
     setRecProgress(0);
-  };
+  }, [stopSpeech]);
 
   const downloadExport = () => {
     if (!recUrl) return;
@@ -960,7 +938,7 @@ export default function DemoPage() {
           <span className="text-white/25 text-xs ml-1">· Product Demo</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={startExport} disabled={recPhase !== "idle"}
+          <button onClick={() => setRecPhase("confirm")} disabled={recPhase !== "idle"}
             className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/8 transition-all disabled:opacity-40">
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Export Video</span>
@@ -1101,34 +1079,36 @@ export default function DemoPage() {
                 <Download className="w-4 h-4 text-blue-400" />
                 <span className="text-white font-semibold text-sm">Export Demo Video</span>
               </div>
-              {(recPhase === "done" || recPhase === "error") && (
-                <button onClick={() => setRecPhase("idle")} className="text-white/40 hover:text-white">
+              {(recPhase === "confirm" || recPhase === "done" || recPhase === "error") && (
+                <button onClick={() => { cancelExport(); setRecPhase("idle"); }} className="text-white/40 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               )}
             </div>
 
-            {/* Phase: Generating audio */}
-            {recPhase === "audio" && (
+            {/* Phase: Confirm */}
+            {recPhase === "confirm" && (
               <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                  <Mic className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                  <div>
-                    <div className="text-white text-sm font-medium">Generating narration audio…</div>
-                    <div className="text-white/45 text-xs mt-0.5">Creating AI voice for {CHAPTERS.length} chapters</div>
+                <div className="space-y-2.5 p-3.5 bg-white/4 border border-white/8 rounded-xl text-white/55 text-xs leading-relaxed">
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-0.5">①</span>
+                    <span>Click <strong className="text-white/80">Start Recording</strong> — your browser will ask you to share this tab. Select the tab and click <strong className="text-white/80">Share</strong>.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-0.5">②</span>
+                    <span>The demo resets to the beginning and plays all {CHAPTERS.length} chapters automatically with voice narration.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-0.5">③</span>
+                    <span>When it finishes (~{Math.ceil(TOTAL_DURATION/60)} min), your MP4 video with voice is ready to download.</span>
                   </div>
                 </div>
-                <div>
-                  <div className="flex justify-between text-xs text-white/45 mb-1.5">
-                    <span>Chapter {Math.min(Math.ceil(recAudioProgress * CHAPTERS.length) + 1, CHAPTERS.length)} of {CHAPTERS.length}</span>
-                    <span>{Math.round(recAudioProgress*100)}%</span>
-                  </div>
-                  <div className="h-2 bg-white/8 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width:`${recAudioProgress*100}%` }} />
-                  </div>
-                </div>
-                <p className="text-white/30 text-xs text-center">This usually takes 30–60 seconds. Do not close this page.</p>
-                <button onClick={cancelExport} className="w-full text-red-400 hover:text-red-300 text-xs py-1.5 transition-colors">Cancel</button>
+                <p className="text-white/30 text-xs text-center">Do not switch tabs or close the page while recording.</p>
+                <button onClick={beginRecording}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
+                  <Download className="w-4 h-4" />
+                  Start Recording
+                </button>
               </div>
             )}
 
@@ -1138,20 +1118,20 @@ export default function DemoPage() {
                 <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
                   <div>
-                    <div className="text-white text-sm font-medium">Recording video with narration…</div>
-                    <div className="text-white/45 text-xs mt-0.5">HD 1280×720 · Voice + animation in sync</div>
+                    <div className="text-white text-sm font-medium">Recording in progress…</div>
+                    <div className="text-white/45 text-xs mt-0.5">HD 1280×720 · Voice + animation captured live</div>
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-xs text-white/45 mb-1.5">
-                    <span>{fmtTime(recProgress * TOTAL_DURATION)} elapsed</span>
+                    <span>{fmtTime(recProgress * TOTAL_DURATION)} / {fmtTime(TOTAL_DURATION)}</span>
                     <span>{Math.round(recProgress*100)}%</span>
                   </div>
                   <div className="h-2 bg-white/8 rounded-full overflow-hidden">
                     <div className="h-full bg-red-500 rounded-full transition-all duration-200" style={{ width:`${recProgress*100}%` }} />
                   </div>
                 </div>
-                <p className="text-white/30 text-xs text-center">Recording at real-time speed. Do not close this page.</p>
+                <p className="text-white/30 text-xs text-center">Keep this tab active until recording completes.</p>
                 <button onClick={cancelExport} className="w-full text-red-400 hover:text-red-300 text-xs py-1.5 transition-colors">Cancel</button>
               </div>
             )}
@@ -1161,11 +1141,11 @@ export default function DemoPage() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
                   <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                  <p className="text-green-300 text-sm">Video ready — complete with voice narration!</p>
+                  <p className="text-green-300 text-sm">Your video is ready — voice and animation included!</p>
                 </div>
                 <div className="text-white/40 text-xs leading-relaxed p-3 bg-white/4 rounded-xl">
                   Format: {recMime.startsWith("video/mp4") ? "MP4 (H.264)" : "WebM (VP9)"} · 1280×720 HD<br/>
-                  Contains all {CHAPTERS.length} chapters with AI voice narration synced to each section.
+                  All {CHAPTERS.length} chapters · narration captured live from the demo.
                 </div>
                 <button onClick={downloadExport}
                   className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-3 rounded-xl transition-colors">
@@ -1177,8 +1157,11 @@ export default function DemoPage() {
 
             {/* Phase: Error */}
             {recPhase === "error" && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
-                {recError}
+              <div className="space-y-3">
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
+                  {recError}
+                </div>
+                <button onClick={() => setRecPhase("confirm")} className="w-full text-white/45 hover:text-white text-xs py-1.5 transition-colors">Try again</button>
               </div>
             )}
           </div>
