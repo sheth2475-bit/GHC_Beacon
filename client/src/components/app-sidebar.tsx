@@ -1,9 +1,7 @@
-import { useLocation, Link, useSearch } from "wouter";
+import { useLocation, Link } from "wouter";
 import {
-  LayoutDashboard, Target, ListChecks,
-  FileText, LayoutTemplate, Settings, LogOut, BarChart3, Sparkles, Users,
-  FolderOpen, Users2, Clock, ChevronRight,
-  RotateCcw, Ticket, ShieldCheck, FileCheck2, type LucideIcon, Presentation, Activity,
+  BarChart3, LogOut, Activity, ChevronRight,
+  Clock, type LucideIcon,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -15,51 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
 
-const overviewNav = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
-];
-
-const executiveOverviewNav = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Monthly Reviews", url: "/reviews", icon: FileText },
-];
-
-const actionNav = [
-  { title: "Action Tracker", url: "/actions", icon: ListChecks },
-];
-
-const executionNav = [
-  { title: "Projects", url: "/projects", icon: FolderOpen },
-  { title: "Workload", url: "/workload", icon: Users2 },
-];
-
-const adminPerformanceNav = [
-  { title: "KPI Management", url: "/kpis", icon: Target },
-  { title: "KPI Builder", url: "/kpi-builder", icon: Sparkles },
-];
-
-const executivePerformanceNav = [
-  { title: "KPI Management", url: "/kpis", icon: Target },
-];
-
-const adminAnalyticsNav = [
-  { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
-  { title: "Dashboard Planner", url: "/planner", icon: LayoutTemplate },
-  { title: "Balanced Scorecard", url: "/scorecard", icon: Activity },
-];
-
-const executiveAnalyticsNav = [
+const analyticsNav = [
   { title: "Analytics Studio", url: "/analytics", icon: BarChart3 },
   { title: "Balanced Scorecard", url: "/scorecard", icon: Activity },
 ];
-
-const WF_NAV_ITEMS = [
-  { key: "recurring_tasks", label: "Recurring Tasks", url: "/workflow?s=recurring_tasks",   icon: RotateCcw,   color: "text-blue-500" },
-  { key: "service_desk",    label: "Service Desk",    url: "/workflow?s=service_desk",       icon: Ticket,      color: "text-violet-500" },
-  { key: "licenses",        label: "Licenses",        url: "/workflow?s=licenses",           icon: ShieldCheck, color: "text-emerald-500" },
-  { key: "certificates",    label: "Certificates",    url: "/workflow?s=certificates",       icon: FileCheck2,  color: "text-amber-500" },
-] as const;
 
 const planBadgeClass: Record<string, string> = {
   Trial: "border-gray-400 text-gray-500 dark:text-gray-400",
@@ -71,8 +28,6 @@ const planBadgeClass: Record<string, string> = {
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout, isAdmin, isExecutive } = useAuth();
-  const isOnWorkflow = location.startsWith("/workflow");
-  const searchString = useSearch();
 
   const { data: sub } = useQuery<any>({
     queryKey: ["/api/subscription"],
@@ -91,12 +46,6 @@ export function AppSidebar() {
 
   const isActive = (url: string) =>
     url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
-
-  const activeWfSection = (() => {
-    if (!isOnWorkflow) return null;
-    const params = new URLSearchParams(searchString);
-    return params.get("s") || "home";
-  })();
 
   const renderGroup = (label: string, items: { title: string; url: string; icon: LucideIcon }[]) => (
     <SidebarGroup className="py-1">
@@ -130,10 +79,6 @@ export function AppSidebar() {
     </SidebarGroup>
   );
 
-  const currentOverviewNav = isAdmin ? overviewNav : executiveOverviewNav;
-  const performanceNav = isAdmin ? adminPerformanceNav : executivePerformanceNav;
-  const analyticsNav = isAdmin ? adminAnalyticsNav : executiveAnalyticsNav;
-
   return (
     <Sidebar>
       {/* ── Brand Header ── */}
@@ -153,49 +98,7 @@ export function AppSidebar() {
 
       {/* ── Navigation ── */}
       <SidebarContent className="px-2 py-1 gap-0">
-        {renderGroup("Overview", currentOverviewNav)}
-        {renderGroup("Action Notes from Meeting", actionNav)}
-        {renderGroup("Projects", executionNav)}
-        {renderGroup("Performance", performanceNav)}
         {renderGroup("Analytics", analyticsNav)}
-        {renderGroup("Studio", [{ title: "Presentation Studio", url: "/presentations", icon: Presentation }])}
-
-        {/* ── Operations / Workflow Center ── */}
-        <SidebarGroup className="py-1">
-          <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground/50 px-3 mb-0.5">Workflow Center</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              {WF_NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-                const active = activeWfSection === item.key;
-                return (
-                  <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton asChild data-active={active}>
-                      <Link
-                        href={item.url}
-                        data-testid={`link-nav-wf-${item.key}`}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
-                          active
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                        }`}
-                      >
-                        <Icon className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${active ? "text-primary-foreground" : item.color + " group-hover:opacity-100 opacity-80"}`} />
-                        <span className="flex-1 truncate">{item.label}</span>
-                        {active && <ChevronRight className="h-3 w-3 opacity-60 shrink-0" />}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {isAdmin && renderGroup("Admin", [
-          { title: "People", url: "/users", icon: Users },
-          { title: "Settings", url: "/settings", icon: Settings },
-        ])}
       </SidebarContent>
 
       {/* ── User Footer ── */}

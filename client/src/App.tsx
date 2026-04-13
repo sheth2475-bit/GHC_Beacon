@@ -11,23 +11,11 @@ import { AssistantDrawer } from "@/components/assistant-drawer";
 import { NotificationBell } from "@/components/notification-bell";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { OwnerAuthProvider, useOwnerAuth } from "@/lib/owner-auth";
-import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import LandingPage from "@/pages/landing";
-import DashboardPage from "@/pages/dashboard";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 
-import KpiBuilderPage from "@/pages/kpi-builder";
-import KpiManagementPage from "@/pages/kpi-management";
-import ActionsPage from "@/pages/actions";
-import ReviewsPage from "@/pages/reviews";
-import PlannerPage from "@/pages/planner";
-import SettingsPage from "@/pages/settings";
-import UserManagementPage from "@/pages/user-management";
-import PortfolioPage from "@/pages/portfolio";
-import ProjectDetailPage from "@/pages/project-detail";
-import WorkloadPage from "@/pages/workload";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import AnalyticsStudioPage from "@/pages/analytics-studio";
@@ -41,8 +29,6 @@ import AnalyticsDashboardComposePage from "@/pages/analytics-dashboard-compose";
 import GuidePage from "@/pages/guide";
 import DemoPage from "@/pages/demo";
 import ScorecardPage from "@/pages/scorecard";
-import WorkflowCenterPage from "@/pages/workflow-center";
-import PresentationStudioPage from "@/pages/presentation-studio";
 import OwnerLogin from "@/pages/owner-login";
 import OwnerDashboard from "@/pages/owner-dashboard";
 import OwnerCompanies from "@/pages/owner-companies";
@@ -56,23 +42,11 @@ import OwnerFeatureUsage from "@/pages/owner-feature-usage";
 import OwnerCompanyUsage from "@/pages/owner-company-usage";
 
 function AppRouter() {
-  const { isAdmin } = useAuth();
   return (
     <Switch>
       <Route path="/guide" component={GuidePage} />
       <Route path="/guide/" component={GuidePage} />
-      <Route path="/" component={DashboardPage} />
-      <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/login" component={DashboardPage} />
-      <Route path="/kpis" component={KpiManagementPage} />
-      <Route path="/actions" component={ActionsPage} />
-      <Route path="/reviews" component={ReviewsPage} />
-      <Route path="/projects" component={PortfolioPage} />
-      <Route path="/portfolio" component={PortfolioPage} />
-      <Route path="/initiatives" component={PortfolioPage} />
-      <Route path="/projects/:id" component={ProjectDetailPage} />
-      <Route path="/initiatives/:id" component={ProjectDetailPage} />
-      <Route path="/workload" component={WorkloadPage} />
+      <Route path="/" component={AnalyticsStudioPage} />
       <Route path="/analytics" component={AnalyticsStudioPage} />
       <Route path="/analytics/upload" component={AnalyticsUploadPage} />
       <Route path="/analytics/dashboards/new" component={AnalyticsDashboardComposePage} />
@@ -84,13 +58,7 @@ function AppRouter() {
       <Route path="/scorecard" component={ScorecardPage} />
       <Route path="/scorecard/department/:id" component={ScorecardPage} />
       <Route path="/scorecard/kpi/:id" component={ScorecardPage} />
-      {isAdmin && <Route path="/kpi-builder" component={KpiBuilderPage} />}
-      {isAdmin && <Route path="/planner" component={PlannerPage} />}
-      {isAdmin && <Route path="/settings" component={SettingsPage} />}
-      {isAdmin && <Route path="/users" component={UserManagementPage} />}
-      <Route path="/workflow" component={WorkflowCenterPage} />
-      <Route path="/presentations" component={PresentationStudioPage} />
-      <Route component={DashboardPage} />
+      <Route component={AnalyticsStudioPage} />
     </Switch>
   );
 }
