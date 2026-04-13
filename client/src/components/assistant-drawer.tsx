@@ -437,7 +437,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
           open ? "translate-x-0" : "translate-x-full"
         )}
         role="dialog"
-        aria-label="Performo Assistant"
+        aria-label="GHC Beacon Assistant"
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border bg-background">
@@ -446,7 +446,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold tracking-tight" data-testid="text-assistant-title">
-              Performo Assistant
+              Beacon Assistant
             </h2>
             <p className="text-[11px] text-muted-foreground">
               {user?.role === "admin" ? "Full access · read & write" : "Read-only mode"}

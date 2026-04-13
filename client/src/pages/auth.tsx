@@ -44,8 +44,8 @@ function AppChrome({ activeKey, children, searchText }: {
             <BarChart3 className="h-4 w-4 text-primary-foreground" />
           </div>
           <div>
-            <div className="text-sm font-bold leading-tight">Performo AI</div>
-            <div className="text-[10px] text-muted-foreground">Performance Management</div>
+            <div className="text-sm font-bold leading-tight">GHC Beacon</div>
+            <div className="text-[10px] text-muted-foreground">Analytics Platform</div>
           </div>
         </div>
         <div className="px-3 space-y-0.5 flex-1">
@@ -1266,7 +1266,7 @@ function AuthDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: b
         <div className="flex justify-center mb-2 pt-4"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary shadow-sm"><BarChart3 className="h-5 w-5 text-primary-foreground" /></div></div>
         <div className="text-center mb-4">
           <h2 className="text-xl font-semibold" data-testid="text-auth-title">{isLogin ? "Welcome back" : "Create your account"}</h2>
-          <p className="text-sm text-muted-foreground mt-1">{isLogin ? "Sign in to your Performo AI account" : "Get started with Performo AI"}</p>
+          <p className="text-sm text-muted-foreground mt-1">{isLogin ? "Sign in to your GHC Beacon account" : "Get started with GHC Beacon"}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4 px-1">
           {!isLogin && <div className="space-y-2"><Label htmlFor="name">Full Name</Label><Input id="name" value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name" required={!isLogin} data-testid="input-name" /></div>}
@@ -1301,10 +1301,8 @@ export default function AuthPage() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 h-16 border-b bg-white/80 backdrop-blur">
         <button onClick={() => navigate("/")} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-            <BarChart3 className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-base font-bold tracking-tight">Performo <span className="text-blue-600">AI</span></span>
+          <img src="/ghc-beacon-logo.jpg" alt="GHC Beacon" className="h-8 w-8 rounded-lg object-cover" />
+          <span className="text-base font-bold tracking-tight">GHC <span className="text-blue-600">Beacon</span></span>
         </button>
         <button onClick={() => navigate("/")} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
           ← Back to home
@@ -1315,14 +1313,12 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg mx-auto mb-4">
-              <BarChart3 className="h-7 w-7 text-white" />
-            </div>
+            <img src="/ghc-beacon-logo.jpg" alt="GHC Beacon" className="h-14 w-14 rounded-2xl object-cover shadow-lg mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900" data-testid="text-auth-title">
               {isLogin ? "Welcome back" : "Create your account"}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {isLogin ? "Sign in to your Performo AI workspace" : "Start your free Performo AI account"}
+              {isLogin ? "Sign in to your GHC Beacon workspace" : "Get started with GHC Beacon"}
             </p>
           </div>
 

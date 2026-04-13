@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   BarChart3, LogOut, Activity, ChevronRight,
-  Clock, type LucideIcon,
+  Clock, Users, Settings, type LucideIcon,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -84,13 +84,14 @@ export function AppSidebar() {
       {/* ── Brand Header ── */}
       <SidebarHeader className="p-4 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-md shrink-0">
-            <BarChart3 className="h-[18px] w-[18px] text-primary-foreground" />
-            <div className="absolute inset-0 rounded-xl bg-white/10" />
-          </div>
+          <img
+            src="/ghc-beacon-logo.jpg"
+            alt="GHC Beacon"
+            className="h-9 w-9 rounded-xl object-cover shrink-0 shadow-md"
+          />
           <div>
-            <h2 className="text-sm font-bold tracking-tight" data-testid="text-app-name">Performo AI</h2>
-            <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">Performance Platform</p>
+            <h2 className="text-sm font-bold tracking-tight" data-testid="text-app-name">GHC Beacon</h2>
+            <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">Analytics Platform</p>
           </div>
         </div>
         <div className="mt-3 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -99,6 +100,11 @@ export function AppSidebar() {
       {/* ── Navigation ── */}
       <SidebarContent className="px-2 py-1 gap-0">
         {renderGroup("Analytics", analyticsNav)}
+
+        {isAdmin && renderGroup("Admin", [
+          { title: "People", url: "/users", icon: Users },
+          { title: "Settings", url: "/settings", icon: Settings },
+        ])}
       </SidebarContent>
 
       {/* ── User Footer ── */}

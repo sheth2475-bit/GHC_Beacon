@@ -16,6 +16,8 @@ import LandingPage from "@/pages/landing";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 
+import UserManagementPage from "@/pages/user-management";
+import SettingsPage from "@/pages/settings";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import AnalyticsStudioPage from "@/pages/analytics-studio";
@@ -42,6 +44,7 @@ import OwnerFeatureUsage from "@/pages/owner-feature-usage";
 import OwnerCompanyUsage from "@/pages/owner-company-usage";
 
 function AppRouter() {
+  const { isAdmin } = useAuth();
   return (
     <Switch>
       <Route path="/guide" component={GuidePage} />
@@ -58,6 +61,8 @@ function AppRouter() {
       <Route path="/scorecard" component={ScorecardPage} />
       <Route path="/scorecard/department/:id" component={ScorecardPage} />
       <Route path="/scorecard/kpi/:id" component={ScorecardPage} />
+      {isAdmin && <Route path="/users" component={UserManagementPage} />}
+      {isAdmin && <Route path="/settings" component={SettingsPage} />}
       <Route component={AnalyticsStudioPage} />
     </Switch>
   );
