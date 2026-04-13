@@ -1144,6 +1144,57 @@ export class DatabaseStorage implements IStorage {
     const { workflowGroups } = await import("@shared/schema");
     await db.delete(workflowGroups).where(eq(workflowGroups.id, id));
   }
+
+  // ── Balanced Scorecard ──────────────────────────────────────────────────────
+  async getBscDepartments(companyId: number) {
+    const { bscDepartments } = await import("@shared/schema");
+    return db.select().from(bscDepartments)
+      .where(eq(bscDepartments.companyId, companyId))
+      .orderBy(bscDepartments.sortOrder);
+  }
+
+  async saveBscDepartments(companyId: number, departments: { deptId: string; name: string; icon: string; color: string; sortOrder: number }[]) {
+    const { bscDepartments } = await import("@shared/schema");
+    await db.delete(bscDepartments).where(eq(bscDepartments.companyId, companyId));
+    if (departments.length > 0) {
+      await db.insert(bscDepartments).values(departments.map(d => ({ ...d, companyId })));
+    }
+  }
+
+  async getBscActuals(companyId: number): Promise<Record<string, Record<string, number>>> {
+    const { bscActuals } = await import("@shared/schema");
+    const rows = await db.select().from(bscActuals).where(eq(bscActuals.companyId, companyId));
+    const store: Record<string, Record<string, number>> = {};
+    for (const row of rows) {
+      if (!store[row.periodKey]) store[row.periodKey] = {};
+      store[row.periodKey][row.kpiId] = row.actualValue;
+    }
+    return store;
+  }
+
+  async saveBscActuals(companyId: number, deptId: string, periodKey: string, values: Record<string, number>) {
+    const { bscActuals } = await import("@shared/schema");
+    await db.delete(bscActuals).where(
+      and(eq(bscActuals.companyId, companyId), eq(bscActuals.deptId, deptId), eq(bscActuals.periodKey, periodKey))
+    );
+    const entries = Object.entries(values);
+    if (entries.length > 0) {
+      await db.insert(bscActuals).values(entries.map(([kpiId, actualValue]) => ({ companyId, deptId, periodKey, kpiId, actualValue })));
+    }
+  }
+
+  async saveBscActualsBatch(companyId: number, store: Record<string, Record<string, number>>) {
+    const { bscActuals } = await import("@shared/schema");
+    await db.delete(bscActuals).where(eq(bscActuals.companyId, companyId));
+    const rows: { companyId: number; deptId: string; periodKey: string; kpiId: string; actualValue: number }[] = [];
+    for (const [periodKey, kpiMap] of Object.entries(store)) {
+      for (const [kpiId, actualValue] of Object.entries(kpiMap)) {
+        const deptId = kpiId.split("_")[0];
+        rows.push({ companyId, deptId, periodKey, kpiId, actualValue });
+      }
+    }
+    if (rows.length > 0) await db.insert(bscActuals).values(rows);
+  }
 }
 
 export const storage = new DatabaseStorage();

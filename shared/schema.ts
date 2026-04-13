@@ -738,3 +738,26 @@ export type Presentation = typeof presentations.$inferSelect;
 export type InsertPresentation = z.infer<typeof insertPresentationSchema>;
 export type PresentationVersion = typeof presentationVersions.$inferSelect;
 export type InsertPresentationVersion = z.infer<typeof insertPresentationVersionSchema>;
+
+// ── Balanced Scorecard ────────────────────────────────────────────────────────
+export const bscDepartments = pgTable("bsc_departments", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  deptId: text("dept_id").notNull(),
+  name: text("name").notNull(),
+  icon: text("icon").notNull(),
+  color: text("color").notNull(),
+  sortOrder: integer("sort_order").default(0),
+});
+
+export const bscActuals = pgTable("bsc_actuals", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  deptId: text("dept_id").notNull(),
+  periodKey: text("period_key").notNull(),
+  kpiId: text("kpi_id").notNull(),
+  actualValue: real("actual_value").notNull(),
+});
+
+export type BscDepartment = typeof bscDepartments.$inferSelect;
+export type BscActual = typeof bscActuals.$inferSelect;

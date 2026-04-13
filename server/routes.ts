@@ -3688,6 +3688,45 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     }
   });
 
+  // ─── Balanced Scorecard ───────────────────────────────────────────────────
+  app.get("/api/scorecard/departments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const depts = await storage.getBscDepartments(company.id);
+      res.json(depts);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/scorecard/departments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const departments = req.body as { deptId: string; name: string; icon: string; color: string; sortOrder: number }[];
+      await storage.saveBscDepartments(company.id, departments);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/scorecard/actuals", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const store = await storage.getBscActuals(company.id);
+      res.json(store);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/scorecard/actuals", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const { store } = req.body as { store: Record<string, Record<string, number>> };
+      await storage.saveBscActualsBatch(company.id, store);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });

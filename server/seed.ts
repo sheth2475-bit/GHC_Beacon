@@ -585,6 +585,9 @@ export async function seedDatabase() {
     // ── Ensure presentation demo data ────────────────────────────
     await seedPresentationData(companyId, existing.id);
 
+    // ── Ensure balanced scorecard data ───────────────────────────
+    await seedBscData(companyId);
+
     // ── Ensure platform owner ───────────────────────────────────
     await seedPlatformOwner();
 
@@ -788,6 +791,9 @@ export async function seedDatabase() {
 
   // ─── Presentation Studio Demo Data ───────────────────────────────────
   await seedPresentationData(company.id, user.id);
+
+  // ─── Balanced Scorecard Demo Data ────────────────────────────────────
+  await seedBscData(company.id);
 
   await storage.upsertSubscription(company.id, {
     planName: "Growth",
@@ -1240,5 +1246,75 @@ async function seedPlatformOwner() {
   const passwordHash = await hashPassword("owner123");
   await storage.createPlatformOwner({ name: "Platform Owner", email: "owner@performo.ai", passwordHash, isActive: true });
   console.log("Seed: created platform owner → owner@performo.ai / owner123");
+}
+
+async function seedBscData(companyId: number) {
+  const existingDepts = await storage.getBscDepartments(companyId);
+  if (existingDepts.length > 0) return;
+
+  const departments = [
+    { deptId: "corp", name: "Corporate", icon: "🏢", color: "#3B82F6", sortOrder: 0 },
+    { deptId: "ops",  name: "Operations",   icon: "✈️", color: "#8B5CF6", sortOrder: 1 },
+    { deptId: "fin",  name: "Finance",      icon: "💰", color: "#10B981", sortOrder: 2 },
+    { deptId: "hr",   name: "HR",           icon: "👥", color: "#F59E0B", sortOrder: 3 },
+    { deptId: "it",   name: "IT",           icon: "💻", color: "#06B6D4", sortOrder: 4 },
+  ];
+  await storage.saveBscDepartments(companyId, departments);
+
+  // 7 months of scorecard actuals (Oct 2025 – Apr 2026) across departments
+  const store: Record<string, Record<string, number>> = {
+    "2025-10": {
+      cr_f1:5.2, cr_f2:19.8, cr_f3:20.1, cr_f4:912, cr_c1:92.1, cr_c2:4.0, cr_c3:97.2, cr_c4:90.5,
+      cr_i1:0.72, cr_i2:91.2, cr_i3:93.8, cr_l1:28, cr_l2:15.2, cr_l3:98, cr_l4:68,
+      ops_f1:11200, ops_f2:73.1, ops_c1:93.2, ops_c2:4.1, ops_i1:91.4, ops_i2:0.62, ops_l1:88, ops_l2:12.1,
+      fin_f1:20.1, fin_f2:47, fin_c1:3.9, fin_c2:98.1, fin_i1:6, fin_i2:5.8, fin_l1:34, fin_l2:72,
+      hr_f1:2700, hr_f2:1100, hr_c1:4.0, hr_c2:82, hr_i1:33, hr_i2:3.4, hr_l1:88, hr_l2:14.1,
+    },
+    "2025-11": {
+      cr_f1:6.1, cr_f2:20.5, cr_f3:19.8, cr_f4:887, cr_c1:93.5, cr_c2:4.1, cr_c3:98.1, cr_c4:91.2,
+      cr_i1:0.58, cr_i2:93.4, cr_i3:95.2, cr_l1:31, cr_l2:14.8, cr_l3:100, cr_l4:72,
+      ops_f1:11600, ops_f2:72.4, ops_c1:94.1, ops_c2:4.2, ops_i1:92.8, ops_i2:0.55, ops_l1:91, ops_l2:11.4,
+      fin_f1:20.8, fin_f2:46, fin_c1:4.0, fin_c2:98.5, fin_i1:5, fin_i2:5.2, fin_l1:38, fin_l2:75,
+      hr_f1:2620, hr_f2:1140, hr_c1:4.1, hr_c2:84, hr_i1:31, hr_i2:3.1, hr_l1:90, hr_l2:13.5,
+    },
+    "2025-12": {
+      cr_f1:7.8, cr_f2:21.2, cr_f3:19.2, cr_f4:865, cr_c1:95.8, cr_c2:4.3, cr_c3:98.7, cr_c4:93.1,
+      cr_i1:0.41, cr_i2:95.1, cr_i3:96.9, cr_l1:38, cr_l2:13.1, cr_l3:100, cr_l4:76,
+      ops_f1:12100, ops_f2:71.8, ops_c1:95.6, ops_c2:4.4, ops_i1:94.2, ops_i2:0.48, ops_l1:93, ops_l2:10.8,
+      fin_f1:21.5, fin_f2:44, fin_c1:4.1, fin_c2:99.0, fin_i1:5, fin_i2:4.8, fin_l1:42, fin_l2:78,
+      hr_f1:2540, hr_f2:1180, hr_c1:4.2, hr_c2:86, hr_i1:29, hr_i2:2.8, hr_l1:93, hr_l2:12.9,
+    },
+    "2026-01": {
+      cr_f1:6.4, cr_f2:19.4, cr_f3:20.4, cr_f4:878, cr_c1:91.2, cr_c2:3.9, cr_c3:96.8, cr_c4:89.8,
+      cr_i1:0.63, cr_i2:90.8, cr_i3:94.1, cr_l1:26, cr_l2:15.5, cr_l3:97, cr_l4:70,
+      ops_f1:11400, ops_f2:72.9, ops_c1:92.4, ops_c2:4.0, ops_i1:91.0, ops_i2:0.60, ops_l1:87, ops_l2:11.9,
+      fin_f1:19.8, fin_f2:48, fin_c1:3.8, fin_c2:97.8, fin_i1:6, fin_i2:6.1, fin_l1:32, fin_l2:71,
+      hr_f1:2680, hr_f2:1120, hr_c1:3.9, hr_c2:81, hr_i1:34, hr_i2:3.5, hr_l1:86, hr_l2:14.4,
+    },
+    "2026-02": {
+      cr_f1:7.1, cr_f2:20.8, cr_f3:19.9, cr_f4:843, cr_c1:94.3, cr_c2:4.2, cr_c3:97.9, cr_c4:91.7,
+      cr_i1:0.48, cr_i2:92.5, cr_i3:95.8, cr_l1:34, cr_l2:13.8, cr_l3:100, cr_l4:75,
+      ops_f1:11800, ops_f2:72.1, ops_c1:94.5, ops_c2:4.3, ops_i1:93.1, ops_i2:0.51, ops_l1:92, ops_l2:11.1,
+      fin_f1:21.0, fin_f2:45, fin_c1:4.0, fin_c2:98.6, fin_i1:5, fin_i2:5.0, fin_l1:40, fin_l2:77,
+      hr_f1:2600, hr_f2:1160, hr_c1:4.1, hr_c2:85, hr_i1:30, hr_i2:3.0, hr_l1:92, hr_l2:13.2,
+    },
+    "2026-03": {
+      cr_f1:8.5, cr_f2:21.9, cr_f3:18.7, cr_f4:828, cr_c1:96.1, cr_c2:4.4, cr_c3:98.3, cr_c4:92.8,
+      cr_i1:0.35, cr_i2:94.7, cr_i3:97.2, cr_l1:41, cr_l2:11.4, cr_l3:100, cr_l4:81,
+      ops_f1:12200, ops_f2:71.5, ops_c1:96.0, ops_c2:4.5, ops_i1:94.5, ops_i2:0.44, ops_l1:94, ops_l2:10.4,
+      fin_f1:21.8, fin_f2:44, fin_c1:4.2, fin_c2:99.1, fin_i1:5, fin_i2:4.6, fin_l1:44, fin_l2:80,
+      hr_f1:2520, hr_f2:1200, hr_c1:4.2, hr_c2:87, hr_i1:28, hr_i2:2.6, hr_l1:95, hr_l2:12.5,
+    },
+    "2026-04": {
+      cr_f1:9.1, cr_f2:22.4, cr_f3:18.2, cr_f4:815, cr_c1:97.3, cr_c2:4.5, cr_c3:98.8, cr_c4:93.5,
+      cr_i1:0.28, cr_i2:95.3, cr_i3:97.8, cr_l1:44, cr_l2:10.8, cr_l3:100, cr_l4:83,
+      ops_f1:12450, ops_f2:71.2, ops_c1:97.1, ops_c2:4.6, ops_i1:95.2, ops_i2:0.40, ops_l1:96, ops_l2:9.9,
+      fin_f1:22.3, fin_f2:43, fin_c1:4.3, fin_c2:99.3, fin_i1:4, fin_i2:4.2, fin_l1:46, fin_l2:82,
+      hr_f1:2490, hr_f2:1220, hr_c1:4.3, hr_c2:88, hr_i1:27, hr_i2:2.4, hr_l1:96, hr_l2:12.0,
+    },
+  };
+
+  await storage.saveBscActualsBatch(companyId, store);
+  console.log(`Seed: created BSC departments and 7 months of actuals`);
 }
 

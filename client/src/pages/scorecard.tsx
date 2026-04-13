@@ -189,7 +189,7 @@ function genericKpis(deptId: string): KpiDef[] {
   ];
 }
 
-// ── Persistence ───────────────────────────────────────────────────────────────
+// ── Persistence (localStorage cache + DB sync) ────────────────────────────────
 const STORE_KEY = "ghc_beacon_v2";
 const DEPT_KEY  = "bsc_departments";
 
@@ -198,33 +198,68 @@ function loadStore(): Record<string, Record<string, number>> {
 }
 function saveStore(d: Record<string, Record<string, number>>) {
   localStorage.setItem(STORE_KEY, JSON.stringify(d));
+  // Async sync to DB (fire and forget)
+  fetch("/api/scorecard/actuals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ store: d }) }).catch(() => {});
 }
 
-// ── Corporate sample data (Oct 2025 – Mar 2026) ───────────────────────────────
-const CORP_SAMPLE_DATA: Record<string, Record<string, number>> = {
-  "2025-10": { cr_f1:5.2, cr_f2:19.8, cr_f3:20.1, cr_f4:912, cr_c1:92.1, cr_c2:4.0, cr_c3:97.2, cr_c4:90.5, cr_i1:0.72, cr_i2:91.2, cr_i3:93.8, cr_l1:28, cr_l2:15.2, cr_l3:98,  cr_l4:68 },
-  "2025-11": { cr_f1:6.1, cr_f2:20.5, cr_f3:19.8, cr_f4:887, cr_c1:93.5, cr_c2:4.1, cr_c3:98.1, cr_c4:91.2, cr_i1:0.58, cr_i2:93.4, cr_i3:95.2, cr_l1:31, cr_l2:14.8, cr_l3:100, cr_l4:72 },
-  "2025-12": { cr_f1:7.8, cr_f2:21.2, cr_f3:19.2, cr_f4:865, cr_c1:95.8, cr_c2:4.3, cr_c3:98.7, cr_c4:93.1, cr_i1:0.41, cr_i2:95.1, cr_i3:96.9, cr_l1:38, cr_l2:13.1, cr_l3:100, cr_l4:76 },
-  "2026-01": { cr_f1:6.4, cr_f2:19.4, cr_f3:20.4, cr_f4:878, cr_c1:91.2, cr_c2:3.9, cr_c3:96.8, cr_c4:89.8, cr_i1:0.63, cr_i2:90.8, cr_i3:94.1, cr_l1:26, cr_l2:15.5, cr_l3:97,  cr_l4:70 },
-  "2026-02": { cr_f1:7.1, cr_f2:20.8, cr_f3:19.9, cr_f4:843, cr_c1:94.3, cr_c2:4.2, cr_c3:97.9, cr_c4:91.7, cr_i1:0.48, cr_i2:92.5, cr_i3:95.8, cr_l1:34, cr_l2:13.8, cr_l3:100, cr_l4:75 },
-  "2026-03": { cr_f1:8.5, cr_f2:21.9, cr_f3:18.7, cr_f4:828, cr_c1:96.1, cr_c2:4.4, cr_c3:98.3, cr_c4:92.8, cr_i1:0.35, cr_i2:94.7, cr_i3:97.2, cr_l1:41, cr_l2:11.4, cr_l3:100, cr_l4:81 },
-  "2026-04": { cr_f1:9.1, cr_f2:22.4, cr_f3:18.2, cr_f4:815, cr_c1:97.3, cr_c2:4.5, cr_c3:98.8, cr_c4:93.5, cr_i1:0.28, cr_i2:95.3, cr_i3:97.8, cr_l1:44, cr_l2:10.8, cr_l3:100, cr_l4:83 },
-};
-
-function seedCorpSampleData() {
-  const existing = loadStore();
-  const merged   = { ...existing };
-  for (const [pk, vals] of Object.entries(CORP_SAMPLE_DATA)) {
-    merged[pk] = { ...(merged[pk] || {}), ...vals };
-  }
-  saveStore(merged);
-}
 function loadDepartments(): BscDepartment[] {
   try { const d = localStorage.getItem(DEPT_KEY); return d ? JSON.parse(d) : DEFAULT_DEPARTMENTS; }
   catch { return DEFAULT_DEPARTMENTS; }
 }
 function saveDepartments(d: BscDepartment[]) {
   localStorage.setItem(DEPT_KEY, JSON.stringify(d));
+  // Async sync to DB (fire and forget)
+  fetch("/api/scorecard/departments", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(d.map((dep, i) => ({ deptId: dep.id, name: dep.name, icon: dep.icon, color: dep.color, sortOrder: i }))),
+  }).catch(() => {});
+}
+
+async function syncActualsFromDb() {
+  try {
+    const res = await fetch("/api/scorecard/actuals");
+    if (!res.ok) return;
+    const dbStore = await res.json() as Record<string, Record<string, number>>;
+    if (Object.keys(dbStore).length === 0) return;
+    // Merge DB data into localStorage (DB is source of truth)
+    const local = loadStore();
+    const merged = { ...local };
+    for (const [pk, vals] of Object.entries(dbStore)) {
+      merged[pk] = { ...(merged[pk] || {}), ...vals };
+    }
+    localStorage.setItem(STORE_KEY, JSON.stringify(merged));
+    return merged;
+  } catch { return undefined; }
+}
+
+async function syncDepartmentsFromDb(): Promise<BscDepartment[] | undefined> {
+  try {
+    const res = await fetch("/api/scorecard/departments");
+    if (!res.ok) return undefined;
+    const rows = await res.json() as { deptId: string; name: string; icon: string; color: string }[];
+    if (rows.length === 0) return undefined;
+    const depts: BscDepartment[] = rows.map(r => ({ id: r.deptId, name: r.name, icon: r.icon, color: r.color }));
+    localStorage.setItem(DEPT_KEY, JSON.stringify(depts));
+    return depts;
+  } catch { return undefined; }
+}
+
+function seedCorpSampleData() {
+  const existing = loadStore();
+  const merged   = { ...existing };
+  const CORP_SAMPLE_DATA: Record<string, Record<string, number>> = {
+    "2025-10": { cr_f1:5.2, cr_f2:19.8, cr_f3:20.1, cr_f4:912, cr_c1:92.1, cr_c2:4.0, cr_c3:97.2, cr_c4:90.5, cr_i1:0.72, cr_i2:91.2, cr_i3:93.8, cr_l1:28, cr_l2:15.2, cr_l3:98, cr_l4:68 },
+    "2025-11": { cr_f1:6.1, cr_f2:20.5, cr_f3:19.8, cr_f4:887, cr_c1:93.5, cr_c2:4.1, cr_c3:98.1, cr_c4:91.2, cr_i1:0.58, cr_i2:93.4, cr_i3:95.2, cr_l1:31, cr_l2:14.8, cr_l3:100, cr_l4:72 },
+    "2025-12": { cr_f1:7.8, cr_f2:21.2, cr_f3:19.2, cr_f4:865, cr_c1:95.8, cr_c2:4.3, cr_c3:98.7, cr_c4:93.1, cr_i1:0.41, cr_i2:95.1, cr_i3:96.9, cr_l1:38, cr_l2:13.1, cr_l3:100, cr_l4:76 },
+    "2026-01": { cr_f1:6.4, cr_f2:19.4, cr_f3:20.4, cr_f4:878, cr_c1:91.2, cr_c2:3.9, cr_c3:96.8, cr_c4:89.8, cr_i1:0.63, cr_i2:90.8, cr_i3:94.1, cr_l1:26, cr_l2:15.5, cr_l3:97, cr_l4:70 },
+    "2026-02": { cr_f1:7.1, cr_f2:20.8, cr_f3:19.9, cr_f4:843, cr_c1:94.3, cr_c2:4.2, cr_c3:97.9, cr_c4:91.7, cr_i1:0.48, cr_i2:92.5, cr_i3:95.8, cr_l1:34, cr_l2:13.8, cr_l3:100, cr_l4:75 },
+    "2026-03": { cr_f1:8.5, cr_f2:21.9, cr_f3:18.7, cr_f4:828, cr_c1:96.1, cr_c2:4.4, cr_c3:98.3, cr_c4:92.8, cr_i1:0.35, cr_i2:94.7, cr_i3:97.2, cr_l1:41, cr_l2:11.4, cr_l3:100, cr_l4:81 },
+    "2026-04": { cr_f1:9.1, cr_f2:22.4, cr_f3:18.2, cr_f4:815, cr_c1:97.3, cr_c2:4.5, cr_c3:98.8, cr_c4:93.5, cr_i1:0.28, cr_i2:95.3, cr_i3:97.8, cr_l1:44, cr_l2:10.8, cr_l3:100, cr_l4:83 },
+  };
+  for (const [pk, vals] of Object.entries(CORP_SAMPLE_DATA)) {
+    merged[pk] = { ...(merged[pk] || {}), ...vals };
+  }
+  saveStore(merged);
 }
 function getKpisForDept(id: string): KpiDef[] {
   return DEPT_KPIS[id] || genericKpis(id);
@@ -426,7 +461,7 @@ function healthStatus(hp: number): "green"|"amber"|"red" {
 
 function ScorecardLanding() {
   const [departments, setDepartments] = useState<BscDepartment[]>(loadDepartments);
-  const [store] = useState(loadStore);
+  const [store, setStore] = useState(loadStore);
   const [showAdd, setShowAdd] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -437,6 +472,12 @@ function ScorecardLanding() {
   const ppk = month === 0 ? periodKey(year-1, 11) : periodKey(year, month-1);
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const [, nav] = useLocation();
+
+  // ── Sync from DB on mount ─────────────────────────────────────────────────
+  useEffect(() => {
+    syncDepartmentsFromDb().then(depts => { if (depts) setDepartments(depts); });
+    syncActualsFromDb().then(merged => { if (merged) setStore(merged); });
+  }, []);
 
   const shiftMonth = (delta: number) => {
     setMonth(m => {
@@ -797,15 +838,20 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     const v = store?.[p]?.[id]; return v !== undefined ? Number(v) : null;
   }, [store, pk]);
 
-  // Auto-seed sample data for corporate department on first visit
+  // ── Sync actuals from DB on mount ─────────────────────────────────────────
   useEffect(() => {
-    if (deptId !== "corp") return;
-    const s = loadStore();
-    const hasAnyCorpData = Object.values(s).some(v => Object.keys(v).some(k => k.startsWith("cr_")));
-    if (!hasAnyCorpData) {
-      seedCorpSampleData();
-      setStore(loadStore());
-    }
+    syncActualsFromDb().then(merged => {
+      if (merged) {
+        setStore(merged);
+      } else {
+        // Fallback: if no DB data, seed corp sample locally
+        if (deptId === "corp") {
+          const s = loadStore();
+          const hasAnyCorpData = Object.values(s).some(v => Object.keys(v).some(k => k.startsWith("cr_")));
+          if (!hasAnyCorpData) { seedCorpSampleData(); setStore(loadStore()); }
+        }
+      }
+    });
   }, [deptId]);
 
   // Pre-fill form when period changes
@@ -1408,9 +1454,13 @@ const RagDot = (props: any) => {
 };
 
 function KpiDetail({ kpiId }: { kpiId: string }) {
-  const [store]   = useState(loadStore);
-  const [, nav]   = useLocation();
-  const today     = new Date();
+  const [store, setStore] = useState(loadStore);
+  const [, nav]           = useLocation();
+  const today             = new Date();
+
+  useEffect(() => {
+    syncActualsFromDb().then(merged => { if (merged) setStore(merged); });
+  }, []);
 
   const allKpis = Object.values(DEPT_KPIS).flat();
   const kpi = allKpis.find(k => k.id === kpiId);
