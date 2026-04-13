@@ -31,6 +31,8 @@ import AnalyticsDashboardComposePage from "@/pages/analytics-dashboard-compose";
 import GuidePage from "@/pages/guide";
 import DemoPage from "@/pages/demo";
 import ScorecardPage from "@/pages/scorecard";
+import PublicDashboardPage from "@/pages/public-dashboard";
+import PublicScorecardPage from "@/pages/public-scorecard";
 import OwnerLogin from "@/pages/owner-login";
 import OwnerDashboard from "@/pages/owner-dashboard";
 import OwnerCompanies from "@/pages/owner-companies";
@@ -180,6 +182,16 @@ function Loader() {
 function RootRouter() {
   const [location] = useLocation();
   const isOwnerRoute = location.startsWith("/owner");
+  const isPublicRoute = location.startsWith("/public/");
+
+  if (isPublicRoute) {
+    return (
+      <Switch>
+        <Route path="/public/dashboard/:token" component={PublicDashboardPage} />
+        <Route path="/public/scorecard/:token" component={PublicScorecardPage} />
+      </Switch>
+    );
+  }
 
   if (isOwnerRoute) {
     return (

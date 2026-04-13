@@ -683,6 +683,9 @@ export default function AnalyticsDashboardComposePage() {
   const [description, setDescription] = useState("");
   const [publishDialog, setPublishDialog] = useState(false);
   const [publishVisibility, setPublishVisibility] = useState("company");
+  const [shareDialog, setShareDialog] = useState(false);
+  const [shareEnabled, setShareEnabled] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
   const [addInsightDialog, setAddInsightDialog] = useState(false);
   const [removeId, setRemoveId] = useState<number | null>(null);
   const [deleteInsightId, setDeleteInsightId] = useState<number | null>(null);
@@ -759,6 +762,25 @@ export default function AnalyticsDashboardComposePage() {
       setPublishDialog(false);
       toast({ title: "Dashboard published!", description: "Now visible to your team." });
     },
+  });
+
+  // Sync share state from loaded dashboard
+  useEffect(() => {
+    if (dash) {
+      setShareEnabled(!!(dash as any).shareEnabled);
+      setShareToken((dash as any).shareToken ?? null);
+    }
+  }, [dash]);
+
+  const shareMutation = useMutation({
+    mutationFn: (enabled: boolean) => apiRequest("POST", `/api/v2/analytics/definitions/${id}/share`, { enabled }).then(r => r.json()),
+    onSuccess: (data: { shareToken: string; shareEnabled: boolean }) => {
+      setShareEnabled(data.shareEnabled);
+      setShareToken(data.shareToken);
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] });
+      toast({ title: data.shareEnabled ? "Public link enabled!" : "Public link disabled" });
+    },
+    onError: () => toast({ title: "Failed to update share link", variant: "destructive" }),
   });
 
   const addItemMutation = useMutation({
@@ -1080,6 +1102,10 @@ export default function AnalyticsDashboardComposePage() {
                 {dash.narrativeSummary && !generatingNarrative && (
                   <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
                 )}
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setShareDialog(true)} data-testid="button-share" disabled={isNew}>
+                <Globe className="h-3.5 w-3.5" /> Share
+                {shareEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />}
               </Button>
               <Button size="sm" className="gap-1.5 h-8" onClick={() => setPublishDialog(true)} data-testid="button-publish">
                 <Globe className="h-3.5 w-3.5" /> {dash.status === "published" ? "Update" : "Publish"}
@@ -1499,6 +1525,53 @@ export default function AnalyticsDashboardComposePage() {
             <Button onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" data-testid="button-confirm-publish">
               {publishMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />} Publish
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share dialog */}
+      <Dialog open={shareDialog} onOpenChange={setShareDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Globe className="h-4 w-4 text-primary" /> Share Dashboard</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Generate a public link that anyone can view — no login required.</p>
+            <div className="flex items-center justify-between rounded-lg border p-3 gap-3">
+              <div>
+                <p className="text-sm font-medium">Public link</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{shareEnabled ? "Anyone with the link can view" : "Link is currently disabled"}</p>
+              </div>
+              <button
+                onClick={() => shareMutation.mutate(!shareEnabled)}
+                disabled={shareMutation.isPending}
+                data-testid="toggle-share-enabled"
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${shareEnabled ? "bg-emerald-500" : "bg-muted border"}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${shareEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+            {shareEnabled && shareToken && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Share link</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={`${window.location.origin}/public/dashboard/${shareToken}`}
+                    className="flex-1 text-xs px-3 py-2 rounded-md border bg-muted font-mono truncate"
+                    data-testid="input-share-link"
+                    onClick={e => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button size="sm" variant="outline" onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/public/dashboard/${shareToken}`);
+                    toast({ title: "Link copied!" });
+                  }} data-testid="button-copy-link">Copy</Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

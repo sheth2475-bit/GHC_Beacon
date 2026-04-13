@@ -671,6 +671,8 @@ export const analyticsDashboardDefinitions = pgTable("analytics_dashboard_defini
   visibility: text("visibility").notNull().default("private"),
   narrativeSummary: text("narrative_summary"),
   tags: text("tags").array().default(sql`ARRAY[]::text[]`),
+  shareToken: text("share_token"),
+  shareEnabled: boolean("share_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -761,3 +763,15 @@ export const bscActuals = pgTable("bsc_actuals", {
 
 export type BscDepartment = typeof bscDepartments.$inferSelect;
 export type BscActual = typeof bscActuals.$inferSelect;
+
+// ── Scorecard Public Shares ──────────────────────────────────────────────────
+export const scorecardShares = pgTable("scorecard_shares", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  shareToken: text("share_token").notNull().unique(),
+  shareEnabled: boolean("share_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ScorecardShare = typeof scorecardShares.$inferSelect;

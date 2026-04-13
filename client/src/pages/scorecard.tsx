@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useRoute, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
@@ -22,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
@@ -465,6 +467,10 @@ function ScorecardLanding() {
   const [showAdd, setShowAdd] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [shareDialog, setShareDialog] = useState(false);
+  const [shareEnabled, setShareEnabled] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const { toast } = useToast();
   const today = new Date();
   const [year,  setYear]  = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -472,6 +478,29 @@ function ScorecardLanding() {
   const ppk = month === 0 ? periodKey(year-1, 11) : periodKey(year, month-1);
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const [, nav] = useLocation();
+
+  const { data: shareData } = useQuery<{ shareToken: string | null; shareEnabled: boolean }>({
+    queryKey: ["/api/scorecard/share"],
+    queryFn: () => fetch("/api/scorecard/share", { credentials: "include" }).then(r => r.json()),
+  });
+
+  useEffect(() => {
+    if (shareData) {
+      setShareEnabled(shareData.shareEnabled);
+      setShareToken(shareData.shareToken);
+    }
+  }, [shareData]);
+
+  const shareMutation = useMutation({
+    mutationFn: (enabled: boolean) => apiRequest("POST", "/api/scorecard/share", { enabled }).then(r => r.json()),
+    onSuccess: (data: { shareToken: string; shareEnabled: boolean }) => {
+      setShareEnabled(data.shareEnabled);
+      setShareToken(data.shareToken);
+      queryClient.invalidateQueries({ queryKey: ["/api/scorecard/share"] });
+      toast({ title: data.shareEnabled ? "Public link enabled!" : "Public link disabled" });
+    },
+    onError: () => toast({ title: "Failed to update share link", variant: "destructive" }),
+  });
 
   // ── Sync from DB on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -575,6 +604,10 @@ function ScorecardLanding() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          <Button variant="outline" onClick={() => setShareDialog(true)} data-testid="button-share-scorecard" className="gap-1.5">
+            <Eye className="h-4 w-4" />Share
+            {shareEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+          </Button>
           <Button onClick={() => setShowAdd(true)} data-testid="button-add-department">
             <Plus className="h-4 w-4 mr-1.5" />Add Department
           </Button>
@@ -703,6 +736,53 @@ function ScorecardLanding() {
       </div>
 
       <AddDeptDialog open={showAdd} onClose={()=>setShowAdd(false)} onAdd={handleAdd} />
+
+      {/* Share dialog */}
+      <Dialog open={shareDialog} onOpenChange={setShareDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Eye className="h-4 w-4 text-primary" /> Share Scorecard</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Generate a public link so stakeholders can view your Balanced Scorecard — no login required.</p>
+            <div className="flex items-center justify-between rounded-lg border p-3 gap-3">
+              <div>
+                <p className="text-sm font-medium">Public link</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{shareEnabled ? "Anyone with the link can view" : "Link is currently disabled"}</p>
+              </div>
+              <button
+                onClick={() => shareMutation.mutate(!shareEnabled)}
+                disabled={shareMutation.isPending}
+                data-testid="toggle-share-scorecard"
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${shareEnabled ? "bg-emerald-500" : "bg-muted border"}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${shareEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+            {shareEnabled && shareToken && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Share link</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={`${window.location.origin}/public/scorecard/${shareToken}`}
+                    className="flex-1 text-xs px-3 py-2 rounded-md border bg-muted font-mono truncate"
+                    data-testid="input-scorecard-share-link"
+                    onClick={e => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button size="sm" variant="outline" onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/public/scorecard/${shareToken}`);
+                    toast({ title: "Link copied!" });
+                  }} data-testid="button-copy-scorecard-link">Copy</Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
