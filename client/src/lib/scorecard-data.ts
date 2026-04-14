@@ -1,0 +1,175 @@
+export type Perspective = "Financial" | "Customer" | "Internal" | "Learning";
+
+export interface KpiDef {
+  id: string; name: string; perspective: Perspective;
+  unit: string; target: number; lowerIsBetter?: boolean;
+}
+
+export interface BscDepartment {
+  id: string; name: string; icon: string; color: string;
+}
+
+export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+export const DEFAULT_DEPARTMENTS: BscDepartment[] = [
+  { id:"ops",  name:"Operations",  icon:"✈️", color:"#3B82F6" },
+  { id:"eng",  name:"Engineering", icon:"🔧", color:"#8B5CF6" },
+  { id:"fin",  name:"Finance",     icon:"💰", color:"#10B981" },
+  { id:"hr",   name:"HR",          icon:"👥", color:"#F59E0B" },
+  { id:"qhse", name:"QHSE",        icon:"🛡️", color:"#EF4444" },
+  { id:"it",   name:"IT",          icon:"💻", color:"#06B6D4" },
+  { id:"comm", name:"Commercial",  icon:"📊", color:"#8B5CF6" },
+  { id:"camo", name:"CAMO",        icon:"📋", color:"#F59E0B" },
+  { id:"mro",  name:"MRO",         icon:"⚙️", color:"#10B981" },
+  { id:"corp", name:"Corporate",   icon:"🏢", color:"#3B82F6" },
+];
+
+export const DEPT_KPIS: Record<string, KpiDef[]> = {
+  ops: [
+    { id:"ops_f1", name:"Revenue per Aircraft",    perspective:"Financial", unit:"USD",   target:12000 },
+    { id:"ops_f2", name:"Cost Efficiency Ratio",   perspective:"Financial", unit:"%",     target:72,   lowerIsBetter:true },
+    { id:"ops_c1", name:"On-Time Performance",     perspective:"Customer",  unit:"%",     target:95 },
+    { id:"ops_c2", name:"Customer Score",          perspective:"Customer",  unit:"/5",    target:4.3 },
+    { id:"ops_i1", name:"Turnaround Compliance",   perspective:"Internal",  unit:"%",     target:94 },
+    { id:"ops_i2", name:"Ground Damage Rate",      perspective:"Internal",  unit:"/1000", target:0.5, lowerIsBetter:true },
+    { id:"ops_l1", name:"Training Completion",     perspective:"Learning",  unit:"%",     target:95 },
+    { id:"ops_l2", name:"Turnover Rate",           perspective:"Learning",  unit:"%",     target:10,  lowerIsBetter:true },
+  ],
+  eng: [
+    { id:"eng_f1", name:"Maintenance Cost/AC",    perspective:"Financial", unit:"USD",  target:8500, lowerIsBetter:true },
+    { id:"eng_f2", name:"Budget Utilization",     perspective:"Financial", unit:"%",    target:95 },
+    { id:"eng_c1", name:"SLA Compliance",         perspective:"Customer",  unit:"%",    target:98 },
+    { id:"eng_c2", name:"Client Satisfaction",    perspective:"Customer",  unit:"/5",   target:4.2 },
+    { id:"eng_i1", name:"Equipment Availability", perspective:"Internal",  unit:"%",    target:96 },
+    { id:"eng_i2", name:"Defect Rate",            perspective:"Internal",  unit:"%",    target:1.5, lowerIsBetter:true },
+    { id:"eng_l1", name:"Certifications Issued",  perspective:"Learning",  unit:"#",    target:24 },
+    { id:"eng_l2", name:"Tooling Compliance",     perspective:"Learning",  unit:"%",    target:100 },
+  ],
+  fin: [
+    { id:"fin_f1", name:"Operating Margin",       perspective:"Financial", unit:"%",    target:22 },
+    { id:"fin_f2", name:"Cash Conversion Days",   perspective:"Financial", unit:"days", target:45,  lowerIsBetter:true },
+    { id:"fin_c1", name:"Internal Satisfaction",  perspective:"Customer",  unit:"/5",   target:4.0 },
+    { id:"fin_c2", name:"Report Accuracy",        perspective:"Customer",  unit:"%",    target:99 },
+    { id:"fin_i1", name:"Month-End Close Days",   perspective:"Internal",  unit:"days", target:5,   lowerIsBetter:true },
+    { id:"fin_i2", name:"Budget Variance",        perspective:"Internal",  unit:"%",    target:5,   lowerIsBetter:true },
+    { id:"fin_l1", name:"Staff Training Hours",   perspective:"Learning",  unit:"hrs",  target:40 },
+    { id:"fin_l2", name:"Digital Adoption",       perspective:"Learning",  unit:"%",    target:80 },
+  ],
+  hr: [
+    { id:"hr_f1", name:"Cost per Hire",           perspective:"Financial", unit:"USD",  target:2500, lowerIsBetter:true },
+    { id:"hr_f2", name:"Training Cost/Employee",  perspective:"Financial", unit:"USD",  target:1200 },
+    { id:"hr_c1", name:"Employee Satisfaction",   perspective:"Customer",  unit:"/5",   target:4.2 },
+    { id:"hr_c2", name:"Offer Acceptance Rate",   perspective:"Customer",  unit:"%",    target:85 },
+    { id:"hr_i1", name:"Time to Hire",            perspective:"Internal",  unit:"days", target:30,  lowerIsBetter:true },
+    { id:"hr_i2", name:"Absenteeism Rate",        perspective:"Internal",  unit:"%",    target:3,   lowerIsBetter:true },
+    { id:"hr_l1", name:"Training Completion",     perspective:"Learning",  unit:"%",    target:95 },
+    { id:"hr_l2", name:"Turnover Rate",           perspective:"Learning",  unit:"%",    target:12,  lowerIsBetter:true },
+  ],
+  qhse: [
+    { id:"q_f1",  name:"Safety Budget Util",      perspective:"Financial", unit:"%",    target:95 },
+    { id:"q_c1",  name:"Audit Compliance Score",  perspective:"Customer",  unit:"%",    target:97 },
+    { id:"q_c2",  name:"Incident Resolution Days",perspective:"Customer",  unit:"days", target:5,   lowerIsBetter:true },
+    { id:"q_i1",  name:"FOD Incidents",           perspective:"Internal",  unit:"#",    target:0,   lowerIsBetter:true },
+    { id:"q_i2",  name:"Near Miss Reports Filed", perspective:"Internal",  unit:"#",    target:12 },
+    { id:"q_l1",  name:"Safety Training Compl.",  perspective:"Learning",  unit:"%",    target:100 },
+    { id:"q_l2",  name:"Safety Culture Score",    perspective:"Learning",  unit:"/5",   target:4.5 },
+  ],
+  it: [
+    { id:"it_f1", name:"IT Budget Utilization",   perspective:"Financial", unit:"%",    target:95 },
+    { id:"it_f2", name:"Cost per Ticket",         perspective:"Financial", unit:"USD",  target:120, lowerIsBetter:true },
+    { id:"it_c1", name:"System Uptime",           perspective:"Customer",  unit:"%",    target:99.5 },
+    { id:"it_c2", name:"User Satisfaction",       perspective:"Customer",  unit:"/5",   target:4.2 },
+    { id:"it_i1", name:"Ticket Resolution (hrs)", perspective:"Internal",  unit:"hrs",  target:4,   lowerIsBetter:true },
+    { id:"it_i2", name:"First Call Resolution",   perspective:"Internal",  unit:"%",    target:75 },
+    { id:"it_l1", name:"Digital Tool Adoption",   perspective:"Learning",  unit:"%",    target:80 },
+    { id:"it_l2", name:"Training Completion",     perspective:"Learning",  unit:"%",    target:90 },
+  ],
+  comm: [
+    { id:"co_f1", name:"Revenue Growth",          perspective:"Financial", unit:"%",    target:10 },
+    { id:"co_f2", name:"Contract Value",          perspective:"Financial", unit:"MUSD", target:25 },
+    { id:"co_c1", name:"Customer Retention",      perspective:"Customer",  unit:"%",    target:92 },
+    { id:"co_c2", name:"Customer Satisfaction",   perspective:"Customer",  unit:"/5",   target:4.3 },
+    { id:"co_i1", name:"Proposal Win Rate",       perspective:"Internal",  unit:"%",    target:40 },
+    { id:"co_i2", name:"Contract Renewal Rate",   perspective:"Internal",  unit:"%",    target:85 },
+    { id:"co_l1", name:"Sales Training Hours",    perspective:"Learning",  unit:"hrs",  target:40 },
+    { id:"co_l2", name:"Product Knowledge Score", perspective:"Learning",  unit:"%",    target:85 },
+  ],
+  camo: [
+    { id:"ca_f1", name:"Maintenance Budget Util", perspective:"Financial", unit:"%",    target:92 },
+    { id:"ca_c1", name:"Airworthiness Compliance",perspective:"Customer",  unit:"%",    target:100 },
+    { id:"ca_c2", name:"Customer Satisfaction",   perspective:"Customer",  unit:"/5",   target:4.4 },
+    { id:"ca_i1", name:"Aircraft Availability",   perspective:"Internal",  unit:"%",    target:96 },
+    { id:"ca_i2", name:"On-Time Maintenance",     perspective:"Internal",  unit:"%",    target:95 },
+    { id:"ca_l1", name:"Tech Training Hours",     perspective:"Learning",  unit:"hrs",  target:60 },
+    { id:"ca_l2", name:"Regulatory Compliance",   perspective:"Learning",  unit:"%",    target:100 },
+  ],
+  mro: [
+    { id:"mr_f1", name:"MRO Revenue",             perspective:"Financial", unit:"MUSD", target:8 },
+    { id:"mr_f2", name:"Cost per Man-Hour",        perspective:"Financial", unit:"USD",  target:85, lowerIsBetter:true },
+    { id:"mr_c1", name:"TAT Compliance",           perspective:"Customer",  unit:"%",    target:93 },
+    { id:"mr_c2", name:"Customer Score",           perspective:"Customer",  unit:"/5",   target:4.2 },
+    { id:"mr_i1", name:"Rework Rate",              perspective:"Internal",  unit:"%",    target:2,  lowerIsBetter:true },
+    { id:"mr_i2", name:"First-Time Fix Rate",      perspective:"Internal",  unit:"%",    target:88 },
+    { id:"mr_l1", name:"Certification Rate",       perspective:"Learning",  unit:"%",    target:95 },
+    { id:"mr_l2", name:"Tech Training Hours",      perspective:"Learning",  unit:"hrs",  target:50 },
+  ],
+  corp: [
+    { id:"cr_f1", name:"Revenue Growth",          perspective:"Financial", unit:"%",     target:8 },
+    { id:"cr_f2", name:"EBITDA Margin",            perspective:"Financial", unit:"%",     target:22 },
+    { id:"cr_f3", name:"Overhead Ratio",           perspective:"Financial", unit:"%",     target:18, lowerIsBetter:true },
+    { id:"cr_f4", name:"Cost per Turn",            perspective:"Financial", unit:"USD",   target:850, lowerIsBetter:true },
+    { id:"cr_c1", name:"On-Time Performance",      perspective:"Customer",  unit:"%",     target:95 },
+    { id:"cr_c2", name:"Customer Satisfaction",    perspective:"Customer",  unit:"/5",    target:4.2 },
+    { id:"cr_c3", name:"SLA Compliance",           perspective:"Customer",  unit:"%",     target:98 },
+    { id:"cr_c4", name:"Client Retention Rate",    perspective:"Customer",  unit:"%",     target:92 },
+    { id:"cr_i1", name:"Ground Damage Rate",       perspective:"Internal",  unit:"/1000", target:0.5, lowerIsBetter:true },
+    { id:"cr_i2", name:"Turnaround Compliance",    perspective:"Internal",  unit:"%",     target:94 },
+    { id:"cr_i3", name:"Equipment Availability",   perspective:"Internal",  unit:"%",     target:96 },
+    { id:"cr_l1", name:"Training Hrs/Employee",    perspective:"Learning",  unit:"hrs",   target:40 },
+    { id:"cr_l2", name:"Staff Turnover Rate",      perspective:"Learning",  unit:"%",     target:12, lowerIsBetter:true },
+    { id:"cr_l3", name:"Safety Training Compl.",   perspective:"Learning",  unit:"%",     target:100 },
+    { id:"cr_l4", name:"Digital Tool Adoption",    perspective:"Learning",  unit:"%",     target:80 },
+  ],
+};
+
+export function genericKpis(deptId: string): KpiDef[] {
+  return [
+    { id:`${deptId}_f1`, name:"Revenue / Budget Utilization", perspective:"Financial", unit:"%",  target:95 },
+    { id:`${deptId}_f2`, name:"Cost Efficiency",              perspective:"Financial", unit:"%",  target:80 },
+    { id:`${deptId}_c1`, name:"Customer Satisfaction",        perspective:"Customer",  unit:"/5", target:4.0 },
+    { id:`${deptId}_c2`, name:"Service Level Achievement",    perspective:"Customer",  unit:"%",  target:95 },
+    { id:`${deptId}_i1`, name:"Process Compliance",           perspective:"Internal",  unit:"%",  target:98 },
+    { id:`${deptId}_i2`, name:"Incident Rate",                perspective:"Internal",  unit:"#",  target:0, lowerIsBetter:true },
+    { id:`${deptId}_l1`, name:"Training Completion",          perspective:"Learning",  unit:"%",  target:90 },
+    { id:`${deptId}_l2`, name:"Employee Satisfaction",        perspective:"Learning",  unit:"/5", target:4.0 },
+  ];
+}
+
+export function getKpisForDept(id: string): KpiDef[] {
+  return DEPT_KPIS[id] || genericKpis(id);
+}
+
+export function getStatus(k: KpiDef, actual: number | null): "green" | "amber" | "red" | "nodata" {
+  if (actual === null || actual === undefined || isNaN(Number(actual))) return "nodata";
+  const pct = k.lowerIsBetter
+    ? k.target === 0 ? (actual === 0 ? 100 : 0) : Math.max(0, (1 - (actual - k.target) / Math.abs(k.target)) * 100)
+    : k.target === 0 ? 100 : (Number(actual) / k.target) * 100;
+  if (pct >= 95) return "green";
+  if (pct >= 80) return "amber";
+  return "red";
+}
+
+export function periodKey(y: number, m: number): string {
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+export function loadStore(): Record<string, Record<string, number>> {
+  try { return JSON.parse(localStorage.getItem("ghc_beacon_v2") || "{}"); } catch { return {}; }
+}
+
+export function loadDepartments(): BscDepartment[] {
+  try {
+    const d = localStorage.getItem("bsc_departments");
+    return d ? JSON.parse(d) : DEFAULT_DEPARTMENTS;
+  } catch { return DEFAULT_DEPARTMENTS; }
+}

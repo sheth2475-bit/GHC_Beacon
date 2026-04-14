@@ -10,9 +10,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   X, Send, Bot, User, Sparkles, ChevronRight, CheckCircle2,
   AlertCircle, Loader2, Lightbulb, RotateCcw, Check, XCircle,
-  TrendingDown, ListChecks, BarChart2, FolderOpen, ClipboardList,
-  ArrowRight, ExternalLink, Calendar, Users, Target, Zap, FileText,
-  TrendingUp, AlertTriangle,
+  TrendingDown, BarChart2, ArrowRight, ExternalLink, Users, Target,
+  Zap, FileText, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { queryClient } from "@/lib/queryClient";
@@ -58,14 +57,14 @@ interface DisplayMessage {
 }
 
 const SUGGESTED_PROMPTS = [
-  { icon: TrendingDown, label: "Which KPIs are below target?", color: "text-red-500", category: "KPIs" },
-  { icon: AlertTriangle, label: "Show all overdue actions", color: "text-amber-500", category: "Actions" },
-  { icon: FolderOpen, label: "What projects are at risk?", color: "text-violet-500", category: "Projects" },
-  { icon: BarChart2, label: "Summarize February performance", color: "text-blue-500", category: "Reviews" },
-  { icon: TrendingUp, label: "Show KPI trends this quarter", color: "text-green-500", category: "KPIs" },
-  { icon: Users, label: "Who has the most open actions?", color: "text-cyan-500", category: "Team" },
-  { icon: Target, label: "How are we tracking against strategic goals?", color: "text-primary", category: "Strategy" },
-  { icon: Calendar, label: "What milestones are due this month?", color: "text-orange-500", category: "Projects" },
+  { icon: TrendingDown, label: "Which KPIs are below target this month?", color: "text-red-500", category: "Scorecard" },
+  { icon: BarChart2, label: "Summarize my latest analytics dashboard", color: "text-blue-500", category: "Analytics" },
+  { icon: Target, label: "What is our overall weighted performance score?", color: "text-primary", category: "Scorecard" },
+  { icon: TrendingUp, label: "Show KPI trends for the Financial perspective", color: "text-emerald-500", category: "Scorecard" },
+  { icon: AlertTriangle, label: "Which KPIs are at risk of missing targets?", color: "text-amber-500", category: "Scorecard" },
+  { icon: FileText, label: "What insights does my uploaded data show?", color: "text-violet-500", category: "Analytics" },
+  { icon: Users, label: "Which department has the lowest performance score?", color: "text-cyan-500", category: "Scorecard" },
+  { icon: Zap, label: "Which dashboards have been shared with the team?", color: "text-orange-500", category: "Analytics" },
 ];
 
 function parseMarkdown(text: string | null | undefined): string {
@@ -489,7 +488,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
                   Hi{user?.name ? `, ${user.name.split(" ")[0]}` : ""}!
                 </h3>
                 <p className="text-sm text-muted-foreground max-w-[300px] mx-auto leading-relaxed">
-                  I'm your business performance copilot. Ask me anything about KPIs, projects, actions, or team performance.
+                  I'm your GHC Beacon copilot. Ask me anything about your analytics dashboards or balanced scorecard performance.
                 </p>
               </div>
 
