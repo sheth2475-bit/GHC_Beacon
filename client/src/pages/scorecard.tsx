@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import {
   LineChart, Line, AreaChart, Area,
   BarChart, Bar, Cell, RadarChart, Radar,
+  PieChart, Pie,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   ReferenceLine, LabelList,
@@ -15,7 +16,7 @@ import {
   TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight,
   Save, Check, AlertTriangle, AlertCircle, CheckCircle2, Clock,
   Activity, Plus, Trash2, Download, Upload, FileSpreadsheet,
-  RefreshCw, Building2, Edit2, BarChart2,
+  RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
   Target, Zap, Eye,
 } from "lucide-react";
@@ -531,6 +532,9 @@ function AddDeptDialog({ open, onClose, onAdd }: { open:boolean; onClose:()=>voi
 const PERSPECTIVES: Perspective[] = ["Financial", "Customer", "Internal", "Learning"];
 const PERSP_INITIALS: Record<Perspective, string> = { Financial:"F", Customer:"C", Internal:"I", Learning:"L" };
 const PERSP_FULL: Record<Perspective, string> = { Financial:"Financial", Customer:"Customer", Internal:"Internal Process", Learning:"Learning" };
+const PERSP_WEIGHTS: Record<Perspective, number> = { Financial:30, Customer:25, Internal:25, Learning:20 };
+const PERSP_COLORS: Record<Perspective, string>  = { Financial:"#3B82F6", Customer:"#8B5CF6", Internal:"#F59E0B", Learning:"#10B981" };
+const PERSP_ICONS: Record<Perspective, string>   = { Financial:"💲", Customer:"🎯", Internal:"⚙️", Learning:"💡" };
 
 function healthColor(hp: number) {
   return hp >= 70 ? "#10b981" : hp >= 40 ? "#f59e0b" : "#ef4444";
@@ -1073,6 +1077,51 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortCol(col); setSortDir("asc"); }
   };
+
+  // ── Dashboard computed data ──────────────────────────────────────────────
+
+  const statusLabel = hp >= 95 ? "Excellent" : hp >= 85 ? "On Track" : hp >= 70 ? "Needs Attention" : "Critical";
+  const statusColor = hp >= 95 ? "#10b981" : hp >= 85 ? "#3b82f6" : hp >= 70 ? "#f59e0b" : "#ef4444";
+
+  // Per-perspective score + trend
+  const perspScores = useMemo(() => PERSPECTIVES.map(p => {
+    const pkpis   = kpis.filter(k => k.perspective === p);
+    const pActs: Record<string,number|null> = {};
+    const pPrev: Record<string,number|null> = {};
+    pkpis.forEach(k => { pActs[k.id] = getActual(k.id); pPrev[k.id] = getActual(k.id, ppk); });
+    const score     = performanceScore(pkpis, pActs, weights);
+    const prevScore = performanceScore(pkpis, pPrev, weights);
+    const trend     = score - prevScore;
+    const label     = score >= 95 ? "Excellent" : score >= 85 ? "On Track" : score >= 70 ? "Needs Attention" : "Critical";
+    const color     = score >= 95 ? "#10b981"  : score >= 85 ? "#3b82f6"  : score >= 70 ? "#f59e0b"  : "#ef4444";
+    return { p, score, prevScore, trend, label, color };
+  }), [kpis, store, pk, ppk, weights]);
+
+  // Score trend (last 7 months)
+  const scoreTrend = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      let m = month - 6 + i; let y = year;
+      while (m < 0) { m += 12; y--; }
+      const p = periodKey(y, m);
+      const acts: Record<string,number|null> = {};
+      kpis.forEach(k => { const v = store?.[p]?.[k.id]; acts[k.id] = v !== undefined ? Number(v) : null; });
+      return { label: `${MONTHS[m]} ${String(y).slice(2)}`, score: performanceScore(kpis, acts, weights) };
+    });
+  }, [kpis, store, year, month, weights]);
+
+  // Achievement % per KPI
+  const kpiData = useMemo(() => kpis.map(k => {
+    const actual = getActual(k.id);
+    const ach = actual === null ? null
+      : k.lowerIsBetter ? (actual === 0 ? 100 : Math.min((k.target / actual) * 100, 100))
+      : (k.target === 0 ? 100 : Math.min((actual / k.target) * 100, 100));
+    const w = (Object.keys(weights).length > 0 ? (weights[k.id] ?? 0) : (100 / kpis.length));
+    const weightedScore = ach !== null ? +(ach * w / 100).toFixed(2) : null;
+    return { kpi: k, actual, ach, status: getStatus(k, actual), w, weightedScore };
+  }), [kpis, store, pk, weights]);
+
+  const topKpis    = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => b.ach! - a.ach!).slice(0,5), [kpiData]);
+  const lowestKpis = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => a.ach! - b.ach!).slice(0,5), [kpiData]);
   const SortIcon = ({ col }: { col: string }) => (
     <span className="ml-1 text-muted-foreground/60">
       {sortCol === col ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
@@ -1294,139 +1343,309 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         {/* ── Dashboard ── */}
         <TabsContent value="dashboard" className="mt-5 space-y-5">
 
-          {/* ── 1. Health Summary + Movement Strip ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* ── Row 1: Overall Score + Perspective Performance ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-            {/* Overall health panel */}
-            <Card>
-              <CardContent className="p-5 flex flex-col items-center gap-4">
-                <HealthRing pct={hp} size={88} />
-                <div className="text-center">
-                  <p className="font-bold text-2xl tabular-nums" style={{ color: healthColor(hp) }}>{hp}%</p>
-                  <p className="text-sm font-medium">Performance Score</p>
-                  <p className="text-xs text-muted-foreground">{MONTHS[month]} {year}</p>
+            {/* Overall Performance Score */}
+            <Card className="lg:col-span-2">
+              <CardContent className="p-5">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Overall Performance Score</p>
+                <div className="flex items-center gap-5">
+                  {/* Donut ring with trophy */}
+                  <div className="relative flex-shrink-0">
+                    <PieChart width={110} height={110}>
+                      <Pie data={[{ value: hp }, { value: 100 - hp }]} cx="50%" cy="50%"
+                        innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                        <Cell fill={statusColor} />
+                        <Cell fill="hsl(var(--muted))" />
+                      </Pie>
+                    </PieChart>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Trophy className="h-5 w-5" style={{ color: statusColor }} />
+                    </div>
+                  </div>
+                  {/* Score text */}
+                  <div>
+                    <p className="text-4xl font-extrabold tabular-nums leading-none" style={{ color: statusColor }}>{hp}%</p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <CheckCircle2 className="h-4 w-4" style={{ color: statusColor }} />
+                      <span className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Target: ≥ 85%</p>
+                    <p className="text-xs text-muted-foreground">{MONTHS[month]} {year}</p>
+                  </div>
                 </div>
-                <div className="w-full grid grid-cols-3 gap-2 text-center border-t pt-3">
+                <div className="grid grid-cols-3 gap-2 mt-4 border-t pt-3 text-center">
                   <div><p className="text-xl font-bold text-emerald-600">{onTrack}</p><p className="text-xs text-muted-foreground">On Track</p></div>
-                  <div><p className="text-xl font-bold text-amber-600">{atRisk}</p><p className="text-xs text-muted-foreground">At Risk</p></div>
+                  <div><p className="text-xl font-bold text-amber-500">{atRisk}</p><p className="text-xs text-muted-foreground">At Risk</p></div>
                   <div><p className="text-xl font-bold text-red-600">{offTrack}</p><p className="text-xs text-muted-foreground">Off Track</p></div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Most Improved */}
-            <Card className="border-emerald-200 dark:border-emerald-900/60">
-              <CardHeader className="pb-2 pt-4 px-5">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-emerald-600" />Most Improved vs Last Month
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 pb-4 space-y-2.5">
-                {movers.improved.length === 0
-                  ? <p className="text-xs text-muted-foreground italic">No data comparison available yet.</p>
-                  : movers.improved.map(({ kpi, curr, pct }) => {
-                    const pc = P_COLOR[kpi.perspective];
-                    return (
-                      <button key={kpi.id} onClick={() => nav(`/scorecard/kpi/${kpi.id}`)}
-                        className="w-full flex items-center justify-between gap-3 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors text-left group">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: pc.accent }} />
-                          <span className="text-sm font-medium truncate">{kpi.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{curr} {kpi.unit}</span>
-                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 border-0 text-xs">+{pct}%</Badge>
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </button>
-                    );
-                  })
-                }
-              </CardContent>
-            </Card>
-
-            {/* Needs Attention */}
-            <Card className="border-red-200 dark:border-red-900/60">
-              <CardHeader className="pb-2 pt-4 px-5">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-600" />Needs Attention vs Last Month
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 pb-4 space-y-2.5">
-                {movers.declined.length === 0
-                  ? <p className="text-xs text-muted-foreground italic">No declining KPIs detected.</p>
-                  : movers.declined.map(({ kpi, curr, pct }) => {
-                    const pc = P_COLOR[kpi.perspective];
-                    return (
-                      <button key={kpi.id} onClick={() => nav(`/scorecard/kpi/${kpi.id}`)}
-                        className="w-full flex items-center justify-between gap-3 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-left group">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: pc.accent }} />
-                          <span className="text-sm font-medium truncate">{kpi.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-sm font-bold text-red-700 dark:text-red-400">{curr} {kpi.unit}</span>
-                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 border-0 text-xs">-{pct}%</Badge>
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </button>
-                    );
-                  })
-                }
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* ── 2. Perspective Summary (2×2 grid) ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {PERSPECTIVES.map(p => {
-              const pkpis = kpis.filter(k => k.perspective === p);
-              const pActs: Record<string,number|null> = {};
-              pkpis.forEach(k => { pActs[k.id] = getActual(k.id); });
-              const php    = healthPct(pkpis, pActs);
-              const pc     = P_COLOR[p];
-              const pGreen = pkpis.filter(k => getStatus(k, pActs[k.id]) === "green").length;
-              const pAmber = pkpis.filter(k => getStatus(k, pActs[k.id]) === "amber").length;
-              const pRed   = pkpis.filter(k => getStatus(k, pActs[k.id]) === "red").length;
-              const hc     = healthColor(php);
-              return (
-                <Card key={p} className="overflow-hidden">
-                  <div className="h-1 w-full" style={{ background: pc.accent }} />
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{PERSP_LABEL[p].split(" /")[0]}</p>
-                        <p className="text-2xl font-bold tabular-nums mt-0.5" style={{ color: hc }}>{php}%</p>
+            {/* Balanced Scorecard Perspective Performance */}
+            <Card className="lg:col-span-3">
+              <CardContent className="p-5">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Balanced Scorecard Perspective Performance</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {perspScores.map(({ p, score, trend, label, color }) => (
+                    <div key={p} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-muted/30">
+                      <div className="h-9 w-9 rounded-full flex items-center justify-center text-lg"
+                        style={{ background: PERSP_COLORS[p] + "20" }}>
+                        {PERSP_ICONS[p]}
                       </div>
-                      <span className="text-lg">{p === "Financial" ? "💰" : p === "Customer" ? "🎯" : p === "Internal" ? "⚙️" : "📈"}</span>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide text-center leading-tight">
+                        {PERSP_FULL[p]}
+                      </p>
+                      <p className="text-2xl font-extrabold tabular-nums" style={{ color }}>{score}%</p>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: color + "20", color }}>
+                        {label}
+                      </span>
+                      <div className="flex items-center gap-0.5 text-xs" style={{ color: trend >= 0 ? "#10b981" : "#ef4444" }}>
+                        {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                        {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
+                      </div>
                     </div>
-                    {/* Stacked RAG bar */}
-                    <div className="h-2 rounded-full overflow-hidden flex mb-2.5">
-                      <div style={{ width:`${(pGreen/pkpis.length)*100}%`, background:"#10b981" }} className="transition-all" />
-                      <div style={{ width:`${(pAmber/pkpis.length)*100}%`, background:"#f59e0b" }} className="transition-all" />
-                      <div style={{ width:`${(pRed/pkpis.length)*100}%`,   background:"#ef4444" }} className="transition-all" />
-                      {pGreen+pAmber+pRed === 0 && <div className="flex-1 bg-muted" />}
-                    </div>
-                    <div className="flex gap-2 text-xs text-muted-foreground">
-                      <span className="text-emerald-600 font-semibold">{pGreen}</span>
-                      <span className="text-amber-600 font-semibold">{pAmber}</span>
-                      <span className="text-red-600 font-semibold">{pRed}</span>
-                      <span className="ml-auto">{pkpis.length} KPIs</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* ── 3. Interactive KPI Scorecard Table ── */}
+          {/* ── Row 2: Score Trend + Score by Perspective + Status Summary ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            {/* Score Trend (Overall) */}
+            <Card>
+              <CardHeader className="pb-1 pt-4 px-5">
+                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Score Trend (Overall)</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={scoreTrend} margin={{ top:10, right:8, bottom:0, left:-20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="label" tick={{ fontSize:10 }} />
+                    <YAxis domain={[0,100]} tick={{ fontSize:10 }} />
+                    <Tooltip contentStyle={{ fontSize:11, borderRadius:6, border:"1px solid hsl(var(--border))" }}
+                      formatter={(v:any) => [`${v}%`, "Score"]} />
+                    <Line type="monotone" dataKey="score" stroke={statusColor} strokeWidth={2.5}
+                      dot={{ r:3, fill:statusColor }} activeDot={{ r:5 }}>
+                      <LabelList dataKey="score" position="top" content={(p:any) => {
+                        const { x, y, value } = p;
+                        if (value === 0 || x === undefined || y === undefined) return null;
+                        return <text x={x} y={y-6} fill={statusColor} fontSize={9} textAnchor="middle" fontWeight={700}>{value}%</text>;
+                      }} />
+                    </Line>
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Score by Perspective (Weighted) */}
+            <Card>
+              <CardHeader className="pb-1 pt-4 px-5">
+                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Score by Perspective (Weighted)</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-shrink-0">
+                    <PieChart width={110} height={110}>
+                      <Pie data={perspScores.map(ps => ({ name: ps.p, value: PERSP_WEIGHTS[ps.p] }))}
+                        cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                        {perspScores.map(ps => <Cell key={ps.p} fill={PERSP_COLORS[ps.p]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v:any, name:string) => [`${v}%`, name]} contentStyle={{ fontSize:10, borderRadius:6 }} />
+                    </PieChart>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <p className="text-sm font-bold tabular-nums" style={{ color: statusColor }}>{hp}%</p>
+                      <p className="text-[8px] text-muted-foreground">Overall</p>
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    {perspScores.map(({ p, score }) => (
+                      <div key={p} className="flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PERSP_COLORS[p] }} />
+                          <span className="text-muted-foreground">{PERSP_FULL[p]}</span>
+                        </div>
+                        <div className="flex gap-3 tabular-nums">
+                          <span className="font-semibold">{score}%</span>
+                          <span className="text-muted-foreground w-6 text-right">{PERSP_WEIGHTS[p]}%</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-end gap-3 text-[10px] text-muted-foreground border-t pt-1 mt-1">
+                      <span>Score</span><span className="w-6 text-right">Wt.</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Performance Status Summary */}
+            <Card>
+              <CardHeader className="pb-1 pt-4 px-5">
+                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Performance Status Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {(() => {
+                  const total = kpis.length;
+                  const pieData = [
+                    { name: "On Track",  value: onTrack,  color:"#10b981" },
+                    { name: "At Risk",   value: atRisk,   color:"#f59e0b" },
+                    { name: "Off Track", value: offTrack, color:"#ef4444" },
+                  ].filter(d => d.value > 0);
+                  return (
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-shrink-0">
+                        <PieChart width={110} height={110}>
+                          <Pie data={pieData.length ? pieData : [{ name:"No data", value:1, color:"#e5e7eb" }]}
+                            cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                            {(pieData.length ? pieData : [{ color:"#e5e7eb" }]).map((d,i) => <Cell key={i} fill={d.color} />)}
+                          </Pie>
+                        </PieChart>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <p className="text-sm font-bold">{total}</p>
+                          <p className="text-[8px] text-muted-foreground">Total KPIs</p>
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        {[
+                          { label:"On Track",  count:onTrack,  color:"#10b981", note:"(≥ 95%)" },
+                          { label:"At Risk",   count:atRisk,   color:"#f59e0b", note:"(80–94%)" },
+                          { label:"Off Track", count:offTrack, color:"#ef4444", note:"(< 80%)" },
+                        ].map(({ label, count, color, note }) => (
+                          <div key={label} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                              <span className="text-muted-foreground">{label} <span className="text-[10px]">{note}</span></span>
+                            </div>
+                            <div className="flex gap-2 tabular-nums">
+                              <span className="font-semibold">{count}</span>
+                              <span className="text-muted-foreground">{total ? Math.round(count/total*100) : 0}%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ── Row 3: Top KPIs + Lowest Performing ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            {/* Top KPIs Performance Overview */}
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-5">
+                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Top KPIs Performance Overview</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-y bg-muted/30">
+                      <th className="text-left px-4 py-2 font-semibold text-muted-foreground">KPI</th>
+                      <th className="text-left px-2 py-2 font-semibold text-muted-foreground">Persp.</th>
+                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Target</th>
+                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Actual</th>
+                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Ach %</th>
+                      <th className="text-center px-2 py-2 font-semibold text-muted-foreground">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {topKpis.map(({ kpi:k, actual, ach, status }) => {
+                      const pc = P_COLOR[k.perspective];
+                      const achColor = ach! >= 95 ? "#10b981" : ach! >= 80 ? "#f59e0b" : "#ef4444";
+                      return (
+                        <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
+                          className="cursor-pointer hover:bg-muted/40 transition-colors group">
+                          <td className="px-4 py-2.5 font-medium max-w-[140px]">
+                            <span className="line-clamp-1">{k.name}</span>
+                          </td>
+                          <td className="px-2 py-2.5">
+                            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", pc.bg, pc.text)}>
+                              {PERSP_INITIALS[k.perspective]}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2.5 text-right text-muted-foreground tabular-nums">{k.target}{k.unit}</td>
+                          <td className="px-2 py-2.5 text-right font-semibold tabular-nums">
+                            {actual !== null ? `${actual}${k.unit}` : "—"}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
+                            {ach !== null ? `${ach.toFixed(1)}%` : "—"}
+                          </td>
+                          <td className="px-2 py-2.5 text-center">
+                            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+                              status === "green" ? "bg-emerald-100 text-emerald-700" : status === "amber" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                              {status === "green" ? "On Track" : status === "amber" ? "At Risk" : "Critical"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+
+            {/* Lowest Performing KPIs */}
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-5">
+                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Lowest Performing KPIs</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-y bg-muted/30">
+                      <th className="text-left px-4 py-2 font-semibold text-muted-foreground">KPI</th>
+                      <th className="text-left px-2 py-2 font-semibold text-muted-foreground">Persp.</th>
+                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Ach %</th>
+                      <th className="text-center px-2 py-2 font-semibold text-muted-foreground">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {lowestKpis.map(({ kpi:k, ach, status }) => {
+                      const pc = P_COLOR[k.perspective];
+                      const achColor = ach! >= 95 ? "#10b981" : ach! >= 80 ? "#f59e0b" : "#ef4444";
+                      return (
+                        <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
+                          className="cursor-pointer hover:bg-muted/40 transition-colors group">
+                          <td className="px-4 py-2.5 font-medium max-w-[180px]">
+                            <span className="line-clamp-1">{k.name}</span>
+                          </td>
+                          <td className="px-2 py-2.5">
+                            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", pc.bg, pc.text)}>
+                              {PERSP_INITIALS[k.perspective]}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
+                            {ach !== null ? `${ach.toFixed(1)}%` : "—"}
+                          </td>
+                          <td className="px-2 py-2.5 text-center">
+                            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+                              status === "green" ? "bg-emerald-100 text-emerald-700" : status === "amber" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                              {status === "green" ? "On Track" : status === "amber" ? "At Risk" : "Critical"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ── KPI Scorecard Table (full, clickable to detail) ── */}
           <Card>
             <CardHeader className="pb-0 pt-4 px-5">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <BarChart2 className="h-4 w-4 text-muted-foreground" />KPI Scorecard — {MONTHS[month]} {year}
+                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  KPI Scorecard — {MONTHS[month]} {year}
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">Click any row to view trend · Click column headers to sort</p>
+                <p className="text-xs text-muted-foreground">Click any row to view trend</p>
               </div>
             </CardHeader>
             <CardContent className="p-0 mt-3">
@@ -1440,63 +1659,52 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                         onClick={() => handleSort("name")}>KPI Name <SortIcon col="name" /></th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground select-none"
                         onClick={() => handleSort("perspective")}>Perspective <SortIcon col="perspective" /></th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Target</th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground select-none"
                         onClick={() => handleSort("actual")}>Actual <SortIcon col="actual" /></th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Target</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Variance</th>
-                      <th className="text-center px-4 py-2.5 text-xs font-semibold text-muted-foreground">vs Last Mo.</th>
-                      <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground">6-Month Trend</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Ach %</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Weight %</th>
+                      <th className="text-center px-4 py-2.5 text-xs font-semibold text-muted-foreground">Trend</th>
                       <th className="px-4 py-2.5" />
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {sortedKpis.map(k => {
-                      const actual  = getActual(k.id);
-                      const prev    = getActual(k.id, ppk);
-                      const st      = getStatus(k, actual);
-                      const pc      = P_COLOR[k.perspective];
+                      const d = kpiData.find(x => x.kpi.id === k.id)!;
+                      const actual = d?.actual ?? null;
+                      const ach    = d?.ach ?? null;
+                      const st     = d?.status ?? "nodata";
+                      const pc     = P_COLOR[k.perspective];
+                      const prev   = getActual(k.id, ppk);
                       const rawDelta  = actual !== null && prev !== null ? actual - prev : null;
                       const goodDelta = rawDelta !== null ? (k.lowerIsBetter ? -rawDelta : rawDelta) : null;
-                      const variance  = actual !== null ? actual - k.target : null;
-                      const goodVar   = variance !== null ? (k.lowerIsBetter ? -variance : variance) : null;
+                      const achColor  = ach === null ? undefined : ach >= 95 ? "#10b981" : ach >= 80 ? "#f59e0b" : "#ef4444";
                       const rowBg = st === "red" ? "bg-red-50/40 dark:bg-red-950/10" : st === "amber" ? "bg-amber-50/40 dark:bg-amber-950/10" : "";
                       return (
                         <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
                           className={cn("cursor-pointer hover:bg-muted/50 transition-colors group", rowBg)}>
-                          {/* Status dot */}
                           <td className="px-4 py-3">
                             <div className={cn("w-2.5 h-2.5 rounded-full mx-auto",
                               st === "green" ? "bg-emerald-500" : st === "amber" ? "bg-amber-500" : st === "red" ? "bg-red-500" : "bg-muted-foreground/30")} />
                           </td>
-                          {/* KPI Name */}
-                          <td className="px-4 py-3 font-medium max-w-[200px]">
-                            <span className="line-clamp-1">{k.name}</span>
-                          </td>
-                          {/* Perspective badge */}
+                          <td className="px-4 py-3 font-medium max-w-[200px]"><span className="line-clamp-1">{k.name}</span></td>
                           <td className="px-4 py-3">
                             <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", pc.bg, pc.text)}>
-                              {PERSP_INITIALS[k.perspective]}
+                              {PERSP_FULL[k.perspective]}
                             </span>
                           </td>
-                          {/* Actual */}
-                          <td className="px-4 py-3 text-right font-bold tabular-nums">
-                            {actual !== null
-                              ? <>{actual}<span className="text-xs text-muted-foreground ml-1 font-normal">{k.unit}</span></>
-                              : <span className="text-muted-foreground font-normal">—</span>}
-                          </td>
-                          {/* Target */}
                           <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
-                            {k.target}<span className="text-xs ml-1">{k.unit}</span>
+                            {k.target}<span className="text-xs ml-0.5">{k.unit}</span>
                           </td>
-                          {/* Variance */}
-                          <td className="px-4 py-3 text-right tabular-nums font-medium">
-                            {goodVar !== null
-                              ? <span style={{ color: goodVar >= 0 ? "#10b981" : "#ef4444" }}>
-                                  {goodVar > 0 ? "+" : ""}{variance?.toFixed(1)}<span className="text-xs ml-0.5 font-normal">{k.unit}</span>
-                                </span>
-                              : <span className="text-muted-foreground">—</span>}
+                          <td className="px-4 py-3 text-right font-bold tabular-nums">
+                            {actual !== null ? <>{actual}<span className="text-xs text-muted-foreground ml-1 font-normal">{k.unit}</span></> : <span className="text-muted-foreground font-normal">—</span>}
                           </td>
-                          {/* vs Last Month */}
+                          <td className="px-4 py-3 text-right font-bold tabular-nums" style={{ color: achColor }}>
+                            {ach !== null ? `${ach.toFixed(1)}%` : <span className="text-muted-foreground font-normal">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
+                            {d ? `${d.w.toFixed(1)}%` : "—"}
+                          </td>
                           <td className="px-4 py-3 text-center">
                             {goodDelta !== null
                               ? <span className="inline-flex items-center gap-0.5 text-xs font-semibold"
@@ -1506,11 +1714,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                                 </span>
                               : <span className="text-muted-foreground/50 text-xs">—</span>}
                           </td>
-                          {/* Sparkline */}
-                          <td className="px-4 py-3 w-32">
-                            <KpiSparkline kpi={k} store={store} year={year} month={month} />
-                          </td>
-                          {/* Drill-down arrow */}
                           <td className="px-4 py-3">
                             <Eye className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
                           </td>
