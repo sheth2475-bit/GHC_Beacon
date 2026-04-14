@@ -153,7 +153,7 @@ export function AppSidebar() {
     { title: "Overview", href: "/scorecard", icon: Target, testId: "link-nav-scorecard-overview" },
     ...departments.map((d: any) => ({
       title: d.name,
-      href: `/scorecard/dept/${d.deptId}`,
+      href: `/scorecard/department/${d.deptId}`,
       icon: Building2,
       testId: `link-nav-scorecard-dept-${d.deptId}`,
     })),
