@@ -192,8 +192,23 @@ function genericKpis(deptId: string): KpiDef[] {
 }
 
 // ── Persistence (localStorage cache + DB sync) ────────────────────────────────
-const STORE_KEY = "ghc_beacon_v2";
-const DEPT_KEY  = "bsc_departments";
+const STORE_KEY   = "ghc_beacon_v2";
+const DEPT_KEY    = "bsc_departments";
+const WEIGHTS_KEY = "ghc_beacon_weights_v1";
+
+function loadWeights(deptId: string): Record<string, number> {
+  try {
+    const all = JSON.parse(localStorage.getItem(WEIGHTS_KEY) || "{}");
+    return all[deptId] || {};
+  } catch { return {}; }
+}
+function saveWeights(deptId: string, w: Record<string, number>) {
+  try {
+    const all = JSON.parse(localStorage.getItem(WEIGHTS_KEY) || "{}");
+    all[deptId] = w;
+    localStorage.setItem(WEIGHTS_KEY, JSON.stringify(all));
+  } catch {}
+}
 
 function loadStore(): Record<string, Record<string, number>> {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch { return {}; }
@@ -290,6 +305,34 @@ function healthPct(kpis: KpiDef[], actuals: Record<string, number | null>): numb
   const withData = kpis.filter(k => actuals[k.id] !== null && actuals[k.id] !== undefined);
   if (!withData.length) return 0;
   return Math.round(withData.filter(k => getStatus(k, actuals[k.id]!) === "green").length / withData.length * 100);
+}
+
+function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>, weights: Record<string, number>): number {
+  const withData = kpis.filter(k => actuals[k.id] !== null && actuals[k.id] !== undefined);
+  if (!withData.length) return 0;
+
+  const hasUserWeights = withData.some(k => (weights[k.id] ?? 0) > 0);
+  const equalWeight    = 100 / withData.length;
+
+  let totalScore  = 0;
+  let totalWeight = 0;
+
+  for (const k of withData) {
+    const actual = Number(actuals[k.id]!);
+    const w = hasUserWeights ? (weights[k.id] ?? 0) : equalWeight;
+
+    let achievement: number;
+    if (k.lowerIsBetter) {
+      achievement = actual === 0 ? 100 : Math.min((k.target / actual) * 100, 100);
+    } else {
+      achievement = k.target === 0 ? 100 : Math.min((actual / k.target) * 100, 100);
+    }
+
+    totalScore  += achievement * w;
+    totalWeight += w;
+  }
+
+  return totalWeight > 0 ? Math.round(totalScore / totalWeight) : 0;
 }
 
 // ── Small UI components ───────────────────────────────────────────────────────
@@ -903,6 +946,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [saved, setSaved]   = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [weights, setWeights]     = useState<Record<string,number>>(() => loadWeights(deptId));
   const [sortCol, setSortCol]   = useState<string>("status");
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
   const { toast } = useToast();
@@ -943,7 +987,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const allActuals: Record<string, number|null> = {};
   kpis.forEach(k => { allActuals[k.id] = getActual(k.id); });
-  const hp       = healthPct(kpis, allActuals);
+  const hp       = performanceScore(kpis, allActuals, weights);
   const onTrack  = kpis.filter(k => getStatus(k, allActuals[k.id]) === "green").length;
   const atRisk   = kpis.filter(k => getStatus(k, allActuals[k.id]) === "amber").length;
   const offTrack = kpis.filter(k => getStatus(k, allActuals[k.id]) === "red").length;
@@ -1023,10 +1067,13 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Actuals for selected year — columns Jan..Dec
-    const header1 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better",
+    const header1 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better", "Weight %",
       ...MONTHS.map(m => `${m} ${year}`)];
+    const totalKpis = kpis.length;
     const dataRows1 = kpis.map(k => {
-      const row: (string | number)[] = [k.name, k.perspective, k.target, k.unit, k.lowerIsBetter ? "Yes" : "No"];
+      const storedW = weights[k.id];
+      const displayW = storedW !== undefined ? storedW : +(100 / totalKpis).toFixed(4);
+      const row: (string | number)[] = [k.name, k.perspective, k.target, k.unit, k.lowerIsBetter ? "Yes" : "No", displayW];
       MONTHS.forEach((_, mi) => {
         const p = periodKey(year, mi);
         const v = store?.[p]?.[k.id];
@@ -1035,7 +1082,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       return row;
     });
     const ws1 = XLSX.utils.aoa_to_sheet([header1, ...dataRows1]);
-    ws1["!cols"] = [{ wch:32 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 },
+    ws1["!cols"] = [{ wch:32 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 }, { wch:10 },
       ...MONTHS.map(() => ({ wch:10 }))];
     XLSX.utils.book_append_sheet(wb, ws1, `Actuals ${year}`);
 
@@ -1099,6 +1146,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
       // Build updated store across all detected columns
       const updatedStore = { ...loadStore() };
+      const updatedWeights: Record<string, number> = { ...loadWeights(deptId) };
       let totalUpdates = 0;
 
       for (const row of rows) {
@@ -1106,6 +1154,13 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         if (!kpiName) continue;
         const kpi = kpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
         if (!kpi) continue;
+
+        // Parse KPI weight if provided
+        const weightVal = row["Weight %"] ?? row["Weight"] ?? row["KPI Weight %"] ?? row["KPI Weight"];
+        if (weightVal !== undefined && weightVal !== "") {
+          const w = parseFloat(String(weightVal));
+          if (!isNaN(w) && w > 0) updatedWeights[kpi.id] = w;
+        }
 
         detectedCols.forEach(({ key, year: colYear, mi }) => {
           const val = row[key];
@@ -1116,6 +1171,12 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           updatedStore[p][kpi.id] = Number(strVal);
           totalUpdates++;
         });
+      }
+
+      // Save weights if any were found in the upload
+      if (Object.keys(updatedWeights).length > 0) {
+        saveWeights(deptId, updatedWeights);
+        setWeights(updatedWeights);
       }
 
       if (!totalUpdates) {
@@ -1174,7 +1235,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
             </Button>
           )}
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">Health Score</p>
+            <p className="text-xs text-muted-foreground">Performance Score</p>
             <HealthRing pct={hp} size={56} />
           </div>
           <div className="flex flex-col gap-1 text-xs">
@@ -1208,7 +1269,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                 <HealthRing pct={hp} size={88} />
                 <div className="text-center">
                   <p className="font-bold text-2xl tabular-nums" style={{ color: healthColor(hp) }}>{hp}%</p>
-                  <p className="text-sm font-medium">Overall Health Score</p>
+                  <p className="text-sm font-medium">Performance Score</p>
                   <p className="text-xs text-muted-foreground">{MONTHS[month]} {year}</p>
                 </div>
                 <div className="w-full grid grid-cols-3 gap-2 text-center border-t pt-3">
