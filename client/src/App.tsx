@@ -101,6 +101,11 @@ function AppLayout() {
     return <LandingPage />;
   }
 
+  const isModuleRoute =
+    path === "/" ||
+    path.startsWith("/analytics") ||
+    path.startsWith("/scorecard");
+
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -115,17 +120,19 @@ function AppLayout() {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex-1" />
             <GlobalSearch />
-            <NotificationBell />
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 h-8 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
-              onClick={() => setAssistantOpen(true)}
-              data-testid="button-open-assistant"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Assistant</span>
-            </Button>
+            {isModuleRoute && <NotificationBell />}
+            {isModuleRoute && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 h-8 text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
+                onClick={() => setAssistantOpen(true)}
+                data-testid="button-open-assistant"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Assistant</span>
+              </Button>
+            )}
           </header>
           <main className="flex-1 overflow-y-auto overflow-x-hidden">
             <AppRouter />
