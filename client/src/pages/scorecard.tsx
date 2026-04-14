@@ -192,9 +192,10 @@ function genericKpis(deptId: string): KpiDef[] {
 }
 
 // ── Persistence (localStorage cache + DB sync) ────────────────────────────────
-const STORE_KEY   = "ghc_beacon_v2";
-const DEPT_KEY    = "bsc_departments";
-const WEIGHTS_KEY = "ghc_beacon_weights_v1";
+const STORE_KEY        = "ghc_beacon_v2";
+const DEPT_KEY         = "bsc_departments";
+const WEIGHTS_KEY      = "ghc_beacon_weights_v1";
+const CORP_SEED_VER    = "ghc_corp_seed_v3"; // bump when seed data changes
 
 function loadWeights(deptId: string): Record<string, number> {
   try {
@@ -238,11 +239,19 @@ async function syncActualsFromDb() {
     if (!res.ok) return;
     const dbStore = await res.json() as Record<string, Record<string, number>>;
     if (Object.keys(dbStore).length === 0) return;
-    // Merge DB data into localStorage (DB is source of truth)
+    // Merge DB data into localStorage; but keep local Corp KPI values if seed is current
+    const corpKpiIds = new Set((DEPT_KPIS.corp || []).map(k => k.id));
+    const seedCurrent = !isSeedStale();
     const local = loadStore();
     const merged = { ...local };
     for (const [pk, vals] of Object.entries(dbStore)) {
-      merged[pk] = { ...(merged[pk] || {}), ...vals };
+      const filtered: Record<string, number> = {};
+      for (const [kid, v] of Object.entries(vals)) {
+        // Skip corp KPIs from DB if local seed is current (local takes priority)
+        if (seedCurrent && corpKpiIds.has(kid)) continue;
+        filtered[kid] = v;
+      }
+      merged[pk] = { ...(merged[pk] || {}), ...filtered };
     }
     localStorage.setItem(STORE_KEY, JSON.stringify(merged));
     return merged;
@@ -261,9 +270,22 @@ async function syncDepartmentsFromDb(): Promise<BscDepartment[] | undefined> {
   } catch { return undefined; }
 }
 
+function isSeedStale(): boolean {
+  return localStorage.getItem(CORP_SEED_VER) !== "ok";
+}
+
 function seedCorpSampleData() {
   const existing = loadStore();
-  const merged   = { ...existing };
+  // Remove any old Corporate KPI actuals first so stale values don't linger
+  const corpKpiIds = new Set((DEPT_KPIS.corp || []).map(k => k.id));
+  const merged: Record<string, Record<string, number>> = {};
+  for (const [pk, vals] of Object.entries(existing)) {
+    const without: Record<string, number> = {};
+    for (const [kid, v] of Object.entries(vals)) {
+      if (!corpKpiIds.has(kid)) without[kid] = v;
+    }
+    if (Object.keys(without).length > 0) merged[pk] = without;
+  }
   // Targets: cr_f1=8%(hi) cr_f2=22%(hi) cr_f3=18%(lo) cr_f4=850USD(lo)
   //          cr_c1=95%(hi) cr_c2=4.2/5(hi) cr_c3=98%(hi) cr_c4=92%(hi)
   //          cr_i1=0.5/1k(lo) cr_i2=94%(hi) cr_i3=96%(hi)
@@ -289,6 +311,7 @@ function seedCorpSampleData() {
     merged[pk] = { ...(merged[pk] || {}), ...vals };
   }
   saveStore(merged);
+  localStorage.setItem(CORP_SEED_VER, "ok");
 }
 function getKpisForDept(id: string): KpiDef[] {
   return DEPT_KPIS[id] || genericKpis(id);
@@ -974,18 +997,17 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     const v = store?.[p]?.[id]; return v !== undefined ? Number(v) : null;
   }, [store, pk]);
 
-  // ── Sync actuals from DB on mount ─────────────────────────────────────────
+  // ── Sync actuals from DB on mount; auto-seed Corp if version stale ───────
   useEffect(() => {
+    if (deptId === "corp" && isSeedStale()) {
+      // Force-refresh: clear old corporate data, insert current seed, stamp version
+      seedCorpSampleData();
+      setStore(loadStore());
+      return;
+    }
     syncActualsFromDb().then(merged => {
       if (merged) {
         setStore(merged);
-      } else {
-        // Fallback: if no DB data, seed corp sample locally
-        if (deptId === "corp") {
-          const s = loadStore();
-          const hasAnyCorpData = Object.values(s).some(v => Object.keys(v).some(k => k.startsWith("cr_")));
-          if (!hasAnyCorpData) { seedCorpSampleData(); setStore(loadStore()); }
-        }
       }
     });
   }, [deptId]);
