@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -11,9 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   BarChart3, Plus, Search, Trash2, Globe, Lock, Building2,
   Clock, Upload, Sparkles, ChevronRight, Database,
-  Lightbulb, LayoutDashboard, FileSpreadsheet, TrendingUp,
-  Home, BookMarked, AlertTriangle, ArrowRight, Play,
-  MoreVertical, Eye, Star, Filter,
+  Lightbulb, LayoutDashboard, FileSpreadsheet,
+  AlertTriangle, ArrowRight, Play, MoreVertical, Eye,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsInsight, AnalyticsDashboardDefinition } from "@shared/schema";
 import {
@@ -21,7 +19,6 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
 
 const CHART_TYPE_LABEL: Record<string, string> = {
   kpi: "KPI Card", bar: "Bar Chart", line: "Line Chart", pie: "Pie Chart",
@@ -246,15 +243,20 @@ function SectionHeading({ icon: Icon, title, count, action }: { icon: React.Elem
   );
 }
 
-type Section = "home" | "dashboards" | "insights" | "datasets" | "upload";
+type Section = "home" | "dashboards" | "insights" | "datasets";
 
 export default function AnalyticsStudioPage() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const [section, setSection] = useState<Section>("home");
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ type: "dataset" | "insight" | "definition"; id: number } | null>(null);
+
+  const section: Section = (() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "dashboards" || tab === "insights" || tab === "datasets") return tab;
+    return "home";
+  })();
 
   const { data: datasets = [], isLoading: loadingDS } = useQuery<AnalyticsDataset[]>({ queryKey: ["/api/v2/analytics/datasets"] });
   const { data: insights = [], isLoading: loadingIns } = useQuery<AnalyticsInsight[]>({ queryKey: ["/api/v2/analytics/insights"] });
@@ -288,14 +290,6 @@ export default function AnalyticsStudioPage() {
 
   const isLoading = loadingDS || loadingIns || loadingDef;
 
-  const navItems: { id: Section; icon: React.ElementType; label: string; count?: number }[] = [
-    { id: "home", icon: Home, label: "Home" },
-    { id: "dashboards", icon: LayoutDashboard, label: "Dashboards", count: definitions.length },
-    { id: "insights", icon: Lightbulb, label: "Insights", count: insights.length },
-    { id: "datasets", icon: Database, label: "Datasets", count: datasets.length },
-    { id: "upload", icon: Upload, label: "Upload Data" },
-  ];
-
   const GRID = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4";
 
   const EmptyState = ({ icon: Icon, title, desc, action }: { icon: React.ElementType; title: string; desc: string; action?: React.ReactNode }) => (
@@ -324,301 +318,229 @@ export default function AnalyticsStudioPage() {
   );
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
 
-      {/* ── Inner Sidebar ─────────────────────────────────────────────────── */}
-      <aside className="w-52 shrink-0 border-r bg-card/50 flex flex-col py-4 gap-0.5 overflow-y-auto">
-        {/* Logo / title */}
-        <div className="px-4 mb-3">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shrink-0">
-              <BarChart3 className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div>
-              <p className="text-xs font-black tracking-tight">Analytics</p>
-              <p className="text-[10px] text-muted-foreground">Studio</p>
-            </div>
-          </div>
+      {/* Top search bar */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b bg-background/80 backdrop-blur sticky top-0 z-10 shrink-0">
+        <div className="relative flex-1 max-w-xl">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={`Search ${section === "home" ? "everything" : section}…`}
+            className="pl-9 h-9 bg-muted/30 border-muted text-sm"
+            data-testid="input-search"
+          />
         </div>
+        <Button onClick={() => navigate("/analytics/upload")} className="gap-2 shrink-0 h-9" data-testid="button-upload-dataset">
+          <Upload className="h-4 w-4" /> Upload
+        </Button>
+      </div>
 
-        <div className="px-2 space-y-0.5">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => { setSection(item.id); if (item.id === "upload") navigate("/analytics/upload"); }}
-              data-testid={`nav-${item.id}`}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
-                section === item.id
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-              )}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.count !== undefined && item.count > 0 && (
-                <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center",
-                  section === item.id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                )}>
-                  {item.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-8">
 
-        <div className="mx-2 my-3 border-t" />
-
-        {/* Quick stats */}
-        <div className="px-4 space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Library</p>
-          {[
-            { label: "Published", value: definitions.filter(d => d.status === "published").length, color: "text-emerald-600 dark:text-emerald-400" },
-            { label: "My Insights", value: insights.filter(i => i.createdBy === user?.id).length, color: "text-violet-600 dark:text-violet-400" },
-            { label: "Total Rows", value: datasets.reduce((s, d) => s + (d.rowCount || 0), 0).toLocaleString(), color: "text-blue-600 dark:text-blue-400" },
-          ].map(s => (
-            <div key={s.label} className="flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground">{s.label}</span>
-              <span className={`text-[11px] font-bold ${s.color}`}>{s.value}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex-1" />
-
-        {/* New dashboard CTA */}
-        <div className="px-2 mt-4">
-          <Button size="sm" className="w-full gap-1.5 text-xs" onClick={() => navigate("/analytics/dashboards/new")} data-testid="button-new-dashboard">
-            <Plus className="h-3.5 w-3.5" /> New Dashboard
-          </Button>
-        </div>
-      </aside>
-
-      {/* ── Main Content ──────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-        {/* Top search bar */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b bg-background/80 backdrop-blur sticky top-0 z-10">
-          <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${section === "home" ? "everything" : section}…`}
-              className="pl-9 h-9 bg-muted/30 border-muted text-sm"
-              data-testid="input-search"
-            />
-          </div>
-          <Button onClick={() => navigate("/analytics/upload")} className="gap-2 shrink-0 h-9" data-testid="button-upload-dataset">
-            <Upload className="h-4 w-4" /> Upload
-          </Button>
-        </div>
-
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-8">
-
-          {/* ── HOME ── */}
-          {section === "home" && (
-            <>
-              {/* Onboarding banner */}
-              {datasets.length === 0 && !isLoading && (
-                <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
-                  <CardContent className="px-6 py-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      <span className="font-bold">Get started — upload your first dataset</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 mb-5">
-                      {[
-                        { icon: Upload, step: "1", title: "Upload Data", desc: "Drop your Excel or CSV file" },
-                        { icon: Database, step: "2", title: "Configure", desc: "Classify columns as measures, dimensions or dates" },
-                        { icon: Sparkles, step: "3", title: "Ask Questions", desc: "Get AI-generated chart answers instantly" },
-                        { icon: LayoutDashboard, step: "4", title: "Publish", desc: "Pin insights to dashboards and share" },
-                      ].map(item => (
-                        <div key={item.step} className="flex items-start gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/15 shrink-0">
-                            <item.icon className="h-4 w-4 text-primary" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold">{item.step}. {item.title}</p>
-                            <p className="text-[11px] text-muted-foreground leading-snug">{item.desc}</p>
-                          </div>
+        {/* ── HOME ── */}
+        {section === "home" && (
+          <>
+            {/* Onboarding banner */}
+            {datasets.length === 0 && !isLoading && (
+              <Card className="overflow-hidden border-primary/20 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
+                <CardContent className="px-6 py-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <span className="font-bold">Get started — upload your first dataset</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 mb-5">
+                    {[
+                      { icon: Upload, step: "1", title: "Upload Data", desc: "Drop your Excel or CSV file" },
+                      { icon: Database, step: "2", title: "Configure", desc: "Classify columns as measures, dimensions or dates" },
+                      { icon: Sparkles, step: "3", title: "Ask Questions", desc: "Get AI-generated chart answers instantly" },
+                      { icon: LayoutDashboard, step: "4", title: "Publish", desc: "Pin insights to dashboards and share" },
+                    ].map(item => (
+                      <div key={item.step} className="flex items-start gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/15 shrink-0">
+                          <item.icon className="h-4 w-4 text-primary" />
                         </div>
-                      ))}
-                    </div>
-                    <Button onClick={() => navigate("/analytics/upload")} className="gap-2" size="sm">
-                      <Upload className="h-3.5 w-3.5" /> Upload Your First Dataset <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
+                        <div>
+                          <p className="text-xs font-bold">{item.step}. {item.title}</p>
+                          <p className="text-[11px] text-muted-foreground leading-snug">{item.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button onClick={() => navigate("/analytics/upload")} className="gap-2" size="sm">
+                    <Upload className="h-3.5 w-3.5" /> Upload Your First Dataset <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-              {/* Dashboards section */}
-              {(filteredDef.length > 0 || isLoading) && (
-                <section>
-                  <SectionHeading
+            {/* Dashboards section */}
+            {(filteredDef.length > 0 || isLoading) && (
+              <section>
+                <SectionHeading
+                  icon={LayoutDashboard}
+                  title="Dashboards"
+                  count={filteredDef.length}
+                  action={
+                    <Link href="/analytics?tab=dashboards" className="text-xs text-primary hover:underline flex items-center gap-1">
+                      View all <ChevronRight className="h-3 w-3" />
+                    </Link>
+                  }
+                />
+                {isLoading ? <SkeletonGrid /> : (
+                  <div className={GRID}>
+                    {filteredDef.slice(0, 8).map(d => (
+                      <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Insights section */}
+            {(filteredIns.length > 0 || isLoading) && (
+              <section>
+                <SectionHeading
+                  icon={Lightbulb}
+                  title="Insights"
+                  count={filteredIns.length}
+                  action={
+                    <Link href="/analytics?tab=insights" className="text-xs text-primary hover:underline flex items-center gap-1">
+                      View all <ChevronRight className="h-3 w-3" />
+                    </Link>
+                  }
+                />
+                {isLoading ? <SkeletonGrid /> : (
+                  <div className={GRID}>
+                    {filteredIns.slice(0, 8).map(i => (
+                      <InsightThumbnail key={i.id} insight={i} onDelete={id => setDeleteTarget({ type: "insight", id })} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Datasets section */}
+            {(filteredDS.length > 0 || isLoading) && (
+              <section>
+                <SectionHeading
+                  icon={Database}
+                  title="Datasets"
+                  count={filteredDS.length}
+                  action={
+                    <Link href="/analytics?tab=datasets" className="text-xs text-primary hover:underline flex items-center gap-1">
+                      View all <ChevronRight className="h-3 w-3" />
+                    </Link>
+                  }
+                />
+                {isLoading ? <SkeletonGrid /> : (
+                  <div className={GRID}>
+                    {filteredDS.slice(0, 4).map(ds => (
+                      <DatasetThumbnail key={ds.id} ds={ds} onDelete={id => setDeleteTarget({ type: "dataset", id })} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Empty home */}
+            {!isLoading && filteredDef.length === 0 && filteredIns.length === 0 && filteredDS.length === 0 && search && (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <Search className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                <p className="text-base font-semibold mb-1">No results for "{search}"</p>
+                <p className="text-sm text-muted-foreground">Try a different search term</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── DASHBOARDS ── */}
+        {section === "dashboards" && (
+          <section>
+            <SectionHeading
+              icon={LayoutDashboard}
+              title="Dashboards"
+              count={filteredDef.length}
+              action={
+                <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/dashboards/new")} data-testid="button-new-dashboard">
+                  <Plus className="h-3 w-3" /> New
+                </Button>
+              }
+            />
+            {isLoading ? <SkeletonGrid /> : (
+              <div className={GRID}>
+                {filteredDef.length > 0 ? filteredDef.map(d => (
+                  <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
+                )) : (
+                  <EmptyState
                     icon={LayoutDashboard}
-                    title="Dashboards"
-                    count={filteredDef.length}
-                    action={
-                      <button onClick={() => setSection("dashboards")} className="text-xs text-primary hover:underline flex items-center gap-1">
-                        View all <ChevronRight className="h-3 w-3" />
-                      </button>
-                    }
+                    title="No dashboards yet"
+                    desc="Create a dashboard and pin saved insights to it to build a live view."
+                    action={<Button onClick={() => navigate("/analytics/dashboards/new")} size="sm" className="gap-2"><Plus className="h-3.5 w-3.5" /> Create Dashboard</Button>}
                   />
-                  {isLoading ? <SkeletonGrid /> : (
-                    <div className={GRID}>
-                      {filteredDef.slice(0, 8).map(d => (
-                        <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
-                      ))}
-                    </div>
-                  )}
-                </section>
-              )}
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
-              {/* Insights section */}
-              {(filteredIns.length > 0 || isLoading) && (
-                <section>
-                  <SectionHeading
+        {/* ── INSIGHTS ── */}
+        {section === "insights" && (
+          <section>
+            <SectionHeading icon={Lightbulb} title="Insights" count={filteredIns.length} />
+            {isLoading ? <SkeletonGrid /> : (
+              <div className={GRID}>
+                {filteredIns.length > 0 ? filteredIns.map(i => (
+                  <InsightThumbnail key={i.id} insight={i} onDelete={id => setDeleteTarget({ type: "insight", id })} />
+                )) : (
+                  <EmptyState
                     icon={Lightbulb}
-                    title="Insights"
-                    count={filteredIns.length}
-                    action={
-                      <button onClick={() => setSection("insights")} className="text-xs text-primary hover:underline flex items-center gap-1">
-                        View all <ChevronRight className="h-3 w-3" />
-                      </button>
-                    }
+                    title="No saved insights yet"
+                    desc="Explore a dataset and save AI-generated chart answers as insights."
+                    action={datasets.length > 0 ? (
+                      <Link href={`/analytics/datasets/${datasets[0].id}/explore`}>
+                        <Button size="sm" className="gap-2"><Sparkles className="h-3.5 w-3.5" /> Explore a Dataset</Button>
+                      </Link>
+                    ) : undefined}
                   />
-                  {isLoading ? <SkeletonGrid /> : (
-                    <div className={GRID}>
-                      {filteredIns.slice(0, 8).map(i => (
-                        <InsightThumbnail key={i.id} insight={i} onDelete={id => setDeleteTarget({ type: "insight", id })} />
-                      ))}
-                    </div>
-                  )}
-                </section>
-              )}
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
-              {/* Datasets section */}
-              {(filteredDS.length > 0 || isLoading) && (
-                <section>
-                  <SectionHeading
-                    icon={Database}
-                    title="Datasets"
-                    count={filteredDS.length}
-                    action={
-                      <button onClick={() => setSection("datasets")} className="text-xs text-primary hover:underline flex items-center gap-1">
-                        View all <ChevronRight className="h-3 w-3" />
-                      </button>
-                    }
+        {/* ── DATASETS ── */}
+        {section === "datasets" && (
+          <section>
+            <SectionHeading
+              icon={Database}
+              title="Datasets"
+              count={filteredDS.length}
+              action={
+                <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/upload")}>
+                  <Upload className="h-3 w-3" /> Upload
+                </Button>
+              }
+            />
+            {isLoading ? <SkeletonGrid /> : (
+              <div className={GRID}>
+                {filteredDS.length > 0 ? filteredDS.map(ds => (
+                  <DatasetThumbnail key={ds.id} ds={ds} onDelete={id => setDeleteTarget({ type: "dataset", id })} />
+                )) : (
+                  <EmptyState
+                    icon={FileSpreadsheet}
+                    title="No datasets yet"
+                    desc="Upload an Excel or CSV file to start exploring your data with AI."
+                    action={<Button onClick={() => navigate("/analytics/upload")} size="sm" className="gap-2"><Upload className="h-3.5 w-3.5" /> Upload Dataset</Button>}
                   />
-                  {isLoading ? <SkeletonGrid /> : (
-                    <div className={GRID}>
-                      {filteredDS.slice(0, 4).map(ds => (
-                        <DatasetThumbnail key={ds.id} ds={ds} onDelete={id => setDeleteTarget({ type: "dataset", id })} />
-                      ))}
-                    </div>
-                  )}
-                </section>
-              )}
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
-              {/* Empty home */}
-              {!isLoading && filteredDef.length === 0 && filteredIns.length === 0 && filteredDS.length === 0 && search && (
-                <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <Search className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                  <p className="text-base font-semibold mb-1">No results for "{search}"</p>
-                  <p className="text-sm text-muted-foreground">Try a different search term</p>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── DASHBOARDS ── */}
-          {section === "dashboards" && (
-            <section>
-              <SectionHeading
-                icon={LayoutDashboard}
-                title="Dashboards"
-                count={filteredDef.length}
-                action={
-                  <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/dashboards/new")} data-testid="button-new-dashboard-section">
-                    <Plus className="h-3 w-3" /> New
-                  </Button>
-                }
-              />
-              {isLoading ? <SkeletonGrid /> : (
-                <div className={GRID}>
-                  {filteredDef.length > 0 ? filteredDef.map(d => (
-                    <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
-                  )) : (
-                    <EmptyState
-                      icon={LayoutDashboard}
-                      title="No dashboards yet"
-                      desc="Create a dashboard and pin saved insights to it to build a live view."
-                      action={<Button onClick={() => navigate("/analytics/dashboards/new")} size="sm" className="gap-2"><Plus className="h-3.5 w-3.5" /> Create Dashboard</Button>}
-                    />
-                  )}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* ── INSIGHTS ── */}
-          {section === "insights" && (
-            <section>
-              <SectionHeading icon={Lightbulb} title="Insights" count={filteredIns.length} />
-              {isLoading ? <SkeletonGrid /> : (
-                <div className={GRID}>
-                  {filteredIns.length > 0 ? filteredIns.map(i => (
-                    <InsightThumbnail key={i.id} insight={i} onDelete={id => setDeleteTarget({ type: "insight", id })} />
-                  )) : (
-                    <EmptyState
-                      icon={Lightbulb}
-                      title="No saved insights yet"
-                      desc="Explore a dataset and save AI-generated chart answers as insights."
-                      action={datasets.length > 0 ? (
-                        <Link href={`/analytics/datasets/${datasets[0].id}/explore`}>
-                          <Button size="sm" className="gap-2"><Sparkles className="h-3.5 w-3.5" /> Explore a Dataset</Button>
-                        </Link>
-                      ) : undefined}
-                    />
-                  )}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* ── DATASETS ── */}
-          {section === "datasets" && (
-            <section>
-              <SectionHeading
-                icon={Database}
-                title="Datasets"
-                count={filteredDS.length}
-                action={
-                  <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/upload")}>
-                    <Upload className="h-3 w-3" /> Upload
-                  </Button>
-                }
-              />
-              {isLoading ? <SkeletonGrid /> : (
-                <div className={GRID}>
-                  {filteredDS.length > 0 ? filteredDS.map(ds => (
-                    <DatasetThumbnail key={ds.id} ds={ds} onDelete={id => setDeleteTarget({ type: "dataset", id })} />
-                  )) : (
-                    <EmptyState
-                      icon={FileSpreadsheet}
-                      title="No datasets yet"
-                      desc="Upload an Excel or CSV file to start exploring your data with AI."
-                      action={<Button onClick={() => navigate("/analytics/upload")} size="sm" className="gap-2"><Upload className="h-3.5 w-3.5" /> Upload Dataset</Button>}
-                    />
-                  )}
-                </div>
-              )}
-            </section>
-          )}
-
-        </div>
       </div>
 
       {/* Delete confirmation */}
