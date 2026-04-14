@@ -18,7 +18,7 @@ import {
   Activity, Plus, Trash2, Download, Upload, FileSpreadsheet,
   RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
-  Target, Zap, Eye,
+  Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -973,6 +973,183 @@ function KpiEnrichedCard({ kpi, actual, prevActual, store, year, month, onClick 
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// BSC WIDGET — AI Narration + Focus Mode
+// ═════════════════════════════════════════════════════════════════════════════
+
+type BscWidgetId =
+  | "overall-score" | "perspective-cards" | "score-trend"
+  | "weighted-donut" | "status-donut" | "top-kpis" | "lowest-kpis" | "kpi-scorecard";
+
+interface BscNarrativeData {
+  hp?: number; prevHp?: number; statusLabel?: string;
+  onTrack?: number; atRisk?: number; offTrack?: number; totalKpis?: number;
+  perspScores?: { p: string; score: number; trend: number; label: string }[];
+  scoreTrend?: { label: string; score: number }[];
+  topKpis?: { kpi: { name: string; perspective: string }; ach: number | null; status: string }[];
+  lowestKpis?: { kpi: { name: string; perspective: string }; ach: number | null; status: string }[];
+  month?: number; year?: number;
+}
+
+function generateBscNarrative(widgetId: BscWidgetId, d: BscNarrativeData): string {
+  const pct = (n: number, t: number) => t > 0 ? Math.round(n / t * 100) : 0;
+
+  if (widgetId === "overall-score") {
+    const { hp = 0, prevHp, statusLabel = "", onTrack = 0, atRisk = 0, offTrack = 0, totalKpis = 0 } = d;
+    const trendStr = prevHp !== undefined
+      ? ` Overall score ${hp >= prevHp ? "improved" : "declined"} by ${Math.abs(hp - prevHp).toFixed(1)}% vs last month.`
+      : "";
+    const criticalNote = offTrack > 0
+      ? ` ${offTrack} KPI${offTrack > 1 ? "s" : ""} are off-track and require immediate attention.`
+      : " No KPIs are off-track — maintain momentum.";
+    return `Current performance is ${statusLabel} at ${hp}%.${trendStr} ${onTrack} of ${totalKpis} KPIs are on track (${pct(onTrack, totalKpis)}%), ${atRisk} at risk.${criticalNote}`;
+  }
+
+  if (widgetId === "perspective-cards") {
+    const ps = d.perspScores ?? [];
+    const sorted = [...ps].sort((a, b) => b.score - a.score);
+    const best = sorted[0]; const worst = sorted[sorted.length - 1];
+    const improving = ps.filter(p => p.trend > 0).length;
+    return `${best?.p ?? ""} leads at ${best?.score ?? 0}% while ${worst?.p ?? ""} needs focus at ${worst?.score ?? 0}%. ${improving} of ${ps.length} perspectives are improving month-over-month. Prioritise ${worst?.p ?? ""} initiatives to lift the overall score.`;
+  }
+
+  if (widgetId === "score-trend") {
+    const trend = d.scoreTrend ?? [];
+    if (trend.length < 2) return "Insufficient trend data yet. Add data for more months to see movement.";
+    const first = trend.find(t => t.score > 0); const last = trend[trend.length - 1];
+    const swing = first ? last.score - first.score : 0;
+    const dir = swing > 0 ? "improved" : swing < 0 ? "declined" : "held steady";
+    const peak = trend.reduce((a, b) => b.score > a.score ? b : a);
+    const trough = trend.filter(t => t.score > 0).reduce((a, b) => b.score < a.score ? b : a, { label:"", score:999 });
+    return `Over the tracked period, performance ${dir} by ${Math.abs(swing).toFixed(1)} points. Peak was ${peak.label} at ${peak.score}%; lowest was ${trough.label} at ${trough.score}%. ${swing > 3 ? "Positive trajectory — sustain the initiatives driving improvement." : swing < -3 ? "Declining trend — investigate root causes before the next review cycle." : "Performance is broadly stable — look for opportunities to accelerate."}`;
+  }
+
+  if (widgetId === "weighted-donut") {
+    const ps = d.perspScores ?? [];
+    const sorted = [...ps].sort((a, b) => b.score - a.score);
+    const best = sorted[0]; const worst = sorted[sorted.length - 1];
+    const weightedAvg = d.hp ?? 0;
+    return `Weighted average score: ${weightedAvg}%. ${best?.p ?? ""} (${best?.score ?? 0}%) is the strongest perspective. ${worst?.p ?? ""} (${worst?.score ?? 0}%) has the most room for improvement. Review KPI weights if perspective priorities have shifted since the last strategy cycle.`;
+  }
+
+  if (widgetId === "status-donut") {
+    const { onTrack = 0, atRisk = 0, offTrack = 0, totalKpis = 0 } = d;
+    const onPct = pct(onTrack, totalKpis); const atPct = pct(atRisk, totalKpis); const offPct = pct(offTrack, totalKpis);
+    return `${onPct}% of KPIs are on track. ${atPct}% are at risk and could flip to critical if not addressed. ${offPct}% are off-track${offTrack > 0 ? ` — escalate these to leadership immediately` : ""}. ${offTrack === 0 && atRisk < 3 ? "Scorecard health is strong. Focus on sustaining performance." : "Concentrate remediation efforts on the red and amber KPIs."}`;
+  }
+
+  if (widgetId === "top-kpis") {
+    const tops = d.topKpis ?? [];
+    const names = tops.slice(0, 3).map(t => t.kpi.name).join(", ");
+    const avgAch = tops.length ? Math.round(tops.reduce((s, t) => s + (t.ach ?? 0), 0) / tops.length) : 0;
+    return `Top performers average ${avgAch}% achievement. Leading KPIs: ${names}. These are delivering above target — consider whether stretch targets or resource reallocation could drive even greater impact in these areas.`;
+  }
+
+  if (widgetId === "lowest-kpis") {
+    const lows = d.lowestKpis ?? [];
+    const names = lows.slice(0, 3).map(t => t.kpi.name).join(", ");
+    const avgAch = lows.length ? Math.round(lows.reduce((s, t) => s + (t.ach ?? 0), 0) / lows.length) : 0;
+    const criticals = lows.filter(t => t.status === "red").length;
+    return `Lowest-performing KPIs average only ${avgAch}% achievement. At-risk areas: ${names}. ${criticals > 0 ? `${criticals} KPI${criticals > 1 ? "s" : ""} are in critical (red) status requiring urgent intervention.` : "None are critical yet, but all need focused improvement plans."} Review root causes and assign owners with clear timelines.`;
+  }
+
+  if (widgetId === "kpi-scorecard") {
+    const { onTrack = 0, atRisk = 0, offTrack = 0, totalKpis = 0, hp = 0 } = d;
+    const completeness = totalKpis > 0 ? pct(onTrack + atRisk + offTrack, totalKpis) : 0;
+    return `Scorecard covers ${totalKpis} KPIs with ${completeness}% data completeness. Overall weighted score: ${hp}%. ${onTrack} on track · ${atRisk} at risk · ${offTrack} off-track. Use this table to drill into individual KPI trends and identify early warning signals before they become critical issues.`;
+  }
+
+  return "";
+}
+
+/* ── Full-screen BSC focus overlay ── */
+function BscFocusOverlay({ title, widgetLabel, narrative, onClose, children }: {
+  title: string; widgetLabel: string; narrative: string;
+  onClose: () => void; children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col bg-background" data-testid="bsc-focus-overlay">
+      <div className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2">
+          <Maximize2 className="h-4 w-4 text-primary" />
+          <span className="font-bold text-sm">{title}</span>
+          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+            {widgetLabel} · Focus Mode
+          </span>
+        </div>
+        <button onClick={onClose}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border rounded-lg px-3 py-1.5 hover:bg-muted/50 transition-colors"
+          data-testid="button-bsc-exit-focus">
+          <X className="h-3.5 w-3.5" />Back to dashboard
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto p-8 min-h-0">{children}</div>
+      {narrative && (
+        <div className="shrink-0 border-t bg-amber-50/60 dark:bg-amber-950/20 px-6 py-3">
+          <div className="flex items-start gap-2">
+            <Lightbulb className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-0.5">
+                AI Insight
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{narrative}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Widget shell: adds focus button + AI narration to any Card ── */
+function BscWidgetShell({ title, widgetLabel, narrative, className, contentClassName, headerExtra, children, focusContent }: {
+  title: string; widgetLabel: string; narrative: string;
+  className?: string; contentClassName?: string; headerExtra?: React.ReactNode;
+  children: React.ReactNode; focusContent?: React.ReactNode;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <>
+      {focused && (
+        <BscFocusOverlay title={title} widgetLabel={widgetLabel} narrative={narrative} onClose={() => setFocused(false)}>
+          {focusContent ?? children}
+        </BscFocusOverlay>
+      )}
+      <Card className={className}>
+        <div className="flex items-center justify-between px-5 pt-4 gap-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{title}</p>
+          <div className="flex items-center gap-2 shrink-0">
+            {headerExtra}
+            <button
+              onClick={() => setFocused(true)}
+              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted/60 transition-colors group/focus"
+              title="Focus mode"
+              data-testid={`button-focus-${widgetLabel.replace(/\s+/g, "-").toLowerCase()}`}
+            >
+              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground group-hover/focus:text-primary" />
+            </button>
+          </div>
+        </div>
+        <CardContent className={cn("pt-3 px-5 pb-5", contentClassName)}>
+          {children}
+          {narrative && (
+            <div className="mt-3 pt-2.5 border-t border-border/50 flex items-start gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{narrative}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // DEPARTMENT DETAIL — Dashboard + Data Entry tabs
 // ═════════════════════════════════════════════════════════════════════════════
 function DepartmentDetail({ deptId }: { deptId: string }) {
@@ -1122,6 +1299,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const topKpis    = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => b.ach! - a.ach!).slice(0,5), [kpiData]);
   const lowestKpis = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => a.ach! - b.ach!).slice(0,5), [kpiData]);
+  const prevHp     = scoreTrend.length >= 2 ? scoreTrend[scoreTrend.length - 2].score : undefined;
   const SortIcon = ({ col }: { col: string }) => (
     <span className="ml-1 text-muted-foreground/60">
       {sortCol === col ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
@@ -1347,308 +1525,402 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
             {/* Overall Performance Score */}
-            <Card className="lg:col-span-2">
-              <CardContent className="p-5">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Overall Performance Score</p>
-                <div className="flex items-center gap-5">
-                  {/* Donut ring with trophy */}
-                  <div className="relative flex-shrink-0">
-                    <PieChart width={110} height={110}>
+            <BscWidgetShell
+              title="Overall Performance Score"
+              widgetLabel="performance-score"
+              className="lg:col-span-2"
+              narrative={generateBscNarrative("overall-score", { hp, prevHp, statusLabel, onTrack, atRisk, offTrack, totalKpis: kpis.length })}
+              focusContent={
+                <div className="flex flex-col items-center justify-center h-full gap-8">
+                  <div className="relative">
+                    <PieChart width={220} height={220}>
                       <Pie data={[{ value: hp }, { value: 100 - hp }]} cx="50%" cy="50%"
-                        innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                        innerRadius={76} outerRadius={104} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
                         <Cell fill={statusColor} />
                         <Cell fill="hsl(var(--muted))" />
                       </Pie>
                     </PieChart>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Trophy className="h-5 w-5" style={{ color: statusColor }} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <Trophy className="h-8 w-8 mb-1" style={{ color: statusColor }} />
+                      <p className="text-4xl font-extrabold tabular-nums" style={{ color: statusColor }}>{hp}%</p>
+                      <p className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</p>
                     </div>
                   </div>
-                  {/* Score text */}
-                  <div>
-                    <p className="text-4xl font-extrabold tabular-nums leading-none" style={{ color: statusColor }}>{hp}%</p>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <CheckCircle2 className="h-4 w-4" style={{ color: statusColor }} />
-                      <span className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">Target: ≥ 85%</p>
-                    <p className="text-xs text-muted-foreground">{MONTHS[month]} {year}</p>
+                  <div className="grid grid-cols-3 gap-8 text-center">
+                    <div><p className="text-4xl font-bold text-emerald-600">{onTrack}</p><p className="text-sm text-muted-foreground">On Track</p></div>
+                    <div><p className="text-4xl font-bold text-amber-500">{atRisk}</p><p className="text-sm text-muted-foreground">At Risk</p></div>
+                    <div><p className="text-4xl font-bold text-red-600">{offTrack}</p><p className="text-sm text-muted-foreground">Off Track</p></div>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mt-4 border-t pt-3 text-center">
-                  <div><p className="text-xl font-bold text-emerald-600">{onTrack}</p><p className="text-xs text-muted-foreground">On Track</p></div>
-                  <div><p className="text-xl font-bold text-amber-500">{atRisk}</p><p className="text-xs text-muted-foreground">At Risk</p></div>
-                  <div><p className="text-xl font-bold text-red-600">{offTrack}</p><p className="text-xs text-muted-foreground">Off Track</p></div>
+              }
+            >
+              <div className="flex items-center gap-5">
+                <div className="relative flex-shrink-0">
+                  <PieChart width={110} height={110}>
+                    <Pie data={[{ value: hp }, { value: 100 - hp }]} cx="50%" cy="50%"
+                      innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                      <Cell fill={statusColor} />
+                      <Cell fill="hsl(var(--muted))" />
+                    </Pie>
+                  </PieChart>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Trophy className="h-5 w-5" style={{ color: statusColor }} />
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="text-4xl font-extrabold tabular-nums leading-none" style={{ color: statusColor }}>{hp}%</p>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <CheckCircle2 className="h-4 w-4" style={{ color: statusColor }} />
+                    <span className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Target: ≥ 85%</p>
+                  <p className="text-xs text-muted-foreground">{MONTHS[month]} {year}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-4 border-t pt-3 text-center">
+                <div><p className="text-xl font-bold text-emerald-600">{onTrack}</p><p className="text-xs text-muted-foreground">On Track</p></div>
+                <div><p className="text-xl font-bold text-amber-500">{atRisk}</p><p className="text-xs text-muted-foreground">At Risk</p></div>
+                <div><p className="text-xl font-bold text-red-600">{offTrack}</p><p className="text-xs text-muted-foreground">Off Track</p></div>
+              </div>
+            </BscWidgetShell>
 
             {/* Balanced Scorecard Perspective Performance */}
-            <Card className="lg:col-span-3">
-              <CardContent className="p-5">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Balanced Scorecard Perspective Performance</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {perspScores.map(({ p, score, trend, label, color }) => (
-                    <div key={p} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-muted/30">
-                      <div className="h-9 w-9 rounded-full flex items-center justify-center text-lg"
-                        style={{ background: PERSP_COLORS[p] + "20" }}>
-                        {PERSP_ICONS[p]}
-                      </div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide text-center leading-tight">
-                        {PERSP_FULL[p]}
-                      </p>
-                      <p className="text-2xl font-extrabold tabular-nums" style={{ color }}>{score}%</p>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: color + "20", color }}>
-                        {label}
-                      </span>
-                      <div className="flex items-center gap-0.5 text-xs" style={{ color: trend >= 0 ? "#10b981" : "#ef4444" }}>
-                        {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
-                      </div>
+            <BscWidgetShell
+              title="Balanced Scorecard Perspective Performance"
+              widgetLabel="perspective-performance"
+              className="lg:col-span-3"
+              narrative={generateBscNarrative("perspective-cards", { perspScores })}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {perspScores.map(({ p, score, trend, label, color }) => (
+                  <div key={p} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-muted/30">
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center text-lg"
+                      style={{ background: PERSP_COLORS[p] + "20" }}>
+                      {PERSP_ICONS[p]}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide text-center leading-tight">
+                      {PERSP_FULL[p]}
+                    </p>
+                    <p className="text-2xl font-extrabold tabular-nums" style={{ color }}>{score}%</p>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: color + "20", color }}>
+                      {label}
+                    </span>
+                    <div className="flex items-center gap-0.5 text-xs" style={{ color: trend >= 0 ? "#10b981" : "#ef4444" }}>
+                      {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                      {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </BscWidgetShell>
           </div>
 
           {/* ── Row 2: Score Trend + Score by Perspective + Status Summary ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* Score Trend (Overall) */}
-            <Card>
-              <CardHeader className="pb-1 pt-4 px-5">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Score Trend (Overall)</CardTitle>
-              </CardHeader>
-              <CardContent className="px-3 pb-3">
-                <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={scoreTrend} margin={{ top:10, right:8, bottom:0, left:-20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="label" tick={{ fontSize:10 }} />
-                    <YAxis domain={[0,100]} tick={{ fontSize:10 }} />
-                    <Tooltip contentStyle={{ fontSize:11, borderRadius:6, border:"1px solid hsl(var(--border))" }}
-                      formatter={(v:any) => [`${v}%`, "Score"]} />
-                    <Line type="monotone" dataKey="score" stroke={statusColor} strokeWidth={2.5}
-                      dot={{ r:3, fill:statusColor }} activeDot={{ r:5 }}>
-                      <LabelList dataKey="score" position="top" content={(p:any) => {
-                        const { x, y, value } = p;
-                        if (value === 0 || x === undefined || y === undefined) return null;
-                        return <text x={x} y={y-6} fill={statusColor} fontSize={9} textAnchor="middle" fontWeight={700}>{value}%</text>;
-                      }} />
-                    </Line>
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            <BscWidgetShell
+              title="Score Trend (Overall)"
+              widgetLabel="score-trend"
+              contentClassName="px-3 pb-3"
+              narrative={generateBscNarrative("score-trend", { scoreTrend })}
+              focusContent={
+                <div className="h-full min-h-[400px] flex flex-col">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={scoreTrend} margin={{ top:20, right:20, bottom:10, left:-10 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="label" tick={{ fontSize:13 }} />
+                      <YAxis domain={[0,100]} tick={{ fontSize:13 }} />
+                      <Tooltip contentStyle={{ fontSize:13, borderRadius:6 }} formatter={(v:any) => [`${v}%`, "Score"]} />
+                      <Line type="monotone" dataKey="score" stroke={statusColor} strokeWidth={3}
+                        dot={{ r:5, fill:statusColor }} activeDot={{ r:7 }}>
+                        <LabelList dataKey="score" position="top" content={(p:any) => {
+                          const { x, y, value } = p;
+                          if (!value || x == null || y == null) return null;
+                          return <text x={x} y={y-10} fill={statusColor} fontSize={12} textAnchor="middle" fontWeight={700}>{value}%</text>;
+                        }} />
+                      </Line>
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              }
+            >
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={scoreTrend} margin={{ top:10, right:8, bottom:0, left:-20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" tick={{ fontSize:10 }} />
+                  <YAxis domain={[0,100]} tick={{ fontSize:10 }} />
+                  <Tooltip contentStyle={{ fontSize:11, borderRadius:6, border:"1px solid hsl(var(--border))" }}
+                    formatter={(v:any) => [`${v}%`, "Score"]} />
+                  <Line type="monotone" dataKey="score" stroke={statusColor} strokeWidth={2.5}
+                    dot={{ r:3, fill:statusColor }} activeDot={{ r:5 }}>
+                    <LabelList dataKey="score" position="top" content={(p:any) => {
+                      const { x, y, value } = p;
+                      if (value === 0 || x === undefined || y === undefined) return null;
+                      return <text x={x} y={y-6} fill={statusColor} fontSize={9} textAnchor="middle" fontWeight={700}>{value}%</text>;
+                    }} />
+                  </Line>
+                </LineChart>
+              </ResponsiveContainer>
+            </BscWidgetShell>
 
             {/* Score by Perspective (Weighted) */}
-            <Card>
-              <CardHeader className="pb-1 pt-4 px-5">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Score by Perspective (Weighted)</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="relative flex-shrink-0">
-                    <PieChart width={110} height={110}>
+            <BscWidgetShell
+              title="Score by Perspective (Weighted)"
+              widgetLabel="weighted-donut"
+              narrative={generateBscNarrative("weighted-donut", { perspScores, hp })}
+              focusContent={
+                <div className="flex flex-col items-center justify-center h-full gap-8">
+                  <div className="relative">
+                    <PieChart width={260} height={260}>
                       <Pie data={perspScores.map(ps => ({ name: ps.p, value: PERSP_WEIGHTS[ps.p] }))}
-                        cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                        cx="50%" cy="50%" innerRadius={70} outerRadius={120} dataKey="value"
+                        strokeWidth={2} stroke="hsl(var(--background))">
                         {perspScores.map(ps => <Cell key={ps.p} fill={PERSP_COLORS[ps.p]} />)}
                       </Pie>
-                      <Tooltip formatter={(v:any, name:string) => [`${v}%`, name]} contentStyle={{ fontSize:10, borderRadius:6 }} />
+                      <Tooltip formatter={(v:any, name:string) => [`${v}%`, name]} contentStyle={{ fontSize:12 }} />
+                      <Legend />
                     </PieChart>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <p className="text-sm font-bold tabular-nums" style={{ color: statusColor }}>{hp}%</p>
-                      <p className="text-[8px] text-muted-foreground">Overall</p>
+                      <p className="text-2xl font-bold" style={{ color: statusColor }}>{hp}%</p>
+                      <p className="text-xs text-muted-foreground">Overall</p>
                     </div>
                   </div>
-                  <div className="flex-1 space-y-1.5">
+                  <div className="grid grid-cols-2 gap-4 w-full max-w-xs">
                     {perspScores.map(({ p, score }) => (
-                      <div key={p} className="flex items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PERSP_COLORS[p] }} />
-                          <span className="text-muted-foreground">{PERSP_FULL[p]}</span>
+                      <div key={p} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ background: PERSP_COLORS[p] }} />
+                          <span className="text-sm">{PERSP_FULL[p]}</span>
                         </div>
-                        <div className="flex gap-3 tabular-nums">
-                          <span className="font-semibold">{score}%</span>
-                          <span className="text-muted-foreground w-6 text-right">{PERSP_WEIGHTS[p]}%</span>
-                        </div>
+                        <span className="font-bold">{score}%</span>
                       </div>
                     ))}
-                    <div className="flex justify-end gap-3 text-[10px] text-muted-foreground border-t pt-1 mt-1">
-                      <span>Score</span><span className="w-6 text-right">Wt.</span>
-                    </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Performance Status Summary */}
-            <Card>
-              <CardHeader className="pb-1 pt-4 px-5">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Performance Status Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                {(() => {
-                  const total = kpis.length;
-                  const pieData = [
-                    { name: "On Track",  value: onTrack,  color:"#10b981" },
-                    { name: "At Risk",   value: atRisk,   color:"#f59e0b" },
-                    { name: "Off Track", value: offTrack, color:"#ef4444" },
-                  ].filter(d => d.value > 0);
-                  return (
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex-shrink-0">
-                        <PieChart width={110} height={110}>
-                          <Pie data={pieData.length ? pieData : [{ name:"No data", value:1, color:"#e5e7eb" }]}
-                            cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
-                            {(pieData.length ? pieData : [{ color:"#e5e7eb" }]).map((d,i) => <Cell key={i} fill={d.color} />)}
-                          </Pie>
-                        </PieChart>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <p className="text-sm font-bold">{total}</p>
-                          <p className="text-[8px] text-muted-foreground">Total KPIs</p>
-                        </div>
+              }
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative flex-shrink-0">
+                  <PieChart width={110} height={110}>
+                    <Pie data={perspScores.map(ps => ({ name: ps.p, value: PERSP_WEIGHTS[ps.p] }))}
+                      cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                      {perspScores.map(ps => <Cell key={ps.p} fill={PERSP_COLORS[ps.p]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v:any, name:string) => [`${v}%`, name]} contentStyle={{ fontSize:10, borderRadius:6 }} />
+                  </PieChart>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <p className="text-sm font-bold tabular-nums" style={{ color: statusColor }}>{hp}%</p>
+                    <p className="text-[8px] text-muted-foreground">Overall</p>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  {perspScores.map(({ p, score }) => (
+                    <div key={p} className="flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PERSP_COLORS[p] }} />
+                        <span className="text-muted-foreground">{PERSP_FULL[p]}</span>
                       </div>
-                      <div className="flex-1 space-y-2">
-                        {[
-                          { label:"On Track",  count:onTrack,  color:"#10b981", note:"(≥ 95%)" },
-                          { label:"At Risk",   count:atRisk,   color:"#f59e0b", note:"(80–94%)" },
-                          { label:"Off Track", count:offTrack, color:"#ef4444", note:"(< 80%)" },
-                        ].map(({ label, count, color, note }) => (
-                          <div key={label} className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                              <span className="text-muted-foreground">{label} <span className="text-[10px]">{note}</span></span>
-                            </div>
-                            <div className="flex gap-2 tabular-nums">
-                              <span className="font-semibold">{count}</span>
-                              <span className="text-muted-foreground">{total ? Math.round(count/total*100) : 0}%</span>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="flex gap-3 tabular-nums">
+                        <span className="font-semibold">{score}%</span>
+                        <span className="text-muted-foreground w-6 text-right">{PERSP_WEIGHTS[p]}%</span>
                       </div>
                     </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
+                  ))}
+                  <div className="flex justify-end gap-3 text-[10px] text-muted-foreground border-t pt-1 mt-1">
+                    <span>Score</span><span className="w-6 text-right">Wt.</span>
+                  </div>
+                </div>
+              </div>
+            </BscWidgetShell>
+
+            {/* Performance Status Summary */}
+            {(() => {
+              const total = kpis.length;
+              const pieData = [
+                { name: "On Track",  value: onTrack,  color:"#10b981" },
+                { name: "At Risk",   value: atRisk,   color:"#f59e0b" },
+                { name: "Off Track", value: offTrack, color:"#ef4444" },
+              ].filter(d => d.value > 0);
+              return (
+                <BscWidgetShell
+                  title="Performance Status Summary"
+                  widgetLabel="status-donut"
+                  narrative={generateBscNarrative("status-donut", { onTrack, atRisk, offTrack, totalKpis: total })}
+                  focusContent={
+                    <div className="flex flex-col items-center justify-center h-full gap-8">
+                      <div className="relative">
+                        <PieChart width={260} height={260}>
+                          <Pie data={pieData.length ? pieData : [{ name:"No data", value:1, color:"#e5e7eb" }]}
+                            cx="50%" cy="50%" innerRadius={70} outerRadius={120} dataKey="value"
+                            strokeWidth={2} stroke="hsl(var(--background))">
+                            {(pieData.length ? pieData : [{ color:"#e5e7eb" }]).map((d,i) => <Cell key={i} fill={d.color} />)}
+                          </Pie>
+                          <Tooltip contentStyle={{ fontSize:12 }} />
+                          <Legend />
+                        </PieChart>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <p className="text-2xl font-bold">{total}</p>
+                          <p className="text-xs text-muted-foreground">Total KPIs</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div><p className="text-4xl font-bold text-emerald-600">{onTrack}</p><p className="text-sm text-muted-foreground">On Track ≥95%</p></div>
+                        <div><p className="text-4xl font-bold text-amber-500">{atRisk}</p><p className="text-sm text-muted-foreground">At Risk 80–94%</p></div>
+                        <div><p className="text-4xl font-bold text-red-600">{offTrack}</p><p className="text-sm text-muted-foreground">Off Track &lt;80%</p></div>
+                      </div>
+                    </div>
+                  }
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-shrink-0">
+                      <PieChart width={110} height={110}>
+                        <Pie data={pieData.length ? pieData : [{ name:"No data", value:1, color:"#e5e7eb" }]}
+                          cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                          {(pieData.length ? pieData : [{ color:"#e5e7eb" }]).map((d,i) => <Cell key={i} fill={d.color} />)}
+                        </Pie>
+                      </PieChart>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <p className="text-sm font-bold">{total}</p>
+                        <p className="text-[8px] text-muted-foreground">Total KPIs</p>
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      {[
+                        { label:"On Track",  count:onTrack,  color:"#10b981", note:"(≥ 95%)" },
+                        { label:"At Risk",   count:atRisk,   color:"#f59e0b", note:"(80–94%)" },
+                        { label:"Off Track", count:offTrack, color:"#ef4444", note:"(< 80%)" },
+                      ].map(({ label, count, color, note }) => (
+                        <div key={label} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                            <span className="text-muted-foreground">{label} <span className="text-[10px]">{note}</span></span>
+                          </div>
+                          <div className="flex gap-2 tabular-nums">
+                            <span className="font-semibold">{count}</span>
+                            <span className="text-muted-foreground">{total ? Math.round(count/total*100) : 0}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </BscWidgetShell>
+              );
+            })()}
           </div>
 
           {/* ── Row 3: Top KPIs + Lowest Performing ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Top KPIs Performance Overview */}
-            <Card>
-              <CardHeader className="pb-2 pt-4 px-5">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Top KPIs Performance Overview</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-y bg-muted/30">
-                      <th className="text-left px-4 py-2 font-semibold text-muted-foreground">KPI</th>
-                      <th className="text-left px-2 py-2 font-semibold text-muted-foreground">Persp.</th>
-                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Target</th>
-                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Actual</th>
-                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Ach %</th>
-                      <th className="text-center px-2 py-2 font-semibold text-muted-foreground">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {topKpis.map(({ kpi:k, actual, ach, status }) => {
-                      const pc = P_COLOR[k.perspective];
-                      const achColor = ach! >= 95 ? "#10b981" : ach! >= 80 ? "#f59e0b" : "#ef4444";
-                      return (
-                        <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
-                          className="cursor-pointer hover:bg-muted/40 transition-colors group">
-                          <td className="px-4 py-2.5 font-medium max-w-[140px]">
-                            <span className="line-clamp-1">{k.name}</span>
-                          </td>
-                          <td className="px-2 py-2.5">
-                            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", pc.bg, pc.text)}>
-                              {PERSP_INITIALS[k.perspective]}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2.5 text-right text-muted-foreground tabular-nums">{k.target}{k.unit}</td>
-                          <td className="px-2 py-2.5 text-right font-semibold tabular-nums">
-                            {actual !== null ? `${actual}${k.unit}` : "—"}
-                          </td>
-                          <td className="px-2 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
-                            {ach !== null ? `${ach.toFixed(1)}%` : "—"}
-                          </td>
-                          <td className="px-2 py-2.5 text-center">
-                            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
-                              status === "green" ? "bg-emerald-100 text-emerald-700" : status === "amber" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
-                              {status === "green" ? "On Track" : status === "amber" ? "At Risk" : "Critical"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
+            <BscWidgetShell
+              title="Top KPIs Performance Overview"
+              widgetLabel="top-kpis"
+              contentClassName="p-0 pb-0"
+              narrative={generateBscNarrative("top-kpis", { topKpis })}
+            >
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-y bg-muted/30">
+                    <th className="text-left px-4 py-2 font-semibold text-muted-foreground">KPI</th>
+                    <th className="text-left px-2 py-2 font-semibold text-muted-foreground">Persp.</th>
+                    <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Target</th>
+                    <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Actual</th>
+                    <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Ach %</th>
+                    <th className="text-center px-2 py-2 font-semibold text-muted-foreground">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {topKpis.map(({ kpi:k, actual, ach, status }) => {
+                    const pc = P_COLOR[k.perspective];
+                    const achColor = ach! >= 95 ? "#10b981" : ach! >= 80 ? "#f59e0b" : "#ef4444";
+                    return (
+                      <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
+                        className="cursor-pointer hover:bg-muted/40 transition-colors">
+                        <td className="px-4 py-2.5 font-medium max-w-[140px]">
+                          <span className="line-clamp-1">{k.name}</span>
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", pc.bg, pc.text)}>
+                            {PERSP_INITIALS[k.perspective]}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2.5 text-right text-muted-foreground tabular-nums">{k.target}{k.unit}</td>
+                        <td className="px-2 py-2.5 text-right font-semibold tabular-nums">
+                          {actual !== null ? `${actual}${k.unit}` : "—"}
+                        </td>
+                        <td className="px-2 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
+                          {ach !== null ? `${ach.toFixed(1)}%` : "—"}
+                        </td>
+                        <td className="px-2 py-2.5 text-center">
+                          <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+                            status === "green" ? "bg-emerald-100 text-emerald-700" : status === "amber" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                            {status === "green" ? "On Track" : status === "amber" ? "At Risk" : "Critical"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </BscWidgetShell>
 
             {/* Lowest Performing KPIs */}
-            <Card>
-              <CardHeader className="pb-2 pt-4 px-5">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Lowest Performing KPIs</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-y bg-muted/30">
-                      <th className="text-left px-4 py-2 font-semibold text-muted-foreground">KPI</th>
-                      <th className="text-left px-2 py-2 font-semibold text-muted-foreground">Persp.</th>
-                      <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Ach %</th>
-                      <th className="text-center px-2 py-2 font-semibold text-muted-foreground">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {lowestKpis.map(({ kpi:k, ach, status }) => {
-                      const pc = P_COLOR[k.perspective];
-                      const achColor = ach! >= 95 ? "#10b981" : ach! >= 80 ? "#f59e0b" : "#ef4444";
-                      return (
-                        <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
-                          className="cursor-pointer hover:bg-muted/40 transition-colors group">
-                          <td className="px-4 py-2.5 font-medium max-w-[180px]">
-                            <span className="line-clamp-1">{k.name}</span>
-                          </td>
-                          <td className="px-2 py-2.5">
-                            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", pc.bg, pc.text)}>
-                              {PERSP_INITIALS[k.perspective]}
-                            </span>
-                          </td>
-                          <td className="px-2 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
-                            {ach !== null ? `${ach.toFixed(1)}%` : "—"}
-                          </td>
-                          <td className="px-2 py-2.5 text-center">
-                            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
-                              status === "green" ? "bg-emerald-100 text-emerald-700" : status === "amber" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
-                              {status === "green" ? "On Track" : status === "amber" ? "At Risk" : "Critical"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
+            <BscWidgetShell
+              title="Lowest Performing KPIs"
+              widgetLabel="lowest-kpis"
+              contentClassName="p-0 pb-0"
+              narrative={generateBscNarrative("lowest-kpis", { lowestKpis })}
+            >
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-y bg-muted/30">
+                    <th className="text-left px-4 py-2 font-semibold text-muted-foreground">KPI</th>
+                    <th className="text-left px-2 py-2 font-semibold text-muted-foreground">Persp.</th>
+                    <th className="text-right px-2 py-2 font-semibold text-muted-foreground">Ach %</th>
+                    <th className="text-center px-2 py-2 font-semibold text-muted-foreground">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {lowestKpis.map(({ kpi:k, ach, status }) => {
+                    const pc = P_COLOR[k.perspective];
+                    const achColor = ach! >= 95 ? "#10b981" : ach! >= 80 ? "#f59e0b" : "#ef4444";
+                    return (
+                      <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
+                        className="cursor-pointer hover:bg-muted/40 transition-colors">
+                        <td className="px-4 py-2.5 font-medium max-w-[180px]">
+                          <span className="line-clamp-1">{k.name}</span>
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", pc.bg, pc.text)}>
+                            {PERSP_INITIALS[k.perspective]}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
+                          {ach !== null ? `${ach.toFixed(1)}%` : "—"}
+                        </td>
+                        <td className="px-2 py-2.5 text-center">
+                          <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+                            status === "green" ? "bg-emerald-100 text-emerald-700" : status === "amber" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                            {status === "green" ? "On Track" : status === "amber" ? "At Risk" : "Critical"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </BscWidgetShell>
           </div>
 
           {/* ── KPI Scorecard Table (full, clickable to detail) ── */}
-          <Card>
-            <CardHeader className="pb-0 pt-4 px-5">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  KPI Scorecard — {MONTHS[month]} {year}
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Click any row to view trend</p>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 mt-3">
+          <BscWidgetShell
+            title={`KPI Scorecard — ${MONTHS[month]} ${year}`}
+            widgetLabel="kpi-scorecard"
+            contentClassName="p-0 pb-0 mt-3"
+            headerExtra={<span className="text-xs text-muted-foreground">Click any row to view trend</span>}
+            narrative={generateBscNarrative("kpi-scorecard", { hp, onTrack, atRisk, offTrack, totalKpis: kpis.length })}
+          >
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1723,8 +1995,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
+            </BscWidgetShell>
         </TabsContent>
 
 
