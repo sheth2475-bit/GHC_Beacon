@@ -4,7 +4,7 @@ import {
   BarChart3, LogOut, Activity, ChevronDown,
   Clock, Users, Settings, type LucideIcon,
   Home, LayoutDashboard, Lightbulb, Database, Upload,
-  Target, Building2,
+  Target, Building2, Calculator,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarMenu, SidebarMenuButton,
@@ -157,6 +157,7 @@ export function AppSidebar() {
       icon: Building2,
       testId: `link-nav-scorecard-dept-${d.deptId}`,
     })),
+    { title: "Performance Score", href: "/scorecard/performance-score", icon: Calculator, testId: "link-nav-scorecard-performance-score" },
   ];
 
   const isActive = (url: string) =>

@@ -31,6 +31,7 @@ import AnalyticsDashboardComposePage from "@/pages/analytics-dashboard-compose";
 import GuidePage from "@/pages/guide";
 import DemoPage from "@/pages/demo";
 import ScorecardPage from "@/pages/scorecard";
+import PerformanceScorePage from "@/pages/performance-score";
 import PublicDashboardPage from "@/pages/public-dashboard";
 import PublicScorecardPage from "@/pages/public-scorecard";
 import OwnerLogin from "@/pages/owner-login";
@@ -63,6 +64,7 @@ function AppRouter() {
       <Route path="/scorecard" component={ScorecardPage} />
       <Route path="/scorecard/department/:id" component={ScorecardPage} />
       <Route path="/scorecard/kpi/:id" component={ScorecardPage} />
+      <Route path="/scorecard/performance-score" component={PerformanceScorePage} />
       {isAdmin && <Route path="/users" component={UserManagementPage} />}
       {isAdmin && <Route path="/settings" component={SettingsPage} />}
       <Route component={AnalyticsStudioPage} />
