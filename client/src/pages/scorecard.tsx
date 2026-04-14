@@ -1165,9 +1165,11 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [weights, setWeights]     = useState<Record<string,number>>(() => loadWeights(deptId));
   const [sortCol, setSortCol]   = useState<string>("status");
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
+  const [dashFilter, setDashFilter] = useState<{ status: "green"|"amber"|"red"|null; perspective: string|null }>({ status: null, perspective: null });
   const { toast } = useToast();
   const [, nav] = useLocation();
   const fileRef = useRef<HTMLInputElement>(null);
+  const scorecardRef = useRef<HTMLDivElement>(null);
 
   const dept = depts.find(d => d.id === deptId) || { id: deptId, name: deptId, icon: "🏢", color: "#3B82F6" };
   const kpis = getKpisForDept(deptId);
@@ -1254,6 +1256,28 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortCol(col); setSortDir("asc"); }
   };
+
+  const applyFilter = (update: { status?: "green"|"amber"|"red"|null; perspective?: string|null }) => {
+    setDashFilter(prev => {
+      const next = { ...prev };
+      if ("status" in update) next.status = prev.status === update.status ? null : (update.status ?? null);
+      if ("perspective" in update) next.perspective = prev.perspective === update.perspective ? null : (update.perspective ?? null);
+      return next;
+    });
+    setTimeout(() => scorecardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
+
+  const clearFilter = () => setDashFilter({ status: null, perspective: null });
+
+  const filteredKpis = useMemo(() => {
+    return sortedKpis.filter(k => {
+      const actual = getActual(k.id);
+      const st = getStatus(k, actual);
+      if (dashFilter.status && st !== dashFilter.status) return false;
+      if (dashFilter.perspective && k.perspective !== dashFilter.perspective) return false;
+      return true;
+    });
+  }, [sortedKpis, dashFilter, store, pk]);
 
   // ── Dashboard computed data ──────────────────────────────────────────────
 
@@ -1578,9 +1602,21 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-4 border-t pt-3 text-center">
-                <div><p className="text-xl font-bold text-emerald-600">{onTrack}</p><p className="text-xs text-muted-foreground">On Track</p></div>
-                <div><p className="text-xl font-bold text-amber-500">{atRisk}</p><p className="text-xs text-muted-foreground">At Risk</p></div>
-                <div><p className="text-xl font-bold text-red-600">{offTrack}</p><p className="text-xs text-muted-foreground">Off Track</p></div>
+                {[
+                  { label:"On Track",  count:onTrack,  st:"green" as const, cls:"text-emerald-600", ring:"ring-emerald-400" },
+                  { label:"At Risk",   count:atRisk,   st:"amber" as const, cls:"text-amber-500",  ring:"ring-amber-400" },
+                  { label:"Off Track", count:offTrack, st:"red"   as const, cls:"text-red-600",    ring:"ring-red-400" },
+                ].map(({ label, count, st, cls, ring }) => (
+                  <button key={st}
+                    onClick={() => applyFilter({ status: st })}
+                    className={cn("rounded-lg py-1.5 transition-all cursor-pointer hover:bg-muted/50",
+                      dashFilter.status === st && `ring-2 ${ring} bg-muted/30`)}
+                    data-testid={`filter-status-${st}`}
+                    title={`Filter KPI table by ${label}`}>
+                    <p className={cn("text-xl font-bold", cls)}>{count}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </button>
+                ))}
               </div>
             </BscWidgetShell>
 
@@ -1593,7 +1629,13 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
             >
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {perspScores.map(({ p, score, trend, label, color }) => (
-                  <div key={p} className="flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-muted/30">
+                  <button key={p}
+                    onClick={() => applyFilter({ perspective: p })}
+                    data-testid={`filter-perspective-${p.toLowerCase()}`}
+                    title={`Filter KPI table by ${PERSP_FULL[p]}`}
+                    className={cn("flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-muted/30 transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer text-left",
+                      dashFilter.perspective === p && "ring-2 ring-offset-1")}
+                    style={dashFilter.perspective === p ? { ringColor: color, outlineColor: color, outline: `2px solid ${color}` } : undefined}>
                     <div className="h-9 w-9 rounded-full flex items-center justify-center text-lg"
                       style={{ background: PERSP_COLORS[p] + "20" }}>
                       {PERSP_ICONS[p]}
@@ -1609,7 +1651,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                       {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                       {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </BscWidgetShell>
@@ -1716,7 +1758,11 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                 </div>
                 <div className="flex-1 space-y-1.5">
                   {perspScores.map(({ p, score }) => (
-                    <div key={p} className="flex items-center justify-between gap-2 text-xs">
+                    <button key={p}
+                      onClick={() => applyFilter({ perspective: p })}
+                      title={`Filter by ${PERSP_FULL[p]}`}
+                      className={cn("w-full flex items-center justify-between gap-2 text-xs rounded px-1 py-0.5 transition-colors hover:bg-muted/60 cursor-pointer",
+                        dashFilter.perspective === p && "bg-muted/50 font-semibold")}>
                       <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PERSP_COLORS[p] }} />
                         <span className="text-muted-foreground">{PERSP_FULL[p]}</span>
@@ -1725,7 +1771,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                         <span className="font-semibold">{score}%</span>
                         <span className="text-muted-foreground w-6 text-right">{PERSP_WEIGHTS[p]}%</span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                   <div className="flex justify-end gap-3 text-[10px] text-muted-foreground border-t pt-1 mt-1">
                     <span>Score</span><span className="w-6 text-right">Wt.</span>
@@ -1787,11 +1833,15 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                     </div>
                     <div className="flex-1 space-y-2">
                       {[
-                        { label:"On Track",  count:onTrack,  color:"#10b981", note:"(≥ 95%)" },
-                        { label:"At Risk",   count:atRisk,   color:"#f59e0b", note:"(80–94%)" },
-                        { label:"Off Track", count:offTrack, color:"#ef4444", note:"(< 80%)" },
-                      ].map(({ label, count, color, note }) => (
-                        <div key={label} className="flex items-center justify-between text-xs">
+                        { label:"On Track",  count:onTrack,  color:"#10b981", note:"(≥ 95%)",  st:"green" as const },
+                        { label:"At Risk",   count:atRisk,   color:"#f59e0b", note:"(80–94%)", st:"amber" as const },
+                        { label:"Off Track", count:offTrack, color:"#ef4444", note:"(< 80%)",  st:"red"   as const },
+                      ].map(({ label, count, color, note, st }) => (
+                        <button key={label}
+                          onClick={() => applyFilter({ status: st })}
+                          title={`Filter by ${label}`}
+                          className={cn("w-full flex items-center justify-between text-xs rounded px-1 py-0.5 transition-colors hover:bg-muted/60 cursor-pointer",
+                            dashFilter.status === st && "bg-muted/50 font-semibold")}>
                           <div className="flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full" style={{ background: color }} />
                             <span className="text-muted-foreground">{label} <span className="text-[10px]">{note}</span></span>
@@ -1800,7 +1850,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                             <span className="font-semibold">{count}</span>
                             <span className="text-muted-foreground">{total ? Math.round(count/total*100) : 0}%</span>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1914,11 +1964,40 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           </div>
 
           {/* ── KPI Scorecard Table (full, clickable to detail) ── */}
+          <div ref={scorecardRef}>
           <BscWidgetShell
             title={`KPI Scorecard — ${MONTHS[month]} ${year}`}
             widgetLabel="kpi-scorecard"
             contentClassName="p-0 pb-0 mt-3"
-            headerExtra={<span className="text-xs text-muted-foreground">Click any row to view trend</span>}
+            headerExtra={
+              <div className="flex items-center gap-2">
+                {(dashFilter.status || dashFilter.perspective) && (
+                  <div className="flex items-center gap-1.5">
+                    {dashFilter.status && (
+                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold",
+                        dashFilter.status === "green" ? "bg-emerald-100 text-emerald-700" :
+                        dashFilter.status === "amber" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                        {dashFilter.status === "green" ? "On Track" : dashFilter.status === "amber" ? "At Risk" : "Off Track"}
+                      </span>
+                    )}
+                    {dashFilter.perspective && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                        style={{ background: PERSP_COLORS[dashFilter.perspective] + "20", color: PERSP_COLORS[dashFilter.perspective] }}>
+                        {PERSP_FULL[dashFilter.perspective]}
+                      </span>
+                    )}
+                    <button onClick={clearFilter}
+                      className="h-4 w-4 rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/40 flex items-center justify-center transition-colors"
+                      title="Clear filter" data-testid="button-clear-filter">
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {(dashFilter.status || dashFilter.perspective) ? `${filteredKpis.length} of ${kpis.length} KPIs` : "Click any row to view trend"}
+                </span>
+              </div>
+            }
             narrative={generateBscNarrative("kpi-scorecard", { hp, onTrack, atRisk, offTrack, totalKpis: kpis.length })}
           >
               <div className="overflow-x-auto">
@@ -1941,7 +2020,14 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {sortedKpis.map(k => {
+                    {filteredKpis.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                          No KPIs match the current filter. <button onClick={clearFilter} className="underline text-primary hover:text-primary/80">Clear filter</button>
+                        </td>
+                      </tr>
+                    )}
+                    {filteredKpis.map(k => {
                       const d = kpiData.find(x => x.kpi.id === k.id)!;
                       const actual = d?.actual ?? null;
                       const ach    = d?.ach ?? null;
@@ -1996,6 +2082,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                 </table>
               </div>
             </BscWidgetShell>
+          </div>
         </TabsContent>
 
 
