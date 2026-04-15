@@ -18,7 +18,7 @@ import {
   Activity, Plus, Trash2, Download, Upload, FileSpreadsheet,
   RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
-  Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles, Link2,
+  Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles, Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1466,7 +1466,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           )}
           <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" data-testid="button-share-dept"
             onClick={() => setShareOpen(true)}>
-            <Link2 className="h-3.5 w-3.5" />Share
+            <Globe className="h-3.5 w-3.5" />Share
             {shareEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />}
           </Button>
           <div className="text-center">
@@ -2402,10 +2402,10 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Link2 className="h-4 w-4 text-primary" /> Share Scorecard</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Globe className="h-4 w-4 text-primary" /> Share Scorecard</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">Generate a public link so stakeholders can view your Balanced Scorecard — no login required.</p>
+            <p className="text-sm text-muted-foreground">Generate a public link that anyone can view — no login required.</p>
             <div className="flex items-center justify-between rounded-lg border p-3 gap-3">
               <div>
                 <p className="text-sm font-medium">Public link</p>
