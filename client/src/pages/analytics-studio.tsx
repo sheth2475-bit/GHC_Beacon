@@ -111,10 +111,16 @@ function DatasetThumbnail({ ds, onDelete }: { ds: AnalyticsDataset; onDelete: (i
 // ── Insight thumbnail card ────────────────────────────────────────────────────
 function InsightThumbnail({ insight, onDelete }: { insight: AnalyticsInsight; onDelete: (id: number) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [, navigate] = useLocation();
   const gradient = CHART_TYPE_COLOR[insight.chartType] || "from-violet-500 to-purple-600";
   const chartLabel = CHART_TYPE_LABEL[insight.chartType] || insight.chartType;
+  const href = `/analytics/datasets/${insight.datasetId}/explore?insightId=${insight.id}`;
   return (
-    <div className="group relative flex flex-col rounded-xl overflow-hidden bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" data-testid={`card-insight-${insight.id}`}>
+    <div
+      className="group relative flex flex-col rounded-xl overflow-hidden bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+      data-testid={`card-insight-${insight.id}`}
+      onClick={() => navigate(href)}
+    >
       {/* Thumbnail */}
       <div className={`relative aspect-video bg-gradient-to-br ${gradient} opacity-90 flex items-center justify-center border-b`}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 38L10 20L20 30L30 10L40 22' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat-x", backgroundSize: "40px 40px" }} />
@@ -123,11 +129,9 @@ function InsightThumbnail({ insight, onDelete }: { insight: AnalyticsInsight; on
           <span className="text-[10px] font-bold text-white/90 bg-white/20 px-2 py-0.5 rounded-full">{chartLabel}</span>
         </div>
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Link href={`/analytics/datasets/${insight.datasetId}/explore`}>
-            <button className="flex items-center gap-1.5 bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full hover:bg-white/90 transition-colors">
-              <Eye className="h-3.5 w-3.5" /> View
-            </button>
-          </Link>
+          <span className="flex items-center gap-1.5 bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full">
+            <Eye className="h-3.5 w-3.5" /> View
+          </span>
         </div>
       </div>
       {/* Info */}
@@ -142,7 +146,7 @@ function InsightThumbnail({ insight, onDelete }: { insight: AnalyticsInsight; on
             <Clock className="h-2.5 w-2.5" /> {fmtDate(insight.createdAt)}
           </p>
         </div>
-        <div className="relative">
+        <div className="relative" onClick={e => e.stopPropagation()}>
           <button onClick={() => setMenuOpen(v => !v)} className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-all">
             <MoreVertical className="h-4 w-4 text-muted-foreground" />
           </button>

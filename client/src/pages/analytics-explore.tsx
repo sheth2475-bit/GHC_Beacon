@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -308,9 +308,15 @@ function InterpRow({ label, value, highlight }: { label: string; value: string; 
 export default function AnalyticsExplorePage() {
   const [, params] = useRoute("/analytics/datasets/:id/explore");
   const [, navigate] = useLocation();
+  const searchStr = useSearch();
   const { toast } = useToast();
   const id = Number(params?.id);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const preloadInsightId = useMemo(() => {
+    const v = new URLSearchParams(searchStr).get("insightId");
+    return v ? Number(v) : null;
+  }, [searchStr]);
 
   const { data: ds, isLoading, isError } = useQuery<FullDataset>({
     queryKey: ["/api/v2/analytics/datasets", id],
@@ -335,6 +341,27 @@ export default function AnalyticsExplorePage() {
   const [selectedDashId, setSelectedDashId] = useState<string>("");
   const [newDashName, setNewDashName] = useState("");
   const [followUpMode, setFollowUpMode] = useState(false);
+  const [preloadApplied, setPreloadApplied] = useState(false);
+
+  // Auto-load a saved insight when navigated via ?insightId=
+  useEffect(() => {
+    if (!ds || !preloadInsightId || preloadApplied) return;
+    const insight = ds.insights?.find(i => i.id === preloadInsightId);
+    if (!insight) return;
+    setPreloadApplied(true);
+    setQuestion(insight.question || "");
+    setSavedInsightId(insight.id);
+    setResult({
+      title: insight.title,
+      subtitle: null,
+      interpretation: insight.interpretation || "",
+      chartType: insight.chartType,
+      chartConfig: (insight.chartConfig as Record<string, unknown>) || {},
+      narrative: insight.narrative || "",
+      suggestedQuestions: [],
+      question: insight.question || "",
+    });
+  }, [ds, preloadInsightId, preloadApplied]);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -662,7 +689,21 @@ export default function AnalyticsExplorePage() {
                       icon={Lightbulb}
                       label={ins.title}
                       color="text-purple-600"
-                      onClick={() => { setQuestion(ins.question); handleAsk(ins.question); }}
+                      onClick={() => {
+                        setQuestion(ins.question || "");
+                        setSavedInsightId(ins.id);
+                        setChartOverride("");
+                        setResult({
+                          title: ins.title,
+                          subtitle: null,
+                          interpretation: ins.interpretation || "",
+                          chartType: ins.chartType,
+                          chartConfig: (ins.chartConfig as Record<string, unknown>) || {},
+                          narrative: ins.narrative || "",
+                          suggestedQuestions: [],
+                          question: ins.question || "",
+                        });
+                      }}
                     />
                   ))}
                 </div>

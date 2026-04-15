@@ -132,7 +132,7 @@ export default function PublicDashboard() {
   }
 
   const { dashboard, items } = data;
-  const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = [...items].sort((a, b) => ((a as any).position ?? 0) - ((b as any).position ?? 0));
 
   return (
     <div className="min-h-screen bg-background">
