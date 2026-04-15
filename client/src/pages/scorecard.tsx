@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useRoute, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
@@ -1089,8 +1091,28 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
   const [dashFilter, setDashFilter] = useState<{ status: "green"|"amber"|"red"|null; perspective: string|null }>({ status: null, perspective: null });
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareEnabled, setShareEnabled] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
   const { toast } = useToast();
   const [, nav] = useLocation();
+
+  const { data: shareData } = useQuery<{ shareToken: string | null; shareEnabled: boolean }>({
+    queryKey: ["/api/scorecard/share"],
+    queryFn: () => fetch("/api/scorecard/share", { credentials: "include" }).then(r => r.json()),
+  });
+  useEffect(() => {
+    if (shareData) { setShareEnabled(shareData.shareEnabled); setShareToken(shareData.shareToken); }
+  }, [shareData]);
+  const shareMutation = useMutation({
+    mutationFn: (enabled: boolean) => apiRequest("POST", "/api/scorecard/share", { enabled }).then(r => r.json()),
+    onSuccess: (data: { shareToken: string; shareEnabled: boolean }) => {
+      setShareEnabled(data.shareEnabled);
+      setShareToken(data.shareToken);
+      queryClient.invalidateQueries({ queryKey: ["/api/scorecard/share"] });
+      toast({ title: data.shareEnabled ? "Public link enabled!" : "Public link disabled" });
+    },
+    onError: () => toast({ title: "Failed to update share link", variant: "destructive" }),
+  });
   const fileRef = useRef<HTMLInputElement>(null);
   const scorecardRef = useRef<HTMLDivElement>(null);
 
@@ -1445,6 +1467,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" data-testid="button-share-dept"
             onClick={() => setShareOpen(true)}>
             <Link2 className="h-3.5 w-3.5" />Share
+            {shareEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />}
           </Button>
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Performance Score</p>
@@ -2379,26 +2402,42 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Link2 className="h-4 w-4 text-primary" /> Share Department Scorecard</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Link2 className="h-4 w-4 text-primary" /> Share Scorecard</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">Share this link with your team members to give them direct access to the <span className="font-semibold text-foreground">{dept.name}</span> scorecard. Requires a login to view.</p>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Department link</p>
-              <div className="flex items-center gap-2">
-                <input
-                  readOnly
-                  value={`${window.location.origin}/scorecard/department/${deptId}`}
-                  className="flex-1 text-xs px-3 py-2 rounded-md border bg-muted font-mono truncate"
-                  data-testid="input-scorecard-share-link"
-                  onClick={e => (e.target as HTMLInputElement).select()}
-                />
-                <Button size="sm" variant="outline" onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/scorecard/department/${deptId}`);
-                  toast({ title: "Link copied!" });
-                }} data-testid="button-copy-scorecard-link">Copy</Button>
+            <p className="text-sm text-muted-foreground">Generate a public link so stakeholders can view your Balanced Scorecard — no login required.</p>
+            <div className="flex items-center justify-between rounded-lg border p-3 gap-3">
+              <div>
+                <p className="text-sm font-medium">Public link</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{shareEnabled ? "Anyone with the link can view" : "Link is currently disabled"}</p>
               </div>
+              <button
+                onClick={() => shareMutation.mutate(!shareEnabled)}
+                disabled={shareMutation.isPending}
+                data-testid="toggle-share-scorecard"
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${shareEnabled ? "bg-emerald-500" : "bg-muted border"}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${shareEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
             </div>
+            {shareEnabled && shareToken && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Share link</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={`${window.location.origin}/public/scorecard/${shareToken}`}
+                    className="flex-1 text-xs px-3 py-2 rounded-md border bg-muted font-mono truncate"
+                    data-testid="input-scorecard-share-link"
+                    onClick={e => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button size="sm" variant="outline" onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/public/scorecard/${shareToken}`);
+                    toast({ title: "Link copied!" });
+                  }} data-testid="button-copy-scorecard-link">Copy</Button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShareOpen(false)}>Close</Button>
