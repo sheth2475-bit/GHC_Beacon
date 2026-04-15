@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import {
   BarChart3, LogOut, Activity, ChevronDown,
   Clock, Users, Settings, type LucideIcon,
@@ -37,6 +37,7 @@ function ModuleItem({
   accentColor,
   subItems,
   location,
+  search,
 }: {
   icon: LucideIcon;
   label: string;
@@ -48,6 +49,7 @@ function ModuleItem({
   accentColor: string;
   subItems: SubItem[];
   location: string;
+  search: string;
 }) {
   return (
     <div>
@@ -76,19 +78,14 @@ function ModuleItem({
       {isExpanded && (
         <div className="mt-0.5 ml-3 pl-3 border-l border-border/60 space-y-0.5 pb-1">
           {subItems.map(item => {
-            const active = location === item.href || location.startsWith(item.href + "?") ||
-              (item.href.includes("?tab=") && location === "/analytics" &&
-                new URLSearchParams(window.location.search).get("tab") === item.href.split("?tab=")[1]) ||
-              (item.href === "/analytics" && !item.href.includes("?tab=") &&
-                location === "/analytics" && !window.location.search);
+            const currentTab = new URLSearchParams(search).get("tab") || "home";
             const subItemActive = (() => {
               if (item.href.includes("?tab=")) {
                 const tab = item.href.split("?tab=")[1];
-                const currentTab = new URLSearchParams(window.location.search).get("tab") || "home";
                 return location === "/analytics" && currentTab === tab;
               }
               if (item.href === "/analytics") {
-                return location === "/analytics" && !window.location.search;
+                return location === "/analytics" && !search;
               }
               return location === item.href || location.startsWith(item.href + "/");
             })();
@@ -118,6 +115,7 @@ function ModuleItem({
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const search = useSearch();
   const { user, logout, isAdmin, isExecutive } = useAuth();
 
   const isOnAnalytics = location === "/analytics" || location.startsWith("/analytics");
@@ -194,6 +192,7 @@ export function AppSidebar() {
                 accentColor="bg-primary/10 text-primary"
                 subItems={analyticsSubItems}
                 location={location}
+                search={search}
               />
 
               {/* Balanced Scorecard module */}
@@ -208,6 +207,7 @@ export function AppSidebar() {
                 accentColor="bg-violet-500/10 text-violet-600 dark:text-violet-400"
                 subItems={scorecardSubItems}
                 location={location}
+                search={search}
               />
 
             </div>

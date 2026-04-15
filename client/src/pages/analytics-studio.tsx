@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -248,12 +248,13 @@ type Section = "home" | "dashboards" | "insights" | "datasets";
 export default function AnalyticsStudioPage() {
   const { user } = useAuth();
   const [location, navigate] = useLocation();
+  const searchParams = useSearch();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ type: "dataset" | "insight" | "definition"; id: number } | null>(null);
 
   const section: Section = (() => {
-    const tab = new URLSearchParams(window.location.search).get("tab");
+    const tab = new URLSearchParams(searchParams).get("tab");
     if (tab === "dashboards" || tab === "insights" || tab === "datasets") return tab;
     return "home";
   })();
