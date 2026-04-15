@@ -33,7 +33,7 @@ function ChartView({ chartType, chartConfig }: { chartType: string; chartConfig:
     );
   }
 
-  const data = cfg.data || [];
+  const data = Array.isArray(cfg.data) ? cfg.data : [];
   const xKey = cfg.xKey || "name";
   const yKey = cfg.yKey || "value";
   const h = 220;

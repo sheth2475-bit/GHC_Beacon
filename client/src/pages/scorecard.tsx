@@ -1088,6 +1088,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [sortCol, setSortCol]   = useState<string>("status");
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
   const [dashFilter, setDashFilter] = useState<{ status: "green"|"amber"|"red"|null; perspective: string|null }>({ status: null, perspective: null });
+  const [shareOpen, setShareOpen] = useState(false);
   const { toast } = useToast();
   const [, nav] = useLocation();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1442,10 +1443,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
             </Button>
           )}
           <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" data-testid="button-share-dept"
-            onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/scorecard/department/${deptId}`);
-              toast({ title: "Link copied!", description: "Share this link with your team to open this department's scorecard." });
-            }}>
+            onClick={() => setShareOpen(true)}>
             <Link2 className="h-3.5 w-3.5" />Share
           </Button>
           <div className="text-center">
@@ -2376,6 +2374,37 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Share dialog */}
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Link2 className="h-4 w-4 text-primary" /> Share Department Scorecard</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Share this link with your team members to give them direct access to the <span className="font-semibold text-foreground">{dept.name}</span> scorecard. Requires a login to view.</p>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Department link</p>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={`${window.location.origin}/scorecard/department/${deptId}`}
+                  className="flex-1 text-xs px-3 py-2 rounded-md border bg-muted font-mono truncate"
+                  data-testid="input-scorecard-share-link"
+                  onClick={e => (e.target as HTMLInputElement).select()}
+                />
+                <Button size="sm" variant="outline" onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/scorecard/department/${deptId}`);
+                  toast({ title: "Link copied!" });
+                }} data-testid="button-copy-scorecard-link">Copy</Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
