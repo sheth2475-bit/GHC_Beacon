@@ -4,8 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Globe, AlertTriangle } from "lucide-react";
 import {
-  BarChart, Bar, LineChart, Line, PieChart as RechartPie, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
+  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  PieChart as RechartPie, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LabelList, Legend,
 } from "recharts";
 
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4"];
@@ -16,91 +18,167 @@ function formatValue(v: number) {
   return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
 }
 
-type ChartData = { data?: { name: string; value: number }[]; xKey?: string; yKey?: string; measureLabel?: string; dimensionLabel?: string; value?: number; label?: string; count?: number };
+function shortLabel(name: string, maxLen = 8): string {
+  const m = name.match(/^([A-Za-z]{3})\s+'?(\d{2,4})/);
+  if (m) return `${m[1]} '${m[2].slice(2)}`;
+  return name.length > maxLen ? name.slice(0, maxLen - 1) + "…" : name;
+}
 
-function ChartView({ chartType, chartConfig }: { chartType: string; chartConfig: unknown }) {
-  const cfg = chartConfig as ChartData;
-  if (!cfg) return <div className="text-muted-foreground text-sm text-center py-8">No chart data</div>;
+type CfgData = Record<string, unknown>;
 
-  if (chartType === "kpi") {
-    const v = cfg.value ?? 0;
+function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig: unknown }) {
+  const cfg = chartConfig as Record<string, unknown> | null;
+  if (!cfg) return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
+  const data = cfg.data as CfgData;
+
+  if (chartType === "kpi" && data) {
+    const kpi = data as { value: number; label: string };
     return (
-      <div className="flex flex-col items-center justify-center py-6 gap-1">
-        <span className="text-4xl font-bold tabular-nums tracking-tight" style={{ color: CHART_COLORS[0] }}>{formatValue(v)}</span>
-        {cfg.label && <span className="text-sm text-muted-foreground font-medium">{cfg.label}</span>}
-        {cfg.count !== undefined && <span className="text-xs text-muted-foreground">{cfg.count} records</span>}
+      <div className="flex flex-col items-center justify-center h-40">
+        <div className="text-4xl font-black tracking-tight" style={{ color: CHART_COLORS[0] }}>{formatValue(kpi.value)}</div>
+        <p className="text-xs text-muted-foreground mt-1.5 text-center px-2">{kpi.label}</p>
       </div>
     );
   }
 
-  const data = Array.isArray(cfg.data) ? cfg.data : [];
-  const xKey = cfg.xKey || "name";
-  const yKey = cfg.yKey || "value";
-  const h = 220;
+  if ((chartType === "bar" || chartType === "line") && data) {
+    const chartData = (data as { data?: { name: string; value: number }[] }).data || [];
+    const maxItems = chartType === "bar" ? 20 : 30;
+    const displayData = chartData.slice(0, maxItems).map(d => ({ ...d, shortName: shortLabel(d.name) }));
+    const count = displayData.length;
+    const hasMany = count > 8;
+    const hasTons = count > 15;
+    const chartH = hasTons ? 240 : hasMany ? 210 : count > 5 ? 185 : 165;
+    const bottomMargin = hasTons ? 44 : hasMany ? 36 : 26;
+    const labelAngle = hasTons ? -50 : hasMany ? -35 : -20;
+    const tickSize = hasTons ? 7 : hasMany ? 7.5 : 8;
 
-  if (chartType === "pie" || chartType === "donut") {
-    return (
-      <ResponsiveContainer width="100%" height={h}>
-        <RechartPie>
-          <Pie data={data} dataKey={yKey} nameKey={xKey} cx="50%" cy="50%"
-            innerRadius={chartType === "donut" ? "55%" : 0} outerRadius="75%" paddingAngle={2}>
-            {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-          </Pie>
-          <Tooltip formatter={(v: number) => formatValue(v)} />
-          <Legend />
-        </RechartPie>
+    if (chartType === "bar") return (
+      <ResponsiveContainer width="100%" height={chartH}>
+        <BarChart data={displayData} margin={{ top: 20, right: 6, left: -16, bottom: bottomMargin }}>
+          <XAxis
+            dataKey="shortName"
+            tick={{ fontSize: tickSize, fill: "currentColor" }}
+            angle={labelAngle}
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={44} />
+          <Tooltip
+            formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
+            contentStyle={{ fontSize: 11, borderRadius: 6 }}
+            labelFormatter={() => ""}
+          />
+          <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[3, 3, 0, 0]}>
+            <LabelList
+              dataKey="value"
+              position="top"
+              formatter={(v: number) => formatValue(v)}
+              style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
+            />
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
     );
-  }
-  if (chartType === "line") {
     return (
-      <ResponsiveContainer width="100%" height={h}>
-        <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey={xKey} tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={formatValue} width={48} />
-          <Tooltip formatter={(v: number) => formatValue(v)} />
-          <Line type="monotone" dataKey={yKey} stroke={CHART_COLORS[0]} strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  }
-  if (chartType === "area") {
-    return (
-      <ResponsiveContainer width="100%" height={h}>
-        <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.3} />
-              <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey={xKey} tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={formatValue} width={48} />
-          <Tooltip formatter={(v: number) => formatValue(v)} />
-          <Area type="monotone" dataKey={yKey} stroke={CHART_COLORS[0]} fill="url(#ag)" strokeWidth={2} />
+      <ResponsiveContainer width="100%" height={chartH}>
+        <AreaChart data={displayData} margin={{ top: 20, right: 6, left: -16, bottom: bottomMargin }}>
+          <XAxis
+            dataKey="shortName"
+            tick={{ fontSize: tickSize, fill: "currentColor" }}
+            angle={labelAngle}
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={44} />
+          <Tooltip
+            formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
+            contentStyle={{ fontSize: 11, borderRadius: 6 }}
+            labelFormatter={() => ""}
+          />
+          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
+            {count <= 40 && (
+              <LabelList
+                dataKey="value"
+                position="top"
+                formatter={(v: number) => formatValue(v)}
+                style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
+              />
+            )}
+          </Area>
         </AreaChart>
       </ResponsiveContainer>
     );
   }
-  return (
-    <ResponsiveContainer width="100%" height={h}>
-      <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} layout={chartType === "horizontal-bar" ? "vertical" : "horizontal"}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-        {chartType === "horizontal-bar"
-          ? <><XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={formatValue} /><YAxis type="category" dataKey={xKey} tick={{ fontSize: 11 }} width={80} /></>
-          : <><XAxis dataKey={xKey} tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} tickFormatter={formatValue} width={48} /></>}
-        <Tooltip formatter={(v: number) => formatValue(v)} />
-        <Bar dataKey={yKey} radius={[3, 3, 0, 0]}>
-          {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
+
+  if (chartType === "pie" && data) {
+    const pieData = (data as { data?: { name: string; value: number }[] }).data || [];
+    const slices = pieData.slice(0, 7);
+    const total = slices.reduce((s, d) => s + d.value, 0);
+    return (
+      <div className="flex flex-col gap-1">
+        <ResponsiveContainer width="100%" height={140}>
+          <RechartPie>
+            <Pie
+              data={slices}
+              cx="50%"
+              cy="50%"
+              outerRadius={58}
+              innerRadius={22}
+              dataKey="value"
+              paddingAngle={2}
+              label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                if (percent < 0.07) return null;
+                const RADIAN = Math.PI / 180;
+                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                return (
+                  <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 9, fontWeight: 700 }}>
+                    {`${(percent * 100).toFixed(0)}%`}
+                  </text>
+                );
+              }}
+              labelLine={false}
+            >
+              {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <Tooltip formatter={(v) => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+          </RechartPie>
+        </ResponsiveContainer>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
+          {slices.map((d, i) => (
+            <div key={i} className="flex items-center gap-1 min-w-0">
+              <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={d.name}>{d.name}</span>
+              <span className="text-[9px] font-semibold shrink-0">{formatValue(d.value)}</span>
+              <span className="text-[9px] text-muted-foreground shrink-0">{total ? `(${((d.value / total) * 100).toFixed(0)}%)` : ""}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (chartType === "table" && data) {
+    const tableData = data as { rows?: Record<string, unknown>[]; columns?: string[] };
+    const rows = tableData.rows?.slice(0, 4) || [];
+    const cols = tableData.columns?.slice(0, 4) || [];
+    return (
+      <div className="overflow-hidden rounded border">
+        <table className="w-full text-[10px]">
+          <thead className="bg-muted/50"><tr>{cols.map(c => <th key={c} className="px-2 py-1 text-left font-medium truncate max-w-[90px]">{c}</th>)}</tr></thead>
+          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50">{cols.map(c => <td key={c} className="px-2 py-1 truncate max-w-[90px]">{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
+        </table>
+        {(tableData.rows?.length || 0) > 4 && <p className="text-[9px] text-center text-muted-foreground py-1">+{(tableData.rows?.length || 0) - 4} more rows</p>}
+      </div>
+    );
+  }
+
+  return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">Preview unavailable</div>;
 }
 
-type Item = { id: number; sortOrder: number; insight: { title: string; chartType: string; chartConfig: unknown; narrativeSummary?: string } };
+type Item = { id: number; position?: number; sortOrder?: number; insight: { title: string; chartType: string; chartConfig: unknown; narrativeSummary?: string } };
 type Dashboard = { title: string; description?: string; narrativeSummary?: string };
 
 export default function PublicDashboard() {
@@ -132,11 +210,10 @@ export default function PublicDashboard() {
   }
 
   const { dashboard, items } = data;
-  const sorted = [...items].sort((a, b) => ((a as any).position ?? 0) - ((b as any).position ?? 0));
+  const sorted = [...items].sort((a, b) => ((a.position ?? a.sortOrder ?? 0) - (b.position ?? b.sortOrder ?? 0)));
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b bg-card px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src="/ghc-beacon-logo.jpg" alt="GHC Beacon" className="h-8 w-8 rounded-md object-cover" />
@@ -147,15 +224,12 @@ export default function PublicDashboard() {
         </Badge>
       </header>
 
-      {/* Body */}
       <main className="max-w-screen-2xl mx-auto px-6 py-8 space-y-6">
-        {/* Title */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{dashboard.title}</h1>
           {dashboard.description && <p className="text-muted-foreground mt-1 text-sm">{dashboard.description}</p>}
         </div>
 
-        {/* Narrative */}
         {dashboard.narrativeSummary && (
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-4 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
@@ -164,7 +238,6 @@ export default function PublicDashboard() {
           </Card>
         )}
 
-        {/* Charts grid */}
         {sorted.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">No insights added to this dashboard.</div>
         ) : (
@@ -173,7 +246,7 @@ export default function PublicDashboard() {
               <Card key={item.id} className="overflow-hidden">
                 <CardContent className="p-4">
                   <p className="text-sm font-semibold mb-3 truncate">{item.insight.title}</p>
-                  <ChartView chartType={item.insight.chartType} chartConfig={item.insight.chartConfig} />
+                  <MiniChart chartType={item.insight.chartType} chartConfig={item.insight.chartConfig} />
                   {item.insight.narrativeSummary && (
                     <p className="text-xs text-muted-foreground mt-3 leading-relaxed line-clamp-3">{item.insight.narrativeSummary}</p>
                   )}
@@ -184,7 +257,6 @@ export default function PublicDashboard() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="border-t py-4 text-center text-xs text-muted-foreground">
         Powered by <span className="font-semibold text-foreground">GHC Beacon</span>
       </footer>
