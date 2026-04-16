@@ -1,7 +1,7 @@
 # GHC Beacon
 
 ## Overview
-GHC Beacon is an analytics and performance intelligence platform with two core modules: **Analytics Studio** (upload spreadsheets, ask AI questions, get charts and dashboards) and **Balanced Scorecard** (track strategic KPIs with RAG traffic-light status). Includes admin-controlled user/department access management and public link sharing for dashboards and scorecards.
+GHC Beacon is an analytics and performance intelligence platform with two core modules: **Analytics Studio** (upload spreadsheets, ask AI questions, get charts and dashboards) and **Balanced Scorecard** (track strategic KPIs with RAG traffic-light status). Includes admin-controlled user/department access management and public link sharing for Analytics dashboards.
 
 ## User Preferences
 All write actions by the AI Assistant require a confirmation step. For new projects or tasks, if fields are missing, the AI guides with follow-up questions. All write operations are logged for auditing.
@@ -27,11 +27,9 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - RAG status (Green/Amber/Red) per KPI, health percentages, trend arrows
 - KPI data entry per department/period via Department Detail page
 - DB-synced departments (`bsc_departments`) and actuals (`bsc_actuals`)
-- Public share link: `POST /api/scorecard/share`, `GET /api/scorecard/share`, viewed at `/public/scorecard/:token`
 
 **Public Pages** (no auth required)
 - `/public/dashboard/:token` — read-only dashboard with GHC Beacon header
-- `/public/scorecard/:token` — read-only scorecard with RAG status per KPI
 
 **Admin**
 - `/users` — User Management (admin only)
@@ -42,7 +40,6 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 
 ### Schema Tables (key additions)
 - `analytics_dashboard_definitions`: added `share_token TEXT`, `share_enabled BOOLEAN DEFAULT FALSE`
-- `scorecard_shares`: `id`, `company_id`, `created_by`, `share_token TEXT UNIQUE`, `share_enabled BOOLEAN`, `created_at`
 
 ## External Dependencies
 - **OpenAI**: GPT-4o via Replit AI Integrations (Analytics Studio AI, Beacon Assistant)

@@ -12,7 +12,7 @@ import { promisify } from "util";
 import multer from "multer";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
-import { analyticsDashboardDefinitions, scorecardShares, bscDepartments, bscActuals } from "@shared/schema";
+import { analyticsDashboardDefinitions, bscDepartments, bscActuals } from "@shared/schema";
 
 const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -3755,47 +3755,6 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     }
   });
 
-  // ── Scorecard Share Link ─────────────────────────────────────────────────────
-  app.post("/api/scorecard/share", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const company = await storage.getCompanyByUserId(user.id);
-      if (!company) return res.status(404).json({ message: "Company not found" });
-      const { enabled } = req.body as { enabled: boolean };
-      const [existing] = await db.select().from(scorecardShares).where(eq(scorecardShares.companyId, company.id));
-      if (existing) {
-        const [updated] = await db.update(scorecardShares)
-          .set({ shareEnabled: enabled })
-          .where(eq(scorecardShares.companyId, company.id))
-          .returning();
-        return res.json({ shareToken: updated.shareToken, shareEnabled: updated.shareEnabled });
-      }
-      const token = randomBytes(24).toString("hex");
-      const [created] = await db.insert(scorecardShares).values({
-        companyId: company.id,
-        createdBy: user.id,
-        shareToken: token,
-        shareEnabled: enabled,
-      }).returning();
-      res.json({ shareToken: created.shareToken, shareEnabled: created.shareEnabled });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.get("/api/scorecard/share", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = (req as any).user;
-      const company = await storage.getCompanyByUserId(user.id);
-      if (!company) return res.status(404).json({ message: "Company not found" });
-      const [existing] = await db.select().from(scorecardShares).where(eq(scorecardShares.companyId, company.id));
-      if (!existing) return res.json({ shareToken: null, shareEnabled: false });
-      res.json({ shareToken: existing.shareToken, shareEnabled: existing.shareEnabled });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
   // ── PUBLIC: Dashboard by share token (no auth required) ──────────────────────
   app.get("/api/public/dashboard/:token", async (req: Request, res: Response) => {
     try {
@@ -3805,26 +3764,6 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       if (!def) return res.status(404).json({ message: "Dashboard not found or link is disabled" });
       const items = await storage.getAnalyticsDashboardItems(def.id);
       res.json({ dashboard: def, items });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ── PUBLIC: Scorecard by share token (no auth required) ──────────────────────
-  app.get("/api/public/scorecard/:token", async (req: Request, res: Response) => {
-    try {
-      const { token } = req.params;
-      const [share] = await db.select().from(scorecardShares)
-        .where(and(eq(scorecardShares.shareToken, token), eq(scorecardShares.shareEnabled, true)));
-      if (!share) return res.status(404).json({ message: "Scorecard not found or link is disabled" });
-      const departments = await db.select().from(bscDepartments).where(eq(bscDepartments.companyId, share.companyId));
-      const actualsRaw = await db.select().from(bscActuals).where(eq(bscActuals.companyId, share.companyId));
-      const store: Record<string, Record<string, number>> = {};
-      for (const row of actualsRaw) {
-        if (!store[row.periodKey]) store[row.periodKey] = {};
-        store[row.periodKey][row.kpiId] = row.actualValue;
-      }
-      res.json({ departments, actuals: store });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

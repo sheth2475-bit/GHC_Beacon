@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
@@ -18,7 +17,7 @@ import {
   Activity, Plus, Trash2, Download, Upload, FileSpreadsheet,
   RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
-  Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles, Globe,
+  Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1090,33 +1089,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [sortCol, setSortCol]   = useState<string>("status");
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
   const [dashFilter, setDashFilter] = useState<{ status: "green"|"amber"|"red"|null; perspective: string|null }>({ status: null, perspective: null });
-  const [shareOpen, setShareOpen] = useState(false);
-  const [shareEnabled, setShareEnabled] = useState(false);
-  const [shareToken, setShareToken] = useState<string | null>(null);
   const { toast } = useToast();
   const [, nav] = useLocation();
-
-  const { data: shareData } = useQuery<{ shareToken: string | null; shareEnabled: boolean }>({
-    queryKey: ["/api/scorecard/share"],
-    queryFn: () => fetch("/api/scorecard/share", { credentials: "include" }).then(r => r.json()),
-  });
-  useEffect(() => {
-    if (shareData) {
-      setShareEnabled(shareData.shareEnabled);
-      setShareToken(shareData.shareToken);
-    }
-  }, [shareData]);
-  const shareMutation = useMutation({
-    mutationFn: (enabled: boolean) =>
-      apiRequest("POST", "/api/scorecard/share", { enabled }).then(r => r.json()),
-    onSuccess: (data: { shareToken: string; shareEnabled: boolean }) => {
-      setShareEnabled(data.shareEnabled);
-      setShareToken(data.shareToken);
-      queryClient.invalidateQueries({ queryKey: ["/api/scorecard/share"] });
-      toast({ title: data.shareEnabled ? "Public link enabled!" : "Public link disabled" });
-    },
-    onError: () => toast({ title: "Failed to update share link", variant: "destructive" }),
-  });
   const fileRef = useRef<HTMLInputElement>(null);
   const scorecardRef = useRef<HTMLDivElement>(null);
 
@@ -1468,11 +1442,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
               <Activity className="h-3.5 w-3.5" />Load Sample Data
             </Button>
           )}
-          <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" data-testid="button-share-dept"
-            onClick={() => setShareOpen(true)}>
-            <Globe className="h-3.5 w-3.5" />Share
-            {shareEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />}
-          </Button>
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Performance Score</p>
             <HealthRing pct={hp} size={56} />
@@ -2402,83 +2371,6 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
         </CardContent>
       </Card>
 
-      {/* ── Share scorecard modal (plain overlay, no Radix) ─────────────── */}
-      {shareOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-[500] bg-black/60"
-            onClick={() => setShareOpen(false)}
-            data-testid="share-modal-backdrop"
-          />
-          <div
-            className="fixed left-1/2 top-1/2 z-[501] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-background shadow-2xl p-6"
-            data-testid="share-modal"
-            role="dialog"
-            aria-modal="true"
-          >
-            {/* Header */}
-            <div className="flex items-start justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <Globe className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Share Scorecard</h2>
-              </div>
-              <button
-                onClick={() => setShareOpen(false)}
-                className="rounded-md p-1 hover:bg-muted transition-colors"
-                data-testid="button-close-share-modal"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">
-              Generate a public link that anyone can view — no login required.
-            </p>
-
-            {/* Toggle row */}
-            <div className="flex items-center justify-between rounded-lg border p-4 gap-3 mb-4">
-              <div>
-                <p className="text-sm font-medium">Public link</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {shareEnabled ? "Anyone with the link can view" : "Link is currently disabled"}
-                </p>
-              </div>
-              <button
-                onClick={() => shareMutation.mutate(!shareEnabled)}
-                disabled={shareMutation.isPending}
-                data-testid="toggle-share-scorecard"
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${shareEnabled ? "bg-emerald-500" : "bg-muted border"}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${shareEnabled ? "translate-x-6" : "translate-x-1"}`} />
-              </button>
-            </div>
-
-            {/* Link display */}
-            {shareEnabled && shareToken && (
-              <div className="space-y-2 mb-5">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Share link</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={`${window.location.origin}/public/scorecard/${shareToken}`}
-                    className="flex-1 text-xs px-3 py-2 rounded-md border bg-muted font-mono truncate"
-                    data-testid="input-scorecard-share-link"
-                    onClick={e => (e.target as HTMLInputElement).select()}
-                  />
-                  <Button size="sm" variant="outline" onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/public/scorecard/${shareToken}`);
-                    toast({ title: "Link copied!" });
-                  }} data-testid="button-copy-scorecard-link">Copy</Button>
-                </div>
-              </div>
-            )}
-
-            {/* Footer */}
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setShareOpen(false)}>Close</Button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }

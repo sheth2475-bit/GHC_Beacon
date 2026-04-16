@@ -32,7 +32,6 @@ import GuidePage from "@/pages/guide";
 import DemoPage from "@/pages/demo";
 import ScorecardPage from "@/pages/scorecard";
 import PublicDashboardPage from "@/pages/public-dashboard";
-import PublicScorecardPage from "@/pages/public-scorecard";
 import OwnerLogin from "@/pages/owner-login";
 import OwnerDashboard from "@/pages/owner-dashboard";
 import OwnerCompanies from "@/pages/owner-companies";
@@ -195,7 +194,6 @@ function RootRouter() {
     return (
       <Switch>
         <Route path="/public/dashboard/:token" component={PublicDashboardPage} />
-        <Route path="/public/scorecard/:token" component={PublicScorecardPage} />
       </Switch>
     );
   }
