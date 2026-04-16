@@ -3819,9 +3819,11 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       const dept = deptRow
         ? { id: deptRow.deptId, name: deptRow.name, icon: deptRow.icon, color: deptRow.color }
         : { id: share.deptId, name: share.deptId, icon: "🏢", color: "#3B82F6" };
-      // Fetch all actuals for this dept
+      // Fetch all actuals for the company (dept_id in actuals uses KPI prefix which may differ
+      // from bscDepartments.deptId, e.g. "cr" vs "corp" for Corporate — so we fetch all and
+      // let the frontend filter to only the relevant department's KPI IDs)
       const actuals = await db.select().from(bscActuals)
-        .where(and(eq(bscActuals.companyId, share.companyId), eq(bscActuals.deptId, share.deptId)));
+        .where(eq(bscActuals.companyId, share.companyId));
       // Group as { periodKey: { kpiId: value } }
       const store: Record<string, Record<string, number>> = {};
       for (const a of actuals) {
