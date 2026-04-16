@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { GlobalSearch } from "@/components/global-search";
 import { AssistantDrawer } from "@/components/assistant-drawer";
 import { NotificationBell } from "@/components/notification-bell";
+import { GuidedTour, useTourDone } from "@/components/guided-tour";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { OwnerAuthProvider, useOwnerAuth } from "@/lib/owner-auth";
 import AuthPage from "@/pages/auth";
@@ -74,12 +75,22 @@ function AppLayout() {
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const tourDone = useTourDone();
+  const [tourActive, setTourActive] = useState(false);
 
   useEffect(() => {
     if (user && location === "/login") {
       navigate("/");
     }
   }, [user, location]);
+
+  // Auto-launch tour for first-time users
+  useEffect(() => {
+    if (user && !tourDone && !tourActive) {
+      const timer = setTimeout(() => setTourActive(true), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [user, tourDone]);
 
   if (isLoading) {
     return (
@@ -114,7 +125,7 @@ function AppLayout() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
-        <AppSidebar />
+        <AppSidebar onStartTour={() => setTourActive(true)} />
         <div className="flex flex-col flex-1 min-w-0">
           <header className="flex items-center gap-2 p-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
@@ -140,6 +151,7 @@ function AppLayout() {
         </div>
       </div>
       <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
+      {tourActive && <GuidedTour onClose={() => setTourActive(false)} />}
     </SidebarProvider>
   );
 }

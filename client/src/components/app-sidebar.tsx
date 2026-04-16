@@ -4,7 +4,7 @@ import {
   BarChart3, LogOut, Activity, ChevronDown,
   Clock, Users, Settings, type LucideIcon,
   Home, LayoutDashboard, Lightbulb, Database, Upload,
-  Target, Building2,
+  Target, Building2, MapPin,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarMenu, SidebarMenuButton,
@@ -58,6 +58,7 @@ function ModuleItem({
         <button
           onClick={onToggle}
           data-testid={testId}
+          id={testId}
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 group",
             isActive
@@ -94,6 +95,7 @@ function ModuleItem({
               <Link key={item.href} href={item.href}>
                 <button
                   data-testid={item.testId}
+                  id={item.testId}
                   className={cn(
                     "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all duration-150 group text-left",
                     subItemActive
@@ -113,7 +115,7 @@ function ModuleItem({
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ onStartTour }: { onStartTour?: () => void }) {
   const [location] = useLocation();
   const search = useSearch();
   const { user, logout, isAdmin, isExecutive } = useAuth();
@@ -253,6 +255,16 @@ export function AppSidebar() {
 
       {/* ── User Footer ── */}
       <SidebarFooter className="p-3">
+        {onStartTour && (
+          <button
+            onClick={onStartTour}
+            className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded-lg text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors group"
+            data-testid="button-start-tour"
+          >
+            <MapPin className="h-3 w-3 text-primary/70 group-hover:text-primary transition-colors" />
+            <span>Take the guided tour</span>
+          </button>
+        )}
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mb-3" />
         {user && (
           <div className="flex items-center gap-2.5 px-1">
