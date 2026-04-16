@@ -12,7 +12,7 @@ import { promisify } from "util";
 import multer from "multer";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
-import { analyticsDashboardDefinitions, bscDepartments, bscActuals } from "@shared/schema";
+import { analyticsDashboardDefinitions, bscDepartments, bscActuals, scorecardShares } from "@shared/schema";
 
 const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -3764,6 +3764,71 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       if (!def) return res.status(404).json({ message: "Dashboard not found or link is disabled" });
       const items = await storage.getAnalyticsDashboardItems(def.id);
       res.json({ dashboard: def, items });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── BSC Scorecard share ────────────────────────────────────────────────────
+  app.post("/api/scorecard/share", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { deptId, enabled } = req.body as { deptId: string; enabled: boolean };
+      if (!deptId) return res.status(400).json({ message: "deptId required" });
+      const companyId = user.companyId;
+      const [existing] = await db.select().from(scorecardShares)
+        .where(and(eq(scorecardShares.companyId, companyId), eq(scorecardShares.deptId, deptId)));
+      let token = existing?.shareToken;
+      if (!token) token = randomBytes(24).toString("hex");
+      if (existing) {
+        await db.update(scorecardShares)
+          .set({ shareToken: token, shareEnabled: enabled })
+          .where(eq(scorecardShares.id, existing.id));
+      } else {
+        await db.insert(scorecardShares).values({ companyId, deptId, shareToken: token, shareEnabled: enabled, createdBy: user.id });
+      }
+      res.json({ shareToken: token, shareEnabled: enabled });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/scorecard/share", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { deptId } = req.query as { deptId: string };
+      if (!deptId) return res.status(400).json({ message: "deptId required" });
+      const [row] = await db.select().from(scorecardShares)
+        .where(and(eq(scorecardShares.companyId, user.companyId), eq(scorecardShares.deptId, deptId)));
+      res.json({ shareToken: row?.shareToken ?? null, shareEnabled: row?.shareEnabled ?? false });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── PUBLIC: BSC scorecard by share token (no auth) ────────────────────────
+  app.get("/api/public/scorecard/:token", async (req: Request, res: Response) => {
+    try {
+      const { token } = req.params;
+      const [share] = await db.select().from(scorecardShares)
+        .where(and(eq(scorecardShares.shareToken, token), eq(scorecardShares.shareEnabled, true)));
+      if (!share) return res.status(404).json({ message: "Scorecard not found or link is disabled" });
+      // Fetch dept info
+      const [deptRow] = await db.select().from(bscDepartments)
+        .where(and(eq(bscDepartments.companyId, share.companyId), eq(bscDepartments.deptId, share.deptId)));
+      const dept = deptRow
+        ? { id: deptRow.deptId, name: deptRow.name, icon: deptRow.icon, color: deptRow.color }
+        : { id: share.deptId, name: share.deptId, icon: "🏢", color: "#3B82F6" };
+      // Fetch all actuals for this dept
+      const actuals = await db.select().from(bscActuals)
+        .where(and(eq(bscActuals.companyId, share.companyId), eq(bscActuals.deptId, share.deptId)));
+      // Group as { periodKey: { kpiId: value } }
+      const store: Record<string, Record<string, number>> = {};
+      for (const a of actuals) {
+        if (!store[a.periodKey]) store[a.periodKey] = {};
+        store[a.periodKey][a.kpiId] = a.actualValue;
+      }
+      res.json({ dept, store });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

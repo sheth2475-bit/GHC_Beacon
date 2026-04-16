@@ -742,6 +742,17 @@ export type PresentationVersion = typeof presentationVersions.$inferSelect;
 export type InsertPresentationVersion = z.infer<typeof insertPresentationVersionSchema>;
 
 // ── Balanced Scorecard ────────────────────────────────────────────────────────
+export const scorecardShares = pgTable("scorecard_shares", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  deptId: text("dept_id").notNull(),
+  shareToken: text("share_token").unique().notNull(),
+  shareEnabled: boolean("share_enabled").default(false).notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+export type ScorecardShare = typeof scorecardShares.$inferSelect;
+
 export const bscDepartments = pgTable("bsc_departments", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),
