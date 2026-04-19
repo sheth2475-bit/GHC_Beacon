@@ -593,6 +593,18 @@ function AddDeptDialog({ open, onClose, onAdd }: { open:boolean; onClose:()=>voi
   );
 }
 
+// ── Persistent period helpers ─────────────────────────────────────────────────
+const PERIOD_STORE_KEY = "ghc_beacon_period_v1";
+function readPersistedPeriod() {
+  try {
+    const s = JSON.parse(localStorage.getItem(PERIOD_STORE_KEY) || "{}");
+    const y = Number(s.year), m = Number(s.month);
+    if (y >= 2000 && m >= 0 && m <= 11) return { year: y, month: m };
+  } catch {}
+  const t = new Date();
+  return { year: t.getFullYear(), month: t.getMonth() };
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // LANDING PAGE — Department cards grid
 // ═════════════════════════════════════════════════════════════════════════════
@@ -618,8 +630,8 @@ function ScorecardLanding() {
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const { toast } = useToast();
   const today = new Date();
-  const [year,  setYear]  = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
+  const [year,  setYear]  = useState(() => readPersistedPeriod().year);
+  const [month, setMonth] = useState(() => readPersistedPeriod().month);
   const pk  = periodKey(year, month);
   const ppk = month === 0 ? periodKey(year-1, 11) : periodKey(year, month-1);
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
@@ -636,9 +648,9 @@ function ScorecardLanding() {
       let nm = m + delta, ny = year;
       if (nm < 0)  { nm += 12; ny--; }
       if (nm > 11) { nm -= 12; ny++; }
-      // don't go into the future
       if (ny > today.getFullYear() || (ny === today.getFullYear() && nm > today.getMonth())) return m;
       setYear(ny);
+      try { localStorage.setItem(PERIOD_STORE_KEY, JSON.stringify({ year: ny, month: nm })); } catch {}
       return nm;
     });
   };
@@ -680,12 +692,12 @@ function ScorecardLanding() {
 
   // ── Company-wide health computation ─────────────────────────────────────
   const companyStats = useMemo(() => {
-    const allKpis = departments.flatMap(d => getKpisForDept(d.id));
+    const allKpis = departments.flatMap(d => loadKpiOverride(d.id) ?? getKpisForDept(d.id));
     const allActs: Record<string, number|null> = {};
     allKpis.forEach(k => { const v = store?.[pk]?.[k.id]; allActs[k.id] = v !== undefined ? Number(v) : null; });
     const hp = healthPct(allKpis, allActs);
     const deptHps = departments.map(d => {
-      const dk = getKpisForDept(d.id);
+      const dk = loadKpiOverride(d.id) ?? getKpisForDept(d.id);
       const da: Record<string, number|null> = {};
       dk.forEach(k => { const v = store?.[pk]?.[k.id]; da[k.id] = v !== undefined ? Number(v) : null; });
       return healthPct(dk, da);
@@ -739,7 +751,7 @@ function ScorecardLanding() {
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {departments.map((dept, idx) => {
-          const kpis  = getKpisForDept(dept.id);
+          const kpis  = loadKpiOverride(dept.id) ?? getKpisForDept(dept.id);
           const acts: Record<string, number | null> = {};
           kpis.forEach(k => { const v = store?.[pk]?.[k.id]; acts[k.id] = v !== undefined ? Number(v) : null; });
           const hp       = healthPct(kpis, acts);
@@ -1145,8 +1157,8 @@ function BscWidgetShell({ title, widgetLabel, narrative, className, contentClass
 // ═════════════════════════════════════════════════════════════════════════════
 function DepartmentDetail({ deptId }: { deptId: string }) {
   const today = new Date();
-  const [year, setYear]     = useState(today.getFullYear());
-  const [month, setMonth]   = useState(today.getMonth());
+  const [year, setYear]     = useState(() => readPersistedPeriod().year);
+  const [month, setMonth]   = useState(() => readPersistedPeriod().month);
   const [store, setStore]   = useState(loadStore);
   const [depts]             = useState(loadDepartments);
   const [entryVals, setEntryVals] = useState<Record<string, string>>({});
@@ -1199,7 +1211,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const shareMutation = useMutation({
     mutationFn: (enabled: boolean) =>
-      apiRequest("POST", "/api/scorecard/share", { deptId, enabled }).then(r => r.json()),
+      apiRequest("POST", "/api/scorecard/share", { deptId, enabled, kpiDefinitions: kpis }).then(r => r.json()),
     onSuccess: (data: { shareToken: string; shareEnabled: boolean }) => {
       setShareEnabled(data.shareEnabled);
       setShareToken(data.shareToken);
@@ -1595,7 +1607,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           className="gap-1.5 text-muted-foreground w-fit" data-testid="button-back">
           <ChevronLeft className="h-4 w-4" />All Departments
         </Button>
-        <PeriodSelector year={year} month={month} onChange={(y,m)=>{ setYear(y); setMonth(m); }} />
+        <PeriodSelector year={year} month={month} onChange={(y,m)=>{ setYear(y); setMonth(m); try { localStorage.setItem(PERIOD_STORE_KEY, JSON.stringify({ year: y, month: m })); } catch {} }} />
       </div>
 
       {/* Dept header + health */}

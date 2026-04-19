@@ -750,6 +750,7 @@ export const scorecardShares = pgTable("scorecard_shares", {
   shareEnabled: boolean("share_enabled").default(false).notNull(),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  kpiDefinitions: jsonb("kpi_definitions"),
 });
 export type ScorecardShare = typeof scorecardShares.$inferSelect;
 

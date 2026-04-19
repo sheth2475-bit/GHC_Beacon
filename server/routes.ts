@@ -3773,19 +3773,21 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
   app.post("/api/scorecard/share", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const { deptId, enabled } = req.body as { deptId: string; enabled: boolean };
+      const { deptId, enabled, kpiDefinitions } = req.body as { deptId: string; enabled: boolean; kpiDefinitions?: any[] };
       if (!deptId) return res.status(400).json({ message: "deptId required" });
       const companyId = user.companyId;
       const [existing] = await db.select().from(scorecardShares)
         .where(and(eq(scorecardShares.companyId, companyId), eq(scorecardShares.deptId, deptId)));
       let token = existing?.shareToken;
       if (!token) token = randomBytes(24).toString("hex");
+      const updatePayload: any = { shareToken: token, shareEnabled: enabled };
+      if (kpiDefinitions && kpiDefinitions.length > 0) updatePayload.kpiDefinitions = kpiDefinitions;
       if (existing) {
         await db.update(scorecardShares)
-          .set({ shareToken: token, shareEnabled: enabled })
+          .set(updatePayload)
           .where(eq(scorecardShares.id, existing.id));
       } else {
-        await db.insert(scorecardShares).values({ companyId, deptId, shareToken: token, shareEnabled: enabled, createdBy: user.id });
+        await db.insert(scorecardShares).values({ companyId, deptId, shareToken: token, shareEnabled: enabled, createdBy: user.id, kpiDefinitions: kpiDefinitions ?? null });
       }
       res.json({ shareToken: token, shareEnabled: enabled });
     } catch (err: any) {
@@ -3830,7 +3832,7 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
         if (!store[a.periodKey]) store[a.periodKey] = {};
         store[a.periodKey][a.kpiId] = a.actualValue;
       }
-      res.json({ dept, store });
+      res.json({ dept, store, kpiDefinitions: share.kpiDefinitions ?? null });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

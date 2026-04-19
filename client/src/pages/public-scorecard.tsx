@@ -132,7 +132,7 @@ export default function PublicScorecard() {
   const [, params] = useRoute("/public/scorecard/:token");
   const token = params?.token ?? "";
 
-  const { data, isLoading, error } = useQuery<{ dept: DeptInfo; store: Store }>({
+  const { data, isLoading, error } = useQuery<{ dept: DeptInfo; store: Store; kpiDefinitions: KpiDef[] | null }>({
     queryKey: ["/api/public/scorecard", token],
     queryFn: () => fetch(`/api/public/scorecard/${token}`).then(r => { if (!r.ok) throw new Error("Not found"); return r.json(); }),
     retry: false,
@@ -171,20 +171,20 @@ export default function PublicScorecard() {
     );
   }
 
-  return <ScorecardView dept={data.dept} store={data.store} year={year} month={month}
-    setYear={setYear} setMonth={setMonth}
+  return <ScorecardView dept={data.dept} store={data.store} kpiDefinitions={data.kpiDefinitions ?? null}
+    year={year} month={month} setYear={setYear} setMonth={setMonth}
     dashFilter={dashFilter} setDashFilter={setDashFilter} />;
 }
 
-function ScorecardView({ dept, store, year, month, setYear, setMonth, dashFilter, setDashFilter }: {
-  dept: DeptInfo; store: Store;
+function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setMonth, dashFilter, setDashFilter }: {
+  dept: DeptInfo; store: Store; kpiDefinitions: KpiDef[] | null;
   year: number; month: number;
   setYear: (y: number) => void; setMonth: (m: number) => void;
   dashFilter: { status: "green" | "amber" | "red" | null; perspective: string | null };
   setDashFilter: (f: { status: "green" | "amber" | "red" | null; perspective: string | null }) => void;
 }) {
   const weights: Record<string, number> = {};
-  const kpis = getKpisForDept(dept.id);
+  const kpis = (kpiDefinitions && kpiDefinitions.length > 0) ? kpiDefinitions : getKpisForDept(dept.id);
   const pk = periodKey(year, month);
   const ppk = month === 0 ? periodKey(year - 1, 11) : periodKey(year, month - 1);
 
