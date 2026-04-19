@@ -360,6 +360,27 @@ function periodKey(y: number, m: number) {
   return `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
+// ── Number formatting ─────────────────────────────────────────────────────────
+const CURRENCY_UNITS = new Set(["QAR","USD","EUR","GBP","AED","SAR","OMR","KWD","BHD","JOD","EGP","INR","ZAR","NGN","PKR","LKR","MYR","SGD","HKD","CHF","CAD","AUD","NZD","SEK","NOK","DKK","JPY","CNY","KRW","THB","IDR","PHP","BRL","MXN","RUB","TRY"]);
+// Format a KPI value for display.
+// Currency units → 2 decimal places + thousands separators (e.g. 1,123,256.87)
+// Large non-currency numbers ≥1000 → thousands separators, 0-2dp
+// Small numbers → strip floating-point noise (max 4dp, trailing zeros removed)
+function fmtVal(v: number | null | undefined, unit: string): string {
+  if (v === null || v === undefined || isNaN(Number(v))) return "—";
+  const n = Number(v);
+  const u = (unit || "").trim().toUpperCase();
+  const isCurrency = CURRENCY_UNITS.has(u);
+  if (isCurrency || Math.abs(n) >= 1000) {
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: isCurrency ? 2 : 0,
+      maximumFractionDigits: 2,
+    }).format(n);
+  }
+  // Strip floating-point noise (e.g. 1.8699999 → 1.87), remove trailing zeros
+  return String(+n.toFixed(4));
+}
+
 // ── KPI logic ────────────────────────────────────────────────────────────────
 function getStatus(k: KpiDef, actual: number | null): "green" | "amber" | "red" | "nodata" {
   if (actual === null || actual === undefined || isNaN(Number(actual))) return "nodata";
@@ -494,10 +515,10 @@ function KpiCard({ kpi, actual, prevActual, onClick }: { kpi:KpiDef; actual:numb
         <div className="flex items-end justify-between">
           <div>
             <p className="text-2xl font-bold tabular-nums">
-              {actual !== null ? actual : <span className="text-muted-foreground text-base font-normal">—</span>}
+              {actual !== null ? fmtVal(actual, kpi.unit) : <span className="text-muted-foreground text-base font-normal">—</span>}
               <span className="text-xs text-muted-foreground ml-1 font-normal">{kpi.unit}</span>
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">Target: {kpi.target} {kpi.unit}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Target: {fmtVal(kpi.target, kpi.unit)} {kpi.unit}</p>
           </div>
           <TrendArrow trend={trend} lowerIsBetter={kpi.lowerIsBetter} />
         </div>
@@ -876,7 +897,7 @@ function KpiSparkline({ kpi, store, year, month }: { kpi: KpiDef; store: Record<
           strokeDasharray="3 2" dot={false} />
         <Tooltip
           contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"6px", fontSize:10, padding:"2px 6px" }}
-          formatter={(v:any, name:string) => [v !== null ? `${v} ${kpi.unit}` : "—", name === "actual" ? "Actual" : "Target"]}
+          formatter={(v:any, name:string) => [v !== null ? `${fmtVal(v, kpi.unit)} ${kpi.unit}` : "—", name === "actual" ? "Actual" : "Target"]}
           labelStyle={{ fontSize:10, color:"hsl(var(--muted-foreground))" }}
         />
       </LineChart>
@@ -913,10 +934,10 @@ function KpiEnrichedCard({ kpi, actual, prevActual, store, year, month, onClick 
         <div className="flex items-end justify-between">
           <div>
             <p className="text-2xl font-bold tabular-nums">
-              {actual !== null ? actual : <span className="text-muted-foreground text-base font-normal">—</span>}
+              {actual !== null ? fmtVal(actual, kpi.unit) : <span className="text-muted-foreground text-base font-normal">—</span>}
               <span className="text-xs text-muted-foreground ml-1 font-normal">{kpi.unit}</span>
             </p>
-            <p className="text-xs text-muted-foreground">Target: {kpi.target} {kpi.unit}</p>
+            <p className="text-xs text-muted-foreground">Target: {fmtVal(kpi.target, kpi.unit)} {kpi.unit}</p>
           </div>
           <TrendArrow trend={trend} lowerIsBetter={kpi.lowerIsBetter} />
         </div>
@@ -1976,9 +1997,9 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                             {PERSP_INITIALS[k.perspective]}
                           </span>
                         </td>
-                        <td className="px-2 py-2.5 text-right text-muted-foreground tabular-nums">{k.target}{k.unit}</td>
+                        <td className="px-2 py-2.5 text-right text-muted-foreground tabular-nums">{fmtVal(k.target, k.unit)}{k.unit}</td>
                         <td className="px-2 py-2.5 text-right font-semibold tabular-nums">
-                          {actual !== null ? `${actual}${k.unit}` : "—"}
+                          {actual !== null ? `${fmtVal(actual, k.unit)}${k.unit}` : "—"}
                         </td>
                         <td className="px-2 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
                           {ach !== null ? `${ach.toFixed(1)}%` : "—"}
@@ -2133,10 +2154,10 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
-                            {k.target}<span className="text-xs ml-0.5">{k.unit}</span>
+                            {fmtVal(k.target, k.unit)}<span className="text-xs ml-0.5">{k.unit}</span>
                           </td>
                           <td className="px-4 py-3 text-right font-bold tabular-nums">
-                            {actual !== null ? <>{actual}<span className="text-xs text-muted-foreground ml-1 font-normal">{k.unit}</span></> : <span className="text-muted-foreground font-normal">—</span>}
+                            {actual !== null ? <>{fmtVal(actual, k.unit)}<span className="text-xs text-muted-foreground ml-1 font-normal">{k.unit}</span></> : <span className="text-muted-foreground font-normal">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right font-bold tabular-nums" style={{ color: achColor }}>
                             {ach !== null ? `${ach.toFixed(1)}%` : <span className="text-muted-foreground font-normal">—</span>}
@@ -2397,7 +2418,7 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                 </Badge>
               </div>
               <h1 className="text-2xl font-bold leading-tight">{kpi.name}</h1>
-              <p className="text-sm text-muted-foreground mt-1">Target: <strong>{kpi.target} {kpi.unit}</strong></p>
+              <p className="text-sm text-muted-foreground mt-1">Target: <strong>{fmtVal(kpi.target, kpi.unit)} {kpi.unit}</strong></p>
             </div>
 
             {/* Right: current value + delta */}
@@ -2407,7 +2428,7 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                 <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">Current</p>
                 <p className="text-5xl font-bold tabular-nums leading-none"
                   style={{ color: st === "green" ? "#10b981" : st === "amber" ? "#f59e0b" : st === "red" ? "#ef4444" : "hsl(var(--foreground))" }}>
-                  {latestVal !== null ? latestVal : "—"}
+                  {latestVal !== null ? fmtVal(latestVal, kpi.unit) : "—"}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">{kpi.unit}</p>
               </div>
@@ -2416,7 +2437,7 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                 <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">vs Target</p>
                 <p className="text-3xl font-bold tabular-nums leading-none"
                   style={{ color: goodVar !== null ? (goodVar >= 0 ? "#10b981" : "#ef4444") : "hsl(var(--muted-foreground))" }}>
-                  {goodVar !== null ? (variance! > 0 ? "+" : "") + variance!.toFixed(1) : "—"}
+                  {goodVar !== null ? (variance! > 0 ? "+" : "") + fmtVal(variance!, kpi.unit) : "—"}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">{kpi.unit}</p>
               </div>
@@ -2426,7 +2447,7 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                 <p className="text-3xl font-bold tabular-nums leading-none flex items-center justify-center gap-1"
                   style={{ color: goodDelta !== null ? (goodDelta > 0 ? "#10b981" : goodDelta < 0 ? "#ef4444" : "#94a3b8") : "hsl(var(--muted-foreground))" }}>
                   {goodDelta !== null
-                    ? <>{goodDelta > 0 ? <ArrowUpRight className="h-6 w-6" /> : goodDelta < 0 ? <ArrowDownRight className="h-6 w-6" /> : <Minus className="h-5 w-5" />}{Math.abs(monthDelta!).toFixed(1)}</>
+                    ? <>{goodDelta > 0 ? <ArrowUpRight className="h-6 w-6" /> : goodDelta < 0 ? <ArrowDownRight className="h-6 w-6" /> : <Minus className="h-5 w-5" />}{fmtVal(Math.abs(monthDelta!), kpi.unit)}</>
                     : "—"}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">{kpi.unit}</p>
@@ -2458,7 +2479,7 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-lg font-bold tabular-nums">{value !== null ? value : "—"} <span className="text-xs font-normal text-muted-foreground">{typeof value === "number" ? kpi.unit : ""}</span></p>
+                  <p className="text-lg font-bold tabular-nums">{typeof value === "number" ? fmtVal(value, kpi.unit) : (value ?? "—")} <span className="text-xs font-normal text-muted-foreground">{typeof value === "number" ? kpi.unit : ""}</span></p>
                 </div>
               </CardContent>
             </Card>
@@ -2494,11 +2515,11 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
               <YAxis tick={{ fill:"hsl(var(--muted-foreground))", fontSize:11 }} axisLine={false} tickLine={false} width={45} />
               <Tooltip
                 contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"10px", fontSize:12, padding:"10px 14px" }}
-                formatter={(v:any, name:string) => [v !== null ? `${v} ${kpi.unit}` : "No data", name]}
+                formatter={(v:any, name:string) => [v !== null ? `${fmtVal(v, kpi.unit)} ${kpi.unit}` : "No data", name]}
                 labelFormatter={l => `${l}`}
               />
               <ReferenceLine y={kpi.target} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 3" strokeWidth={1.5}
-                label={{ value:`Target: ${kpi.target}`, position:"insideTopRight", fontSize:10, fill:"hsl(var(--muted-foreground))" }} />
+                label={{ value:`Target: ${fmtVal(kpi.target, kpi.unit)} ${kpi.unit}`, position:"insideTopRight", fontSize:10, fill:"hsl(var(--muted-foreground))" }} />
               <Area type="monotone" dataKey="actual" stroke={pc.accent} strokeWidth={2.5}
                 fill={`url(#kpi-grad-${kpiId})`} connectNulls name="Actual"
                 dot={<RagDot />} activeDot={{ r:6, stroke:"white", strokeWidth:2 }}>
@@ -2549,14 +2570,14 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                       <td className="px-4 py-3 font-medium">{h.period}</td>
                       <td className="px-4 py-3 text-right font-bold tabular-nums">
                         {h.actual !== null
-                          ? <>{h.actual}<span className="text-xs text-muted-foreground ml-1 font-normal">{kpi.unit}</span></>
+                          ? <>{fmtVal(h.actual, kpi.unit)}<span className="text-xs text-muted-foreground ml-1 font-normal">{kpi.unit}</span></>
                           : <span className="text-muted-foreground font-normal">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">{kpi.target} {kpi.unit}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">{fmtVal(kpi.target, kpi.unit)} {kpi.unit}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold">
                         {goodVar2 !== null
                           ? <span style={{ color: goodVar2 >= 0 ? "#10b981" : "#ef4444" }}>
-                              {variance2! > 0 ? "+" : ""}{variance2!.toFixed(1)} {kpi.unit}
+                              {variance2! > 0 ? "+" : ""}{fmtVal(variance2!, kpi.unit)} {kpi.unit}
                             </span>
                           : <span className="text-muted-foreground font-normal">—</span>}
                       </td>
