@@ -238,6 +238,17 @@ function saveKpiOverride(deptId: string, kpis: KpiDef[]) {
     localStorage.setItem(KPI_OVERRIDE_KEY, JSON.stringify(all));
   } catch {}
 }
+// Returns ALL KPI definitions: predefined + any user-uploaded overrides across all departments.
+// Override KPIs win over predefined ones when IDs collide (user may have updated targets etc).
+function loadAllEffectiveKpis(): KpiDef[] {
+  const map = new Map<string, KpiDef>();
+  Object.values(DEPT_KPIS).flat().forEach(k => map.set(k.id, k));
+  try {
+    const all = JSON.parse(localStorage.getItem(KPI_OVERRIDE_KEY) || "{}");
+    Object.values(all).flat().forEach((k: any) => map.set(k.id, k));
+  } catch {}
+  return [...map.values()];
+}
 
 // Parse a perspective value from an uploaded file into the canonical Perspective type
 function parsePerspective(val: string): Perspective | null {
@@ -1268,6 +1279,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const filteredKpis = useMemo(() => {
     return sortedKpis.filter(k => {
       const actual = getActual(k.id);
+      // Always hide KPIs that have no actual data for the current period
+      if (actual === null) return false;
       const st = getStatus(k, actual);
       if (dashFilter.status && st !== dashFilter.status) return false;
       if (dashFilter.perspective && k.perspective !== dashFilter.perspective) return false;
@@ -1294,16 +1307,23 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     return { p, score, prevScore, trend, label, color };
   }), [kpis, store, pk, ppk, weights]);
 
-  // Score trend (last 7 months)
+  // Score trend (last 7 months — only months with at least one actual value are included)
   const scoreTrend = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
+    const points = Array.from({ length: 7 }, (_, i) => {
       let m = month - 6 + i; let y = year;
       while (m < 0) { m += 12; y--; }
       const p = periodKey(y, m);
       const acts: Record<string,number|null> = {};
-      kpis.forEach(k => { const v = store?.[p]?.[k.id]; acts[k.id] = v !== undefined ? Number(v) : null; });
+      let hasAny = false;
+      kpis.forEach(k => {
+        const v = store?.[p]?.[k.id];
+        acts[k.id] = v !== undefined ? Number(v) : null;
+        if (v !== undefined) hasAny = true;
+      });
+      if (!hasAny) return null;
       return { label: `${MONTHS[m]} ${String(y).slice(2)}`, score: performanceScore(kpis, acts, weights) };
     });
+    return points.filter((p): p is { label: string; score: number } => p !== null);
   }, [kpis, store, year, month, weights]);
 
   // Achievement % per KPI
@@ -2310,7 +2330,8 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
     syncActualsFromDb().then(merged => { if (merged) setStore(merged); });
   }, []);
 
-  const allKpis = Object.values(DEPT_KPIS).flat();
+  // Search predefined KPIs AND any user-uploaded overrides (custom KPIs live here)
+  const allKpis = loadAllEffectiveKpis();
   const kpi = allKpis.find(k => k.id === kpiId);
 
   // All hooks must be called before any early return
