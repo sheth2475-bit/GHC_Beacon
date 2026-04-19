@@ -616,10 +616,10 @@ const PERSP_COLORS: Record<Perspective, string>  = { Financial:"#3B82F6", Custom
 const PERSP_ICONS: Record<Perspective, string>   = { Financial:"💲", Customer:"🎯", Internal:"⚙️", Learning:"💡" };
 
 function healthColor(hp: number) {
-  return hp >= 70 ? "#10b981" : hp >= 40 ? "#f59e0b" : "#ef4444";
+  return hp >= 95 ? "#10b981" : hp >= 85 ? "#3b82f6" : hp >= 70 ? "#f59e0b" : "#ef4444";
 }
 function healthStatus(hp: number): "green"|"amber"|"red" {
-  return hp >= 70 ? "green" : hp >= 40 ? "amber" : "red";
+  return hp >= 85 ? "green" : hp >= 70 ? "amber" : "red";
 }
 
 function ScorecardLanding() {
@@ -692,21 +692,20 @@ function ScorecardLanding() {
 
   // ── Company-wide health computation ─────────────────────────────────────
   const companyStats = useMemo(() => {
-    const allKpis = departments.flatMap(d => loadKpiOverride(d.id) ?? getKpisForDept(d.id));
-    const allActs: Record<string, number|null> = {};
-    allKpis.forEach(k => { const v = store?.[pk]?.[k.id]; allActs[k.id] = v !== undefined ? Number(v) : null; });
-    const hp = healthPct(allKpis, allActs);
     const deptHps = departments.map(d => {
       const dk = loadKpiOverride(d.id) ?? getKpisForDept(d.id);
+      const dw = loadWeights(d.id);
       const da: Record<string, number|null> = {};
       dk.forEach(k => { const v = store?.[pk]?.[k.id]; da[k.id] = v !== undefined ? Number(v) : null; });
-      return healthPct(dk, da);
+      return performanceScore(dk, da, dw);
     });
+    const withData = deptHps.filter(h => h > 0);
+    const hp = withData.length ? Math.round(withData.reduce((s,h) => s+h, 0) / withData.length) : 0;
     return {
       hp,
-      green: deptHps.filter(h => h >= 70).length,
-      amber: deptHps.filter(h => h >= 40 && h < 70).length,
-      red:   deptHps.filter(h => h < 40).length,
+      green: deptHps.filter(h => h >= 85).length,
+      amber: deptHps.filter(h => h >= 70 && h < 85).length,
+      red:   deptHps.filter(h => h < 70).length,
       total: departments.length,
     };
   }, [departments, store, pk]);
@@ -720,7 +719,7 @@ function ScorecardLanding() {
           <h1 className="text-2xl font-bold tracking-tight">Balanced Scorecard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {companyStats.total} departments ·{" "}
-            <span style={{ color: healthColor(companyStats.hp) }} className="font-medium">{companyStats.hp}% healthy</span>
+            <span style={{ color: healthColor(companyStats.hp) }} className="font-medium">{companyStats.hp}% avg performance score</span>
             {" "}— based on KPIs with data entered for this period
           </p>
         </div>
@@ -752,16 +751,17 @@ function ScorecardLanding() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {departments.map((dept, idx) => {
           const kpis  = loadKpiOverride(dept.id) ?? getKpisForDept(dept.id);
+          const deptWeights = loadWeights(dept.id);
           const acts: Record<string, number | null> = {};
           kpis.forEach(k => { const v = store?.[pk]?.[k.id]; acts[k.id] = v !== undefined ? Number(v) : null; });
-          const hp       = healthPct(kpis, acts);
+          const hp       = performanceScore(kpis, acts, deptWeights);
           const hc       = healthColor(hp);
           const hs       = healthStatus(hp);
 
-          // prev-month health for trend
+          // prev-month score for trend
           const prevActs: Record<string, number | null> = {};
           kpis.forEach(k => { const v = store?.[ppk]?.[k.id]; prevActs[k.id] = v !== undefined ? Number(v) : null; });
-          const prevHp = healthPct(kpis, prevActs);
+          const prevHp = performanceScore(kpis, prevActs, deptWeights);
           const hpDelta = hp - prevHp;
 
           // per-perspective dots
@@ -769,13 +769,13 @@ function ScorecardLanding() {
             const pk2 = kpis.filter(k => k.perspective === p);
             const pa: Record<string,number|null> = {};
             pk2.forEach(k => { pa[k.id] = acts[k.id]; });
-            const php = healthPct(pk2, pa);
+            const php = performanceScore(pk2, pa, deptWeights);
             return { p, color: healthColor(php), initial: PERSP_INITIALS[p] };
           });
 
           const isDragging = dragIndex === idx;
           const isOver     = overIndex === idx && dragIndex !== idx;
-          const borderColor = hs === "green" ? "#10b981" : hs === "amber" ? "#f59e0b" : "#ef4444";
+          const borderColor = hc;
 
           return (
             <Card key={dept.id}
