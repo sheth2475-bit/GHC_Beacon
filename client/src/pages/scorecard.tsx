@@ -221,6 +221,32 @@ function saveStore(d: Record<string, Record<string, number>>) {
   fetch("/api/scorecard/actuals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ store: d }) }).catch(() => {});
 }
 
+const CUSTOM_KPIS_KEY = "ghc_beacon_custom_kpis_v1";
+
+function loadCustomKpis(deptId: string): KpiDef[] {
+  try {
+    const all = JSON.parse(localStorage.getItem(CUSTOM_KPIS_KEY) || "{}");
+    return all[deptId] || [];
+  } catch { return []; }
+}
+function saveCustomKpis(deptId: string, kpis: KpiDef[]) {
+  try {
+    const all = JSON.parse(localStorage.getItem(CUSTOM_KPIS_KEY) || "{}");
+    all[deptId] = kpis;
+    localStorage.setItem(CUSTOM_KPIS_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+// Parse a perspective value from an uploaded file into the canonical Perspective type
+function parsePerspective(val: string): Perspective | null {
+  const v = val.toLowerCase().replace(/[^a-z]/g, "");
+  if (v.startsWith("fin")) return "Financial";
+  if (v.startsWith("cust") || v.startsWith("stake")) return "Customer";
+  if (v.startsWith("int") || v.startsWith("proc")) return "Internal";
+  if (v.startsWith("learn") || v.startsWith("grow") || v.startsWith("innov")) return "Learning";
+  return null;
+}
+
 function loadDepartments(): BscDepartment[] {
   try { const d = localStorage.getItem(DEPT_KEY); return d ? JSON.parse(d) : DEFAULT_DEPARTMENTS; }
   catch { return DEFAULT_DEPARTMENTS; }
@@ -1105,8 +1131,19 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const scorecardRef = useRef<HTMLDivElement>(null);
 
+  const [customKpis, setCustomKpis] = useState<KpiDef[]>(() => loadCustomKpis(deptId));
+
+  // Reload custom KPIs if the user navigates to a different department
+  useEffect(() => { setCustomKpis(loadCustomKpis(deptId)); }, [deptId]);
+
   const dept = depts.find(d => d.id === deptId) || { id: deptId, name: deptId, icon: "🏢", color: "#3B82F6" };
-  const kpis = getKpisForDept(deptId);
+  // Merge predefined KPIs with any custom ones added via file upload
+  const kpis = useMemo(() => {
+    const predefined = getKpisForDept(deptId);
+    const predefinedIds = new Set(predefined.map(k => k.id));
+    const extra = customKpis.filter(k => !predefinedIds.has(k.id));
+    return [...predefined, ...extra];
+  }, [deptId, customKpis]);
   const pk   = periodKey(year, month);
   const ppk  = month === 0 ? periodKey(year-1, 11) : periodKey(year, month-1);
 
@@ -1391,16 +1428,39 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       const updatedWeights: Record<string, number> = { ...loadWeights(deptId) };
       let totalUpdates = 0;
 
-      // Normalise a string: lowercase, strip spaces and punctuation for fuzzy matching
+      // Normalise a string: lowercase, strip alphanumeric only — used for fuzzy KPI name matching
       const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      // Build a mutable working copy of the KPI list for this upload (may grow with custom defs)
+      const workingKpis: KpiDef[] = [...kpis];
+      const newCustomKpis: KpiDef[] = [];
 
       for (const row of rows) {
         const kpiName = String(row["KPI Name"] || row["KPI"] || "").trim();
         if (!kpiName) continue;
-        // Try exact match first, then normalised match
-        const kpi = kpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase())
-                 ?? kpis.find(k => norm(k.name) === norm(kpiName));
-        if (!kpi) continue;
+
+        // Try exact then normalised match against existing KPIs
+        let kpi = workingKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase())
+               ?? workingKpis.find(k => norm(k.name) === norm(kpiName));
+
+        // If still not found — auto-create a KpiDef from the row data
+        if (!kpi) {
+          const perspRaw = String(row["Perspective"] || "").trim();
+          const perspective = parsePerspective(perspRaw) ?? "Financial";
+          const target = parseFloat(String(row["Target"] ?? "0")) || 0;
+          const unit = String(row["Unit"] ?? "").trim() || "";
+          const lowerRaw = String(row["Lower is Better"] ?? row["Lower Is Better"] ?? "").trim().toLowerCase();
+          const lowerIsBetter = lowerRaw === "yes" || lowerRaw === "true" || lowerRaw === "1";
+          const kpiId = `${deptId}_cx_${norm(kpiName).slice(0, 24)}`;
+
+          // Check if we already created this custom KPI in this upload pass
+          kpi = workingKpis.find(k => k.id === kpiId);
+          if (!kpi) {
+            kpi = { id: kpiId, name: kpiName, perspective, unit, target, lowerIsBetter };
+            workingKpis.push(kpi);
+            newCustomKpis.push(kpi);
+          }
+        }
 
         // Parse KPI weight if provided
         const weightVal = row["Weight %"] ?? row["Weight"] ?? row["KPI Weight %"] ?? row["KPI Weight"];
@@ -1415,9 +1475,18 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           if (strVal === "" || isNaN(Number(strVal))) return;
           const p = periodKey(colYear, mi);
           if (!updatedStore[p]) updatedStore[p] = {};
-          updatedStore[p][kpi.id] = Number(strVal);
+          updatedStore[p][kpi!.id] = Number(strVal);
           totalUpdates++;
         });
+      }
+
+      // Persist any newly discovered custom KPI definitions
+      if (newCustomKpis.length > 0) {
+        const existing = loadCustomKpis(deptId);
+        const existingIds = new Set(existing.map(k => k.id));
+        const merged = [...existing, ...newCustomKpis.filter(k => !existingIds.has(k.id))];
+        saveCustomKpis(deptId, merged);
+        setCustomKpis(merged);
       }
 
       // Save weights if any were found in the upload
@@ -1427,14 +1496,11 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       }
 
       if (!totalUpdates) {
-        // Gather KPI names that were in the file but didn't match — helps user diagnose
-        const fileKpiNames = rows.map(r => String(r["KPI Name"] || r["KPI"] || "").trim()).filter(Boolean);
-        const unmatched = fileKpiNames.filter(n => !kpis.find(k =>
-          k.name.toLowerCase() === n.toLowerCase() || norm(k.name) === norm(n)));
-        const hint = unmatched.length
-          ? `Unrecognised KPI names: ${unmatched.slice(0,3).join(", ")}${unmatched.length > 3 ? "…" : ""}. Please use the Download Template button to get the correct format.`
-          : "Fill in the monthly actual columns (e.g. 'Apr 2026') in the downloaded template, then upload again.";
-        toast({ title:"No data found", description: hint, variant:"destructive" });
+        toast({
+          title: "No data found",
+          description: "Fill in the monthly actual columns (e.g. 'Apr 2026') in the downloaded template, then upload again.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -1446,7 +1512,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       kpis.forEach(k => { const v = updatedStore[pk]?.[k.id]; if (v !== undefined) pre[k.id] = String(v); });
       setEntryVals(pre);
 
-      toast({ title:"Upload successful", description:`${totalUpdates} data points updated for ${dept.name}. Dashboard refreshed.` });
+      const kpiMsg = newCustomKpis.length > 0 ? ` ${newCustomKpis.length} new KPI${newCustomKpis.length > 1 ? "s" : ""} added.` : "";
+      toast({ title:"Upload successful", description:`${totalUpdates} data points updated for ${dept.name}.${kpiMsg} Dashboard refreshed.` });
       setActiveTab("dashboard");
     } catch (err:any) {
       toast({ title:"Upload failed", description:err.message, variant:"destructive" });
