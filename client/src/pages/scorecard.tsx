@@ -475,7 +475,14 @@ function AddDeptDialog({ open, onClose, onAdd }: { open:boolean; onClose:()=>voi
 
   const handleAdd = () => {
     if (!name.trim()) return;
-    const id = name.toLowerCase().replace(/[^a-z0-9]/g,"_") + "_" + Date.now();
+    // Try to match against known departments first (by name) so KPIs resolve correctly
+    const nameSlug = name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    const knownDept = DEFAULT_DEPARTMENTS.find(d =>
+      d.name.toLowerCase().replace(/[^a-z0-9]/g, "") === nameSlug
+    );
+    // Also match against DEPT_KPIS keys directly
+    const knownKey = knownDept?.id ?? Object.keys(DEPT_KPIS).find(k => k === nameSlug);
+    const id = knownKey ?? (name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_") + "_" + Date.now());
     onAdd({ id, name:name.trim(), icon, color });
     setName(""); setIcon("🏢"); setColor(DEPT_COLORS[0]);
     onClose();
@@ -1384,10 +1391,15 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       const updatedWeights: Record<string, number> = { ...loadWeights(deptId) };
       let totalUpdates = 0;
 
+      // Normalise a string: lowercase, strip spaces and punctuation for fuzzy matching
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
       for (const row of rows) {
         const kpiName = String(row["KPI Name"] || row["KPI"] || "").trim();
         if (!kpiName) continue;
-        const kpi = kpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+        // Try exact match first, then normalised match
+        const kpi = kpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase())
+                 ?? kpis.find(k => norm(k.name) === norm(kpiName));
         if (!kpi) continue;
 
         // Parse KPI weight if provided
@@ -1415,7 +1427,14 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       }
 
       if (!totalUpdates) {
-        toast({ title:"No data found", description:"Fill in the monthly actual columns in the template, then upload again.", variant:"destructive" });
+        // Gather KPI names that were in the file but didn't match — helps user diagnose
+        const fileKpiNames = rows.map(r => String(r["KPI Name"] || r["KPI"] || "").trim()).filter(Boolean);
+        const unmatched = fileKpiNames.filter(n => !kpis.find(k =>
+          k.name.toLowerCase() === n.toLowerCase() || norm(k.name) === norm(n)));
+        const hint = unmatched.length
+          ? `Unrecognised KPI names: ${unmatched.slice(0,3).join(", ")}${unmatched.length > 3 ? "…" : ""}. Please use the Download Template button to get the correct format.`
+          : "Fill in the monthly actual columns (e.g. 'Apr 2026') in the downloaded template, then upload again.";
+        toast({ title:"No data found", description: hint, variant:"destructive" });
         return;
       }
 
