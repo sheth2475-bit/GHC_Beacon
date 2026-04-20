@@ -184,7 +184,12 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
   setDashFilter: (f: { status: "green" | "amber" | "red" | null; perspective: string | null }) => void;
 }) {
   const weights: Record<string, number> = {};
-  const kpis = (kpiDefinitions && kpiDefinitions.length > 0) ? kpiDefinitions : getKpisForDept(dept.id);
+  // Use stored kpiDefinitions only if they actually have matching data in the store.
+  // If the definitions are stale (e.g. KPIs were replaced since sharing), fall back to built-in.
+  const candidateKpis = (kpiDefinitions && kpiDefinitions.length > 0) ? kpiDefinitions : getKpisForDept(dept.id);
+  const allStoreIds = new Set(Object.values(store ?? {}).flatMap(v => Object.keys(v)));
+  const hasMatch = candidateKpis.some(k => allStoreIds.has(k.id));
+  const kpis = hasMatch ? candidateKpis : getKpisForDept(dept.id);
   const pk = periodKey(year, month);
   const ppk = month === 0 ? periodKey(year - 1, 11) : periodKey(year, month - 1);
 

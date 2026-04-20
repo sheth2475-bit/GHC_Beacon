@@ -1211,7 +1211,12 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const shareMutation = useMutation({
     mutationFn: (enabled: boolean) =>
-      apiRequest("POST", "/api/scorecard/share", { deptId, enabled, kpiDefinitions: kpis }).then(r => r.json()),
+      apiRequest("POST", "/api/scorecard/share", {
+        deptId, enabled,
+        // Only persist custom KPI definitions (from Excel upload).
+        // Built-in KPIs are always available via getKpisForDept on the public page.
+        kpiDefinitions: (kpiOverride && kpiOverride.length > 0) ? kpiOverride : null,
+      }).then(r => r.json()),
     onSuccess: (data: { shareToken: string; shareEnabled: boolean }) => {
       setShareEnabled(data.shareEnabled);
       setShareToken(data.shareToken);

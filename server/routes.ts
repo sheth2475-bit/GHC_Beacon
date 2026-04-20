@@ -3826,8 +3826,8 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
         .where(and(eq(scorecardShares.companyId, companyId), eq(scorecardShares.deptId, deptId)));
       let token = existing?.shareToken;
       if (!token) token = randomBytes(24).toString("hex");
-      const updatePayload: any = { shareToken: token, shareEnabled: enabled };
-      if (kpiDefinitions && kpiDefinitions.length > 0) updatePayload.kpiDefinitions = kpiDefinitions;
+      // Always write kpiDefinitions (even null) so stale custom definitions get cleared
+      const updatePayload: any = { shareToken: token, shareEnabled: enabled, kpiDefinitions: (kpiDefinitions && kpiDefinitions.length > 0) ? kpiDefinitions : null };
       if (existing) {
         await db.update(scorecardShares)
           .set(updatePayload)
