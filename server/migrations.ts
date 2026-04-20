@@ -228,6 +228,24 @@ export async function runMigrations() {
     await client.query(`CREATE INDEX IF NOT EXISTS presentations_created_by_idx ON presentations(created_by)`);
     console.log("[migrations] presentation_studio tables ready");
 
+    // ── BSC legacy department cleanup ────────────────────────────────────────
+    // Remove stale demo departments (ops/fin/hr/it) that existed in old versions.
+    // For companies that have ANY legacy dept, wipe their entire BSC data so the
+    // auto-seed can repopulate with the canonical [corp, eng] setup + actuals.
+    const legacyCheck = await client.query(`
+      SELECT DISTINCT company_id FROM bsc_departments
+      WHERE dept_id IN ('ops', 'fin', 'hr', 'it')
+    `);
+    if (legacyCheck.rows.length > 0) {
+      const legacyCompanyIds = legacyCheck.rows.map((r: any) => r.company_id);
+      for (const cid of legacyCompanyIds) {
+        await client.query(`DELETE FROM bsc_actuals WHERE company_id = $1`, [cid]);
+        await client.query(`DELETE FROM bsc_departments WHERE company_id = $1`, [cid]);
+        await client.query(`DELETE FROM scorecard_shares WHERE company_id = $1`, [cid]);
+        console.log(`[migrations] Cleared legacy BSC data for company ${cid} — auto-seed will repopulate`);
+      }
+    }
+
   } catch (err) {
     console.error("[migrations] Error running migrations:", err);
   } finally {
