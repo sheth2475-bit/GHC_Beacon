@@ -11,11 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2, Copy, KeyRound, ArrowRight } from "lucide-react";
+import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2, Copy, KeyRound, ArrowRight, Target, LayoutDashboard, Globe } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import type { TeamMember, Department, UserDepartmentAccess } from "@shared/schema";
+import type { TeamMember, Department, UserDepartmentAccess, BscDepartment, AnalyticsDashboardDefinition } from "@shared/schema";
 
 interface CompanyUser {
   id: number;
@@ -306,6 +307,282 @@ function DeptAccessContent({ user, departments, onDone }: { user: CompanyUser; d
   );
 }
 
+// ── BSC Scorecard Department Access ──────────────────────────────────────────
+interface BscDeptAccessEntry { id: number; userId: number; deptId: string; accessLevel: string; }
+
+function BscDeptAccessContent({ user }: { user: CompanyUser }) {
+  const { toast } = useToast();
+  const [newDeptId, setNewDeptId] = useState("");
+  const [newLevel, setNewLevel] = useState("view");
+
+  const { data: bscDepts = [] } = useQuery<BscDepartment[]>({
+    queryKey: ["/api/scorecard/departments"],
+    queryFn: () => apiRequest("GET", "/api/scorecard/departments").then(r => r.json()),
+  });
+
+  const { data: access = [], isLoading } = useQuery<BscDeptAccessEntry[]>({
+    queryKey: ["/api/users", user.id, "bsc-dept-access"],
+    queryFn: () => apiRequest("GET", `/api/users/${user.id}/bsc-dept-access`).then(r => r.json()),
+  });
+
+  const addMut = useMutation({
+    mutationFn: ({ deptId, accessLevel }: { deptId: string; accessLevel: string }) =>
+      apiRequest("POST", `/api/users/${user.id}/bsc-dept-access`, { deptId, accessLevel }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "bsc-dept-access"] });
+      setNewDeptId(""); setNewLevel("view");
+      toast({ title: "Scorecard access added" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (deptId: string) => apiRequest("DELETE", `/api/users/${user.id}/bsc-dept-access/${deptId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "bsc-dept-access"] });
+      toast({ title: "Scorecard access removed" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const clearAllMut = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/users/${user.id}/bsc-dept-access`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "bsc-dept-access"] });
+      toast({ title: "Access set to All Scorecard Departments" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  if (user.role === "admin") {
+    return (
+      <div className="py-6 flex flex-col items-center gap-3 text-center">
+        <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+          <Shield className="h-6 w-6 text-blue-600" />
+        </div>
+        <div>
+          <p className="font-medium">Admin — Full Scorecard Access</p>
+          <p className="text-sm text-muted-foreground">Admins can see all departments in the Balanced Scorecard.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const assignedDeptIds = new Set(access.map(a => a.deptId));
+  const availableDepts = bscDepts.filter(d => !assignedDeptIds.has(d.deptId));
+  const isAllDepts = !isLoading && access.length === 0;
+
+  return (
+    <div className="space-y-4 py-2">
+      <p className="text-xs text-muted-foreground">
+        Control which Balanced Scorecard departments this user can see. No restrictions = sees all departments.
+      </p>
+
+      <div className={`rounded-xl border-2 p-3 transition-colors ${isAllDepts ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20" : "border-muted bg-muted/30"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${isAllDepts ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-muted"}`}>
+              {isAllDepts ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Lock className="h-4 w-4 text-muted-foreground" />}
+            </div>
+            <div>
+              <p className={`text-sm font-semibold ${isAllDepts ? "text-emerald-700 dark:text-emerald-400" : ""}`}>All Departments</p>
+              <p className="text-xs text-muted-foreground">{isAllDepts ? "No restrictions — sees entire scorecard" : "Restricted to specific departments below"}</p>
+            </div>
+          </div>
+          {!isAllDepts && !isLoading && (
+            <Button size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 text-xs h-7"
+              onClick={() => clearAllMut.mutate()} disabled={clearAllMut.isPending}>
+              {clearAllMut.isPending ? "…" : "Grant All"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {isLoading && <div className="h-12 bg-muted rounded animate-pulse" />}
+
+      {!isLoading && access.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Restricted To</p>
+          {access.map(entry => {
+            const dept = bscDepts.find(d => d.deptId === entry.deptId);
+            return (
+              <div key={entry.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50 border">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm">{dept?.icon || "🏢"}</span>
+                  <span className="text-sm font-medium truncate">{dept?.name || entry.deptId}</span>
+                  {accessLevelBadge(entry.accessLevel)}
+                </div>
+                <button onClick={() => removeMut.mutate(entry.deptId)} disabled={removeMut.isPending}
+                  className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {availableDepts.length > 0 && (
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            {isAllDepts ? "Restrict to a Department" : "Add Department"}
+          </p>
+          <div className="flex gap-2">
+            <Select value={newDeptId} onValueChange={setNewDeptId}>
+              <SelectTrigger className="flex-1 h-8 text-sm"><SelectValue placeholder="Select department" /></SelectTrigger>
+              <SelectContent>
+                {availableDepts.map(d => <SelectItem key={d.deptId} value={d.deptId}>{d.icon} {d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={newLevel} onValueChange={setNewLevel}>
+              <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ACCESS_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full" size="sm" disabled={!newDeptId || addMut.isPending}
+            onClick={() => addMut.mutate({ deptId: newDeptId, accessLevel: newLevel })}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {addMut.isPending ? "Adding…" : "Add Department"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Analytics Dashboard Access ────────────────────────────────────────────────
+interface DashboardAccessEntry {
+  id: number; userId: number; dashboardId: number;
+  accessLevel: string; dashboardTitle: string | null; visibility: string | null;
+}
+
+function DashboardAccessContent({ user }: { user: CompanyUser }) {
+  const { toast } = useToast();
+  const [newDashboardId, setNewDashboardId] = useState("");
+  const [newLevel, setNewLevel] = useState("view");
+
+  const { data: allDashboards = [] } = useQuery<AnalyticsDashboardDefinition[]>({
+    queryKey: ["/api/dashboard-access/available"],
+    queryFn: () => apiRequest("GET", "/api/dashboard-access/available").then(r => r.json()),
+  });
+
+  const { data: access = [], isLoading } = useQuery<DashboardAccessEntry[]>({
+    queryKey: ["/api/users", user.id, "dashboard-access"],
+    queryFn: () => apiRequest("GET", `/api/users/${user.id}/dashboard-access`).then(r => r.json()),
+  });
+
+  const addMut = useMutation({
+    mutationFn: ({ dashboardId, accessLevel }: { dashboardId: number; accessLevel: string }) =>
+      apiRequest("POST", `/api/users/${user.id}/dashboard-access`, { dashboardId, accessLevel }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "dashboard-access"] });
+      setNewDashboardId(""); setNewLevel("view");
+      toast({ title: "Dashboard access granted" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (dashboardId: number) => apiRequest("DELETE", `/api/users/${user.id}/dashboard-access/${dashboardId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "dashboard-access"] });
+      toast({ title: "Dashboard access removed" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  if (user.role === "admin") {
+    return (
+      <div className="py-6 flex flex-col items-center gap-3 text-center">
+        <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+          <Shield className="h-6 w-6 text-blue-600" />
+        </div>
+        <div>
+          <p className="font-medium">Admin — Full Dashboard Access</p>
+          <p className="text-sm text-muted-foreground">Admins can see all Analytics dashboards.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const assignedIds = new Set(access.map(a => a.dashboardId));
+  const privateDashboards = allDashboards.filter(d => d.visibility === "private" && !assignedIds.has(d.id));
+
+  return (
+    <div className="space-y-4 py-2">
+      <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-800 dark:text-blue-300">
+        <p><strong>Company dashboards</strong> are visible to all users automatically.</p>
+        <p className="mt-1">Grant access below to give this user visibility of <strong>private</strong> dashboards.</p>
+      </div>
+
+      {isLoading && <div className="h-12 bg-muted rounded animate-pulse" />}
+
+      {!isLoading && access.length === 0 && (
+        <div className="text-center py-4 text-sm text-muted-foreground">
+          No private dashboard access yet. Grant access below.
+        </div>
+      )}
+
+      {!isLoading && access.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Has Access To</p>
+          {access.map(entry => (
+            <div key={entry.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50 border">
+              <div className="flex items-center gap-2 min-w-0">
+                <LayoutDashboard className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium truncate">{entry.dashboardTitle || `Dashboard #${entry.dashboardId}`}</span>
+                {accessLevelBadge(entry.accessLevel)}
+                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Private</span>
+              </div>
+              <button onClick={() => removeMut.mutate(entry.dashboardId)} disabled={removeMut.isPending}
+                className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {privateDashboards.length > 0 && (
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Grant Private Dashboard Access</p>
+          <div className="flex gap-2">
+            <Select value={newDashboardId} onValueChange={setNewDashboardId}>
+              <SelectTrigger className="flex-1 h-8 text-sm"><SelectValue placeholder="Select dashboard" /></SelectTrigger>
+              <SelectContent>
+                {privateDashboards.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={newLevel} onValueChange={setNewLevel}>
+              <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ACCESS_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full" size="sm" disabled={!newDashboardId || addMut.isPending}
+            onClick={() => addMut.mutate({ dashboardId: parseInt(newDashboardId), accessLevel: newLevel })}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {addMut.isPending ? "Granting…" : "Grant Access"}
+          </Button>
+        </div>
+      )}
+
+      {privateDashboards.length === 0 && access.length > 0 && (
+        <p className="text-xs text-muted-foreground text-center pt-1">All private dashboards have been assigned.</p>
+      )}
+
+      {allDashboards.filter(d => d.visibility === "private").length === 0 && (
+        <div className="text-center py-4 text-sm text-muted-foreground">
+          No private dashboards exist. Dashboards set to "Company" visibility are accessible to everyone.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: CompanyUser; departments: Department[]; isSelf: boolean; triggerLabel?: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -356,139 +633,126 @@ function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: C
         {triggerLabel ? (
           <Button size="sm" variant="outline" className="gap-1.5"
             data-testid={`button-dept-access-${user.id}`}>
-            <Building2 className="h-3.5 w-3.5" />
+            <Shield className="h-3.5 w-3.5" />
             {triggerLabel}
           </Button>
         ) : (
           <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-primary"
-            data-testid={`button-dept-access-${user.id}`} title="Manage Department Access">
-            <Building2 className="h-3.5 w-3.5" />
+            data-testid={`button-dept-access-${user.id}`} title="Manage Access Control">
+            <Shield className="h-3.5 w-3.5" />
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Department Access — {user.name}</DialogTitle>
+          <DialogTitle>Access Control — {user.name}</DialogTitle>
         </DialogHeader>
 
-        {user.role === "admin" ? (
-          <div className="py-4 flex flex-col items-center gap-3 text-center">
-            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Shield className="h-6 w-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="font-medium">Admin — Full Access</p>
-              <p className="text-sm text-muted-foreground">Admins have unrestricted access to all departments and data.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4 py-2">
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="w-full grid grid-cols-3 mb-2">
+            <TabsTrigger value="general" className="text-xs gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />Departments
+            </TabsTrigger>
+            <TabsTrigger value="scorecard" className="text-xs gap-1.5">
+              <Target className="h-3.5 w-3.5" />Scorecard
+            </TabsTrigger>
+            <TabsTrigger value="dashboards" className="text-xs gap-1.5">
+              <LayoutDashboard className="h-3.5 w-3.5" />Dashboards
+            </TabsTrigger>
+          </TabsList>
 
-            {/* All Departments toggle */}
-            <div className={`rounded-xl border-2 p-4 transition-colors ${isAllDepts ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20" : "border-muted bg-muted/30"}`}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-full ${isAllDepts ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-muted"}`}>
-                    {isAllDepts
-                      ? <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                      : <Lock className="h-5 w-5 text-muted-foreground" />}
-                  </div>
-                  <div>
-                    <p className={`text-sm font-semibold ${isAllDepts ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}>
-                      All Departments
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {isAllDepts ? "Sees all departments — no restrictions" : "Currently restricted to specific departments"}
-                    </p>
+          {/* ── General Department Access ── */}
+          <TabsContent value="general" className="max-h-[420px] overflow-y-auto">
+            {user.role === "admin" ? (
+              <div className="py-4 flex flex-col items-center gap-3 text-center">
+                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Shield className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-medium">Admin — Full Access</p>
+                  <p className="text-sm text-muted-foreground">Admins have unrestricted access to all departments and data.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 py-2">
+                <p className="text-xs text-muted-foreground">Controls which execution modules (KPIs, projects, actions) this user can access.</p>
+                <div className={`rounded-xl border-2 p-3 transition-colors ${isAllDepts ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/20" : "border-muted bg-muted/30"}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full ${isAllDepts ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-muted"}`}>
+                        {isAllDepts ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Lock className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-semibold ${isAllDepts ? "text-emerald-700 dark:text-emerald-400" : ""}`}>All Departments</p>
+                        <p className="text-xs text-muted-foreground">{isAllDepts ? "No restrictions" : "Restricted to specific departments"}</p>
+                      </div>
+                    </div>
+                    {!isAllDepts && !isLoading && (
+                      <Button size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 text-xs h-7"
+                        onClick={() => clearAllMut.mutate()} disabled={clearAllMut.isPending} data-testid="button-grant-all-access">
+                        {clearAllMut.isPending ? "…" : "Grant All"}
+                      </Button>
+                    )}
                   </div>
                 </div>
-                {!isAllDepts && !isLoading && (
-                  <Button size="sm" variant="outline" className="shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400"
-                    onClick={() => clearAllMut.mutate()}
-                    disabled={clearAllMut.isPending}
-                    data-testid="button-grant-all-access"
-                  >
-                    {clearAllMut.isPending ? "Updating..." : "Grant All"}
-                  </Button>
+                {isLoading && <div className="h-12 bg-muted rounded animate-pulse" />}
+                {!isLoading && access.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Restricted To</p>
+                    {access.map(entry => (
+                      <div key={entry.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50 border" data-testid={`row-dept-access-${entry.id}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium truncate">{entry.departmentName}</span>
+                          {accessLevelBadge(entry.accessLevel)}
+                        </div>
+                        <button onClick={() => removeMut.mutate(entry.departmentId)} disabled={removeMut.isPending}
+                          className="text-muted-foreground hover:text-red-500 transition-colors shrink-0" data-testid={`button-remove-dept-access-${entry.id}`}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {availableDepts.length > 0 && (
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {isAllDepts ? "Restrict to a Specific Department" : "Add Another Department"}
+                    </p>
+                    <div className="flex gap-2">
+                      <Select value={newDeptId} onValueChange={setNewDeptId}>
+                        <SelectTrigger className="flex-1 h-8" data-testid="select-new-dept"><SelectValue placeholder="Select department" /></SelectTrigger>
+                        <SelectContent>{availableDepts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Select value={newLevel} onValueChange={setNewLevel}>
+                        <SelectTrigger className="w-28 h-8" data-testid="select-access-level"><SelectValue /></SelectTrigger>
+                        <SelectContent>{ACCESS_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <Button className="w-full" size="sm" disabled={!newDeptId || addMut.isPending}
+                      onClick={() => addMut.mutate({ departmentId: parseInt(newDeptId), accessLevel: newLevel })} data-testid="button-add-dept-access">
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      {addMut.isPending ? "Adding..." : "Add Department"}
+                    </Button>
+                  </div>
+                )}
+                {availableDepts.length === 0 && access.length > 0 && (
+                  <p className="text-xs text-muted-foreground text-center pt-1">All departments assigned.</p>
                 )}
               </div>
-            </div>
-
-            {isLoading && <div className="h-16 bg-muted rounded animate-pulse" />}
-
-            {/* Department restrictions list */}
-            {!isLoading && access.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Restricted To</p>
-                {access.map(entry => (
-                  <div key={entry.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/50 border"
-                    data-testid={`row-dept-access-${entry.id}`}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-sm font-medium truncate">{entry.departmentName}</span>
-                      {accessLevelBadge(entry.accessLevel)}
-                    </div>
-                    <button
-                      onClick={() => removeMut.mutate(entry.departmentId)}
-                      disabled={removeMut.isPending}
-                      className="text-muted-foreground hover:text-red-500 transition-colors shrink-0"
-                      data-testid={`button-remove-dept-access-${entry.id}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
             )}
+          </TabsContent>
 
-            {/* Add specific department */}
-            {availableDepts.length > 0 && (
-              <div className="space-y-2 border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {isAllDepts ? "Restrict to a Specific Department" : "Add Another Department"}
-                </p>
-                <div className="flex gap-2">
-                  <Select value={newDeptId} onValueChange={setNewDeptId}>
-                    <SelectTrigger className="flex-1" data-testid="select-new-dept">
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableDepts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Select value={newLevel} onValueChange={setNewLevel}>
-                    <SelectTrigger className="w-36" data-testid="select-access-level">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ACCESS_LEVELS.map(l => (
-                        <SelectItem key={l.value} value={l.value}>
-                          <div>
-                            <div className="font-medium">{l.label}</div>
-                            <div className="text-xs text-muted-foreground">{l.description}</div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  className="w-full" size="sm"
-                  disabled={!newDeptId || addMut.isPending}
-                  onClick={() => addMut.mutate({ departmentId: parseInt(newDeptId), accessLevel: newLevel })}
-                  data-testid="button-add-dept-access"
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  {addMut.isPending ? "Adding..." : "Add Department"}
-                </Button>
-              </div>
-            )}
+          {/* ── BSC Scorecard Access ── */}
+          <TabsContent value="scorecard" className="max-h-[420px] overflow-y-auto">
+            <BscDeptAccessContent user={user} />
+          </TabsContent>
 
-            {availableDepts.length === 0 && access.length > 0 && (
-              <p className="text-xs text-muted-foreground text-center pt-1">All departments assigned. Click "Grant All" above to remove restrictions.</p>
-            )}
-          </div>
-        )}
+          {/* ── Analytics Dashboard Access ── */}
+          <TabsContent value="dashboards" className="max-h-[420px] overflow-y-auto">
+            <DashboardAccessContent user={user} />
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Done</Button>
@@ -680,8 +944,8 @@ export default function UserManagementPage() {
                 <div className="flex-1 min-w-0">Name &amp; Email</div>
                 <div className="hidden sm:block w-36 shrink-0">Title / Dept</div>
                 <div className="w-[140px] shrink-0">Login Role</div>
-                <div className="w-28 shrink-0">Dept Access</div>
-                <div className="w-24 shrink-0 text-right">Actions</div>
+                <div className="w-32 shrink-0">Access Control</div>
+                <div className="w-20 shrink-0 text-right">Actions</div>
               </div>
               {mergedPeople.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">No people yet. Add team members or login users above.</div>
@@ -728,14 +992,14 @@ export default function UserManagementPage() {
                         <span className="text-xs text-muted-foreground italic">No login access</span>
                       )}
                     </div>
-                    <div className="w-28 shrink-0">
+                    <div className="w-32 shrink-0">
                       {user ? (
-                        <DeptAccessDialog user={user} departments={departments} isSelf={isSelf} triggerLabel="Dept Access" />
+                        <DeptAccessDialog user={user} departments={departments} isSelf={isSelf} triggerLabel="Manage Access" />
                       ) : member ? (
                         <SetupMemberAccessDialog member={member} departments={departments} />
                       ) : null}
                     </div>
-                    <div className="w-24 shrink-0 flex items-center justify-end gap-1">
+                    <div className="w-20 shrink-0 flex items-center justify-end gap-1">
                       {member && (
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditMember(member)} data-testid={`button-edit-member-${member.id}`}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -761,10 +1025,17 @@ export default function UserManagementPage() {
           </Card>
         )}
 
-        <div className="flex gap-4 text-xs text-muted-foreground bg-muted/30 rounded-lg px-4 py-3 border border-dashed">
-          <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-blue-600" /><span><strong>Admin</strong> — full access, all departments</span></div>
-          <div className="flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5 text-green-600" /><span><strong>Team Member</strong> — edit &amp; view, dept restrictions apply</span></div>
-          <div className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5 text-amber-600" /><span><strong>Executive</strong> — view only, dept restrictions apply</span></div>
+        <div className="space-y-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-4 py-3 border border-dashed">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-blue-600" /><span><strong>Admin</strong> — full access, all modules</span></div>
+            <div className="flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5 text-green-600" /><span><strong>Team Member</strong> — edit &amp; view, restrictions apply</span></div>
+            <div className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5 text-amber-600" /><span><strong>Executive</strong> — view only, restrictions apply</span></div>
+          </div>
+          <div className="flex flex-wrap gap-4 pt-1 border-t border-border/50">
+            <div className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5 text-muted-foreground" /><span><strong>Departments</strong> — restricts KPIs, projects &amp; actions</span></div>
+            <div className="flex items-center gap-1.5"><Target className="h-3.5 w-3.5 text-muted-foreground" /><span><strong>Scorecard</strong> — restricts Balanced Scorecard departments</span></div>
+            <div className="flex items-center gap-1.5"><LayoutDashboard className="h-3.5 w-3.5 text-muted-foreground" /><span><strong>Dashboards</strong> — grants access to private Analytics dashboards</span></div>
+          </div>
         </div>
       </div>
 

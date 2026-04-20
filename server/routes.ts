@@ -11,8 +11,8 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
-import { analyticsDashboardDefinitions, bscDepartments, bscActuals, scorecardShares } from "@shared/schema";
+import { eq, and, inArray, or } from "drizzle-orm";
+import { analyticsDashboardDefinitions, bscDepartments, bscActuals, scorecardShares, bscDeptAccess, analyticsUserDashboardAccess } from "@shared/schema";
 
 const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -151,6 +151,19 @@ async function getDeptAccessLevel(req: Request, departmentId: number | null | un
   const entry = access.find(a => a.departmentId === departmentId);
   if (!entry) return null;
   return entry.accessLevel as "view" | "edit" | "full";
+}
+
+/** Returns the BSC dept IDs accessible by this user.
+ *  null  = all depts (admin or no restrictions assigned)
+ *  string[] = only these dept IDs visible */
+async function getBscAccessibleDeptIds(req: Request, companyId: number): Promise<string[] | null> {
+  const user = (req as any).user;
+  if (!user) return [];
+  if (user.role === "admin") return null;
+  const rows = await db.select().from(bscDeptAccess)
+    .where(and(eq(bscDeptAccess.userId, user.id), eq(bscDeptAccess.companyId, companyId)));
+  if (rows.length === 0) return null;
+  return rows.map(r => r.deptId);
 }
 
 export async function registerRoutes(
@@ -837,6 +850,115 @@ export async function registerRoutes(
     if (!entry) return res.status(404).json({ message: "Access entry not found" });
     await storage.removeDeptAccess(entry.id);
     res.json({ ok: true });
+  });
+
+  // ── BSC Scorecard Department Access ──────────────────────────────────────
+  // GET  /api/users/:id/bsc-dept-access — list BSC dept access for a user
+  app.get("/api/users/:id/bsc-dept-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    const rows = await db.select().from(bscDeptAccess)
+      .where(and(eq(bscDeptAccess.userId, id), eq(bscDeptAccess.companyId, company.id)));
+    res.json(rows);
+  });
+
+  // POST /api/users/:id/bsc-dept-access — add a BSC dept access entry
+  app.post("/api/users/:id/bsc-dept-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    const { deptId, accessLevel } = req.body as { deptId: string; accessLevel: string };
+    if (!deptId) return res.status(400).json({ message: "deptId required" });
+    // Upsert — remove existing entry for this deptId then insert
+    await db.delete(bscDeptAccess)
+      .where(and(eq(bscDeptAccess.userId, id), eq(bscDeptAccess.companyId, company.id), eq(bscDeptAccess.deptId, deptId)));
+    const [entry] = await db.insert(bscDeptAccess)
+      .values({ userId: id, companyId: company.id, deptId, accessLevel: accessLevel || "view" })
+      .returning();
+    res.json(entry);
+  });
+
+  // DELETE /api/users/:id/bsc-dept-access — clear all BSC dept restrictions (grant all)
+  app.delete("/api/users/:id/bsc-dept-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    await db.delete(bscDeptAccess)
+      .where(and(eq(bscDeptAccess.userId, id), eq(bscDeptAccess.companyId, company.id)));
+    res.json({ ok: true });
+  });
+
+  // DELETE /api/users/:id/bsc-dept-access/:deptId — remove specific BSC dept access
+  app.delete("/api/users/:id/bsc-dept-access/:deptId", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { deptId } = req.params;
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    await db.delete(bscDeptAccess)
+      .where(and(eq(bscDeptAccess.userId, id), eq(bscDeptAccess.companyId, company.id), eq(bscDeptAccess.deptId, deptId)));
+    res.json({ ok: true });
+  });
+
+  // ── Analytics Dashboard User Access ──────────────────────────────────────
+  // GET  /api/users/:id/dashboard-access — list dashboard access for a user
+  app.get("/api/users/:id/dashboard-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    const rows = await db.select({
+      id: analyticsUserDashboardAccess.id,
+      userId: analyticsUserDashboardAccess.userId,
+      dashboardId: analyticsUserDashboardAccess.dashboardId,
+      accessLevel: analyticsUserDashboardAccess.accessLevel,
+      dashboardTitle: analyticsDashboardDefinitions.title,
+      visibility: analyticsDashboardDefinitions.visibility,
+    }).from(analyticsUserDashboardAccess)
+      .leftJoin(analyticsDashboardDefinitions, eq(analyticsUserDashboardAccess.dashboardId, analyticsDashboardDefinitions.id))
+      .where(and(eq(analyticsUserDashboardAccess.userId, id), eq(analyticsUserDashboardAccess.companyId, company.id)));
+    res.json(rows);
+  });
+
+  // POST /api/users/:id/dashboard-access — grant access to a dashboard
+  app.post("/api/users/:id/dashboard-access", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const target = await storage.getUser(id);
+    if (!target || target.companyId !== company.id) return res.status(404).json({ message: "User not found" });
+    const { dashboardId, accessLevel } = req.body as { dashboardId: number; accessLevel: string };
+    if (!dashboardId) return res.status(400).json({ message: "dashboardId required" });
+    await db.delete(analyticsUserDashboardAccess)
+      .where(and(eq(analyticsUserDashboardAccess.userId, id), eq(analyticsUserDashboardAccess.dashboardId, dashboardId)));
+    const [entry] = await db.insert(analyticsUserDashboardAccess)
+      .values({ userId: id, companyId: company.id, dashboardId, accessLevel: accessLevel || "view" })
+      .returning();
+    res.json(entry);
+  });
+
+  // DELETE /api/users/:id/dashboard-access/:dashboardId — revoke dashboard access
+  app.delete("/api/users/:id/dashboard-access/:dashboardId", requireAdmin, async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const dashboardId = parseInt(req.params.dashboardId);
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    await db.delete(analyticsUserDashboardAccess)
+      .where(and(eq(analyticsUserDashboardAccess.userId, id), eq(analyticsUserDashboardAccess.dashboardId, dashboardId)));
+    res.json({ ok: true });
+  });
+
+  // GET /api/dashboard-access/available — list all company dashboards for access assignment
+  app.get("/api/dashboard-access/available", requireAdmin, async (req: Request, res: Response) => {
+    const company = await getCompanyForUser(req);
+    if (!company) return res.status(404).json({ message: "Not found" });
+    const defs = await storage.getAnalyticsDashboardDefinitions(company.id);
+    res.json(defs);
   });
 
   // ─── Team Members ──────────────────────────────────────────────────────────
@@ -2564,7 +2686,21 @@ Return a JSON object with key "insights" containing an array:
       const company = await getCompanyForUser(req);
       if (!company) return res.status(400).json({ message: "No company" });
       const defs = await storage.getAnalyticsDashboardDefinitions(company.id);
-      res.json(defs);
+
+      // Admins see all dashboards
+      if (user.role === "admin") return res.json(defs);
+
+      // Non-admins: see company-wide OR own OR explicitly granted private dashboards
+      const userAccess = await db.select().from(analyticsUserDashboardAccess)
+        .where(and(eq(analyticsUserDashboardAccess.userId, user.id), eq(analyticsUserDashboardAccess.companyId, company.id)));
+      const grantedIds = new Set(userAccess.map(a => a.dashboardId));
+
+      const visible = defs.filter(d =>
+        d.visibility === "company" ||                          // company-wide
+        d.createdBy === user.id ||                            // own dashboards
+        (d.visibility === "private" && grantedIds.has(d.id)) // explicitly shared private
+      );
+      res.json(visible);
     });
 
     app.post("/api/v2/analytics/definitions", requireAuth, async (req: Request, res: Response) => {
@@ -2576,8 +2712,17 @@ Return a JSON object with key "insights" containing an array:
     });
 
     app.get("/api/v2/analytics/definitions/:id", requireAuth, async (req: Request, res: Response) => {
+      const user = req.user as Express.User;
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(400).json({ message: "No company" });
       const def = await storage.getAnalyticsDashboardDefinition(Number(req.params.id));
-      if (!def) return res.status(404).json({ message: "Not found" });
+      if (!def || def.companyId !== company.id) return res.status(404).json({ message: "Not found" });
+      // Enforce visibility for non-admins
+      if (user.role !== "admin" && def.visibility === "private" && def.createdBy !== user.id) {
+        const [access] = await db.select().from(analyticsUserDashboardAccess)
+          .where(and(eq(analyticsUserDashboardAccess.userId, user.id), eq(analyticsUserDashboardAccess.dashboardId, def.id)));
+        if (!access) return res.status(403).json({ message: "Access denied" });
+      }
       const items = await storage.getAnalyticsDashboardItems(def.id);
       res.json({ ...def, items });
     });
@@ -3739,6 +3884,11 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
         await storage.saveBscDepartments(company.id, DEMO_BSC_DEPARTMENTS);
         depts = await storage.getBscDepartments(company.id);
       }
+      // Filter by BSC dept access for non-admin users
+      const accessibleIds = await getBscAccessibleDeptIds(req, company.id);
+      if (accessibleIds !== null) {
+        depts = depts.filter(d => accessibleIds.includes(d.deptId));
+      }
       res.json(depts);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -3761,6 +3911,17 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       if (Object.keys(store).length === 0) {
         await storage.saveBscActualsBatch(company.id, DEMO_BSC_ACTUALS);
         store = DEMO_BSC_ACTUALS;
+      }
+      // Filter store by BSC dept access for non-admin users
+      // Period keys are formatted as "deptId_YYYY-MM" e.g. "corp_2026-04"
+      const accessibleIds = await getBscAccessibleDeptIds(req, company.id);
+      if (accessibleIds !== null) {
+        const filtered: typeof store = {};
+        for (const [key, vals] of Object.entries(store)) {
+          const deptId = key.split("_")[0];
+          if (accessibleIds.includes(deptId)) filtered[key] = vals;
+        }
+        return res.json(filtered);
       }
       res.json(store);
     } catch (err: any) { res.status(500).json({ message: err.message }); }

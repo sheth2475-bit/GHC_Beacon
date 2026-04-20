@@ -1167,7 +1167,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [year, setYear]     = useState(() => readPersistedPeriod().year);
   const [month, setMonth]   = useState(() => readPersistedPeriod().month);
   const [store, setStore]   = useState(loadStore);
-  const [depts]             = useState(loadDepartments);
+  const [depts, setDepts]   = useState(loadDepartments);
+  const [deptsSynced, setDeptsSynced] = useState(false);
   const [entryVals, setEntryVals] = useState<Record<string, string>>({});
   const [saved, setSaved]   = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
@@ -1192,7 +1193,10 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   // Reload when navigating between departments
   useEffect(() => { setKpiOverride(loadKpiOverride(deptId)); }, [deptId]);
 
-  const dept = depts.find(d => d.id === deptId) || { id: deptId, name: deptId, icon: "🏢", color: "#3B82F6" };
+  const deptFound = depts.find(d => d.id === deptId);
+  const dept = deptFound || { id: deptId, name: deptId, icon: "🏢", color: "#3B82F6" };
+
+  const accessDenied = deptsSynced && !deptFound;
   // If the user has uploaded a custom Excel, that is the authoritative KPI list.
   // Otherwise fall back to the built-in predefined KPIs for this department.
   const kpis = useMemo<KpiDef[]>(() => {
@@ -1234,12 +1238,18 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     onError: () => toast({ title: "Failed to update share link", variant: "destructive" }),
   });
 
-  // ── Sync actuals from DB on mount (DB is source of truth) ───────────────
+  // ── Sync departments + actuals from DB on mount ───────────────────────────
+  useEffect(() => {
+    syncDepartmentsFromDb().then(synced => {
+      if (synced) setDepts(synced);
+      setDeptsSynced(true);
+    }).catch(() => setDeptsSynced(true));
+  }, []);
+
   useEffect(() => {
     syncActualsFromDb().then(merged => {
       if (merged) {
         setStore(merged);
-        // Stamp the seed version so isSeedStale() returns false (prevents redundant client seeding)
         localStorage.setItem(CORP_SEED_VER, "ok");
       } else if (deptId === "corp" && isSeedStale()) {
         // DB returned empty — bootstrap with client seed as fallback, then persist to DB
@@ -1642,6 +1652,26 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   };
 
   const perspectives: Perspective[] = ["Financial", "Customer", "Internal", "Learning"];
+
+  if (accessDenied) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center px-6">
+        <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
+          <Lock className="h-9 w-9 text-red-500" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold">Access Restricted</h2>
+          <p className="text-muted-foreground max-w-sm">
+            You don't have permission to view this Balanced Scorecard department.
+            Contact your administrator to request access.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => nav("/scorecard")}>
+          ← Back to Scorecard
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">

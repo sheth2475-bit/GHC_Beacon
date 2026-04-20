@@ -776,3 +776,30 @@ export const bscActuals = pgTable("bsc_actuals", {
 export type BscDepartment = typeof bscDepartments.$inferSelect;
 export type BscActual = typeof bscActuals.$inferSelect;
 
+// ── BSC Department Access Control ─────────────────────────────────────────────
+// Maps a user to specific BSC department IDs (e.g., "corp", "eng").
+// If a user has NO entries, they can see ALL BSC departments.
+// If a user has entries, they can ONLY see those BSC departments.
+export const bscDeptAccess = pgTable("bsc_dept_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  deptId: text("dept_id").notNull(),
+  accessLevel: text("access_level").notNull().default("view"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+export type BscDeptAccess = typeof bscDeptAccess.$inferSelect;
+
+// ── Analytics Dashboard User Access ──────────────────────────────────────────
+// Maps a user to specific private dashboards (visibility="private").
+// Company-wide dashboards (visibility="company") need no entry — all see them.
+export const analyticsUserDashboardAccess = pgTable("analytics_user_dashboard_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  dashboardId: integer("dashboard_id").notNull().references(() => analyticsDashboardDefinitions.id),
+  accessLevel: text("access_level").notNull().default("view"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+export type AnalyticsUserDashboardAccess = typeof analyticsUserDashboardAccess.$inferSelect;
+
