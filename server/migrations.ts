@@ -246,6 +246,19 @@ export async function runMigrations() {
       }
     }
 
+    // ── Orphan user cleanup ───────────────────────────────────────────────────
+    // Delete users with no company_id that are not part of the demo accounts.
+    // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai
+    const demoEmails = ['demo@performo.ai', 'exec@performo.ai', 'member@performo.ai'];
+    const placeholders = demoEmails.map((_, i) => `$${i + 1}`).join(', ');
+    const orphanResult = await client.query(
+      `DELETE FROM users WHERE company_id IS NULL AND email NOT IN (${placeholders}) RETURNING email`,
+      demoEmails
+    );
+    if (orphanResult.rows.length > 0) {
+      console.log(`[migrations] Deleted ${orphanResult.rows.length} orphan user(s): ${orphanResult.rows.map((r: any) => r.email).join(', ')}`);
+    }
+
   } catch (err) {
     console.error("[migrations] Error running migrations:", err);
   } finally {
