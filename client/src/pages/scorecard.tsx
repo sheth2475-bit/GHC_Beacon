@@ -279,19 +279,12 @@ async function syncActualsFromDb() {
     if (!res.ok) return;
     const dbStore = await res.json() as Record<string, Record<string, number>>;
     if (Object.keys(dbStore).length === 0) return;
-    // Merge DB data into localStorage; but keep local Corp KPI values if seed is current
-    const corpKpiIds = new Set((DEPT_KPIS.corp || []).map(k => k.id));
-    const seedCurrent = !isSeedStale();
+    // DB is the single source of truth — always overwrite local data with DB values.
+    // This keeps the in-app view identical to the public share link view.
     const local = loadStore();
     const merged = { ...local };
     for (const [pk, vals] of Object.entries(dbStore)) {
-      const filtered: Record<string, number> = {};
-      for (const [kid, v] of Object.entries(vals)) {
-        // Skip corp KPIs from DB if local seed is current (local takes priority)
-        if (seedCurrent && corpKpiIds.has(kid)) continue;
-        filtered[kid] = v;
-      }
-      merged[pk] = { ...(merged[pk] || {}), ...filtered };
+      merged[pk] = { ...(merged[pk] || {}), ...vals };
     }
     localStorage.setItem(STORE_KEY, JSON.stringify(merged));
     return merged;
@@ -1225,17 +1218,17 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     onError: () => toast({ title: "Failed to update share link", variant: "destructive" }),
   });
 
-  // ── Sync actuals from DB on mount; auto-seed Corp if version stale ───────
+  // ── Sync actuals from DB on mount (DB is source of truth) ───────────────
   useEffect(() => {
-    if (deptId === "corp" && isSeedStale()) {
-      // Force-refresh: clear old corporate data, insert current seed, stamp version
-      seedCorpSampleData();
-      setStore(loadStore());
-      return;
-    }
     syncActualsFromDb().then(merged => {
       if (merged) {
         setStore(merged);
+        // Stamp the seed version so isSeedStale() returns false (prevents redundant client seeding)
+        localStorage.setItem(CORP_SEED_VER, "ok");
+      } else if (deptId === "corp" && isSeedStale()) {
+        // DB returned empty — bootstrap with client seed as fallback only
+        seedCorpSampleData();
+        setStore(loadStore());
       }
     });
   }, [deptId]);
