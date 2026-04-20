@@ -215,10 +215,24 @@ function saveWeights(deptId: string, w: Record<string, number>) {
 function loadStore(): Record<string, Record<string, number>> {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch { return {}; }
 }
-function saveStore(d: Record<string, Record<string, number>>) {
+function saveStoreLocal(d: Record<string, Record<string, number>>) {
   localStorage.setItem(STORE_KEY, JSON.stringify(d));
-  // Async sync to DB (fire and forget)
-  fetch("/api/scorecard/actuals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ store: d }) }).catch(() => {});
+}
+async function saveStoreToDB(d: Record<string, Record<string, number>>): Promise<boolean> {
+  try {
+    const res = await fetch("/api/scorecard/actuals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ store: d }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+async function saveStore(d: Record<string, Record<string, number>>): Promise<boolean> {
+  saveStoreLocal(d);
+  return saveStoreToDB(d);
 }
 
 // KPI Override — stores the FULL KPI set for a department as defined by the last Excel upload.
@@ -343,7 +357,7 @@ function seedCorpSampleData() {
   for (const [pk, vals] of Object.entries(CORP_SAMPLE_DATA)) {
     merged[pk] = { ...(merged[pk] || {}), ...vals };
   }
-  saveStore(merged);
+  saveStoreLocal(merged);
   localStorage.setItem(CORP_SEED_VER, "ok");
 }
 function getKpisForDept(id: string): KpiDef[] {
@@ -1157,6 +1171,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [entryVals, setEntryVals] = useState<Record<string, string>>({});
   const [saved, setSaved]   = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [hasUnsaved, setHasUnsaved] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [weights, setWeights]     = useState<Record<string,number>>(() => loadWeights(deptId));
   const [sortCol, setSortCol]   = useState<string>("status");
@@ -1226,9 +1242,11 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         // Stamp the seed version so isSeedStale() returns false (prevents redundant client seeding)
         localStorage.setItem(CORP_SEED_VER, "ok");
       } else if (deptId === "corp" && isSeedStale()) {
-        // DB returned empty — bootstrap with client seed as fallback only
+        // DB returned empty — bootstrap with client seed as fallback, then persist to DB
         seedCorpSampleData();
-        setStore(loadStore());
+        const seeded = loadStore();
+        setStore(seeded);
+        saveStoreToDB(seeded).catch(() => {});
       }
     });
   }, [deptId]);
@@ -1377,21 +1395,39 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     </span>
   );
 
-  const saveKpi = (id:string) => {
+  const saveKpi = async (id:string) => {
     const val = entryVals[id]; if (!val && val !== "0") return;
     const updated = { ...store, [pk]: { ...(store[pk]||{}), [id]: Number(val) } };
-    setStore(updated); saveStore(updated);
+    setStore(updated);
+    saveStoreLocal(updated);
     setSaved(s => ({ ...s, [id]: true }));
-    setTimeout(() => setSaved(s => ({ ...s, [id]: false })), 1500);
+    setHasUnsaved(false);
+    const ok = await saveStoreToDB(updated);
+    if (!ok) {
+      toast({ title: "Save failed", description: "Could not save to server. Please try again.", variant: "destructive" });
+      setSaved(s => ({ ...s, [id]: false }));
+    } else {
+      setTimeout(() => setSaved(s => ({ ...s, [id]: false })), 2000);
+    }
   };
 
-  const saveAll = () => {
+  const saveAll = async () => {
     const updates: Record<string,number> = {};
     kpis.forEach(k => { if (entryVals[k.id] !== undefined && entryVals[k.id] !== "") updates[k.id] = Number(entryVals[k.id]); });
     if (!Object.keys(updates).length) { toast({ title:"Nothing to save", description:"Enter at least one value first." }); return; }
     const updated = { ...store, [pk]: { ...(store[pk]||{}), ...updates } };
-    setStore(updated); saveStore(updated);
-    toast({ title:"Saved", description:`${Object.keys(updates).length} values saved for ${MONTHS[month]} ${year}.` });
+    setStore(updated);
+    saveStoreLocal(updated);
+    setHasUnsaved(false);
+    setSaving(true);
+    const ok = await saveStoreToDB(updated);
+    setSaving(false);
+    if (ok) {
+      toast({ title: "Saved successfully", description: `${Object.keys(updates).length} values saved for ${MONTHS[month]} ${year}.` });
+    } else {
+      setHasUnsaved(true);
+      toast({ title: "Save failed", description: "Could not reach the server. Your data is stored locally — please try saving again.", variant: "destructive" });
+    }
   };
 
   // ── Excel template download ──────────────────────────────────────────────
@@ -1578,15 +1614,25 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       }
 
       setStore({ ...updatedStore });
-      saveStore(updatedStore);
+      saveStoreLocal(updatedStore);
 
       // Refresh form values for current period
       const pre: Record<string,string> = {};
       kpis.forEach(k => { const v = updatedStore[pk]?.[k.id]; if (v !== undefined) pre[k.id] = String(v); });
       setEntryVals(pre);
 
-      toast({ title:"Upload successful", description:`${totalUpdates} data points loaded for ${dept.name} across ${uploadedKpiDefs.length} KPIs. Dashboard refreshed.` });
+      toast({ title: "Upload successful — saving to server…", description: `${totalUpdates} data points loaded across ${uploadedKpiDefs.length} KPIs.` });
       setActiveTab("dashboard");
+
+      // Save to DB and confirm
+      const ok = await saveStoreToDB(updatedStore);
+      if (ok) {
+        setHasUnsaved(false);
+        toast({ title: "Saved successfully", description: `${dept.name} scorecard data is now live and visible on shared links.` });
+      } else {
+        setHasUnsaved(true);
+        toast({ title: "Server save failed", description: "Data is stored locally. Click 'Save to Server' in Data Entry to retry.", variant: "destructive" });
+      }
     } catch (err:any) {
       toast({ title:"Upload failed", description:err.message, variant:"destructive" });
     } finally {
@@ -1623,7 +1669,15 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         <div className="ml-auto flex items-center gap-4">
           {deptId === "corp" && (
             <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5"
-              onClick={() => { seedCorpSampleData(); setStore(loadStore()); toast({ title:"Sample data loaded", description:"7 months of Corporate data applied." }); }}>
+              onClick={async () => {
+                seedCorpSampleData();
+                const seeded = loadStore();
+                setStore(seeded);
+                toast({ title: "Sample data loaded — saving…", description: "7 months of Corporate data applied." });
+                const ok = await saveStoreToDB(seeded);
+                if (ok) toast({ title: "Saved to server", description: "Sample data is now live on shared links." });
+                else toast({ title: "Local only", description: "Could not reach server. Go to Data Entry and click Save to Server.", variant: "destructive" });
+              }}>
               <Activity className="h-3.5 w-3.5" />Load Sample Data
             </Button>
           )}
@@ -2236,9 +2290,18 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Manual Entry — {MONTHS[month]} {year}</CardTitle>
-                <Button size="sm" onClick={saveAll} data-testid="button-save-all">
-                  <Save className="h-3.5 w-3.5 mr-1.5" />Save All
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">Manual Entry — {MONTHS[month]} {year}</CardTitle>
+                  {hasUnsaved && (
+                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+                      Unsaved changes
+                    </span>
+                  )}
+                </div>
+                <Button size="sm" onClick={saveAll} disabled={saving} data-testid="button-save-all">
+                  {saving ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                  {saving ? "Saving…" : "Save to Server"}
                 </Button>
               </div>
             </CardHeader>
@@ -2268,7 +2331,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                             </span>
                             <RagBadge status={status} />
                             <Input type="number" value={entryVals[k.id] ?? ""}
-                              onChange={e => setEntryVals(v => ({ ...v, [k.id]: e.target.value }))}
+                              onChange={e => { setEntryVals(v => ({ ...v, [k.id]: e.target.value })); setHasUnsaved(true); }}
                               placeholder="Actual" className="w-24 h-8 text-sm text-right shrink-0"
                               data-testid={`input-${k.id}`} />
                             <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"
