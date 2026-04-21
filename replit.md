@@ -19,6 +19,8 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 **Analytics Studio**
 - Upload Excel/CSV datasets, configure column types, explore with AI
 - AI insight generation (bar, line, area, pie, donut, KPI, horizontal-bar chart types)
+- AI insight questions support budget/target/plan and previous-year comparisons when matching comparison measures or date columns are available
+- KPI cards can save compact or full-number display formatting; saved dashboards and public links honor the selected format
 - Dashboard composer: add insights to a dashboard, AI narrative, publish (private/department/company), public share link
 - Public share link: `POST /api/v2/analytics/definitions/:id/share`, viewed at `/public/dashboard/:token`
 

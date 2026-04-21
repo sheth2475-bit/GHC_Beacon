@@ -2150,6 +2150,82 @@ You can help the user understand their data, suggest chart types, explain insigh
       return result;
     }
 
+    function aggregateSingleValue(rows: Record<string, unknown>[], measure: string, aggregation: string = "sum"): number {
+      const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
+      const value = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
+        : aggregation === "count" ? vals.length
+        : aggregation === "min" ? Math.min(...vals)
+        : aggregation === "max" ? Math.max(...vals)
+        : vals.reduce((a, b) => a + b, 0);
+      return Math.round(value * 100) / 100;
+    }
+
+    function percentVariance(value: number, comparisonValue: number): number | null {
+      if (!isFinite(comparisonValue) || comparisonValue === 0) return null;
+      return Math.round(((value - comparisonValue) / Math.abs(comparisonValue)) * 1000) / 10;
+    }
+
+    function findBudgetComparisonColumn(
+      measures: { columnName: string; label: string }[],
+      measureCol?: { columnName: string; label: string } | null,
+      question?: string
+    ) {
+      const q = (question || "").toLowerCase();
+      const candidates = measures.filter(c => c.columnName !== measureCol?.columnName);
+      const byExplicitName = candidates.find(c => q.includes(c.label.toLowerCase()) || q.includes(c.columnName.toLowerCase()));
+      if (byExplicitName) return byExplicitName;
+      const measureTokens = `${measureCol?.label || ""} ${measureCol?.columnName || ""}`.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 2 && !["actual", "total", "value"].includes(t));
+      return candidates.find(c => {
+        const name = `${c.label} ${c.columnName}`.toLowerCase();
+        return /(budget|target|plan|planned|forecast|goal)/.test(name) && (measureTokens.length === 0 || measureTokens.some(t => name.includes(t)));
+      }) || candidates.find(c => /(budget|target|plan|planned|forecast|goal)/i.test(`${c.label} ${c.columnName}`));
+    }
+
+    function mergeComparisonRows(actualRows: { name: string; value: number }[], comparisonRows: { name: string; value: number }[], comparisonLabel: string) {
+      const map = new Map<string, { name: string; value: number; comparisonValue?: number; variance?: number; variancePct?: number | null; comparisonLabel: string }>();
+      for (const row of actualRows) map.set(row.name, { ...row, comparisonLabel });
+      for (const row of comparisonRows) {
+        const existing = map.get(row.name) || { name: row.name, value: 0, comparisonLabel };
+        existing.comparisonValue = row.value;
+        existing.variance = Math.round((existing.value - row.value) * 100) / 100;
+        existing.variancePct = percentVariance(existing.value, row.value);
+        map.set(row.name, existing);
+      }
+      return Array.from(map.values());
+    }
+
+    function aggregatePreviousYearComparison(
+      rows: Record<string, unknown>[],
+      measure: string,
+      dateColumn: string,
+      dimension: string | null,
+      aggregation: string = "sum",
+      limit?: number
+    ) {
+      const dated = rows.map(row => {
+        const parsed = parseDateStr(row[dateColumn]);
+        const date = parsed ? new Date(parsed) : null;
+        return date && !isNaN(date.getTime()) ? { row, year: date.getFullYear(), month: date.getMonth() } : null;
+      }).filter(Boolean) as { row: Record<string, unknown>; year: number; month: number }[];
+      const years = Array.from(new Set(dated.map(d => d.year))).sort((a, b) => b - a);
+      if (years.length < 2) return null;
+      const currentYear = years[0];
+      const previousYear = years.find(y => y < currentYear);
+      if (!previousYear) return null;
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const currentRows = dated.filter(d => d.year === currentYear).map(d => ({ ...d.row, __pyDimension: dimension ? d.row[dimension] : monthNames[d.month] }));
+      const previousRows = dated.filter(d => d.year === previousYear).map(d => ({ ...d.row, __pyDimension: dimension ? d.row[dimension] : monthNames[d.month] }));
+      if (!dimension) {
+        const monthOrder = new Map(monthNames.map((m, i) => [m, i]));
+        const actualRows = aggregateData(currentRows, measure, "__pyDimension", aggregation, limit, false).sort((a, b) => (monthOrder.get(a.name) ?? 99) - (monthOrder.get(b.name) ?? 99));
+        const comparisonRows = aggregateData(previousRows, measure, "__pyDimension", aggregation, limit, false);
+        return { rows: mergeComparisonRows(actualRows, comparisonRows, `${previousYear}`), currentYear, previousYear };
+      }
+      const actualRows = aggregateData(currentRows, measure, "__pyDimension", aggregation, limit, false);
+      const comparisonRows = aggregateData(previousRows, measure, "__pyDimension", aggregation, limit, false);
+      return { rows: mergeComparisonRows(actualRows, comparisonRows, `${previousYear}`), currentYear, previousYear };
+    }
+
     // Helper: compute rich data statistics for AI context
     function computeDataStats(rows: Record<string, unknown>[], columns: { columnName: string; label: string; columnType: string }[]) {
       const stats: Record<string, unknown> = {};
@@ -2429,6 +2505,8 @@ CHART TYPE SELECTION RULES (choose the BEST fit):
 - "pie": share/distribution of whole — use when question has "share", "breakdown", "distribution", "composition", "percentage of" AND unique categories ≤ 8
 - "table": ranked list — use when question has "top N", "bottom N", "list", "rank", or needs multiple columns
 - For follow-up "show only top N" → change to table; "compare" → keep bar; "as donut" → keep pie
+- For "vs budget", "against target", "compared with budget", "variance to plan", choose the actual measure as "measure" and use a normal chart type; the system will attach the comparison series if a budget/target/plan measure exists.
+- For "previous year", "prior year", "last year", "YoY", "year over year", choose a date dimension when relevant; the system will attach prior-year comparison data when a date column exists.
 
 Return a JSON object (no markdown, no code fences):
 {
@@ -2439,6 +2517,8 @@ Return a JSON object (no markdown, no code fences):
   "measure": "exact columnName from the list above",
   "dimension": "exact columnName or null for KPI",
   "aggregation": "sum|avg|count|min|max",
+  "comparisonType": "budget|previousYear|null",
+  "comparisonMeasure": "exact budget/target/plan columnName or null",
   "topN": null or a number (for top/bottom N requests),
   "sortOrder": "desc|asc|chronological",
   "narrative": "3-4 sentences. State the key finding first with specific numbers. Then describe trend or distribution. Then flag anomaly or notable insight if present. Use concrete values from the data stats.",
@@ -2471,6 +2551,7 @@ IMPORTANT:
         let aiResult: {
           title: string; subtitle?: string; interpretation: string; chartType: string;
           measure: string; dimension: string | null; aggregation: string;
+          comparisonType?: "budget" | "previousYear" | null; comparisonMeasure?: string | null;
           topN: number | null; sortOrder?: string; narrative: string;
           trendDirection?: string | null; anomalyDetected?: boolean; anomalyNote?: string | null;
           topValue?: { name: string; value: number } | null;
@@ -2487,6 +2568,16 @@ IMPORTANT:
         const agg = aiResult.aggregation || "sum";
         const measureCol = columns.find(c => c.columnName === aiResult.measure || c.label === aiResult.measure);
         const dimCol = aiResult.dimension ? columns.find(c => c.columnName === aiResult.dimension || c.label === aiResult.dimension) : null;
+        const questionLower = String(question || "").toLowerCase();
+        const budgetIntent = aiResult.comparisonType === "budget" || /\b(vs|versus|against|compared|compare|variance)\b.*\b(budget|target|plan|planned|forecast|goal)\b|\b(budget|target|plan|planned|forecast|goal)\b.*\b(vs|versus|against|compared|compare|variance)\b/.test(questionLower);
+        const previousYearIntent = aiResult.comparisonType === "previousYear" || /\b(previous year|prior year|last year|year over year|yoy|py)\b/.test(questionLower);
+        const budgetCol = budgetIntent
+          ? (columns.find(c => c.columnName === aiResult.comparisonMeasure || c.label === aiResult.comparisonMeasure) || findBudgetComparisonColumn(measures, measureCol, question))
+          : null;
+        const dateColForComparison = previousYearIntent
+          ? ((dimCol?.columnType === "date" ? dimCol : null) || dates[0] || null)
+          : null;
+        const comparisonType = budgetCol ? "budget" : dateColForComparison ? "previousYear" : null;
 
         // Determine if dimension is date-like for chronological sorting
         const isDimDate = dimCol?.columnType === "date" || (dimCol && dates.some(d => d.columnName === dimCol.columnName));
@@ -2496,18 +2587,75 @@ IMPORTANT:
         let chartData: unknown;
         if (finalChartType === "kpi") {
           const vals = rows.map(r => Number(measureCol ? r[measureCol.columnName] : 0)).filter(v => !isNaN(v));
-          const value = agg === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
-            : agg === "count" ? vals.length
-            : agg === "min" ? Math.min(...vals)
-            : agg === "max" ? Math.max(...vals)
-            : vals.reduce((a, b) => a + b, 0);
-          chartData = { value: Math.round(value * 100) / 100, label: measureCol?.label || aiResult.measure, count: vals.length };
+          const value = measureCol ? aggregateSingleValue(rows, measureCol.columnName, agg) : 0;
+          const kpiData: Record<string, unknown> = { value, label: measureCol?.label || aiResult.measure, count: vals.length };
+          if (budgetCol) {
+            const comparisonValue = aggregateSingleValue(rows, budgetCol.columnName, agg);
+            kpiData.comparisonValue = comparisonValue;
+            kpiData.comparisonLabel = budgetCol.label;
+            kpiData.comparisonType = "budget";
+            kpiData.variance = Math.round((value - comparisonValue) * 100) / 100;
+            kpiData.variancePct = percentVariance(value, comparisonValue);
+          } else if (dateColForComparison && measureCol) {
+            const py = aggregatePreviousYearComparison(rows, measureCol.columnName, dateColForComparison.columnName, null, agg);
+            if (py) {
+              const currentRows = rows.filter(r => {
+                const parsed = parseDateStr(r[dateColForComparison.columnName]);
+                const date = parsed ? new Date(parsed) : null;
+                return date && !isNaN(date.getTime()) && date.getFullYear() === py.currentYear;
+              });
+              const previousRows = rows.filter(r => {
+                const parsed = parseDateStr(r[dateColForComparison.columnName]);
+                const date = parsed ? new Date(parsed) : null;
+                return date && !isNaN(date.getTime()) && date.getFullYear() === py.previousYear;
+              });
+              const currentValue = aggregateSingleValue(currentRows, measureCol.columnName, agg);
+              const comparisonValue = aggregateSingleValue(previousRows, measureCol.columnName, agg);
+              kpiData.value = currentValue;
+              kpiData.comparisonValue = comparisonValue;
+              kpiData.comparisonLabel = String(py.previousYear);
+              kpiData.comparisonType = "previousYear";
+              kpiData.variance = Math.round((currentValue - comparisonValue) * 100) / 100;
+              kpiData.variancePct = percentVariance(currentValue, comparisonValue);
+            }
+          }
+          chartData = kpiData;
         } else if (finalChartType === "table") {
-          if (measureCol && dimCol) {
+          if (measureCol && dimCol && budgetCol) {
+            const actualRows = aggregateData(rows, measureCol.columnName, dimCol.columnName, agg, aiResult.topN || 25, false);
+            const comparisonRows = aggregateData(rows, budgetCol.columnName, dimCol.columnName, agg, aiResult.topN || 25, false);
+            const merged = mergeComparisonRows(actualRows, comparisonRows, budgetCol.label);
+            chartData = {
+              rows: merged.map(r => ({
+                [dimCol.label]: r.name,
+                [measureCol.label]: r.value,
+                [budgetCol.label]: r.comparisonValue ?? 0,
+                Variance: r.variance ?? 0,
+                "Variance %": r.variancePct !== null && r.variancePct !== undefined ? `${r.variancePct}%` : "—",
+              })),
+              columns: [dimCol.label, measureCol.label, budgetCol.label, "Variance", "Variance %"],
+            };
+          } else if (measureCol && (dimCol || dateColForComparison) && dateColForComparison && previousYearIntent) {
+            const py = aggregatePreviousYearComparison(rows, measureCol.columnName, dateColForComparison.columnName, dimCol?.columnName || null, agg, aiResult.topN || 25);
+            if (py) {
+              const dimensionLabel = dimCol?.label || "Period";
+              chartData = {
+                rows: py.rows.map(r => ({
+                  [dimensionLabel]: r.name,
+                  [`${py.currentYear}`]: r.value,
+                  [`${py.previousYear}`]: r.comparisonValue ?? 0,
+                  Variance: r.variance ?? 0,
+                  "Variance %": r.variancePct !== null && r.variancePct !== undefined ? `${r.variancePct}%` : "—",
+                })),
+                columns: [dimensionLabel, `${py.currentYear}`, `${py.previousYear}`, "Variance", "Variance %"],
+              };
+            }
+          }
+          if (!chartData && measureCol && dimCol) {
             const aggRows = aggregateData(rows, measureCol.columnName, dimCol.columnName, agg, aiResult.topN || 25, false);
             if (aiResult.sortOrder === "asc") aggRows.sort((a, b) => a.value - b.value);
             chartData = { rows: aggRows.map(r => ({ [dimCol.label]: r.name, [measureCol.label]: r.value })), columns: [dimCol.label, measureCol.label] };
-          } else {
+          } else if (!chartData) {
             const displayCols = activeColumns.slice(0, 7);
             const tableRows = rows.slice(0, aiResult.topN || 25).map(r => {
               const row: Record<string, unknown> = {};
@@ -2517,13 +2665,23 @@ IMPORTANT:
             chartData = { rows: tableRows, columns: displayCols.map(c => c.label) };
           }
         } else {
-          // line/bar/pie
           const aggData = measureCol
             ? aggregateData(rows, measureCol.columnName, dimCol?.columnName || null, agg, aiResult.topN || undefined, shouldSortChron)
             : [];
-          // For pie, limit to 10 slices
-          const finalData = (finalChartType === "pie") ? aggData.slice(0, 10) : aggData;
-          chartData = { data: finalData, xKey: "name", yKey: "value", measureLabel: measureCol?.label, dimensionLabel: dimCol?.label };
+          let finalData: unknown[] = (finalChartType === "pie") ? aggData.slice(0, 10) : aggData;
+          let comparisonLabel: string | undefined;
+          if (budgetCol && measureCol) {
+            const comparisonRows = aggregateData(rows, budgetCol.columnName, dimCol?.columnName || null, agg, aiResult.topN || undefined, shouldSortChron);
+            finalData = mergeComparisonRows(aggData, comparisonRows, budgetCol.label);
+            comparisonLabel = budgetCol.label;
+          } else if (dateColForComparison && measureCol && previousYearIntent) {
+            const py = aggregatePreviousYearComparison(rows, measureCol.columnName, dateColForComparison.columnName, dimCol?.columnType === "date" ? null : dimCol?.columnName || null, agg, aiResult.topN || undefined);
+            if (py) {
+              finalData = py.rows;
+              comparisonLabel = `${py.previousYear}`;
+            }
+          }
+          chartData = { data: finalData, xKey: "name", yKey: "value", measureLabel: measureCol?.label, dimensionLabel: dimCol?.label || (dateColForComparison ? "Period" : undefined), comparisonLabel, comparisonType };
         }
 
         // Compute top/bottom values from the data if AI didn't provide them
@@ -2545,6 +2703,9 @@ IMPORTANT:
           dimension: aiResult.dimension,
           dimensionLabel: dimCol?.label,
           aggregation: agg,
+          comparisonType,
+          comparisonMeasure: budgetCol?.columnName || null,
+          comparisonLabel: budgetCol?.label || null,
         };
 
         res.json({

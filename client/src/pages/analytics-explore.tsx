@@ -87,11 +87,21 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatValue(v: number | null | undefined): string {
+type NumberDisplayFormat = "compact" | "full";
+
+function formatValue(v: number | null | undefined, mode: NumberDisplayFormat = "compact"): string {
   if (v === null || v === undefined || isNaN(v as number)) return "—";
+  if (mode === "full") {
+    return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
+}
+
+function formatVariancePct(v: unknown): string {
+  if (typeof v !== "number" || !isFinite(v)) return "—";
+  return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
 function downloadCSV(data: { name: string; value: number }[], title: string) {
@@ -109,16 +119,29 @@ function downloadCSV(data: { name: string; value: number }[], title: string) {
 const CHART_MARGIN = { top: 8, right: 16, left: 0, bottom: 60 };
 const CHART_HEIGHT = 300;
 
-function KpiCard({ data }: { data: { value?: number | null; label?: string; count?: number } }) {
+function KpiCard({ data, displayFormat }: { data: { value?: number | null; label?: string; count?: number; comparisonValue?: number | null; comparisonLabel?: string; variance?: number | null; variancePct?: number | null }; displayFormat: NumberDisplayFormat }) {
+  const hasComparison = typeof data?.comparisonValue === "number";
+  const variance = typeof data?.variance === "number" ? data.variance : null;
+  const varianceGood = variance === null ? null : variance >= 0;
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <div className="relative mb-2">
         <div className="absolute inset-0 blur-2xl bg-primary/10 rounded-full scale-150" />
         <p className="relative text-6xl font-black tabular-nums text-foreground tracking-tight">
-          {formatValue(data?.value)}
+          {formatValue(data?.value, displayFormat)}
         </p>
       </div>
       <p className="text-base text-muted-foreground font-medium mt-1">{data?.label ?? "—"}</p>
+      {hasComparison && (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs" data-testid="text-kpi-comparison">
+          <span className="rounded-full border bg-muted/30 px-2.5 py-1 text-muted-foreground">
+            vs {data.comparisonLabel || "Comparison"}: <strong className="text-foreground">{formatValue(data.comparisonValue, displayFormat)}</strong>
+          </span>
+          <span className={`rounded-full border px-2.5 py-1 font-semibold ${varianceGood ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20"}`}>
+            {variance !== null && variance > 0 ? "+" : ""}{formatValue(variance, displayFormat)} · {formatVariancePct(data.variancePct)}
+          </span>
+        </div>
+      )}
       <p className="text-xs text-muted-foreground/50 mt-1">{data?.count?.toLocaleString()} records</p>
     </div>
   );
@@ -126,20 +149,23 @@ function KpiCard({ data }: { data: { value?: number | null; label?: string; coun
 
 const LABEL_STYLE = { fontSize: 10, fill: "hsl(var(--muted-foreground))", fontWeight: 500 };
 
-function BarChartWidget({ cfg, horizontal }: { cfg: { data: { name: string; value: number }[]; measureLabel?: string }; horizontal?: boolean }) {
+function BarChartWidget({ cfg, horizontal, displayFormat }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; horizontal?: boolean; displayFormat: NumberDisplayFormat }) {
   const showLabels = cfg.data.length <= 15;
+  const hasComparison = cfg.data.some(d => typeof d.comparisonValue === "number");
   if (horizontal) {
     return (
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <BarChart data={cfg.data} layout="vertical" margin={{ top: 4, right: showLabels ? 52 : 24, left: 4, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
+          <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={90} />
-          <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
+          <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+          {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
           <Bar dataKey="value" radius={[0, 4, 4, 0]}>
             {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-            {showLabels && <LabelList dataKey="value" position="right" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
+            {showLabels && !hasComparison && <LabelList dataKey="value" position="right" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
           </Bar>
+          {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[0, 4, 4, 0]} />}
         </BarChart>
       </ResponsiveContainer>
     );
@@ -149,20 +175,23 @@ function BarChartWidget({ cfg, horizontal }: { cfg: { data: { name: string; valu
       <BarChart data={cfg.data} margin={{ top: showLabels ? 22 : 8, right: 16, left: 0, bottom: 60 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
-        <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
+        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
+        <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+        {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
+          {showLabels && !hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
         </Bar>
+        {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]} />}
       </BarChart>
     </ResponsiveContainer>
   );
 }
 
-function LineChartWidget({ cfg, filled }: { cfg: { data: { name: string; value: number }[]; measureLabel?: string }; filled?: boolean }) {
+function LineChartWidget({ cfg, filled, displayFormat }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; filled?: boolean; displayFormat: NumberDisplayFormat }) {
   const showLabels = cfg.data.length <= 15;
   const lineMargin = { top: showLabels ? 22 : 8, right: 16, left: 0, bottom: 60 };
+  const hasComparison = cfg.data.some(d => typeof d.comparisonValue === "number");
   if (filled) {
     return (
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -175,11 +204,13 @@ function LineChartWidget({ cfg, filled }: { cfg: { data: { name: string; value: 
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-          <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
-          <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
+          <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
+          <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+          {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
           <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill="url(#areaGrad)" dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
-            {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
+            {showLabels && !hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
           </Area>
+          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={{ r: 3, fill: CHART_COLORS[3] }} />}
         </AreaChart>
       </ResponsiveContainer>
     );
@@ -189,11 +220,13 @@ function LineChartWidget({ cfg, filled }: { cfg: { data: { name: string; value: 
       <LineChart data={cfg.data} margin={lineMargin}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v)} />
-        <Tooltip formatter={v => [formatValue(Number(v)), cfg.measureLabel || "Value"]} />
+        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
+        <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+        {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
         <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
-          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v)} style={LABEL_STYLE} />}
+          {showLabels && !hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
         </Line>
+        {hasComparison && <Line type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[3] }} />}
       </LineChart>
     </ResponsiveContainer>
   );
@@ -256,16 +289,17 @@ function InsightChart({ result, override }: { result: AskResult; override: strin
   const cfg = result.chartConfig;
   if (!cfg) return null;
   const data = cfg.data as Record<string, unknown>;
+  const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
 
-  if (chartType === "kpi" && data) return <KpiCard data={data as { value: number; label: string; count: number }} />;
+  if (chartType === "kpi" && data) return <KpiCard data={data as { value: number; label: string; count: number }} displayFormat={displayFormat} />;
 
-  const barData = data as { data?: { name: string; value: number }[]; measureLabel?: string };
+  const barData = data as { data?: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string };
   const chartData = barData.data || [];
 
-  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel }} />;
-  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel }} horizontal />;
-  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel }} />;
-  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel }} filled />;
+  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} displayFormat={displayFormat} />;
+  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} horizontal displayFormat={displayFormat} />;
+  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} displayFormat={displayFormat} />;
+  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} filled displayFormat={displayFormat} />;
   if (chartType === "pie") return <PieChartWidget cfg={{ data: chartData }} />;
   if (chartType === "donut") return <PieChartWidget cfg={{ data: chartData }} donut />;
   if (chartType === "table") return <TableWidget cfg={data as { rows: Record<string, unknown>[]; columns: string[] }} />;
@@ -510,6 +544,15 @@ export default function AnalyticsExplorePage() {
 
   const activeChartType = chartOverride || result?.chartType || "";
   const currentChartLabel = CHART_TYPE_OPTIONS.find(o => o.value === activeChartType)?.label || "Auto";
+  const currentDisplayFormat = (result?.chartConfig?.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
+
+  const setNumberDisplayFormat = (displayFormat: NumberDisplayFormat) => {
+    setResult(prev => prev ? {
+      ...prev,
+      chartConfig: { ...prev.chartConfig, displayFormat },
+    } : prev);
+    if (savedInsightId) setSavedInsightId(null);
+  };
 
   // ── Parse interpretation for the details panel ─────────────────────────────
 
@@ -944,6 +987,19 @@ export default function AnalyticsExplorePage() {
                       {label}
                     </button>
                   ))}
+                  {activeChartType === "kpi" && (
+                    <>
+                      <span className="h-5 w-px bg-border mx-1" />
+                      <button
+                        onClick={() => setNumberDisplayFormat(currentDisplayFormat === "full" ? "compact" : "full")}
+                        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${currentDisplayFormat === "full" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"}`}
+                        data-testid="button-kpi-number-format"
+                      >
+                        <Hash className="h-3 w-3" />
+                        {currentDisplayFormat === "full" ? "Full numbers" : "Compact numbers"}
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* Chart canvas */}

@@ -12,10 +12,18 @@ import {
 
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4"];
 
-function formatValue(v: number) {
+type NumberDisplayFormat = "compact" | "full";
+
+function formatValue(v: number, mode: NumberDisplayFormat = "compact") {
+  if (mode === "full") return Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
+}
+
+function formatVariancePct(v: unknown): string {
+  if (typeof v !== "number" || !isFinite(v)) return "—";
+  return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
 function shortLabel(name: string, maxLen = 8): string {
@@ -30,22 +38,30 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
   const cfg = chartConfig as Record<string, unknown> | null;
   if (!cfg) return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
   const data = cfg.data as CfgData;
+  const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
 
   if (chartType === "kpi" && data) {
-    const kpi = data as { value: number; label: string };
+    const kpi = data as { value: number; label: string; comparisonValue?: number; comparisonLabel?: string; variance?: number; variancePct?: number | null };
     return (
       <div className="flex flex-col items-center justify-center h-40">
-        <div className="text-4xl font-black tracking-tight" style={{ color: CHART_COLORS[0] }}>{formatValue(kpi.value)}</div>
+        <div className="text-4xl font-black tracking-tight" style={{ color: CHART_COLORS[0] }}>{formatValue(kpi.value, displayFormat)}</div>
         <p className="text-xs text-muted-foreground mt-1.5 text-center px-2">{kpi.label}</p>
+        {typeof kpi.comparisonValue === "number" && (
+          <p className={`text-[10px] mt-1 font-semibold ${Number(kpi.variance) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+            vs {kpi.comparisonLabel || "Comparison"} {formatValue(kpi.comparisonValue, displayFormat)} · {formatVariancePct(kpi.variancePct)}
+          </p>
+        )}
       </div>
     );
   }
 
   if ((chartType === "bar" || chartType === "line") && data) {
-    const chartData = (data as { data?: { name: string; value: number }[] }).data || [];
+    const chartData = (data as { data?: { name: string; value: number; comparisonValue?: number }[]; comparisonLabel?: string }).data || [];
+    const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
     const maxItems = chartType === "bar" ? 20 : 30;
     const displayData = chartData.slice(0, maxItems).map(d => ({ ...d, shortName: shortLabel(d.name) }));
     const count = displayData.length;
+    const hasComparison = displayData.some(d => typeof d.comparisonValue === "number");
     const hasMany = count > 8;
     const hasTons = count > 15;
     const chartH = hasTons ? 240 : hasMany ? 210 : count > 5 ? 185 : 165;
@@ -63,20 +79,22 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
             textAnchor="end"
             interval={0}
           />
-          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={44} />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v, displayFormat)} width={44} />
           <Tooltip
-            formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
+            formatter={(v, name, props) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? comparisonLabel : props.payload?.name || ""]}
             contentStyle={{ fontSize: 11, borderRadius: 6 }}
             labelFormatter={() => ""}
           />
+          {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
           <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[3, 3, 0, 0]}>
-            <LabelList
+            {!hasComparison && <LabelList
               dataKey="value"
               position="top"
-              formatter={(v: number) => formatValue(v)}
+              formatter={(v: number) => formatValue(v, displayFormat)}
               style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
-            />
+            />}
           </Bar>
+          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[3, 3, 0, 0]} />}
         </BarChart>
       </ResponsiveContainer>
     );
@@ -90,22 +108,24 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
             textAnchor="end"
             interval={0}
           />
-          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v)} width={44} />
+          <YAxis tick={{ fontSize: 8 }} tickFormatter={v => formatValue(v, displayFormat)} width={44} />
           <Tooltip
-            formatter={(v, _name, props) => [formatValue(Number(v)), props.payload?.name || ""]}
+            formatter={(v, name, props) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? comparisonLabel : props.payload?.name || ""]}
             contentStyle={{ fontSize: 11, borderRadius: 6 }}
             labelFormatter={() => ""}
           />
+          {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
           <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
-            {count <= 40 && (
+            {count <= 40 && !hasComparison && (
               <LabelList
                 dataKey="value"
                 position="top"
-                formatter={(v: number) => formatValue(v)}
+                formatter={(v: number) => formatValue(v, displayFormat)}
                 style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
               />
             )}
           </Area>
+          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[3] } : false} />}
         </AreaChart>
       </ResponsiveContainer>
     );
