@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   Clock,
   Database,
-  FileSpreadsheet,
   LayoutDashboard,
   ShieldAlert,
   Sparkles,
@@ -104,14 +103,6 @@ function normalizeStore(store: Record<string, Record<string, number>>, depts: Bs
     current[pk] = { ...(current[pk] || {}), ...values };
   }
   return current;
-}
-
-function freshnessClass(date: string | Date | null | undefined) {
-  if (!date) return "text-red-600 dark:text-red-400";
-  const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
-  if (days <= 7) return "text-emerald-600 dark:text-emerald-400";
-  if (days <= 30) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
 }
 
 function periodLabel(key: string) {
@@ -203,8 +194,6 @@ export default function ExecutiveHomePage() {
 
   const latestDataset = [...datasets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
   const latestDashboard = [...dashboards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-  const publishedDashboards = dashboards.filter(d => d.status === "published").length;
-  const sharedDashboards = dashboards.filter(d => d.shareEnabled).length;
   const recentDashboards = [...dashboards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 4);
 
   const scorecardAlerts = scorecard.risks.map(item => ({
@@ -295,55 +284,6 @@ export default function ExecutiveHomePage() {
               </div>
             </div>
           </div>
-        </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
-            <CardContent className="p-5 relative">
-              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-primary/10" />
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-muted-foreground">Overall performance</p>
-                <Activity className="h-4 w-4 text-primary" />
-              </div>
-              <p className={`text-4xl font-bold mt-3 ${scoreColor(scorecard.overall)}`} data-testid="text-overall-performance">{scorecard.overall}%</p>
-              <p className="text-xs text-muted-foreground mt-1">Average of departments with data · {scorecard.green} green · {scorecard.amber} amber · {scorecard.red} red</p>
-            </CardContent>
-          </Card>
-          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
-            <CardContent className="p-5 relative">
-              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-emerald-500/10" />
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-muted-foreground">Scorecard data completeness</p>
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              </div>
-              <p className="text-4xl font-bold mt-3" data-testid="text-scorecard-completeness">{scorecard.completeness}%</p>
-              <p className="text-xs text-muted-foreground mt-1">Latest KPI data: {scorecard.latestPeriod || "No KPI data yet"}</p>
-            </CardContent>
-          </Card>
-          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
-            <CardContent className="p-5 relative">
-              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-blue-500/10" />
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-muted-foreground">Analytics dashboards</p>
-                <LayoutDashboard className="h-4 w-4 text-blue-500" />
-              </div>
-              <p className="text-4xl font-bold mt-3" data-testid="text-dashboard-count">{dashboards.length}</p>
-              <p className="text-xs text-muted-foreground mt-1">{publishedDashboards} published · {sharedDashboards} shared</p>
-            </CardContent>
-          </Card>
-          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
-            <CardContent className="p-5 relative">
-              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-cyan-500/10" />
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-muted-foreground">Latest upload</p>
-                <FileSpreadsheet className="h-4 w-4 text-cyan-500" />
-              </div>
-              <p className={`text-2xl font-bold mt-4 ${freshnessClass(latestDataset?.updatedAt)}`} data-testid="text-latest-upload">
-                {fmtDate(latestDataset?.updatedAt)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 truncate">{latestDataset?.name || "No analytics upload yet"}</p>
-            </CardContent>
-          </Card>
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
