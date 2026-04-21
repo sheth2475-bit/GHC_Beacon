@@ -5,21 +5,25 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   X, ChevronRight, ChevronLeft, BarChart2, Target,
-  Sparkles, Globe, Upload, Check,
+  Sparkles, Upload, Check, Home, Bell, CalendarDays,
 } from "lucide-react";
 
 const TOUR_KEY = "ghc_beacon_tour_done_v1";
 
-export function useTourDone() {
-  return typeof window !== "undefined" && !!localStorage.getItem(TOUR_KEY);
+function tourKey(userId?: string | number | null) {
+  return userId ? `${TOUR_KEY}_${userId}` : TOUR_KEY;
 }
 
-export function markTourDone() {
-  localStorage.setItem(TOUR_KEY, "1");
+export function useTourDone(userId?: string | number | null) {
+  return typeof window !== "undefined" && !!localStorage.getItem(tourKey(userId));
 }
 
-export function resetTour() {
-  localStorage.removeItem(TOUR_KEY);
+export function markTourDone(userId?: string | number | null) {
+  localStorage.setItem(tourKey(userId), "1");
+}
+
+export function resetTour(userId?: string | number | null) {
+  localStorage.removeItem(tourKey(userId));
 }
 
 interface TourStep {
@@ -35,12 +39,32 @@ interface TourStep {
 
 const STEPS: TourStep[] = [
   {
+    id: "command-center",
+    title: "Command Center",
+    description: "Start here for the executive overview: overall performance, departments below target, decision alerts, and dashboard activity.",
+    icon: Home,
+    iconColor: "text-primary",
+    targetId: "link-nav-command-center",
+    placement: "right",
+    navigateTo: "/",
+  },
+  {
+    id: "period-filter",
+    title: "Choose the Reporting Month",
+    description: "Use this month filter when your team is reporting one period behind. The Command Center recalculates department scores for the selected month.",
+    icon: CalendarDays,
+    iconColor: "text-violet-500",
+    targetId: "select-command-period",
+    placement: "bottom",
+    navigateTo: "/",
+  },
+  {
     id: "analytics-studio",
     title: "Analytics Studio",
     description: "Upload any spreadsheet and instantly get AI-generated charts, KPI cards and insights — no manual setup required.",
     icon: BarChart2,
     iconColor: "text-blue-500",
-    targetId: "nav-analytics-studio",
+    targetId: "link-nav-analytics-studio",
     placement: "right",
     navigateTo: "/analytics",
   },
@@ -50,7 +74,7 @@ const STEPS: TourStep[] = [
     description: "Drop a CSV or Excel file to create a dataset. The AI analyses it automatically and suggests the best visualisations.",
     icon: Upload,
     iconColor: "text-violet-500",
-    targetId: "button-upload-data",
+    targetId: "button-upload-dataset",
     placement: "bottom",
     navigateTo: "/analytics",
   },
@@ -60,19 +84,18 @@ const STEPS: TourStep[] = [
     description: "Track strategic KPIs across 4 perspectives — Financial, Customer, Internal, and Learning — with live RAG status and a weighted Performance Score.",
     icon: Target,
     iconColor: "text-emerald-500",
-    targetId: "nav-scorecard",
+    targetId: "link-nav-balanced-scorecard",
     placement: "right",
     navigateTo: "/scorecard",
   },
   {
-    id: "share-link",
-    title: "Share with Anyone",
-    description: "Generate a public share link for any dashboard or scorecard department view. Recipients see a live read-only page — no login needed.",
-    icon: Globe,
-    iconColor: "text-cyan-500",
-    targetId: "button-share-scorecard",
+    id: "notifications",
+    title: "Notifications",
+    description: "Review red and amber KPI alerts plus the latest data and dashboard updates without leaving your current page.",
+    icon: Bell,
+    iconColor: "text-red-500",
+    targetId: "button-notification-bell",
     placement: "bottom",
-    navigateTo: "/scorecard",
   },
   {
     id: "assistant",
@@ -128,9 +151,10 @@ function getTooltipPosition(
 
 interface GuidedTourProps {
   onClose: () => void;
+  userId?: string | number | null;
 }
 
-export function GuidedTour({ onClose }: GuidedTourProps) {
+export function GuidedTour({ onClose, userId }: GuidedTourProps) {
   const [step, setStep] = useState(0);
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
@@ -142,11 +166,14 @@ export function GuidedTour({ onClose }: GuidedTourProps) {
 
   // Navigate to page if needed, then locate the target element
   const resolveTarget = useCallback(() => {
-    const el = document.getElementById(current.targetId);
+    const el =
+      document.getElementById(current.targetId) ||
+      document.querySelector<HTMLElement>(`[data-testid="${current.targetId}"]`);
     if (!el) {
       setTargetRect(null);
       return;
     }
+    el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
     const r = el.getBoundingClientRect();
     const rect: Rect = { top: r.top, left: r.left, width: r.width, height: r.height };
     setTargetRect(rect);
@@ -182,12 +209,12 @@ export function GuidedTour({ onClose }: GuidedTourProps) {
   const handlePrev = () => setStep(s => Math.max(0, s - 1));
 
   const handleFinish = () => {
-    markTourDone();
+    markTourDone(userId);
     onClose();
   };
 
   const handleSkip = () => {
-    markTourDone();
+    markTourDone(userId);
     onClose();
   };
 

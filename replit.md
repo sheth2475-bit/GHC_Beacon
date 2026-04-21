@@ -34,6 +34,10 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - Executive-level view across Scorecard performance, Analytics activity, decision alerts, and data freshness
 - Data freshness is shown for Analytics uploads/dashboard updates and latest Scorecard KPI reporting period
 
+**Guided Tour**
+- Per-user first-login guided tour highlights the Command Center, reporting month filter, Analytics Studio, upload flow, Balanced Scorecard, notifications, and Beacon Assistant
+- Users can relaunch the tour from the sidebar footer
+
 **Public Pages** (no auth required)
 - `/public/dashboard/:token` — read-only Analytics dashboard with GHC Beacon header
 - `/public/scorecard/:token` — read-only BSC department scorecard (same look and feel as internal view)

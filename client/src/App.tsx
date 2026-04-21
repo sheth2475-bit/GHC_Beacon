@@ -76,7 +76,7 @@ function AppLayout() {
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const tourDone = useTourDone();
+  const tourDone = useTourDone(user?.id);
   const [tourActive, setTourActive] = useState(false);
 
   useEffect(() => {
@@ -152,7 +152,7 @@ function AppLayout() {
         </div>
       </div>
       <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
-      {tourActive && <GuidedTour onClose={() => setTourActive(false)} />}
+      {tourActive && <GuidedTour userId={user.id} onClose={() => setTourActive(false)} />}
     </SidebarProvider>
   );
 }
