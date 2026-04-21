@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import {
   ArrowRight,
   BarChart3,
   Building2,
+  CalendarDays,
   CheckCircle2,
   Clock,
   Database,
@@ -28,6 +29,7 @@ import {
   getStatus,
   periodKey,
   MONTHS,
+  DEFAULT_DEPARTMENTS,
   type BscDepartment,
   type KpiDef,
 } from "@/lib/scorecard-data";
@@ -86,10 +88,24 @@ function freshnessClass(date: string | Date | null | undefined) {
   return "text-red-600 dark:text-red-400";
 }
 
+function periodLabel(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  if (!year || !month) return key;
+  return `${MONTHS[month - 1]} ${year}`;
+}
+
+function scoreColor(score: number) {
+  if (score >= 85) return "text-emerald-600 dark:text-emerald-400";
+  if (score >= 70) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
+}
+
 export default function ExecutiveHomePage() {
   const today = new Date();
   const currentPk = periodKey(today.getFullYear(), today.getMonth());
-  const monthLabel = `${MONTHS[today.getMonth()]} ${today.getFullYear()}`;
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    try { return localStorage.getItem("ghc_command_center_period") || currentPk; } catch { return currentPk; }
+  });
 
   const { data: datasets = [] } = useQuery<AnalyticsDataset[]>({ queryKey: ["/api/v2/analytics/datasets"] });
   const { data: insights = [] } = useQuery<AnalyticsInsight[]>({ queryKey: ["/api/v2/analytics/insights"] });
@@ -97,13 +113,42 @@ export default function ExecutiveHomePage() {
   const { data: apiDepts = [] } = useQuery<ApiBscDepartment[]>({ queryKey: ["/api/scorecard/departments"] });
   const { data: actuals = {} } = useQuery<Record<string, Record<string, number>>>({ queryKey: ["/api/scorecard/actuals"] });
 
-  const depts = useMemo<BscDepartment[]>(() => (
-    apiDepts.map(d => ({ id: d.deptId, name: d.name, icon: d.icon, color: d.color }))
-  ), [apiDepts]);
+  const depts = useMemo<BscDepartment[]>(() => {
+    const merged = new Map<string, BscDepartment>();
+    DEFAULT_DEPARTMENTS.forEach(dept => merged.set(dept.id, dept));
+    apiDepts.forEach(d => merged.set(d.deptId, { id: d.deptId, name: d.name, icon: d.icon, color: d.color }));
+    return [...merged.values()];
+  }, [apiDepts]);
+
+  const normalizedStore = useMemo(() => normalizeStore(actuals, depts), [actuals, depts]);
+
+  const availablePeriods = useMemo(() => {
+    const periods = new Set<string>([currentPk]);
+    Object.keys(normalizedStore).forEach(key => {
+      if (/^[0-9]{4}-[0-9]{2}$/.test(key)) periods.add(key);
+    });
+    return [...periods].sort().reverse();
+  }, [currentPk, normalizedStore]);
+
+  useEffect(() => {
+    const currentHasData = Object.keys(normalizedStore[currentPk] || {}).length > 0;
+    const selectedExists = availablePeriods.includes(selectedPeriod);
+    if (!selectedExists && availablePeriods.length > 0) {
+      setSelectedPeriod(availablePeriods[0]);
+      return;
+    }
+    if (!currentHasData && selectedPeriod === currentPk) {
+      const latestWithData = availablePeriods.find(period => Object.keys(normalizedStore[period] || {}).length > 0);
+      if (latestWithData) setSelectedPeriod(latestWithData);
+    }
+  }, [availablePeriods, currentPk, normalizedStore, selectedPeriod]);
+
+  useEffect(() => {
+    try { localStorage.setItem("ghc_command_center_period", selectedPeriod); } catch {}
+  }, [selectedPeriod]);
 
   const scorecard = useMemo(() => {
-    const normalized = normalizeStore(actuals, depts);
-    const periodActuals = normalized[currentPk] || {};
+    const periodActuals = normalizedStore[selectedPeriod] || {};
     const deptStats = depts.map(dept => {
       const kpis = getKpisForDept(dept.id);
       const values: Record<string, number | null> = {};
@@ -117,6 +162,9 @@ export default function ExecutiveHomePage() {
     const withData = deptStats.filter(item => item.complete > 0);
     const overall = withData.length ? Math.round(withData.reduce((sum, item) => sum + item.score, 0) / withData.length) : 0;
     const completeness = deptStats.length ? Math.round(deptStats.reduce((sum, item) => sum + item.complete / Math.max(1, item.total), 0) / deptStats.length * 100) : 0;
+    const focusDepartments = deptStats
+      .filter(item => item.complete > 0 && item.score < 85)
+      .sort((a, b) => a.score - b.score || b.red - a.red);
     return {
       overall,
       completeness,
@@ -124,10 +172,10 @@ export default function ExecutiveHomePage() {
       amber: deptStats.filter(item => item.score >= 70 && item.score < 85 && item.complete > 0).length,
       red: deptStats.filter(item => item.score < 70 && item.complete > 0).length,
       noData: deptStats.filter(item => item.complete === 0).length,
-      risks: deptStats.filter(item => item.red > 0 || item.score < 70).sort((a, b) => b.red - a.red || a.score - b.score).slice(0, 4),
-      latestPeriod: Object.keys(normalized).sort().at(-1),
+      risks: focusDepartments,
+      latestPeriod: Object.keys(normalizedStore).sort().at(-1),
     };
-  }, [actuals, currentPk, depts]);
+  }, [depts, normalizedStore, selectedPeriod]);
 
   const latestDataset = [...datasets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
   const latestDashboard = [...dashboards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
@@ -136,7 +184,7 @@ export default function ExecutiveHomePage() {
   const sharedDashboards = dashboards.filter(d => d.shareEnabled).length;
 
   const decisionAlerts = [
-    ...scorecard.risks.map(item => ({
+    ...scorecard.risks.slice(0, 4).map(item => ({
       icon: item.red > 0 ? AlertCircle : AlertTriangle,
       title: `${item.dept.name} needs attention`,
       detail: `${item.score}% score · ${item.red} red KPI${item.red === 1 ? "" : "s"} · ${item.amber} amber`,
@@ -160,24 +208,45 @@ export default function ExecutiveHomePage() {
   ].slice(0, 6);
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-background via-background to-muted/20">
+    <div className="min-h-full bg-[radial-gradient(circle_at_12%_0%,hsl(var(--primary)/0.14),transparent_32%),radial-gradient(circle_at_88%_10%,rgba(14,165,233,0.13),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.22))]">
       <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
-        <section className="rounded-3xl border bg-card overflow-hidden">
-          <div className="relative p-6 lg:p-8 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.18),transparent_34%),linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)/0.35))]">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+        <section className="rounded-[2rem] border bg-card/80 overflow-hidden shadow-xl shadow-primary/5 backdrop-blur">
+          <div className="relative p-6 lg:p-8 bg-[linear-gradient(135deg,hsl(var(--card)/0.95),hsl(var(--primary)/0.08)),radial-gradient(circle_at_top_right,hsl(var(--primary)/0.25),transparent_36%)]">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-primary to-violet-500" />
+            <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
               <div className="space-y-4 max-w-3xl">
-                <Badge variant="outline" className="gap-1.5 bg-background/70" data-testid="badge-executive-view">
+                <Badge variant="outline" className="gap-1.5 bg-background/70 border-primary/20 shadow-sm" data-testid="badge-executive-view">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
                   Executive Command Center
                 </Badge>
                 <div>
-                  <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">Good morning. Here is what needs attention.</h1>
-                  <p className="text-muted-foreground mt-2 max-w-2xl">
-                    A leadership view across performance, analytics intelligence, freshness and decision alerts for {monthLabel}.
+                  <h1 className="text-3xl lg:text-5xl font-bold tracking-tight leading-tight">
+                    Performance command view for <span className="text-primary">{periodLabel(selectedPeriod)}</span>
+                  </h1>
+                  <p className="text-muted-foreground mt-3 max-w-2xl text-base">
+                    A sharper executive view across KPI health, below-target departments, analytics intelligence, and data freshness.
                   </p>
                 </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground">{scorecard.risks.length} departments below 85%</span>
+                  <span className="rounded-full border bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground">{scorecard.noData} departments awaiting data</span>
+                  <span className="rounded-full border bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground">{scorecard.completeness}% KPI completeness</span>
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 xl:items-center">
+                <div className="flex items-center gap-2 rounded-xl border bg-background/80 px-3 py-2 shadow-sm">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  <select
+                    value={selectedPeriod}
+                    onChange={(event) => setSelectedPeriod(event.target.value)}
+                    className="bg-transparent text-sm font-semibold outline-none"
+                    data-testid="select-command-period"
+                  >
+                    {availablePeriods.map(period => (
+                      <option key={period} value={period}>{periodLabel(period)}</option>
+                    ))}
+                  </select>
+                </div>
                 <Link href="/analytics">
                   <Button variant="outline" className="gap-2" data-testid="button-open-analytics">
                     <BarChart3 className="h-4 w-4" /> Analytics
@@ -194,18 +263,20 @@ export default function ExecutiveHomePage() {
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-5">
+          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
+            <CardContent className="p-5 relative">
+              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-primary/10" />
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-muted-foreground">Overall performance</p>
                 <Activity className="h-4 w-4 text-primary" />
               </div>
-              <p className="text-4xl font-bold mt-3" data-testid="text-overall-performance">{scorecard.overall}%</p>
+              <p className={`text-4xl font-bold mt-3 ${scoreColor(scorecard.overall)}`} data-testid="text-overall-performance">{scorecard.overall}%</p>
               <p className="text-xs text-muted-foreground mt-1">{scorecard.green} green · {scorecard.amber} amber · {scorecard.red} red</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-5">
+          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
+            <CardContent className="p-5 relative">
+              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-emerald-500/10" />
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-muted-foreground">Scorecard data completeness</p>
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -214,8 +285,9 @@ export default function ExecutiveHomePage() {
               <p className="text-xs text-muted-foreground mt-1">Latest KPI data: {scorecard.latestPeriod || "No KPI data yet"}</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-5">
+          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
+            <CardContent className="p-5 relative">
+              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-blue-500/10" />
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-muted-foreground">Analytics dashboards</p>
                 <LayoutDashboard className="h-4 w-4 text-blue-500" />
@@ -224,8 +296,9 @@ export default function ExecutiveHomePage() {
               <p className="text-xs text-muted-foreground mt-1">{publishedDashboards} published · {sharedDashboards} shared</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-5">
+          <Card className="overflow-hidden border-0 shadow-md bg-card/90">
+            <CardContent className="p-5 relative">
+              <div className="absolute right-0 top-0 h-20 w-20 rounded-bl-full bg-cyan-500/10" />
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-muted-foreground">Latest upload</p>
                 <FileSpreadsheet className="h-4 w-4 text-cyan-500" />
@@ -239,7 +312,7 @@ export default function ExecutiveHomePage() {
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
-          <Card>
+          <Card className="shadow-md bg-card/90">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <ShieldAlert className="h-4 w-4 text-red-500" />
@@ -270,7 +343,7 @@ export default function ExecutiveHomePage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-md bg-card/90">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary" />
@@ -316,24 +389,36 @@ export default function ExecutiveHomePage() {
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <Card className="xl:col-span-2">
+          <Card className="xl:col-span-2 shadow-md bg-card/90">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-violet-500" />
-                Departments needing leadership focus
-              </CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-violet-500" />
+                  Departments needing leadership focus
+                </CardTitle>
+                <Badge variant="secondary" data-testid="badge-focus-count">Below 85%: {scorecard.risks.length}</Badge>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {scorecard.risks.length > 0 ? scorecard.risks.map(item => (
                   <Link key={item.dept.id} href={`/scorecard/department/${item.dept.id}`}>
-                    <button className="w-full rounded-xl border p-4 text-left hover:bg-muted/40 transition-colors" data-testid={`button-risk-dept-${item.dept.id}`}>
+                    <button className="w-full rounded-2xl border p-4 text-left hover:bg-muted/40 transition-colors bg-background/60" data-testid={`button-risk-dept-${item.dept.id}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xl">{item.dept.icon}</span>
-                          <p className="font-semibold">{item.dept.name}</p>
+                          <span className="text-xl h-9 w-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${item.dept.color}18` }}>{item.dept.icon}</span>
+                          <div>
+                            <p className="font-semibold">{item.dept.name}</p>
+                            <p className="text-[10px] text-muted-foreground">Target threshold: 85%</p>
+                          </div>
                         </div>
-                        <span className={item.score < 70 ? "text-red-500 font-bold" : "text-amber-500 font-bold"}>{item.score}%</span>
+                        <span className={`text-xl font-bold ${scoreColor(item.score)}`}>{item.score}%</span>
+                      </div>
+                      <div className="mt-4 h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={item.score >= 70 ? "h-full bg-amber-500 rounded-full" : "h-full bg-red-500 rounded-full"}
+                          style={{ width: `${Math.min(100, item.score)}%` }}
+                        />
                       </div>
                       <p className="text-xs text-muted-foreground mt-3">{item.complete}/{item.total} KPIs populated · {item.red} red · {item.amber} amber</p>
                     </button>
@@ -348,7 +433,7 @@ export default function ExecutiveHomePage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-md bg-card/90">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-blue-500" />
