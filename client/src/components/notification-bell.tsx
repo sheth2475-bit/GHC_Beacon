@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Bell, AlertTriangle, AlertCircle, CheckCircle2, ChevronRight,
-  BarChart2, Activity, TrendingDown,
+  BarChart2, Activity, TrendingDown, Database, LayoutDashboard, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -17,6 +17,10 @@ import {
 interface AnalyticsDefinition {
   id: number; title: string; status: string; shareEnabled: boolean;
   updatedAt: string; narrativeSummary?: string | null;
+}
+
+interface AnalyticsDataset {
+  id: number; name: string; fileName?: string | null; updatedAt: string; rowCount?: number | null;
 }
 
 interface KpiAlert {
@@ -40,6 +44,10 @@ export function NotificationBell() {
 
   const { data: analyticsDefs = [] } = useQuery<AnalyticsDefinition[]>({
     queryKey: ["/api/v2/analytics/definitions"],
+  });
+
+  const { data: analyticsDatasets = [] } = useQuery<AnalyticsDataset[]>({
+    queryKey: ["/api/v2/analytics/datasets"],
   });
 
   const today = new Date();
@@ -84,6 +92,8 @@ export function NotificationBell() {
 
   const publishedDashboards = analyticsDefs.filter(d => d.status === "published");
   const sharedDashboards = analyticsDefs.filter(d => d.shareEnabled);
+  const latestDataset = [...analyticsDatasets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+  const latestDashboard = [...analyticsDefs].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
   const totalCount = redAlerts.length + amberAlerts.length;
 
@@ -135,13 +145,53 @@ export function NotificationBell() {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold">Analytics Studio</p>
               <p className="text-[10px] text-muted-foreground">
-                {analyticsDefs.length} dataset{analyticsDefs.length !== 1 ? "s" : ""}
+                {analyticsDatasets.length} dataset{analyticsDatasets.length !== 1 ? "s" : ""}
                 {publishedDashboards.length > 0 && ` · ${publishedDashboards.length} published`}
                 {sharedDashboards.length > 0 && ` · ${sharedDashboards.length} shared`}
               </p>
             </div>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           </div>
+
+          {(latestDataset || latestDashboard) && (
+            <div className="border-b">
+              <div className="px-4 pt-3 pb-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> Data updates
+                </span>
+              </div>
+              {latestDataset && (
+                <button
+                  className="w-full flex items-start gap-3 px-4 py-2.5 hover:bg-muted/50 text-left transition-colors"
+                  onClick={() => { setLocation(`/analytics/datasets/${latestDataset.id}/explore`); setOpen(false); }}
+                  data-testid="notif-latest-dataset"
+                >
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 mt-0.5">
+                    <Database className="h-3 w-3 text-blue-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">Analytics data updated</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{latestDataset.name}</p>
+                  </div>
+                </button>
+              )}
+              {latestDashboard && (
+                <button
+                  className="w-full flex items-start gap-3 px-4 py-2.5 hover:bg-muted/50 text-left transition-colors"
+                  onClick={() => { setLocation(`/analytics/dashboards/${latestDashboard.id}`); setOpen(false); }}
+                  data-testid="notif-latest-dashboard"
+                >
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 mt-0.5">
+                    <LayoutDashboard className="h-3 w-3 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">Dashboard intelligence updated</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{latestDashboard.title}</p>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
 
           {/* ── Scorecard alerts ──────────────────────────────────────── */}
           {totalCount === 0 ? (

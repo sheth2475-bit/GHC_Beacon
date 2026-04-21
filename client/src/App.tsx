@@ -16,6 +16,7 @@ import AuthPage from "@/pages/auth";
 import LandingPage from "@/pages/landing";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
+import ExecutiveHomePage from "@/pages/executive-home";
 
 import UserManagementPage from "@/pages/user-management";
 import SettingsPage from "@/pages/settings";
@@ -52,7 +53,7 @@ function AppRouter() {
     <Switch>
       <Route path="/guide" component={GuidePage} />
       <Route path="/guide/" component={GuidePage} />
-      <Route path="/" component={AnalyticsStudioPage} />
+      <Route path="/" component={ExecutiveHomePage} />
       <Route path="/analytics" component={AnalyticsStudioPage} />
       <Route path="/analytics/upload" component={AnalyticsUploadPage} />
       <Route path="/analytics/dashboards/new" component={AnalyticsDashboardComposePage} />

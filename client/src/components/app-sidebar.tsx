@@ -120,6 +120,7 @@ export function AppSidebar({ onStartTour }: { onStartTour?: () => void }) {
   const search = useSearch();
   const { user, logout, isAdmin, isExecutive } = useAuth();
 
+  const isOnHome = location === "/";
   const isOnAnalytics = location === "/analytics" || location.startsWith("/analytics");
   const isOnScorecard = location === "/scorecard" || location.startsWith("/scorecard");
 
@@ -181,6 +182,25 @@ export function AppSidebar({ onStartTour }: { onStartTour?: () => void }) {
         <SidebarGroup>
           <SidebarGroupContent>
             <div className="space-y-0.5">
+              <SidebarMenu className="gap-0.5 mb-1">
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild data-active={isOnHome}>
+                    <Link
+                      href="/"
+                      data-testid="link-nav-command-center"
+                      className={cn(
+                        "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 group",
+                        isOnHome
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                      )}
+                    >
+                      <Home className={cn("h-4 w-4 shrink-0", isOnHome ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
+                      <span className="flex-1 truncate">Command Center</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
 
               {/* Analytics Studio module */}
               <ModuleItem

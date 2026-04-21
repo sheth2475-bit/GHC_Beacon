@@ -50,6 +50,14 @@ function fmtDate(d: string | Date | null | undefined) {
   return `${Math.floor(days / 365)}y ago`;
 }
 
+function freshnessTone(d: string | Date | null | undefined) {
+  if (!d) return "text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20";
+  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+  if (days <= 7) return "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+  if (days <= 30) return "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20";
+  return "text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20";
+}
+
 // ── Dataset thumbnail card (YouTube style) ───────────────────────────────────
 function DatasetThumbnail({ ds, onDelete }: { ds: AnalyticsDataset; onDelete: (id: number) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -294,6 +302,9 @@ export default function AnalyticsStudioPage() {
   const filteredDef = definitions.filter(d => !q || d.title.toLowerCase().includes(q));
 
   const isLoading = loadingDS || loadingIns || loadingDef;
+  const latestDataset = [...datasets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+  const latestDashboard = [...definitions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+  const latestInsight = [...insights].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
   const GRID = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4";
 
@@ -344,6 +355,38 @@ export default function AnalyticsStudioPage() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-8">
+        <Card className="border-primary/10 bg-gradient-to-r from-primary/5 via-background to-background">
+          <CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  Analytics data freshness
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use this before reading charts: it shows when source data, dashboards, and AI insight outputs last changed.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:min-w-[560px]">
+                <div className={`rounded-xl border px-3 py-2 ${freshnessTone(latestDataset?.updatedAt)}`}>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold opacity-80">Last upload</p>
+                  <p className="text-sm font-bold" data-testid="text-analytics-last-upload">{fmtDate(latestDataset?.updatedAt)}</p>
+                  <p className="text-[10px] truncate opacity-75">{latestDataset?.name || "No dataset yet"}</p>
+                </div>
+                <div className={`rounded-xl border px-3 py-2 ${freshnessTone(latestDashboard?.updatedAt)}`}>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold opacity-80">Dashboard refresh</p>
+                  <p className="text-sm font-bold" data-testid="text-analytics-last-dashboard">{fmtDate(latestDashboard?.updatedAt)}</p>
+                  <p className="text-[10px] truncate opacity-75">{latestDashboard?.title || "No dashboard yet"}</p>
+                </div>
+                <div className={`rounded-xl border px-3 py-2 ${freshnessTone(latestInsight?.createdAt)}`}>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold opacity-80">Latest AI insight</p>
+                  <p className="text-sm font-bold" data-testid="text-analytics-last-insight">{fmtDate(latestInsight?.createdAt)}</p>
+                  <p className="text-[10px] truncate opacity-75">{latestInsight?.title || "No insight yet"}</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── HOME ── */}
         {section === "home" && (

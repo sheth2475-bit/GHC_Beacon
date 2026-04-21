@@ -629,6 +629,18 @@ function healthStatus(hp: number): "green"|"amber"|"red" {
   return hp >= 85 ? "green" : hp >= 70 ? "amber" : "red";
 }
 
+function latestPeriodWithData(store: Record<string, Record<string, number>>, deptId?: string) {
+  const keys = Object.entries(store || {})
+    .filter(([, vals]) => Object.keys(vals || {}).some(kpiId => !deptId || kpiId.startsWith(`${deptId}_`) || (deptId === "corp" && kpiId.startsWith("cr_"))))
+    .map(([key]) => {
+      const match = key.match(/^.+_([0-9]{4}-[0-9]{2})$/);
+      return match ? match[1] : key;
+    })
+    .filter(key => /^[0-9]{4}-[0-9]{2}$/.test(key))
+    .sort();
+  return keys.at(-1) || null;
+}
+
 function ScorecardLanding() {
   const [departments, setDepartments] = useState<BscDepartment[]>(loadDepartments);
   const [store, setStore] = useState(loadStore);
@@ -717,6 +729,20 @@ function ScorecardLanding() {
     };
   }, [departments, store, pk]);
 
+  const scorecardFreshness = useMemo(() => {
+    const totalKpis = departments.reduce((sum, d) => sum + (loadKpiOverride(d.id) ?? getKpisForDept(d.id)).length, 0);
+    const populated = departments.reduce((sum, d) => {
+      const kpis = loadKpiOverride(d.id) ?? getKpisForDept(d.id);
+      return sum + kpis.filter(k => store?.[pk]?.[k.id] !== undefined).length;
+    }, 0);
+    return {
+      latestPeriod: latestPeriodWithData(store),
+      completeness: totalKpis ? Math.round((populated / totalKpis) * 100) : 0,
+      populated,
+      totalKpis,
+    };
+  }, [departments, store, pk]);
+
   return (
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
 
@@ -755,6 +781,36 @@ function ScorecardLanding() {
       <p className="text-xs text-muted-foreground flex items-center gap-1.5 -mt-2">
         <GripVertical className="h-3.5 w-3.5" />Drag to reorder · Click a card to open its scorecard
       </p>
+
+      <Card className="border-violet-500/10 bg-gradient-to-r from-violet-500/5 via-background to-background">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Clock className="h-4 w-4 text-violet-500" />
+                Balanced Scorecard data freshness
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Use this to validate whether the current reporting period has enough KPI actuals for executive review.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:min-w-[540px]">
+              <div className="rounded-xl border bg-background/70 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Latest KPI data</p>
+                <p className="text-sm font-bold" data-testid="text-bsc-latest-period">{scorecardFreshness.latestPeriod || "No KPI data"}</p>
+              </div>
+              <div className="rounded-xl border bg-background/70 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Current completeness</p>
+                <p className="text-sm font-bold" data-testid="text-bsc-completeness">{scorecardFreshness.completeness}%</p>
+              </div>
+              <div className="rounded-xl border bg-background/70 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">KPI actuals entered</p>
+                <p className="text-sm font-bold" data-testid="text-bsc-actual-count">{scorecardFreshness.populated}/{scorecardFreshness.totalKpis}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {departments.map((dept, idx) => {
           const kpis  = loadKpiOverride(dept.id) ?? getKpisForDept(dept.id);
@@ -764,6 +820,9 @@ function ScorecardLanding() {
           const hp       = performanceScore(kpis, acts, deptWeights);
           const hc       = healthColor(hp);
           const hs       = healthStatus(hp);
+          const populated = kpis.filter(k => acts[k.id] !== null).length;
+          const completeness = kpis.length ? Math.round((populated / kpis.length) * 100) : 0;
+          const latestDeptPeriod = latestPeriodWithData(store, dept.id);
 
           // prev-month score for trend
           const prevActs: Record<string, number | null> = {};
@@ -837,6 +896,13 @@ function ScorecardLanding() {
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${hp}%`, background: hc }} />
+                </div>
+
+                <div className="mt-3 rounded-lg bg-muted/40 px-2 py-1.5 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-muted-foreground">Freshness</span>
+                  <span className="text-[10px] font-semibold" data-testid={`text-dept-freshness-${dept.id}`}>
+                    {latestDeptPeriod || "No data"} · {completeness}%
+                  </span>
                 </div>
 
                 {/* Footer: CTA */}
@@ -1209,6 +1275,13 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const getActual = useCallback((id:string, p=pk): number|null => {
     const v = store?.[p]?.[id]; return v !== undefined ? Number(v) : null;
   }, [store, pk]);
+
+  const deptFreshness = {
+    latestPeriod: latestPeriodWithData(store, deptId),
+    populated: kpis.filter(k => store?.[pk]?.[k.id] !== undefined).length,
+    total: kpis.length,
+  };
+  const deptCompleteness = deptFreshness.total ? Math.round((deptFreshness.populated / deptFreshness.total) * 100) : 0;
 
   // ── Share link ────────────────────────────────────────────────────────────
   const { data: shareData } = useQuery<{ shareToken: string | null; shareEnabled: boolean }>({
@@ -1726,6 +1799,36 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           </div>
         </div>
       </div>
+
+      <Card className="border-violet-500/10 bg-gradient-to-r from-violet-500/5 via-background to-background">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Clock className="h-4 w-4 text-violet-500" />
+                {dept.name} KPI freshness
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Latest period with KPI data and current-period completeness before this department score is reviewed.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:min-w-[540px]">
+              <div className="rounded-xl border bg-background/70 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Latest KPI data</p>
+                <p className="text-sm font-bold" data-testid="text-dept-latest-period">{deptFreshness.latestPeriod || "No KPI data"}</p>
+              </div>
+              <div className="rounded-xl border bg-background/70 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Completeness</p>
+                <p className="text-sm font-bold" data-testid="text-dept-completeness">{deptCompleteness}%</p>
+              </div>
+              <div className="rounded-xl border bg-background/70 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Actuals entered</p>
+                <p className="text-sm font-bold" data-testid="text-dept-actual-count">{deptFreshness.populated}/{deptFreshness.total}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

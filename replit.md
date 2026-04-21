@@ -29,6 +29,11 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - DB-synced departments (`bsc_departments`) and actuals (`bsc_actuals`)
 - Public share link per department: `POST /api/scorecard/share`, `GET /api/scorecard/share?deptId=...`, viewed at `/public/scorecard/:token`
 
+**Executive Command Center**
+- Logged-in default landing page at `/`
+- Executive-level view across Scorecard performance, Analytics activity, decision alerts, and data freshness
+- Data freshness is shown for Analytics uploads/dashboard updates and latest Scorecard KPI reporting period
+
 **Public Pages** (no auth required)
 - `/public/dashboard/:token` — read-only Analytics dashboard with GHC Beacon header
 - `/public/scorecard/:token` — read-only BSC department scorecard (same look and feel as internal view)
