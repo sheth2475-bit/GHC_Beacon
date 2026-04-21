@@ -308,10 +308,17 @@ async function seedSubtasksForExistingTasks(allTasks: { id: number; title: strin
 
 async function seedAnalyticsData(companyId: number, userId: number) {
   const existing = await storage.getAnalyticsDatasets(companyId);
-  if (existing.some(d => d.name === "OYO Hotel Performance Data")) return;
+  const existingDemo = existing.find(d => d.name === "OYO Hotel Performance Data");
+  if (existingDemo) {
+    const currentRows = (existingDemo.rawData as Record<string, unknown>[] | null) || [];
+    if (currentRows.length >= 120 && currentRows[0]?.["Revenue Budget (AED)"] !== undefined) return;
+  }
 
   const PROPERTIES = ["Dubai Marina", "Abu Dhabi Airport", "Sharjah City", "Ajman Beach", "RAK Resort"];
-  const MONTH_LABELS = ["Apr 2024","May 2024","Jun 2024","Jul 2024","Aug 2024","Sep 2024","Oct 2024","Nov 2024","Dec 2024","Jan 2025","Feb 2025","Mar 2025"];
+  const MONTH_LABELS = [
+    "Jan 2025","Feb 2025","Mar 2025","Apr 2025","May 2025","Jun 2025","Jul 2025","Aug 2025","Sep 2025","Oct 2025","Nov 2025","Dec 2025",
+    "Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026","Jun 2026","Jul 2026","Aug 2026","Sep 2026","Oct 2026","Nov 2026","Dec 2026",
+  ];
   const PROP_BASE: Record<string, { rev: number; adr: number; occ: number; sat: number; staff: number }> = {
     "Dubai Marina":      { rev: 2800000, adr: 380, occ: 88, sat: 4.5, staff: 950000 },
     "Abu Dhabi Airport": { rev: 2100000, adr: 290, occ: 84, sat: 4.2, staff: 720000 },
@@ -319,7 +326,7 @@ async function seedAnalyticsData(companyId: number, userId: number) {
     "Ajman Beach":       { rev: 1100000, adr: 185, occ: 76, sat: 4.1, staff: 390000 },
     "RAK Resort":        { rev:  920000, adr: 165, occ: 72, sat: 4.3, staff: 320000 },
   };
-  const SEASONAL = [0.95,1.00,0.85,0.78,0.72,0.80,0.97,1.08,1.15,1.12,1.05,1.10];
+  const SEASONAL = [1.12,1.05,1.10,0.95,1.00,0.85,0.78,0.72,0.80,0.97,1.08,1.15];
 
   let seed = 42;
   const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
@@ -327,11 +334,15 @@ async function seedAnalyticsData(companyId: number, userId: number) {
   const rows: Record<string, unknown>[] = [];
   for (let mi = 0; mi < MONTH_LABELS.length; mi++) {
     for (const prop of PROPERTIES) {
-      const b = PROP_BASE[prop], s = SEASONAL[mi];
+      const b = PROP_BASE[prop], s = SEASONAL[mi % 12];
+      const year = Number(MONTH_LABELS[mi].slice(-4));
+      const yearFactor = year === 2026 ? 1.08 : 1;
       const n = () => 0.93 + rand() * 0.14;
-      const revenue = Math.round(b.rev * s * n());
-      const adr     = Math.round(b.adr * s * n() * 10) / 10;
-      const occ     = Math.round(Math.min(97, b.occ * s * n()) * 10) / 10;
+      const revenue = Math.round(b.rev * s * yearFactor * n());
+      const revenueBudget = Math.round(b.rev * s * yearFactor * 1.03);
+      const adr     = Math.round(b.adr * s * yearFactor * n() * 10) / 10;
+      const occ     = Math.round(Math.min(97, b.occ * s * (year === 2026 ? 1.02 : 1) * n()) * 10) / 10;
+      const occupancyTarget = Math.round(Math.min(96, b.occ * s * (year === 2026 ? 1.015 : 1.005)) * 10) / 10;
       const rooms   = Math.round(occ / 100 * 200);
       const revpar  = Math.round(adr * occ / 100 * 10) / 10;
       const sat     = Math.round(Math.min(5.0, Math.max(3.2, b.sat + (rand() - 0.5) * 0.4)) * 10) / 10;
@@ -339,74 +350,113 @@ async function seedAnalyticsData(companyId: number, userId: number) {
       const fb      = Math.round(revenue * (0.18 + rand() * 0.08));
       const comp    = Math.round(rooms * (0.01 + rand() * 0.025));
       const gop     = Math.round((revenue - staff - revenue * 0.28) / revenue * 100 * 10) / 10;
+      const gopTarget = Math.round((year === 2026 ? 37 : 35) + (s - 1) * 4 + (PROP_BASE[prop].occ - 80) * 0.05);
       const nps     = Math.round(50 + sat * 8 + (rand() - 0.5) * 10);
       rows.push({
         "Month": MONTH_LABELS[mi], "Property": prop,
-        "Revenue (AED)": revenue, "Rooms Sold": rooms, "ADR (AED)": adr,
-        "Occupancy Rate (%)": occ, "RevPAR (AED)": revpar, "F&B Revenue (AED)": fb,
+        "Revenue (AED)": revenue, "Revenue Budget (AED)": revenueBudget, "Rooms Sold": rooms, "ADR (AED)": adr,
+        "Occupancy Rate (%)": occ, "Occupancy Target (%)": occupancyTarget, "RevPAR (AED)": revpar, "F&B Revenue (AED)": fb,
         "Guest Satisfaction": sat, "NPS Score": nps, "Staff Cost (AED)": staff,
-        "Guest Complaints": comp, "GOP Margin (%)": gop,
+        "Guest Complaints": comp, "GOP Margin (%)": gop, "GOP Margin Target (%)": gopTarget,
       });
     }
   }
 
-  const dataset = await storage.createAnalyticsDataset({
+  const datasetPayload = {
     companyId, createdBy: userId,
     name: "OYO Hotel Performance Data",
-    description: "Monthly hotel performance metrics across 5 UAE properties — Apr 2024 to Mar 2025",
+    description: "Monthly hotel performance metrics across 5 UAE properties — Jan 2025 to Dec 2026, including budget/target and prior-year comparison fields",
     fileName: "oyo-hotel-performance.xlsx",
     sheetNames: ["Hotel Performance"],
     rowCount: rows.length,
     rawData: rows as any,
     status: "active",
-  });
+  };
+
+  const dataset = existingDemo
+    ? await storage.updateAnalyticsDataset(existingDemo.id, datasetPayload)
+    : await storage.createAnalyticsDataset(datasetPayload);
 
   await storage.upsertAnalyticsDatasetColumns(dataset.id, [
     { columnName: "Month",              label: "Month",              columnType: "date",      aggregation: null,  format: "text",   position: 0,  isFormula: false },
     { columnName: "Property",           label: "Property",           columnType: "dimension", aggregation: null,  format: "text",   position: 1,  isFormula: false },
     { columnName: "Revenue (AED)",      label: "Revenue (AED)",      columnType: "measure",   aggregation: "sum", format: "number", position: 2,  isFormula: false },
-    { columnName: "Rooms Sold",         label: "Rooms Sold",         columnType: "measure",   aggregation: "sum", format: "number", position: 3,  isFormula: false },
-    { columnName: "ADR (AED)",          label: "ADR (AED)",          columnType: "measure",   aggregation: "avg", format: "number", position: 4,  isFormula: false },
-    { columnName: "Occupancy Rate (%)", label: "Occupancy Rate (%)", columnType: "measure",   aggregation: "avg", format: "number", position: 5,  isFormula: false },
-    { columnName: "RevPAR (AED)",       label: "RevPAR (AED)",       columnType: "measure",   aggregation: "avg", format: "number", position: 6,  isFormula: false },
-    { columnName: "F&B Revenue (AED)",  label: "F&B Revenue (AED)",  columnType: "measure",   aggregation: "sum", format: "number", position: 7,  isFormula: false },
-    { columnName: "Guest Satisfaction", label: "Guest Satisfaction", columnType: "measure",   aggregation: "avg", format: "number", position: 8,  isFormula: false },
-    { columnName: "NPS Score",          label: "NPS Score",          columnType: "measure",   aggregation: "avg", format: "number", position: 9,  isFormula: false },
-    { columnName: "Staff Cost (AED)",   label: "Staff Cost (AED)",   columnType: "measure",   aggregation: "sum", format: "number", position: 10, isFormula: false },
-    { columnName: "Guest Complaints",   label: "Guest Complaints",   columnType: "measure",   aggregation: "sum", format: "number", position: 11, isFormula: false },
-    { columnName: "GOP Margin (%)",     label: "GOP Margin (%)",     columnType: "measure",   aggregation: "avg", format: "number", position: 12, isFormula: false },
+    { columnName: "Revenue Budget (AED)", label: "Revenue Budget (AED)", columnType: "measure", aggregation: "sum", format: "number", position: 3, isFormula: false },
+    { columnName: "Rooms Sold",         label: "Rooms Sold",         columnType: "measure",   aggregation: "sum", format: "number", position: 4,  isFormula: false },
+    { columnName: "ADR (AED)",          label: "ADR (AED)",          columnType: "measure",   aggregation: "avg", format: "number", position: 5,  isFormula: false },
+    { columnName: "Occupancy Rate (%)", label: "Occupancy Rate (%)", columnType: "measure",   aggregation: "avg", format: "number", position: 6,  isFormula: false },
+    { columnName: "Occupancy Target (%)", label: "Occupancy Target (%)", columnType: "measure", aggregation: "avg", format: "number", position: 7, isFormula: false },
+    { columnName: "RevPAR (AED)",       label: "RevPAR (AED)",       columnType: "measure",   aggregation: "avg", format: "number", position: 8,  isFormula: false },
+    { columnName: "F&B Revenue (AED)",  label: "F&B Revenue (AED)",  columnType: "measure",   aggregation: "sum", format: "number", position: 9,  isFormula: false },
+    { columnName: "Guest Satisfaction", label: "Guest Satisfaction", columnType: "measure",   aggregation: "avg", format: "number", position: 10, isFormula: false },
+    { columnName: "NPS Score",          label: "NPS Score",          columnType: "measure",   aggregation: "avg", format: "number", position: 11, isFormula: false },
+    { columnName: "Staff Cost (AED)",   label: "Staff Cost (AED)",   columnType: "measure",   aggregation: "sum", format: "number", position: 12, isFormula: false },
+    { columnName: "Guest Complaints",   label: "Guest Complaints",   columnType: "measure",   aggregation: "sum", format: "number", position: 13, isFormula: false },
+    { columnName: "GOP Margin (%)",     label: "GOP Margin (%)",     columnType: "measure",   aggregation: "avg", format: "number", position: 14, isFormula: false },
+    { columnName: "GOP Margin Target (%)", label: "GOP Margin Target (%)", columnType: "measure", aggregation: "avg", format: "number", position: 15, isFormula: false },
   ]);
 
   // Build aggregated data for hardcoded insights
   const revenueByProp: Record<string, number> = {};
+  const revenueBudgetByProp: Record<string, number> = {};
   const occupancyByProp: Record<string, number[]> = {};
   const satisfactionByProp: Record<string, number[]> = {};
   const gopByMonth: Record<string, number[]> = {};
+  const gopByMonthYear: Record<string, number[]> = {};
   for (const r of rows) {
     const prop = r["Property"] as string;
     const month = r["Month"] as string;
     revenueByProp[prop] = (revenueByProp[prop] || 0) + (r["Revenue (AED)"] as number);
+    revenueBudgetByProp[prop] = (revenueBudgetByProp[prop] || 0) + (r["Revenue Budget (AED)"] as number);
     if (!occupancyByProp[prop]) occupancyByProp[prop] = [];
     occupancyByProp[prop].push(r["Occupancy Rate (%)"] as number);
     if (!satisfactionByProp[prop]) satisfactionByProp[prop] = [];
     satisfactionByProp[prop].push(r["Guest Satisfaction"] as number);
     if (!gopByMonth[month]) gopByMonth[month] = [];
     gopByMonth[month].push(r["GOP Margin (%)"] as number);
+    const monthName = month.split(" ")[0];
+    const year = month.split(" ")[1];
+    const gopKey = `${monthName}|${year}`;
+    if (!gopByMonthYear[gopKey]) gopByMonthYear[gopKey] = [];
+    gopByMonthYear[gopKey].push(r["GOP Margin (%)"] as number);
   }
   const avg = (arr: number[]) => Math.round((arr.reduce((s,v) => s+v,0)/arr.length)*10)/10;
 
-  const revData = PROPERTIES.map(p => ({ name: p, value: revenueByProp[p] || 0 })).sort((a,b) => b.value-a.value);
+  const revData = PROPERTIES.map(p => {
+    const value = revenueByProp[p] || 0;
+    const comparisonValue = revenueBudgetByProp[p] || 0;
+    return {
+      name: p,
+      value,
+      comparisonValue,
+      comparisonLabel: "Revenue Budget (AED)",
+      variance: value - comparisonValue,
+      variancePct: comparisonValue ? Math.round(((value - comparisonValue) / comparisonValue) * 1000) / 10 : null,
+    };
+  }).sort((a,b) => b.value-a.value);
   const occData = PROPERTIES.map(p => ({ name: p, value: avg(occupancyByProp[p] || [0]) }));
   const satData = PROPERTIES.map(p => ({ name: p, value: avg(satisfactionByProp[p] || [0]) }));
   const gopData = MONTH_LABELS.map(m => ({ name: m, value: avg(gopByMonth[m] || [0]) }));
+  const gopYoYData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map(m => {
+    const value = avg(gopByMonthYear[`${m}|2026`] || [0]);
+    const comparisonValue = avg(gopByMonthYear[`${m}|2025`] || [0]);
+    return {
+      name: m,
+      value,
+      comparisonValue,
+      comparisonLabel: "2025",
+      variance: Math.round((value - comparisonValue) * 10) / 10,
+      variancePct: comparisonValue ? Math.round(((value - comparisonValue) / Math.abs(comparisonValue)) * 1000) / 10 : null,
+    };
+  });
 
   const insights: { title: string; question: string; chartType: string; chartConfig: any; narrative: string }[] = [
     {
       title: "Total Revenue by Property",
-      question: "What is the total revenue by property for the full period?",
+      question: "What is the total revenue by property versus budget?",
       chartType: "bar",
-      chartConfig: { chartType: "bar", data: { data: revData, xKey: "name", yKey: "value", measureLabel: "Revenue (AED)", dimensionLabel: "Property" }, measure: "Revenue (AED)", measureLabel: "Revenue (AED)", dimension: "Property", aggregation: "sum" },
-      narrative: `Dubai Marina leads with the highest total revenue at ${(revData[0].value/1000000).toFixed(1)}M AED, followed by Abu Dhabi Airport. RAK Resort has the lowest revenue but maintains strong margins relative to size.`,
+      chartConfig: { chartType: "bar", data: { data: revData, xKey: "name", yKey: "value", measureLabel: "Revenue (AED)", dimensionLabel: "Property", comparisonLabel: "Revenue Budget (AED)", comparisonType: "budget" }, measure: "Revenue (AED)", measureLabel: "Revenue (AED)", dimension: "Property", dimensionLabel: "Property", aggregation: "sum", comparisonType: "budget", comparisonMeasure: "Revenue Budget (AED)", comparisonLabel: "Revenue Budget (AED)" },
+      narrative: `Dubai Marina leads with the highest total revenue at ${(revData[0].value/1000000).toFixed(1)}M AED. This view now includes budget bars and variance so teams can see where actual performance is ahead of or behind plan.`,
     },
     {
       title: "Average Occupancy Rate by Property",
@@ -424,14 +474,32 @@ async function seedAnalyticsData(companyId: number, userId: number) {
     },
     {
       title: "GOP Margin Trend Over Time",
-      question: "Show GOP Margin trend over time",
+      question: "Show GOP Margin trend over time compared with previous year",
       chartType: "line",
-      chartConfig: { chartType: "line", data: { data: gopData, xKey: "name", yKey: "value", measureLabel: "GOP Margin (%)", dimensionLabel: "Month" }, measure: "GOP Margin (%)", measureLabel: "GOP Margin (%)", dimension: "Month", aggregation: "avg" },
-      narrative: "GOP margins peak during high season (Oct–Mar) and dip in summer months (Jun–Aug) as occupancy falls. The portfolio maintains solid profitability throughout the year with margins ranging from 33% to 41%.",
+      chartConfig: { chartType: "line", data: { data: gopYoYData, xKey: "name", yKey: "value", measureLabel: "GOP Margin (%)", dimensionLabel: "Month", comparisonLabel: "2025", comparisonType: "previousYear" }, measure: "GOP Margin (%)", measureLabel: "GOP Margin (%)", dimension: "Month", dimensionLabel: "Month", aggregation: "avg", comparisonType: "previousYear", comparisonLabel: "2025" },
+      narrative: "GOP margins now show a dual-series previous-year comparison. The 2026 line can be read against the 2025 line month by month to understand whether profitability is improving or weakening seasonally.",
     },
   ];
 
   const insightIds: number[] = [];
+  if (existingDemo) {
+    const savedInsights = await storage.getAnalyticsInsightsByDataset(dataset.id);
+    for (const ins of insights) {
+      const existingInsight = savedInsights.find(s => s.title === ins.title);
+      if (!existingInsight) continue;
+      await storage.updateAnalyticsInsight(existingInsight.id, {
+        question: ins.question,
+        interpretation: ins.question,
+        chartType: ins.chartType,
+        chartConfig: ins.chartConfig,
+        narrative: ins.narrative,
+      });
+      insightIds.push(existingInsight.id);
+    }
+    console.log(`Seed: updated analytics demo dataset (${rows.length} rows) with budget and previous-year comparison data`);
+    return;
+  }
+
   for (const ins of insights) {
     const saved = await storage.createAnalyticsInsight({
       companyId, createdBy: userId, datasetId: dataset.id,
@@ -574,7 +642,7 @@ export async function seedDatabase() {
 
     // ── Ensure analytics V2 datasets, insights, definitions ─────
     const existingDatasets = await storage.getAnalyticsDatasets(companyId);
-    if (existingDatasets.length === 0) {
+    if (existingDatasets.length === 0 || existingDatasets.some(d => d.name === "OYO Hotel Performance Data")) {
       await seedAnalyticsData(companyId, existing.id);
       console.log("Seed: restored analytics V2 data (datasets, insights, definitions)");
     }

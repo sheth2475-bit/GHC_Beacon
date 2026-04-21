@@ -20,7 +20,9 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - Upload Excel/CSV datasets, configure column types, explore with AI
 - AI insight generation (bar, line, area, pie, donut, KPI, horizontal-bar chart types)
 - AI insight questions support budget/target/plan and previous-year comparisons when matching comparison measures or date columns are available
+- Bar, column, line, and area charts automatically render a dual series when previous-year or budget comparison data is returned
 - KPI cards can save compact or full-number display formatting; saved dashboards and public links honor the selected format
+- OYO demo analytics dataset includes Jan 2025–Dec 2026 rows, Revenue Budget, Occupancy Target, and GOP Margin Target columns for testing budget and previous-year comparisons
 - Dashboard composer: add insights to a dashboard, AI narrative, publish (private/department/company), public share link
 - Public share link: `POST /api/v2/analytics/definitions/:id/share`, viewed at `/public/dashboard/:token`
 
