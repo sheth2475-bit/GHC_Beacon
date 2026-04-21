@@ -498,7 +498,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             >
               {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
             </Pie>
-            <Tooltip formatter={(v) => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+            <Tooltip formatter={(v) => [formatValue(Number(v), displayFormat), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
           </RechartPie>
         </ResponsiveContainer>
         {/* Compact legend */}
@@ -507,7 +507,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <div key={i} className="flex items-center gap-1 min-w-0">
               <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
               <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={d.name}>{d.name}</span>
-              <span className="text-[9px] font-semibold shrink-0">{formatValue(d.value)}</span>
+              <span className="text-[9px] font-semibold shrink-0">{formatValue(d.value, displayFormat)}</span>
               <span className="text-[9px] text-muted-foreground shrink-0">{total ? `(${((d.value / total) * 100).toFixed(0)}%)` : ""}</span>
             </div>
           ))}
@@ -524,7 +524,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
       <div className="overflow-hidden rounded border">
         <table className="w-full text-[10px]">
           <thead className="bg-muted/50"><tr>{cols.map(c => <th key={c} className="px-2 py-1 text-left font-medium truncate max-w-[90px]">{c}</th>)}</tr></thead>
-          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50">{cols.map(c => <td key={c} className="px-2 py-1 truncate max-w-[90px]">{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
+          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50">{cols.map(c => <td key={c} className="px-2 py-1 truncate max-w-[90px]">{typeof r[c] === "number" ? formatValue(Number(r[c]), displayFormat) : String(r[c] ?? "")}</td>)}</tr>)}</tbody>
         </table>
         {(tableData.rows?.length || 0) > 4 && <p className="text-[9px] text-center text-muted-foreground py-1">+{(tableData.rows?.length || 0) - 4} more rows</p>}
       </div>
@@ -622,7 +622,7 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
               }} labelLine={false}>
               {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
             </Pie>
-            <Tooltip formatter={v => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Tooltip formatter={v => [formatValue(Number(v), displayFormat), ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
           </RechartPie>
         </ResponsiveContainer>
         <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center">
@@ -630,7 +630,7 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <div key={i} className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
               <span className="text-sm text-muted-foreground">{d.name}</span>
-              <span className="text-sm font-bold">{formatValue(d.value)}</span>
+              <span className="text-sm font-bold">{formatValue(d.value, displayFormat)}</span>
               <span className="text-sm text-muted-foreground">{total ? `(${((d.value / total) * 100).toFixed(1)}%)` : ""}</span>
             </div>
           ))}
@@ -647,7 +647,7 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
       <div className="flex-1 rounded-xl border bg-card overflow-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-muted/50"><tr>{cols.map(c => <th key={c} className="px-4 py-2.5 text-left font-semibold text-muted-foreground whitespace-nowrap">{c}</th>)}</tr></thead>
-          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50 hover:bg-muted/20">{cols.map(c => <td key={c} className="px-4 py-2 whitespace-nowrap">{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
+          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50 hover:bg-muted/20">{cols.map(c => <td key={c} className="px-4 py-2 whitespace-nowrap">{typeof r[c] === "number" ? formatValue(Number(r[c]), displayFormat) : String(r[c] ?? "")}</td>)}</tr>)}</tbody>
         </table>
       </div>
     );

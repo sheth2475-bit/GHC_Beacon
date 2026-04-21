@@ -167,7 +167,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
             >
               {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
             </Pie>
-            <Tooltip formatter={(v) => [formatValue(Number(v)), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+            <Tooltip formatter={(v) => [formatValue(Number(v), displayFormat), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
           </RechartPie>
         </ResponsiveContainer>
         <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
@@ -175,7 +175,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
             <div key={i} className="flex items-center gap-1 min-w-0">
               <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
               <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={d.name}>{d.name}</span>
-              <span className="text-[9px] font-semibold shrink-0">{formatValue(d.value)}</span>
+              <span className="text-[9px] font-semibold shrink-0">{formatValue(d.value, displayFormat)}</span>
               <span className="text-[9px] text-muted-foreground shrink-0">{total ? `(${((d.value / total) * 100).toFixed(0)}%)` : ""}</span>
             </div>
           ))}
@@ -192,7 +192,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
       <div className="overflow-hidden rounded border">
         <table className="w-full text-[10px]">
           <thead className="bg-muted/50"><tr>{cols.map(c => <th key={c} className="px-2 py-1 text-left font-medium truncate max-w-[90px]">{c}</th>)}</tr></thead>
-          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50">{cols.map(c => <td key={c} className="px-2 py-1 truncate max-w-[90px]">{String(r[c] ?? "")}</td>)}</tr>)}</tbody>
+          <tbody>{rows.map((r, i) => <tr key={i} className="border-t border-border/50">{cols.map(c => <td key={c} className="px-2 py-1 truncate max-w-[90px]">{typeof r[c] === "number" ? formatValue(Number(r[c]), displayFormat) : String(r[c] ?? "")}</td>)}</tr>)}</tbody>
         </table>
         {(tableData.rows?.length || 0) > 4 && <p className="text-[9px] text-center text-muted-foreground py-1">+{(tableData.rows?.length || 0) - 4} more rows</p>}
       </div>

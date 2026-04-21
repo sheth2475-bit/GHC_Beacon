@@ -104,6 +104,99 @@ function formatVariancePct(v: unknown): string {
   return `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
+type ChartDatum = { name: string; value: number; comparisonValue?: number };
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number" && isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeSeriesData(raw: Record<string, unknown> | null | undefined): ChartDatum[] {
+  if (!raw) return [];
+  const nested = raw as { data?: unknown[] };
+  if (Array.isArray(nested.data)) {
+    return nested.data.map((d, i) => {
+      const row = d as Record<string, unknown>;
+      return {
+        name: String(row.name ?? row.label ?? `Item ${i + 1}`),
+        value: asNumber(row.value) ?? 0,
+        ...(asNumber(row.comparisonValue) !== null ? { comparisonValue: asNumber(row.comparisonValue)! } : {}),
+      };
+    });
+  }
+  const table = raw as { rows?: Record<string, unknown>[]; columns?: string[] };
+  if (Array.isArray(table.rows) && Array.isArray(table.columns) && table.columns.length > 0) {
+    const nameCol = table.columns[0];
+    const numericCols = table.columns.slice(1).filter(col => table.rows?.some(row => asNumber(row[col]) !== null));
+    const valueCol = numericCols[0];
+    const comparisonCol = numericCols[1];
+    if (valueCol) {
+      return table.rows.map((row, i) => ({
+        name: String(row[nameCol] ?? `Row ${i + 1}`),
+        value: asNumber(row[valueCol]) ?? 0,
+        ...(comparisonCol && asNumber(row[comparisonCol]) !== null ? { comparisonValue: asNumber(row[comparisonCol])! } : {}),
+      }));
+    }
+  }
+  const value = asNumber(raw.value);
+  if (value !== null) {
+    const comparisonValue = asNumber(raw.comparisonValue);
+    return [{
+      name: String(raw.label ?? "Value"),
+      value,
+      ...(comparisonValue !== null ? { comparisonValue } : {}),
+    }];
+  }
+  return [];
+}
+
+function buildKpiData(raw: Record<string, unknown> | null | undefined, cfg: Record<string, unknown>, series: ChartDatum[]) {
+  if (asNumber(raw?.value) !== null) {
+    return raw as { value?: number | null; label?: string; count?: number; comparisonValue?: number | null; comparisonLabel?: string; variance?: number | null; variancePct?: number | null };
+  }
+  const value = series.reduce((sum, row) => sum + (asNumber(row.value) ?? 0), 0);
+  const comparisonValues = series.map(row => asNumber(row.comparisonValue)).filter((v): v is number => v !== null);
+  const comparisonValue = comparisonValues.length ? comparisonValues.reduce((sum, value) => sum + value, 0) : null;
+  const variance = comparisonValue !== null ? value - comparisonValue : null;
+  const variancePct = comparisonValue ? (variance! / comparisonValue) * 100 : null;
+  return {
+    value,
+    label: String((raw as { measureLabel?: string } | undefined)?.measureLabel ?? cfg.measure ?? cfg.title ?? "Total"),
+    count: series.length,
+    comparisonValue,
+    comparisonLabel: String((raw as { comparisonLabel?: string } | undefined)?.comparisonLabel ?? "Comparison"),
+    variance,
+    variancePct,
+  };
+}
+
+function buildTableData(raw: Record<string, unknown> | null | undefined, series: ChartDatum[]) {
+  const table = raw as { rows?: Record<string, unknown>[]; columns?: string[] } | undefined;
+  if (Array.isArray(table?.rows) && Array.isArray(table?.columns) && table.columns.length > 0) return table;
+  const dimensionLabel = String(raw?.dimensionLabel ?? "Name");
+  const measureLabel = String(raw?.measureLabel ?? "Value");
+  const comparisonLabel = String(raw?.comparisonLabel ?? "Comparison");
+  const hasComparison = series.some(row => typeof row.comparisonValue === "number");
+  return {
+    rows: series.map(row => ({
+      [dimensionLabel]: row.name,
+      [measureLabel]: row.value,
+      ...(hasComparison ? { [comparisonLabel]: row.comparisonValue } : {}),
+    })),
+    columns: [dimensionLabel, measureLabel, ...(hasComparison ? [comparisonLabel] : [])],
+  };
+}
+
+function formatTableCell(value: unknown, displayFormat: NumberDisplayFormat): string {
+  const numericValue = asNumber(value);
+  if (numericValue !== null) return formatValue(numericValue, displayFormat);
+  return String(value ?? "—");
+}
+
 function downloadCSV(data: { name: string; value: number }[], title: string) {
   const rows = [["Name", "Value"], ...data.map(d => [d.name, String(d.value)])];
   const csv = rows.map(r => r.join(",")).join("\n");
@@ -240,7 +333,7 @@ function LineChartWidget({ cfg, filled, displayFormat }: { cfg: { data: { name: 
   );
 }
 
-function PieChartWidget({ cfg, donut }: { cfg: { data: { name: string; value: number }[] }; donut?: boolean }) {
+function PieChartWidget({ cfg, donut, displayFormat }: { cfg: { data: { name: string; value: number }[] }; donut?: boolean; displayFormat: NumberDisplayFormat }) {
   const total = cfg.data.reduce((s, d) => s + d.value, 0);
   return (
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -252,19 +345,19 @@ function PieChartWidget({ cfg, donut }: { cfg: { data: { name: string; value: nu
           outerRadius={110}
           dataKey="value"
           paddingAngle={donut ? 3 : 0}
-          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+          label={({ name, value, percent }) => `${name} ${formatValue(Number(value), displayFormat)} (${(percent * 100).toFixed(0)}%)`}
           labelLine={false}
         >
           {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
         </Pie>
-        <Tooltip formatter={v => [formatValue(Number(v)), "Value"]} />
+        <Tooltip formatter={v => [formatValue(Number(v), displayFormat), "Value"]} />
         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
       </RechartPie>
     </ResponsiveContainer>
   );
 }
 
-function TableWidget({ cfg }: { cfg: { rows?: Record<string, unknown>[]; columns?: string[] } }) {
+function TableWidget({ cfg, displayFormat }: { cfg: { rows?: Record<string, unknown>[]; columns?: string[] }; displayFormat: NumberDisplayFormat }) {
   const cols = cfg?.columns ?? [];
   const rowData = cfg?.rows ?? [];
   if (cols.length === 0 || rowData.length === 0) {
@@ -283,7 +376,7 @@ function TableWidget({ cfg }: { cfg: { rows?: Record<string, unknown>[]; columns
           {rowData.map((row, i) => (
             <tr key={i} className="hover:bg-muted/20 transition-colors">
               <td className="px-3 py-1.5 text-muted-foreground/50">{i + 1}</td>
-              {cols.map(c => <td key={c} className="px-3 py-1.5 whitespace-nowrap font-medium">{String(row[c] ?? "—")}</td>)}
+              {cols.map(c => <td key={c} className="px-3 py-1.5 whitespace-nowrap font-medium">{formatTableCell(row[c], displayFormat)}</td>)}
             </tr>
           ))}
         </tbody>
@@ -296,21 +389,22 @@ function InsightChart({ result, override }: { result: AskResult; override: strin
   const chartType = override || result.chartType;
   const cfg = result.chartConfig;
   if (!cfg) return null;
-  const data = cfg.data as Record<string, unknown>;
+  const data = cfg.data as Record<string, unknown> | null | undefined;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
+  const normalizedData = normalizeSeriesData(data);
 
-  if (chartType === "kpi" && data) return <KpiCard data={data as { value: number; label: string; count: number }} displayFormat={displayFormat} />;
+  if (chartType === "kpi") return <KpiCard data={buildKpiData(data, cfg, normalizedData)} displayFormat={displayFormat} />;
 
-  const barData = data as { data?: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string };
-  const chartData = barData.data || [];
+  const barData = data as { data?: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string } | null | undefined;
+  const chartData = normalizedData;
 
-  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} displayFormat={displayFormat} />;
-  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} horizontal displayFormat={displayFormat} />;
-  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} displayFormat={displayFormat} />;
-  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData.measureLabel, comparisonLabel: barData.comparisonLabel }} filled displayFormat={displayFormat} />;
-  if (chartType === "pie") return <PieChartWidget cfg={{ data: chartData }} />;
-  if (chartType === "donut") return <PieChartWidget cfg={{ data: chartData }} donut />;
-  if (chartType === "table") return <TableWidget cfg={data as { rows: Record<string, unknown>[]; columns: string[] }} />;
+  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} />;
+  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} horizontal displayFormat={displayFormat} />;
+  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} />;
+  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} filled displayFormat={displayFormat} />;
+  if (chartType === "pie") return <PieChartWidget cfg={{ data: chartData }} displayFormat={displayFormat} />;
+  if (chartType === "donut") return <PieChartWidget cfg={{ data: chartData }} donut displayFormat={displayFormat} />;
+  if (chartType === "table") return <TableWidget cfg={buildTableData(data, normalizedData)} displayFormat={displayFormat} />;
 
   return null;
 }
@@ -995,19 +1089,15 @@ export default function AnalyticsExplorePage() {
                       {label}
                     </button>
                   ))}
-                  {activeChartType === "kpi" && (
-                    <>
-                      <span className="h-5 w-px bg-border mx-1" />
-                      <button
-                        onClick={() => setNumberDisplayFormat(currentDisplayFormat === "full" ? "compact" : "full")}
-                        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${currentDisplayFormat === "full" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"}`}
-                        data-testid="button-kpi-number-format"
-                      >
-                        <Hash className="h-3 w-3" />
-                        {currentDisplayFormat === "full" ? "Full numbers" : "Compact numbers"}
-                      </button>
-                    </>
-                  )}
+                  <span className="h-5 w-px bg-border mx-1" />
+                  <button
+                    onClick={() => setNumberDisplayFormat(currentDisplayFormat === "full" ? "compact" : "full")}
+                    className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${currentDisplayFormat === "full" ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"}`}
+                    data-testid="button-number-format"
+                  >
+                    <Hash className="h-3 w-3" />
+                    {currentDisplayFormat === "full" ? "Full numbers" : "Compact numbers"}
+                  </button>
                 </div>
 
                 {/* Chart canvas */}
