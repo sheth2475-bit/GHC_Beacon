@@ -2308,17 +2308,64 @@ You can help the user understand their data, suggest chart types, explain insigh
       return columns.find(c => c.columnType === type);
     }
 
+    type VisualInsightFilter = { column?: unknown; value?: unknown };
+    type VisualComparisonSeries = { column?: unknown; current?: unknown; comparison?: unknown; comparisonLabel?: unknown };
+
+    function normalizeFilterValue(value: unknown) {
+      return String(value ?? "").trim().toLowerCase();
+    }
+
+    function applyInsightFilters(rows: Record<string, unknown>[], filters?: VisualInsightFilter[]) {
+      if (!Array.isArray(filters) || filters.length === 0) return rows;
+      const filtered = rows.filter(row => filters.every(filter => {
+        const column = String(filter.column ?? "").trim();
+        if (!column) return true;
+        return normalizeFilterValue(row[column]) === normalizeFilterValue(filter.value);
+      }));
+      return filtered.length ? filtered : rows;
+    }
+
+    function detectComparisonSeries(rows: Record<string, unknown>[], columns: { columnName: string; label: string; columnType: string }[], requested?: VisualComparisonSeries | null): { column: string; current: string; comparison: string; comparisonLabel: string } | null {
+      const requestedColumn = requested?.column ? String(requested.column) : "";
+      const col = requestedColumn
+        ? columns.find(c => c.columnName.toLowerCase() === requestedColumn.toLowerCase() || c.label.toLowerCase() === requestedColumn.toLowerCase())
+        : columns.find(c => c.columnType === "dimension" && /^(series|scenario|version|year)$/i.test(c.columnName));
+      if (!col) return null;
+      const values = Array.from(new Set(rows.map(row => String(row[col.columnName] ?? "").trim()).filter(Boolean)));
+      if (values.length < 2) return null;
+      const requestedCurrent = requested?.current ? String(requested.current) : "";
+      const requestedComparison = requested?.comparison ? String(requested.comparison) : "";
+      const current = requestedCurrent
+        ? values.find(v => normalizeFilterValue(v) === normalizeFilterValue(requestedCurrent)) || requestedCurrent
+        : [...values].sort((a, b) => {
+          const an = Number(a.replace(/[^0-9.-]/g, ""));
+          const bn = Number(b.replace(/[^0-9.-]/g, ""));
+          if (!isNaN(an) && !isNaN(bn)) return bn - an;
+          if (/actual|current|mar-?26|2026/i.test(a)) return -1;
+          if (/actual|current|mar-?26|2026/i.test(b)) return 1;
+          return a.localeCompare(b);
+        })[0];
+      const comparison = requestedComparison
+        ? values.find(v => normalizeFilterValue(v) === normalizeFilterValue(requestedComparison)) || requestedComparison
+        : values.find(v => normalizeFilterValue(v) !== normalizeFilterValue(current)) || values[0];
+      return { column: col.columnName, current, comparison, comparisonLabel: String(requested?.comparisonLabel || comparison) };
+    }
+
     function buildInsightChartConfig(
       rows: Record<string, unknown>[],
       columns: { columnName: string; label: string; columnType: string; aggregation?: string | null }[],
       chartType: string,
       requestedMeasure?: string | null,
-      requestedDimension?: string | null
+      requestedDimension?: string | null,
+      requestedAggregation?: string | null,
+      filters?: VisualInsightFilter[],
+      comparisonSeries?: VisualComparisonSeries | null
     ) {
+      const filteredRows = applyInsightFilters(rows, filters);
       const measureCol = pickColumn(columns, "measure", requestedMeasure);
       const dateCol = pickColumn(columns, "date", requestedDimension);
       const dimensionCol = pickColumn(columns, "dimension", requestedDimension) || dateCol;
-      const agg = measureCol?.aggregation || "sum";
+      const agg = requestedAggregation || measureCol?.aggregation || "sum";
       const finalType = ["kpi", "bar", "column", "line", "area", "pie", "donut", "table"].includes(chartType) ? chartType : "bar";
       if (finalType === "table") {
         const displayCols = columns.filter(c => c.columnType !== "ignore").slice(0, 7);
@@ -2326,10 +2373,11 @@ You can help the user understand their data, suggest chart types, explain insigh
           chartType: "table",
           config: {
             data: {
-              rows: rows.slice(0, 30).map(row => Object.fromEntries(displayCols.map(c => [c.label, row[c.columnName]]))),
+              rows: filteredRows.slice(0, 30).map(row => Object.fromEntries(displayCols.map(c => [c.label, row[c.columnName]]))),
               columns: displayCols.map(c => c.label),
             },
             chartType: "table",
+            filters,
           },
         };
       }
@@ -2338,16 +2386,21 @@ You can help the user understand their data, suggest chart types, explain insigh
           chartType: "table",
           config: {
             data: {
-              rows: rows.slice(0, 30),
-              columns: Array.from(new Set(rows.flatMap(row => Object.keys(row)))).slice(0, 7),
+              rows: filteredRows.slice(0, 30),
+              columns: Array.from(new Set(filteredRows.flatMap(row => Object.keys(row)))).slice(0, 7),
             },
             chartType: "table",
+            filters,
           },
         };
       }
+      const series = detectComparisonSeries(filteredRows, columns, comparisonSeries);
       if (finalType === "kpi") {
-        const vals = rows.map(row => Number(row[measureCol.columnName])).filter(v => !isNaN(v));
-        const value = vals.reduce((sum, v) => sum + v, 0);
+        const currentRows = series ? filteredRows.filter(row => normalizeFilterValue(row[series.column]) === normalizeFilterValue(series.current)) : filteredRows;
+        const comparisonRows = series ? filteredRows.filter(row => normalizeFilterValue(row[series.column]) === normalizeFilterValue(series.comparison)) : [];
+        const vals = currentRows.map(row => Number(row[measureCol.columnName])).filter(v => !isNaN(v));
+        const value = aggregateSingleValue(currentRows, measureCol.columnName, agg);
+        const comparisonValue = comparisonRows.length ? aggregateSingleValue(comparisonRows, measureCol.columnName, agg) : null;
         return {
           chartType: "kpi",
           config: {
@@ -2355,12 +2408,31 @@ You can help the user understand their data, suggest chart types, explain insigh
             measureLabel: measureCol.label,
             aggregation: agg,
             chartType: "kpi",
-            data: { value: Math.round(value * 100) / 100, label: measureCol.label, count: vals.length },
+            filters,
+            comparisonSeries: series,
+            data: {
+              value: Math.round(value * 100) / 100,
+              label: measureCol.label,
+              count: vals.length,
+              ...(comparisonValue !== null ? {
+                comparisonValue,
+                comparisonLabel: series?.comparisonLabel,
+                variance: Math.round((value - comparisonValue) * 100) / 100,
+                variancePct: percentVariance(value, comparisonValue),
+              } : {}),
+            },
           },
         };
       }
       const dim = finalType === "line" || finalType === "area" ? (dateCol || dimensionCol) : dimensionCol;
-      const aggRows = aggregateData(rows, measureCol.columnName, dim?.columnName || null, agg, finalType === "pie" || finalType === "donut" ? 10 : 25, dim?.columnType === "date");
+      let aggRows = aggregateData(filteredRows, measureCol.columnName, dim?.columnName || null, agg, finalType === "pie" || finalType === "donut" ? 10 : 25, dim?.columnType === "date");
+      if (series && dim) {
+        const currentRows = filteredRows.filter(row => normalizeFilterValue(row[series.column]) === normalizeFilterValue(series.current));
+        const comparisonRows = filteredRows.filter(row => normalizeFilterValue(row[series.column]) === normalizeFilterValue(series.comparison));
+        const actualRows = aggregateData(currentRows, measureCol.columnName, dim.columnName, agg, finalType === "pie" || finalType === "donut" ? 10 : 25, dim.columnType === "date");
+        const compareRows = aggregateData(comparisonRows, measureCol.columnName, dim.columnName, agg, finalType === "pie" || finalType === "donut" ? 10 : 25, dim.columnType === "date");
+        aggRows = mergeComparisonRows(actualRows, compareRows, series.comparisonLabel);
+      }
       return {
         chartType: finalType,
         config: {
@@ -2368,9 +2440,11 @@ You can help the user understand their data, suggest chart types, explain insigh
           dimension: dim?.columnName || null,
           aggregation: agg,
           chartType: finalType,
+          filters,
+          comparisonSeries: series,
           measureLabel: measureCol.label,
           dimensionLabel: dim?.label || null,
-          data: { data: aggRows, xKey: "name", yKey: "value", measureLabel: measureCol.label, dimensionLabel: dim?.label || null },
+          data: { data: aggRows, xKey: "name", yKey: "value", measureLabel: series?.current || measureCol.label, dimensionLabel: dim?.label || null, comparisonLabel: series?.comparisonLabel },
         },
       };
     }
@@ -2384,7 +2458,7 @@ You can help the user understand their data, suggest chart types, explain insigh
       let refreshed = 0;
       for (const insight of insights) {
         const cfg = (insight.chartConfig || {}) as { measure?: string; dimension?: string | null; aggregation?: string; measureLabel?: string; dimensionLabel?: string };
-        const built = buildInsightChartConfig(rows, columns, insight.chartType, cfg.measure || null, cfg.dimension || null);
+        const built = buildInsightChartConfig(rows, columns, insight.chartType, cfg.measure || null, cfg.dimension || null, cfg.aggregation || null, (cfg as { filters?: VisualInsightFilter[] }).filters, (cfg as { comparisonSeries?: VisualComparisonSeries }).comparisonSeries || null);
         await storage.updateAnalyticsInsight(insight.id, { chartType: built.chartType, chartConfig: { ...cfg, ...built.config } });
         refreshed++;
       }
@@ -2686,22 +2760,26 @@ Return only JSON:
   "datasetName": "short dataset name",
   "description": "what was inferred",
   "rows": [
-    {"Month": "2026-01-01", "Category": "Revenue", "Actual": 1200, "Target": 1000}
+    {"Date": "2026-01-01", "Section": "Monthly Flying Hours", "Metric": "Flying Hours", "Category": "QE-JOC", "Series": "2026", "Value": 1200, "Unit": "hours"}
   ],
   "insights": [
-    {"title": "Total Revenue", "question": "What is total revenue?", "chartType": "kpi", "measure": "Actual", "dimension": null, "narrative": "short business narrative"},
-    {"title": "Monthly Trend", "question": "Show actual trend by month", "chartType": "line", "measure": "Actual", "dimension": "Month", "narrative": "short business narrative"}
+    {"title": "Total Flying Hours", "question": "What are total actual flying hours?", "chartType": "kpi", "measure": "Value", "dimension": null, "aggregation": "sum", "filters": [{"column": "Metric", "value": "Total Hours QE-JOC"}, {"column": "Series", "value": "Actual"}], "narrative": "short business narrative"},
+    {"title": "Monthly Flying Hours", "question": "Compare monthly flying hours by year", "chartType": "bar", "measure": "Value", "dimension": "Date", "aggregation": "sum", "filters": [{"column": "Metric", "value": "Flying Hours"}], "comparisonSeries": {"column": "Series", "current": "2026", "comparison": "2025", "comparisonLabel": "2025"}, "narrative": "short business narrative"}
   ],
   "dashboardTitle": "Executive Dashboard"
 }
 
 Rules:
-- Use columns that are easy to update in Excel: Month or Date, Category/Department/Metric where applicable, Actual, Target/Budget if visible.
-- If exact source numbers are visible, use them. If only chart shapes are visible, estimate reasonable values and make the description say they are starter values.
-- Prefer 6-24 rows, not a single summary row.
+- Use a normalized, editable Excel shape for screenshots with multiple unrelated charts: Date, Section, Metric, Category, Series, Value, Unit.
+- Do not mix unrelated measures into a single unfiltered Actual column. Every KPI or chart value must have a Metric name so insights can filter to the correct KPI.
+- Preserve visible KPIs as their own rows, including percentages and minutes: On Time Departure Rate, Seat Utilization, Unscheduled Requests, Average Turnaround Time, Issues affecting maintenance of AOC, etc.
+- Preserve visible comparisons using Series values such as 2025/2026, Mar-25/Mar-26, Budgeted/Actual, Booked/Operated/Cancelled.
+- If exact source numbers are visible in data labels/tables, use them. If only chart shapes are visible, estimate reasonable values and make the description say they are starter values.
+- Prefer 12-40 rows, not a single summary row.
 - Dates must be YYYY-MM-DD when possible.
 - chartType must be one of: kpi, bar, column, line, area, pie, donut, table.
-- At least 4 insights: KPI total, trend over time if date exists, category comparison if category exists, table/detail view.
+- At least 5 insights for executive dashboard screenshots: the headline KPI(s), a year/month comparison, an utilization/category comparison, a flight/performance breakdown, and a table/detail view.
+- Insights should include filters whenever the dataset contains multiple Metric/Section values. Use comparisonSeries when the visual compares years, actual vs budget, or other series.
 
 Extracted PowerPoint text, if any:
 ${extractedText || "(none)"}`;
@@ -2753,7 +2831,9 @@ ${extractedText || "(none)"}`;
         for (let i = 0; i < insightSpecs.length; i++) {
           const spec = insightSpecs[i];
           const chartType = String(spec.chartType || "bar");
-          const built = buildInsightChartConfig(rows, columns, chartType, spec.measure ? String(spec.measure) : null, spec.dimension ? String(spec.dimension) : null);
+          const filters = Array.isArray(spec.filters) ? spec.filters as VisualInsightFilter[] : undefined;
+          const comparisonSeries = spec.comparisonSeries && typeof spec.comparisonSeries === "object" ? spec.comparisonSeries as VisualComparisonSeries : null;
+          const built = buildInsightChartConfig(rows, columns, chartType, spec.measure ? String(spec.measure) : null, spec.dimension ? String(spec.dimension) : null, spec.aggregation ? String(spec.aggregation) : null, filters, comparisonSeries);
           const insight = await storage.createAnalyticsInsight({
             companyId: company.id,
             createdBy: user.id,
@@ -3415,28 +3495,13 @@ Return a JSON object with key "insights" containing an array:
           const insight = item.insight;
           if (!insight?.chartConfig) continue;
           const cfg = insight.chartConfig as { measure?: string; dimension?: string | null; aggregation?: string; chartType?: string; measureLabel?: string; dimensionLabel?: string };
-          if (!cfg.measure) continue;
           const ds = await storage.getAnalyticsDataset(insight.datasetId);
           if (!ds) continue;
           const dsColumns = await storage.getAnalyticsDatasetColumns(insight.datasetId);
           const rows = applyFormulaColumns((ds.rawData as Record<string, unknown>[]) || [], dsColumns);
           if (!rows.length) continue;
-          const agg = cfg.aggregation || "sum";
-          const measure = cfg.measure;
-          const dimension = cfg.dimension || null;
-          const chartType = insight.chartType;
-          let chartData: unknown;
-          if (chartType === "kpi") {
-            const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
-            const value = agg === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1) : agg === "count" ? vals.length : agg === "min" ? Math.min(...vals) : agg === "max" ? Math.max(...vals) : vals.reduce((a, b) => a + b, 0);
-            chartData = { value: Math.round(value * 100) / 100, label: cfg.measureLabel || measure, count: vals.length };
-          } else {
-            const isDimDate = dimension && /month|date|year|period|quarter|week/i.test(dimension);
-            const aggData = aggregateData(rows, measure, dimension, agg, undefined, !!isDimDate);
-            chartData = { data: aggData, xKey: "name", yKey: "value", measureLabel: cfg.measureLabel, dimensionLabel: cfg.dimensionLabel };
-          }
-          const newConfig = { ...cfg, data: chartData };
-          await storage.updateAnalyticsInsight(insight.id, { chartConfig: newConfig });
+          const built = buildInsightChartConfig(rows, dsColumns, insight.chartType, cfg.measure || null, cfg.dimension || null, cfg.aggregation || null, (cfg as { filters?: VisualInsightFilter[] }).filters, (cfg as { comparisonSeries?: VisualComparisonSeries }).comparisonSeries || null);
+          await storage.updateAnalyticsInsight(insight.id, { chartType: built.chartType, chartConfig: { ...cfg, ...built.config } });
           refreshed++;
         }
         res.json({ ok: true, refreshed });

@@ -13,9 +13,9 @@ import {
   CheckCircle2, AlertCircle, X, Database, Sparkles,
   FileImage, Presentation, LayoutDashboard,
 } from "lucide-react";
-import type { AnalyticsDataset, AnalyticsDatasetColumn } from "@shared/schema";
+import type { AnalyticsDataset, AnalyticsDatasetColumn, AnalyticsDashboardDefinition } from "@shared/schema";
 
-type UploadResult = AnalyticsDataset & { columns: AnalyticsDatasetColumn[]; modelingStrategy?: string; dashboard?: { id: number; title: string }; insights?: unknown[]; sourceType?: string };
+type UploadResult = AnalyticsDataset & { columns: AnalyticsDatasetColumn[]; modelingStrategy?: string; dashboard?: AnalyticsDashboardDefinition; insights?: unknown[]; sourceType?: string };
 
 const TYPE_COLORS: Record<string, string> = {
   dimension: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
@@ -74,6 +74,12 @@ export default function AnalyticsUploadPage() {
     },
     onSuccess: (data) => {
       setResult(data);
+      if (data.dashboard) {
+        queryClient.setQueryData<AnalyticsDashboardDefinition[]>(["/api/v2/analytics/definitions"], (current = []) => [
+          data.dashboard!,
+          ...current.filter(def => def.id !== data.dashboard!.id),
+        ]);
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/datasets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/insights"] });
       queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions"] });

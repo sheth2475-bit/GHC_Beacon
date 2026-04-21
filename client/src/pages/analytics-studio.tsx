@@ -271,9 +271,9 @@ export default function AnalyticsStudioPage() {
     return "home";
   })();
 
-  const { data: datasets = [], isLoading: loadingDS } = useQuery<AnalyticsDataset[]>({ queryKey: ["/api/v2/analytics/datasets"] });
-  const { data: insights = [], isLoading: loadingIns } = useQuery<AnalyticsInsight[]>({ queryKey: ["/api/v2/analytics/insights"] });
-  const { data: definitions = [], isLoading: loadingDef } = useQuery<AnalyticsDashboardDefinition[]>({ queryKey: ["/api/v2/analytics/definitions"] });
+  const { data: datasets = [], isLoading: loadingDS } = useQuery<AnalyticsDataset[]>({ queryKey: ["/api/v2/analytics/datasets"], refetchOnMount: "always" });
+  const { data: insights = [], isLoading: loadingIns } = useQuery<AnalyticsInsight[]>({ queryKey: ["/api/v2/analytics/insights"], refetchOnMount: "always" });
+  const { data: definitions = [], isLoading: loadingDef } = useQuery<AnalyticsDashboardDefinition[]>({ queryKey: ["/api/v2/analytics/definitions"], refetchOnMount: "always" });
 
   const deleteDatasetMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/v2/analytics/datasets/${id}`).then(r => r.json()),
