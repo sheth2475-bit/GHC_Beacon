@@ -11,10 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Loader2,
   CheckCircle2, AlertCircle, X, Database, Sparkles,
+  FileImage, Presentation, LayoutDashboard,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsDatasetColumn } from "@shared/schema";
 
-type UploadResult = AnalyticsDataset & { columns: AnalyticsDatasetColumn[]; modelingStrategy?: string };
+type UploadResult = AnalyticsDataset & { columns: AnalyticsDatasetColumn[]; modelingStrategy?: string; dashboard?: { id: number; title: string }; insights?: unknown[]; sourceType?: string };
 
 const TYPE_COLORS: Record<string, string> = {
   dimension: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
@@ -32,6 +33,7 @@ export default function AnalyticsUploadPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [result, setResult] = useState<UploadResult | null>(null);
+  const [uploadMode, setUploadMode] = useState<"data" | "visual">("data");
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -57,14 +59,45 @@ export default function AnalyticsUploadPage() {
     },
   });
 
+  const visualUploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const res = await fetch("/api/v2/analytics/datasets/from-visual", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Dashboard generation failed");
+      }
+      return res.json() as Promise<UploadResult>;
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/datasets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/insights"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions"] });
+      toast({ title: "Dashboard generated!", description: `${data.rowCount?.toLocaleString()} starter rows, ${data.insights?.length || 0} insights, and a dashboard were created.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const handleFile = useCallback((f: File) => {
-    if (!f.name.match(/\.(xlsx|xls|csv)$/i)) {
-      toast({ title: "Invalid file", description: "Please upload an Excel (.xlsx, .xls) or CSV file.", variant: "destructive" });
+    const validData = /\.(xlsx|xls|csv)$/i.test(f.name);
+    const validVisual = /\.(png|jpe?g|webp|pptx)$/i.test(f.name);
+    if (uploadMode === "data" && !validData) {
+      toast({ title: "Invalid file", description: "Please upload an Excel (.xlsx, .xls) or CSV file, or switch to Screenshot / PowerPoint mode.", variant: "destructive" });
+      return;
+    }
+    if (uploadMode === "visual" && !validVisual) {
+      toast({ title: "Invalid file", description: "Please upload a dashboard screenshot (.png, .jpg, .webp) or PowerPoint (.pptx).", variant: "destructive" });
       return;
     }
     setFile(f);
-    if (!name) setName(f.name.replace(/\.(xlsx|xls|csv)$/i, ""));
-  }, [name, toast]);
+    if (!name) setName(f.name.replace(/\.(xlsx|xls|csv|png|jpe?g|webp|pptx)$/i, ""));
+  }, [name, toast, uploadMode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -79,7 +112,8 @@ export default function AnalyticsUploadPage() {
     fd.append("file", file);
     fd.append("name", name || file.name);
     if (description) fd.append("description", description);
-    uploadMutation.mutate(fd);
+    if (uploadMode === "visual") visualUploadMutation.mutate(fd);
+    else uploadMutation.mutate(fd);
   };
 
   const colTypeGroups = result ? {
@@ -105,12 +139,39 @@ export default function AnalyticsUploadPage() {
           </div>
           <div>
             <h1 className="text-xl font-black tracking-tight">Upload Dataset</h1>
-            <p className="text-xs text-muted-foreground">Upload Excel or CSV data, including multi-sheet workbooks for actuals, budgets, and targets</p>
+            <p className="text-xs text-muted-foreground">Upload Excel/CSV data, or generate a starter dataset and dashboard from a screenshot or PowerPoint</p>
           </div>
         </div>
 
         {!result ? (
           <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => { setUploadMode("data"); setFile(null); }}
+                className={`text-left rounded-xl border p-3 transition-all ${uploadMode === "data" ? "border-primary bg-primary/5 shadow-sm" : "bg-card hover:border-primary/40"}`}
+                data-testid="button-mode-data-upload"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-bold">Upload data file</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Use Excel or CSV when you already have the source data.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUploadMode("visual"); setFile(null); }}
+                className={`text-left rounded-xl border p-3 transition-all ${uploadMode === "visual" ? "border-primary bg-primary/5 shadow-sm" : "bg-card hover:border-primary/40"}`}
+                data-testid="button-mode-visual-upload"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <FileImage className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-bold">Create from screenshot / PPT</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Generate starter data, insights, and a dashboard from an existing visual.</p>
+              </button>
+            </div>
+
             {/* Drop zone */}
             <div
               className={`relative rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer ${dragOver ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/50 hover:bg-muted/30"}`}
@@ -120,7 +181,7 @@ export default function AnalyticsUploadPage() {
               onClick={() => !file && fileInputRef.current?.click()}
               data-testid="dropzone-upload"
             >
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} data-testid="input-file" />
+              <input ref={fileInputRef} type="file" accept={uploadMode === "visual" ? ".png,.jpg,.jpeg,.webp,.pptx" : ".xlsx,.xls,.csv"} className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} data-testid="input-file" />
               <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
                 {file ? (
                   <>
@@ -136,11 +197,13 @@ export default function AnalyticsUploadPage() {
                 ) : (
                   <>
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mb-3">
-                      <FileSpreadsheet className="h-7 w-7 text-primary/60" />
+                      {uploadMode === "visual" ? <Presentation className="h-7 w-7 text-primary/60" /> : <FileSpreadsheet className="h-7 w-7 text-primary/60" />}
                     </div>
                     <p className="font-bold text-sm mb-1">{dragOver ? "Drop to upload" : "Drop your file here"}</p>
                     <p className="text-xs text-muted-foreground mb-3">or click to browse</p>
-                    <p className="text-[11px] text-muted-foreground/60">Supports .xlsx, .xls, .csv · multi-sheet Excel modeling · Max 20 MB</p>
+                    <p className="text-[11px] text-muted-foreground/60">
+                      {uploadMode === "visual" ? "Supports .png, .jpg, .webp, .pptx · creates starter Excel data + dashboard · Max 20 MB" : "Supports .xlsx, .xls, .csv · multi-sheet Excel modeling · Max 20 MB"}
+                    </p>
                   </>
                 )}
               </div>
@@ -162,8 +225,10 @@ export default function AnalyticsUploadPage() {
 
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => navigate("/analytics")} data-testid="button-cancel">Cancel</Button>
-              <Button onClick={handleSubmit} disabled={!file || !name || uploadMutation.isPending} className="gap-2" data-testid="button-upload-submit">
-                {uploadMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</> : <><Upload className="h-4 w-4" /> Upload & Detect Columns</>}
+              <Button onClick={handleSubmit} disabled={!file || !name || uploadMutation.isPending || visualUploadMutation.isPending} className="gap-2" data-testid="button-upload-submit">
+                {uploadMutation.isPending || visualUploadMutation.isPending
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> {uploadMode === "visual" ? "Generating…" : "Uploading…"}</>
+                  : <><Upload className="h-4 w-4" /> {uploadMode === "visual" ? "Generate Dataset & Dashboard" : "Upload & Detect Columns"}</>}
               </Button>
             </div>
           </>
@@ -224,6 +289,23 @@ export default function AnalyticsUploadPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {result.dashboard && (
+              <Card className="border-blue-500/20 bg-blue-500/5">
+                <CardContent className="p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <LayoutDashboard className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold">Dashboard created: {result.dashboard.title}</p>
+                      <p className="text-xs text-muted-foreground">Download the starter Excel from Configure, update the rows, then replace the file to refresh this dashboard.</p>
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => navigate(`/analytics/dashboards/${result.dashboard!.id}`)} data-testid="button-open-generated-dashboard">
+                    Open Dashboard
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="flex justify-between gap-3">
               <Button variant="outline" onClick={() => navigate(`/analytics/datasets/${result.id}/explore`)} className="gap-2" data-testid="button-skip-configure">

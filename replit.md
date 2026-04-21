@@ -18,6 +18,8 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 
 **Analytics Studio**
 - Upload Excel/CSV datasets, configure column types, explore with AI
+- First-time dataset creation can also start from a dashboard screenshot or PowerPoint (`/api/v2/analytics/datasets/from-visual`): the app infers a starter editable dataset, creates saved insights, and creates a draft dashboard
+- Datasets can be downloaded as Excel (`/api/v2/analytics/datasets/:id/export`), edited externally, then replaced; replacing a dataset now refreshes saved insights so linked dashboards show updated numbers
 - AI insight generation (bar, line, area, pie, donut, KPI, horizontal-bar chart types)
 - AI insight questions support budget/target/plan and previous-year comparisons when matching comparison measures or date columns are available
 - Bar, column, line, and area charts automatically render a dual series when previous-year or budget comparison data is returned

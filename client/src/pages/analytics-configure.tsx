@@ -13,7 +13,7 @@ import {
   ArrowLeft, ArrowRight, Loader2, Database, Save, CheckCircle2,
   Info, Sparkles, Settings2, Hash, Calendar, AlignLeft, EyeOff,
   Upload, FileSpreadsheet, RefreshCw, ChevronDown, ChevronUp, X,
-  Plus, Sigma, Trash2, FlaskConical, AlertCircle,
+  Plus, Sigma, Trash2, FlaskConical, AlertCircle, Download,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsDatasetColumn } from "@shared/schema";
 
@@ -192,6 +192,10 @@ export default function AnalyticsConfigurePage() {
     },
   });
 
+  const downloadDataset = () => {
+    window.location.href = `/api/v2/analytics/datasets/${id}/export`;
+  };
+
   useEffect(() => {
     if (ds?.columns) {
       setCols(ds.columns.map(c => ({
@@ -258,6 +262,9 @@ export default function AnalyticsConfigurePage() {
             <span className="text-sm font-semibold">{ds.name}</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={downloadDataset} className="gap-1.5 h-8" data-testid="button-download-dataset">
+              <Download className="h-3.5 w-3.5" /> Download Excel
+            </Button>
             <Button variant="outline" size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-1.5 h-8" data-testid="button-save-columns">
               {saveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
             </Button>
@@ -318,7 +325,7 @@ export default function AnalyticsConfigurePage() {
                 <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2.5 flex items-start gap-2">
                   <Info className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Column labels and types will be preserved for any columns that exist in both files. Multi-sheet Excel files are modeled by matching shared keys like date, period, hotel, department, or region, so actuals and budgets can update together.
+                    Column labels and types will be preserved for any columns that exist in both files. Saved insights are refreshed automatically after replacement, so dashboards show the updated numbers.
                   </p>
                 </div>
 

@@ -2028,6 +2028,7 @@ You can help the user understand their data, suggest chart types, explain insigh
   {
     const multer = (await import("multer")).default;
     const xlsx = await import("xlsx");
+    const zlib = await import("node:zlib");
     const v2Upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
     const getOaiV2 = async () => {
@@ -2187,6 +2188,207 @@ You can help the user understand their data, suggest chart types, explain insigh
         const type = autoDetectColumnType(vals, col);
         return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
       });
+    }
+
+    function safeJsonParseObject(content: string | null | undefined): Record<string, unknown> {
+      if (!content) return {};
+      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch {
+        const start = cleaned.indexOf("{");
+        const end = cleaned.lastIndexOf("}");
+        if (start >= 0 && end > start) {
+          try { return JSON.parse(cleaned.slice(start, end + 1)); } catch {}
+        }
+      }
+      return {};
+    }
+
+    function cleanColumnName(label: string) {
+      const cleaned = label.trim().replace(/\s+/g, " ");
+      return cleaned || "Value";
+    }
+
+    function coerceVisualRows(rows: unknown): Record<string, unknown>[] {
+      if (!Array.isArray(rows)) return [];
+      return rows
+        .filter(r => r && typeof r === "object")
+        .map(r => {
+          const out: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(r as Record<string, unknown>)) {
+            const col = cleanColumnName(key);
+            if (typeof value === "string") {
+              const trimmed = value.trim();
+              const numeric = Number(trimmed.replace(/,/g, "").replace(/%$/, ""));
+              out[col] = trimmed !== "" && !isNaN(numeric) && /^-?[\d,]+(\.\d+)?%?$/.test(trimmed) ? numeric : trimmed;
+            } else {
+              out[col] = value;
+            }
+          }
+          return out;
+        })
+        .filter(r => Object.keys(r).length > 0);
+    }
+
+    function fallbackVisualRows(sourceName: string) {
+      const year = new Date().getFullYear();
+      return [
+        { Month: `${year}-01-01`, Category: "Metric 1", Actual: 120, Target: 100 },
+        { Month: `${year}-02-01`, Category: "Metric 1", Actual: 135, Target: 115 },
+        { Month: `${year}-03-01`, Category: "Metric 1", Actual: 142, Target: 125 },
+        { Month: `${year}-01-01`, Category: "Metric 2", Actual: 82, Target: 90 },
+        { Month: `${year}-02-01`, Category: "Metric 2", Actual: 88, Target: 92 },
+        { Month: `${year}-03-01`, Category: "Metric 2", Actual: 94, Target: 95 },
+      ].map(row => ({ Source: sourceName, ...row }));
+    }
+
+    function getZipEntries(buffer: Buffer) {
+      const entries: { name: string; data: Buffer }[] = [];
+      let offset = 0;
+      while (offset < buffer.length - 30) {
+        const signature = buffer.readUInt32LE(offset);
+        if (signature !== 0x04034b50) {
+          offset++;
+          continue;
+        }
+        const compression = buffer.readUInt16LE(offset + 8);
+        const compressedSize = buffer.readUInt32LE(offset + 18);
+        const fileNameLength = buffer.readUInt16LE(offset + 26);
+        const extraLength = buffer.readUInt16LE(offset + 28);
+        const nameStart = offset + 30;
+        const dataStart = nameStart + fileNameLength + extraLength;
+        const dataEnd = dataStart + compressedSize;
+        if (dataEnd > buffer.length) break;
+        const name = buffer.subarray(nameStart, nameStart + fileNameLength).toString("utf8");
+        const compressed = buffer.subarray(dataStart, dataEnd);
+        try {
+          const data = compression === 0 ? Buffer.from(compressed) : compression === 8 ? zlib.inflateRawSync(compressed) : Buffer.alloc(0);
+          if (data.length) entries.push({ name, data });
+        } catch {}
+        offset = dataEnd;
+      }
+      return entries;
+    }
+
+    function extractPptxContext(buffer: Buffer) {
+      const entries = getZipEntries(buffer);
+      const slideTexts = entries
+        .filter(e => /^ppt\/slides\/slide\d+\.xml$/.test(e.name))
+        .slice(0, 20)
+        .map(e => e.data.toString("utf8")
+          .replace(/<a:t>/g, " ")
+          .replace(/<\/a:t>/g, " ")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/\s+/g, " ")
+          .trim())
+        .filter(Boolean);
+      const images = entries
+        .filter(e => /^ppt\/media\/image\d+\.(png|jpe?g|webp)$/i.test(e.name))
+        .slice(0, 4)
+        .map(e => {
+          const ext = e.name.split(".").pop()?.toLowerCase();
+          const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+          return { mime, base64: e.data.toString("base64") };
+        });
+      return { text: slideTexts.join("\n\n").slice(0, 12000), images };
+    }
+
+    function pickColumn(columns: { columnName: string; label: string; columnType: string }[], type: string, preferred?: string | null) {
+      if (preferred) {
+        const lower = preferred.toLowerCase();
+        const exact = columns.find(c => c.columnType === type && (c.columnName.toLowerCase() === lower || c.label.toLowerCase() === lower));
+        if (exact) return exact;
+        const partial = columns.find(c => c.columnType === type && (c.columnName.toLowerCase().includes(lower) || c.label.toLowerCase().includes(lower)));
+        if (partial) return partial;
+      }
+      return columns.find(c => c.columnType === type);
+    }
+
+    function buildInsightChartConfig(
+      rows: Record<string, unknown>[],
+      columns: { columnName: string; label: string; columnType: string; aggregation?: string | null }[],
+      chartType: string,
+      requestedMeasure?: string | null,
+      requestedDimension?: string | null
+    ) {
+      const measureCol = pickColumn(columns, "measure", requestedMeasure);
+      const dateCol = pickColumn(columns, "date", requestedDimension);
+      const dimensionCol = pickColumn(columns, "dimension", requestedDimension) || dateCol;
+      const agg = measureCol?.aggregation || "sum";
+      const finalType = ["kpi", "bar", "column", "line", "area", "pie", "donut", "table"].includes(chartType) ? chartType : "bar";
+      if (finalType === "table") {
+        const displayCols = columns.filter(c => c.columnType !== "ignore").slice(0, 7);
+        return {
+          chartType: "table",
+          config: {
+            data: {
+              rows: rows.slice(0, 30).map(row => Object.fromEntries(displayCols.map(c => [c.label, row[c.columnName]]))),
+              columns: displayCols.map(c => c.label),
+            },
+            chartType: "table",
+          },
+        };
+      }
+      if (!measureCol) {
+        return {
+          chartType: "table",
+          config: {
+            data: {
+              rows: rows.slice(0, 30),
+              columns: Array.from(new Set(rows.flatMap(row => Object.keys(row)))).slice(0, 7),
+            },
+            chartType: "table",
+          },
+        };
+      }
+      if (finalType === "kpi") {
+        const vals = rows.map(row => Number(row[measureCol.columnName])).filter(v => !isNaN(v));
+        const value = vals.reduce((sum, v) => sum + v, 0);
+        return {
+          chartType: "kpi",
+          config: {
+            measure: measureCol.columnName,
+            measureLabel: measureCol.label,
+            aggregation: agg,
+            chartType: "kpi",
+            data: { value: Math.round(value * 100) / 100, label: measureCol.label, count: vals.length },
+          },
+        };
+      }
+      const dim = finalType === "line" || finalType === "area" ? (dateCol || dimensionCol) : dimensionCol;
+      const aggRows = aggregateData(rows, measureCol.columnName, dim?.columnName || null, agg, finalType === "pie" || finalType === "donut" ? 10 : 25, dim?.columnType === "date");
+      return {
+        chartType: finalType,
+        config: {
+          measure: measureCol.columnName,
+          dimension: dim?.columnName || null,
+          aggregation: agg,
+          chartType: finalType,
+          measureLabel: measureCol.label,
+          dimensionLabel: dim?.label || null,
+          data: { data: aggRows, xKey: "name", yKey: "value", measureLabel: measureCol.label, dimensionLabel: dim?.label || null },
+        },
+      };
+    }
+
+    async function refreshInsightsForDataset(datasetId: number) {
+      const ds = await storage.getAnalyticsDataset(datasetId);
+      if (!ds) return 0;
+      const columns = await storage.getAnalyticsDatasetColumns(datasetId);
+      const rows = applyFormulaColumns((ds.rawData as Record<string, unknown>[]) || [], columns);
+      const insights = await storage.getAnalyticsInsightsByDataset(datasetId);
+      let refreshed = 0;
+      for (const insight of insights) {
+        const cfg = (insight.chartConfig || {}) as { measure?: string; dimension?: string | null; aggregation?: string; measureLabel?: string; dimensionLabel?: string };
+        const built = buildInsightChartConfig(rows, columns, insight.chartType, cfg.measure || null, cfg.dimension || null);
+        await storage.updateAnalyticsInsight(insight.id, { chartType: built.chartType, chartConfig: { ...cfg, ...built.config } });
+        refreshed++;
+      }
+      return refreshed;
     }
 
     // Helper: aggregate data for chart
@@ -2448,6 +2650,147 @@ You can help the user understand their data, suggest chart types, explain insigh
       }
     });
 
+    app.post("/api/v2/analytics/datasets/from-visual", requireAuth, v2Upload.single("file"), async (req: Request, res: Response) => {
+      try {
+        const user = req.user as Express.User;
+        const company = await getCompanyForUser(req);
+        if (!company) return res.status(400).json({ message: "No company" });
+        if (!req.file) return res.status(400).json({ message: "No screenshot or presentation uploaded" });
+
+        const originalName = req.file.originalname;
+        const mime = req.file.mimetype || "";
+        const isImage = /^image\/(png|jpe?g|webp)$/i.test(mime) || /\.(png|jpe?g|webp)$/i.test(originalName);
+        const isPptx = /\.pptx$/i.test(originalName) || mime.includes("presentation");
+        if (!isImage && !isPptx) {
+          return res.status(400).json({ message: "Please upload a dashboard screenshot (.png, .jpg, .webp) or PowerPoint (.pptx)." });
+        }
+
+        const visualParts: { type: "image_url"; image_url: { url: string } }[] = [];
+        let extractedText = "";
+        if (isImage) {
+          const imageMime = mime || (originalName.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg");
+          visualParts.push({ type: "image_url", image_url: { url: `data:${imageMime};base64,${req.file.buffer.toString("base64")}` } });
+        } else {
+          const pptxContext = extractPptxContext(req.file.buffer);
+          extractedText = pptxContext.text;
+          visualParts.push(...pptxContext.images.map(img => ({ type: "image_url" as const, image_url: { url: `data:${img.mime};base64,${img.base64}` } })));
+        }
+
+        const oai = await getOaiV2();
+        const prompt = `You are creating a starter analytics dataset from a dashboard screenshot or PowerPoint for a business intelligence app.
+
+The user will later download the generated Excel file, edit/add new actual data, upload it back, and expect the dashboard to refresh. Create a clean, editable tabular dataset from the visible dashboard/presentation.
+
+Return only JSON:
+{
+  "datasetName": "short dataset name",
+  "description": "what was inferred",
+  "rows": [
+    {"Month": "2026-01-01", "Category": "Revenue", "Actual": 1200, "Target": 1000}
+  ],
+  "insights": [
+    {"title": "Total Revenue", "question": "What is total revenue?", "chartType": "kpi", "measure": "Actual", "dimension": null, "narrative": "short business narrative"},
+    {"title": "Monthly Trend", "question": "Show actual trend by month", "chartType": "line", "measure": "Actual", "dimension": "Month", "narrative": "short business narrative"}
+  ],
+  "dashboardTitle": "Executive Dashboard"
+}
+
+Rules:
+- Use columns that are easy to update in Excel: Month or Date, Category/Department/Metric where applicable, Actual, Target/Budget if visible.
+- If exact source numbers are visible, use them. If only chart shapes are visible, estimate reasonable values and make the description say they are starter values.
+- Prefer 6-24 rows, not a single summary row.
+- Dates must be YYYY-MM-DD when possible.
+- chartType must be one of: kpi, bar, column, line, area, pie, donut, table.
+- At least 4 insights: KPI total, trend over time if date exists, category comparison if category exists, table/detail view.
+
+Extracted PowerPoint text, if any:
+${extractedText || "(none)"}`;
+
+        const completion = await oai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              ...visualParts,
+            ],
+          }],
+          response_format: { type: "json_object" },
+          max_tokens: 3500,
+        });
+
+        const parsed = safeJsonParseObject(completion.choices[0].message.content);
+        let rows = coerceVisualRows(parsed.rows);
+        if (!rows.length) rows = fallbackVisualRows(originalName);
+        const datasetName = String(parsed.datasetName || req.body.name || originalName.replace(/\.(png|jpe?g|webp|pptx)$/i, ""));
+        const description = String(parsed.description || `Starter dataset generated from ${isPptx ? "PowerPoint" : "dashboard screenshot"}. Download and replace with real updated data any time.`);
+
+        const dataset = await storage.createAnalyticsDataset({
+          companyId: company.id,
+          createdBy: user.id,
+          name: req.body.name || datasetName,
+          description,
+          fileName: `${datasetName.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "visual_dataset"}_starter.xlsx`,
+          sheetNames: ["Generated Data"],
+          rowCount: rows.length,
+          rawData: rows.slice(0, 5000) as unknown as Record<string, unknown>[],
+          status: "active",
+        });
+
+        const columns = buildAnalyticsColumnDefs(rows);
+        await storage.upsertAnalyticsDatasetColumns(dataset.id, columns);
+
+        const requestedInsights = Array.isArray(parsed.insights) ? parsed.insights.slice(0, 6) as Record<string, unknown>[] : [];
+        const defaultInsights: Record<string, unknown>[] = [
+          { title: `Total ${columns.find(c => c.columnType === "measure")?.label || "Actual"}`, question: "What is the total?", chartType: "kpi" },
+          { title: "Monthly Trend", question: "Show the trend over time", chartType: "line", dimension: columns.find(c => c.columnType === "date")?.label },
+          { title: "Category Comparison", question: "Compare by category", chartType: "bar", dimension: columns.find(c => c.columnType === "dimension")?.label },
+          { title: "Detail Table", question: "Show the data table", chartType: "table" },
+        ];
+        const insightSpecs = (requestedInsights.length ? requestedInsights : defaultInsights).slice(0, 6);
+
+        const savedInsights = [];
+        for (let i = 0; i < insightSpecs.length; i++) {
+          const spec = insightSpecs[i];
+          const chartType = String(spec.chartType || "bar");
+          const built = buildInsightChartConfig(rows, columns, chartType, spec.measure ? String(spec.measure) : null, spec.dimension ? String(spec.dimension) : null);
+          const insight = await storage.createAnalyticsInsight({
+            companyId: company.id,
+            createdBy: user.id,
+            datasetId: dataset.id,
+            title: String(spec.title || `Insight ${i + 1}`),
+            question: String(spec.question || spec.title || `Insight ${i + 1}`),
+            interpretation: String(spec.narrative || "Generated from the uploaded dashboard/presentation starter dataset."),
+            chartType: built.chartType,
+            chartConfig: built.config as unknown as null,
+            narrative: String(spec.narrative || "Generated from the uploaded dashboard/presentation starter dataset."),
+            status: "saved",
+          });
+          savedInsights.push(insight);
+        }
+
+        const dashboard = await storage.createAnalyticsDashboardDefinition({
+          companyId: company.id,
+          createdBy: user.id,
+          title: String(parsed.dashboardTitle || `${dataset.name} Dashboard`),
+          description: `Auto-created from ${originalName}. Update the generated Excel data to refresh these visuals.`,
+          status: "draft",
+          visibility: "private",
+          narrativeSummary: description,
+          tags: ["visual-upload", isPptx ? "powerpoint" : "screenshot"],
+          shareEnabled: false,
+        });
+        for (let i = 0; i < savedInsights.length; i++) {
+          await storage.addAnalyticsDashboardItem({ dashboardId: dashboard.id, insightId: savedInsights[i].id, position: i, titleOverride: null });
+        }
+
+        res.json({ ...dataset, columns, insights: savedInsights, dashboard, sourceType: isPptx ? "powerpoint" : "screenshot" });
+      } catch (err: any) {
+        console.error("Visual dataset generation failed:", err);
+        res.status(500).json({ message: err.message || "Visual dataset generation failed" });
+      }
+    });
+
     app.get("/api/v2/analytics/datasets/:id", requireAuth, async (req: Request, res: Response) => {
       const ds = await storage.getAnalyticsDataset(Number(req.params.id));
       if (!ds) return res.status(404).json({ message: "Not found" });
@@ -2455,6 +2798,20 @@ You can help the user understand their data, suggest chart types, explain insigh
       const insights = await storage.getAnalyticsInsightsByDataset(ds.id);
       const autoInsights = await storage.getAnalyticsAutoInsights(ds.id);
       res.json({ ...ds, columns, insights, autoInsights });
+    });
+
+    app.get("/api/v2/analytics/datasets/:id/export", requireAuth, async (req: Request, res: Response) => {
+      const ds = await storage.getAnalyticsDataset(Number(req.params.id));
+      if (!ds) return res.status(404).json({ message: "Dataset not found" });
+      const rows = (ds.rawData as Record<string, unknown>[]) || [];
+      const wb = xlsx.utils.book_new();
+      const ws = xlsx.utils.json_to_sheet(rows.length ? rows : [{}]);
+      xlsx.utils.book_append_sheet(wb, ws, "Data");
+      const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const fileName = `${ds.name.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "dataset"}.xlsx`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      res.send(buffer);
     });
 
     app.patch("/api/v2/analytics/datasets/:id", requireAuth, async (req: Request, res: Response) => {
@@ -2531,8 +2888,9 @@ You can help the user understand their data, suggest chart types, explain insigh
         const allColDefs = [...colDefs, ...formulaOnlyCols];
 
         const savedCols = await storage.upsertAnalyticsDatasetColumns(datasetId, allColDefs);
+        const refreshed = await refreshInsightsForDataset(datasetId);
         const updated = await storage.getAnalyticsDataset(datasetId);
-        res.json({ ...updated, columns: savedCols, rowCount: rows.length });
+        res.json({ ...updated, columns: savedCols, rowCount: rows.length, refreshedInsights: refreshed });
       } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Replace failed" });
