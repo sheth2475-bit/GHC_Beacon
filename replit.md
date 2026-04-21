@@ -35,7 +35,7 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - Data freshness is shown for Analytics uploads/dashboard updates and latest Scorecard KPI reporting period
 
 **Guided Tour**
-- Per-user first-login guided tour highlights the Command Center, reporting month filter, Analytics Studio, upload flow, Balanced Scorecard, notifications, and Beacon Assistant
+- Per-user first-login guided tour provides a detailed step-by-step walkthrough across Command Center controls, alert tabs, dashboard/focus panels, Analytics Studio search/freshness/libraries/upload, Scorecard month navigation/department cards/detail tabs/data entry/sharing, notifications, Beacon Assistant controls, and admin links when available
 - Users can relaunch the tour from the sidebar footer
 
 **Public Pages** (no auth required)

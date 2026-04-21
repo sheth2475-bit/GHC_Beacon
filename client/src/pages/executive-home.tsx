@@ -287,7 +287,7 @@ export default function ExecutiveHomePage() {
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
-          <Card className="shadow-md bg-card/90">
+          <Card className="shadow-md bg-card/90" data-testid="section-decision-alerts">
             <CardHeader className="pb-3">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -336,7 +336,7 @@ export default function ExecutiveHomePage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md bg-card/90">
+          <Card className="shadow-md bg-card/90" data-testid="section-command-dashboards">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <LayoutDashboard className="h-4 w-4 text-blue-500" />
@@ -371,7 +371,7 @@ export default function ExecutiveHomePage() {
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <Card className="xl:col-span-2 shadow-md bg-card/90">
+          <Card className="xl:col-span-2 shadow-md bg-card/90" data-testid="section-leadership-focus">
             <CardHeader className="pb-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -415,7 +415,7 @@ export default function ExecutiveHomePage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md bg-card/90">
+          <Card className="shadow-md bg-card/90" data-testid="section-score-calculation">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />

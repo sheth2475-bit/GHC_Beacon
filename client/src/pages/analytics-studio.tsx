@@ -355,7 +355,7 @@ export default function AnalyticsStudioPage() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-8">
-        <Card className="border-primary/10 bg-gradient-to-r from-primary/5 via-background to-background">
+        <Card className="border-primary/10 bg-gradient-to-r from-primary/5 via-background to-background" data-testid="section-analytics-freshness">
           <CardContent className="p-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
@@ -426,7 +426,7 @@ export default function AnalyticsStudioPage() {
 
             {/* Dashboards section */}
             {(filteredDef.length > 0 || isLoading) && (
-              <section>
+              <section data-testid="section-analytics-home-dashboards">
                 <SectionHeading
                   icon={LayoutDashboard}
                   title="Dashboards"
@@ -449,7 +449,7 @@ export default function AnalyticsStudioPage() {
 
             {/* Insights section */}
             {(filteredIns.length > 0 || isLoading) && (
-              <section>
+              <section data-testid="section-analytics-home-insights">
                 <SectionHeading
                   icon={Lightbulb}
                   title="Insights"
@@ -472,7 +472,7 @@ export default function AnalyticsStudioPage() {
 
             {/* Datasets section */}
             {(filteredDS.length > 0 || isLoading) && (
-              <section>
+              <section data-testid="section-analytics-home-datasets">
                 <SectionHeading
                   icon={Database}
                   title="Datasets"
@@ -506,7 +506,7 @@ export default function AnalyticsStudioPage() {
 
         {/* ── DASHBOARDS ── */}
         {section === "dashboards" && (
-          <section>
+          <section data-testid="section-analytics-dashboards">
             <SectionHeading
               icon={LayoutDashboard}
               title="Dashboards"
@@ -536,7 +536,7 @@ export default function AnalyticsStudioPage() {
 
         {/* ── INSIGHTS ── */}
         {section === "insights" && (
-          <section>
+          <section data-testid="section-analytics-insights">
             <SectionHeading icon={Lightbulb} title="Insights" count={filteredIns.length} />
             {isLoading ? <SkeletonGrid /> : (
               <div className={GRID}>
@@ -561,13 +561,13 @@ export default function AnalyticsStudioPage() {
 
         {/* ── DATASETS ── */}
         {section === "datasets" && (
-          <section>
+          <section data-testid="section-analytics-datasets">
             <SectionHeading
               icon={Database}
               title="Datasets"
               count={filteredDS.length}
               action={
-                <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/upload")}>
+                <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/upload")} data-testid="button-datasets-upload">
                   <Upload className="h-3 w-3" /> Upload
                 </Button>
               }

@@ -782,7 +782,7 @@ function ScorecardLanding() {
         <GripVertical className="h-3.5 w-3.5" />Drag to reorder · Click a card to open its scorecard
       </p>
 
-      <Card className="border-violet-500/10 bg-gradient-to-r from-violet-500/5 via-background to-background">
+      <Card className="border-violet-500/10 bg-gradient-to-r from-violet-500/5 via-background to-background" data-testid="section-bsc-freshness">
         <CardContent className="p-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
@@ -811,7 +811,7 @@ function ScorecardLanding() {
           </div>
         </CardContent>
       </Card>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4" data-testid="section-department-grid">
         {departments.map((dept, idx) => {
           const kpis  = loadKpiOverride(dept.id) ?? getKpisForDept(dept.id);
           const deptWeights = loadWeights(dept.id);
