@@ -28,11 +28,13 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - KPI data entry per department/period via Department Detail page
 - DB-synced departments (`bsc_departments`) and actuals (`bsc_actuals`)
 - Public share link per department: `POST /api/scorecard/share`, `GET /api/scorecard/share?deptId=...`, viewed at `/public/scorecard/:token`
+- Scorecard overview and department dashboards default to one month behind the current calendar month
 
 **Executive Command Center**
 - Logged-in default landing page at `/`
 - Executive-level view across Scorecard performance, Analytics activity, decision alerts, and data freshness
 - Data freshness is shown for Analytics uploads/dashboard updates and latest Scorecard KPI reporting period
+- Reporting period defaults to one month behind the current calendar month, with manual user selections persisted afterward
 
 **Guided Tour**
 - Per-user first-login guided tour provides a detailed step-by-step walkthrough across Command Center controls, alert tabs, dashboard/focus panels, Analytics Studio search/freshness/libraries/upload, Scorecard month navigation/department cards/detail tabs/data entry/sharing, notifications, Beacon Assistant controls, and admin links when available

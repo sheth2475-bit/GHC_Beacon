@@ -111,6 +111,29 @@ function periodLabel(key: string) {
   return `${MONTHS[month - 1]} ${year}`;
 }
 
+const COMMAND_PERIOD_KEY = "ghc_command_center_period";
+const COMMAND_PERIOD_VERSION = 2;
+
+function previousMonthKey(date = new Date()) {
+  const previous = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+  return periodKey(previous.getFullYear(), previous.getMonth());
+}
+
+function readCommandPeriod(currentPk: string, defaultPk: string) {
+  try {
+    const raw = localStorage.getItem(COMMAND_PERIOD_KEY);
+    if (!raw) return defaultPk;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.version === COMMAND_PERIOD_VERSION && typeof parsed.period === "string") return parsed.period;
+      if (typeof parsed?.period === "string" && parsed.period !== currentPk) return parsed.period;
+    } catch {
+      if (raw !== currentPk) return raw;
+    }
+  } catch {}
+  return defaultPk;
+}
+
 function scoreColor(score: number) {
   if (score >= 85) return "text-emerald-600 dark:text-emerald-400";
   if (score >= 70) return "text-amber-600 dark:text-amber-400";
@@ -120,8 +143,9 @@ function scoreColor(score: number) {
 export default function ExecutiveHomePage() {
   const today = new Date();
   const currentPk = periodKey(today.getFullYear(), today.getMonth());
+  const defaultPk = previousMonthKey(today);
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    try { return localStorage.getItem("ghc_command_center_period") || currentPk; } catch { return currentPk; }
+    return readCommandPeriod(currentPk, defaultPk);
   });
   const [alertTab, setAlertTab] = useState<"scorecard" | "updates" | "dashboards">("scorecard");
 
@@ -137,12 +161,12 @@ export default function ExecutiveHomePage() {
   const normalizedStore = useMemo(() => normalizeStore(actuals, depts), [actuals, depts]);
 
   const availablePeriods = useMemo(() => {
-    const periods = new Set<string>([currentPk]);
+    const periods = new Set<string>([currentPk, defaultPk]);
     Object.keys(normalizedStore).forEach(key => {
       if (/^[0-9]{4}-[0-9]{2}$/.test(key)) periods.add(key);
     });
     return [...periods].sort().reverse();
-  }, [currentPk, normalizedStore]);
+  }, [currentPk, defaultPk, normalizedStore]);
 
   useEffect(() => {
     const currentHasData = Object.keys(normalizedStore[currentPk] || {}).length > 0;
@@ -158,7 +182,9 @@ export default function ExecutiveHomePage() {
   }, [availablePeriods, currentPk, normalizedStore, selectedPeriod]);
 
   useEffect(() => {
-    try { localStorage.setItem("ghc_command_center_period", selectedPeriod); } catch {}
+    try {
+      localStorage.setItem(COMMAND_PERIOD_KEY, JSON.stringify({ period: selectedPeriod, version: COMMAND_PERIOD_VERSION }));
+    } catch {}
   }, [selectedPeriod]);
 
   const scorecard = useMemo(() => {

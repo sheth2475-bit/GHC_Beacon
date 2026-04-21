@@ -602,14 +602,30 @@ function AddDeptDialog({ open, onClose, onAdd }: { open:boolean; onClose:()=>voi
 
 // ── Persistent period helpers ─────────────────────────────────────────────────
 const PERIOD_STORE_KEY = "ghc_beacon_period_v1";
+const PERIOD_STORE_VERSION = 2;
+
+function previousMonthPeriod(date = new Date()) {
+  const previous = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+  return { year: previous.getFullYear(), month: previous.getMonth() };
+}
+
+function persistPeriod(year: number, month: number) {
+  try {
+    localStorage.setItem(PERIOD_STORE_KEY, JSON.stringify({ year, month, version: PERIOD_STORE_VERSION }));
+  } catch {}
+}
+
 function readPersistedPeriod() {
+  const today = new Date();
+  const defaultPeriod = previousMonthPeriod(today);
   try {
     const s = JSON.parse(localStorage.getItem(PERIOD_STORE_KEY) || "{}");
     const y = Number(s.year), m = Number(s.month);
-    if (y >= 2000 && m >= 0 && m <= 11) return { year: y, month: m };
+    const isValid = y >= 2000 && m >= 0 && m <= 11;
+    if (isValid && s.version === PERIOD_STORE_VERSION) return { year: y, month: m };
+    if (isValid && !(y === today.getFullYear() && m === today.getMonth())) return { year: y, month: m };
   } catch {}
-  const t = new Date();
-  return { year: t.getFullYear(), month: t.getMonth() };
+  return defaultPeriod;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -669,7 +685,7 @@ function ScorecardLanding() {
       if (nm > 11) { nm -= 12; ny++; }
       if (ny > today.getFullYear() || (ny === today.getFullYear() && nm > today.getMonth())) return m;
       setYear(ny);
-      try { localStorage.setItem(PERIOD_STORE_KEY, JSON.stringify({ year: ny, month: nm })); } catch {}
+      persistPeriod(ny, nm);
       return nm;
     });
   };
@@ -1754,7 +1770,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           className="gap-1.5 text-muted-foreground w-fit" data-testid="button-back">
           <ChevronLeft className="h-4 w-4" />All Departments
         </Button>
-        <PeriodSelector year={year} month={month} onChange={(y,m)=>{ setYear(y); setMonth(m); try { localStorage.setItem(PERIOD_STORE_KEY, JSON.stringify({ year: y, month: m })); } catch {} }} />
+        <PeriodSelector year={year} month={month} onChange={(y,m)=>{ setYear(y); setMonth(m); persistPeriod(y, m); }} />
       </div>
 
       {/* Dept header + health */}
