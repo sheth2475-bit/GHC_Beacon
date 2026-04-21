@@ -2337,8 +2337,9 @@ You can help the user understand their data, suggest chart types, explain insigh
       const previousYear = years.find(y => y < currentYear);
       if (!previousYear) return null;
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const currentMonths = new Set(dated.filter(d => d.year === currentYear).map(d => d.month));
       const currentRows = dated.filter(d => d.year === currentYear).map(d => ({ ...d.row, __pyDimension: dimension ? d.row[dimension] : monthNames[d.month] }));
-      const previousRows = dated.filter(d => d.year === previousYear).map(d => ({ ...d.row, __pyDimension: dimension ? d.row[dimension] : monthNames[d.month] }));
+      const previousRows = dated.filter(d => d.year === previousYear && currentMonths.has(d.month)).map(d => ({ ...d.row, __pyDimension: dimension ? d.row[dimension] : monthNames[d.month] }));
       if (!dimension) {
         const monthOrder = new Map(monthNames.map((m, i) => [m, i]));
         const actualRows = aggregateData(currentRows, measure, "__pyDimension", aggregation, limit, false).sort((a, b) => (monthOrder.get(a.name) ?? 99) - (monthOrder.get(b.name) ?? 99));
@@ -2348,6 +2349,16 @@ You can help the user understand their data, suggest chart types, explain insigh
       const actualRows = aggregateData(currentRows, measure, "__pyDimension", aggregation, limit, false);
       const comparisonRows = aggregateData(previousRows, measure, "__pyDimension", aggregation, limit, false);
       return { rows: mergeComparisonRows(actualRows, comparisonRows, `${previousYear}`), currentYear, previousYear };
+    }
+
+    function comparableDateYears(rows: Record<string, unknown>[], dateColumn: string) {
+      const years = new Set<number>();
+      for (const row of rows) {
+        const parsed = parseDateStr(row[dateColumn]);
+        const date = parsed ? new Date(parsed) : null;
+        if (date && !isNaN(date.getTime())) years.add(date.getFullYear());
+      }
+      return Array.from(years).sort((a, b) => b - a);
     }
 
     // Helper: compute rich data statistics for AI context
@@ -2672,12 +2683,16 @@ IMPORTANT:
         const dimCol = aiResult.dimension ? columns.find(c => c.columnName === aiResult.dimension || c.label === aiResult.dimension) : null;
         const questionLower = String(question || "").toLowerCase();
         const budgetIntent = aiResult.comparisonType === "budget" || /\b(vs|versus|against|compared|compare|variance)\b.*\b(budget|target|plan|planned|forecast|goal)\b|\b(budget|target|plan|planned|forecast|goal)\b.*\b(vs|versus|against|compared|compare|variance)\b/.test(questionLower);
-        const previousYearIntent = aiResult.comparisonType === "previousYear" || /\b(previous year|prior year|last year|year over year|yoy|py)\b/.test(questionLower);
+        const candidateDateCol = (dimCol?.columnType === "date" ? dimCol : null) || dates[0] || null;
+        const candidateYears = candidateDateCol ? comparableDateYears(rows, candidateDateCol.columnName) : [];
+        const explicitPreviousYearIntent = aiResult.comparisonType === "previousYear" || /\b(previous year|prior year|last year|year over year|yoy|py)\b/.test(questionLower);
+        const monthlyYearComparisonIntent = candidateYears.length >= 2 && /\b(month|monthly|by month|trend|over time|year|annual|202\d|compare|comparison|vs|versus)\b/.test(questionLower);
+        const previousYearIntent = explicitPreviousYearIntent || (!budgetIntent && candidateYears.length >= 2 && (monthlyYearComparisonIntent || finalChartType === "kpi"));
         const budgetCol = budgetIntent
           ? (columns.find(c => c.columnName === aiResult.comparisonMeasure || c.label === aiResult.comparisonMeasure) || findBudgetComparisonColumn(measures, measureCol, question))
           : null;
         const dateColForComparison = previousYearIntent
-          ? ((dimCol?.columnType === "date" ? dimCol : null) || dates[0] || null)
+          ? candidateDateCol
           : null;
         const comparisonType = budgetCol ? "budget" : dateColForComparison ? "previousYear" : null;
 
@@ -2706,10 +2721,15 @@ IMPORTANT:
                 const date = parsed ? new Date(parsed) : null;
                 return date && !isNaN(date.getTime()) && date.getFullYear() === py.currentYear;
               });
+              const currentMonths = new Set(currentRows.map(r => {
+                const parsed = parseDateStr(r[dateColForComparison.columnName]);
+                const date = parsed ? new Date(parsed) : null;
+                return date && !isNaN(date.getTime()) ? date.getMonth() : null;
+              }).filter(v => v !== null));
               const previousRows = rows.filter(r => {
                 const parsed = parseDateStr(r[dateColForComparison.columnName]);
                 const date = parsed ? new Date(parsed) : null;
-                return date && !isNaN(date.getTime()) && date.getFullYear() === py.previousYear;
+                return date && !isNaN(date.getTime()) && date.getFullYear() === py.previousYear && currentMonths.has(date.getMonth());
               });
               const currentValue = aggregateSingleValue(currentRows, measureCol.columnName, agg);
               const comparisonValue = aggregateSingleValue(previousRows, measureCol.columnName, agg);
@@ -2772,6 +2792,7 @@ IMPORTANT:
             : [];
           let finalData: unknown[] = (finalChartType === "pie") ? aggData.slice(0, 10) : aggData;
           let comparisonLabel: string | undefined;
+          let valueLabel = measureCol?.label;
           if (budgetCol && measureCol) {
             const comparisonRows = aggregateData(rows, budgetCol.columnName, dimCol?.columnName || null, agg, aiResult.topN || undefined, shouldSortChron);
             finalData = mergeComparisonRows(aggData, comparisonRows, budgetCol.label);
@@ -2780,10 +2801,11 @@ IMPORTANT:
             const py = aggregatePreviousYearComparison(rows, measureCol.columnName, dateColForComparison.columnName, dimCol?.columnType === "date" ? null : dimCol?.columnName || null, agg, aiResult.topN || undefined);
             if (py) {
               finalData = py.rows;
+              valueLabel = `${py.currentYear}`;
               comparisonLabel = `${py.previousYear}`;
             }
           }
-          chartData = { data: finalData, xKey: "name", yKey: "value", measureLabel: measureCol?.label, dimensionLabel: dimCol?.label || (dateColForComparison ? "Period" : undefined), comparisonLabel, comparisonType };
+          chartData = { data: finalData, xKey: "name", yKey: "value", measureLabel: valueLabel, dimensionLabel: dimCol?.label || (dateColForComparison ? "Period" : undefined), comparisonLabel, comparisonType };
         }
 
         // Compute top/bottom values from the data if AI didn't provide them
