@@ -17,19 +17,16 @@ import {
   Database,
   FileSpreadsheet,
   LayoutDashboard,
-  Lightbulb,
   ShieldAlert,
   Sparkles,
   Target,
-  TrendingUp,
 } from "lucide-react";
-import type { AnalyticsDashboardDefinition, AnalyticsDataset, AnalyticsInsight } from "@shared/schema";
+import type { AnalyticsDashboardDefinition, AnalyticsDataset } from "@shared/schema";
 import {
   getKpisForDept,
   getStatus,
   periodKey,
   MONTHS,
-  DEFAULT_DEPARTMENTS,
   type BscDepartment,
   type KpiDef,
 } from "@/lib/scorecard-data";
@@ -53,20 +50,49 @@ function fmtDate(d: string | Date | null | undefined) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function scoreForKpi(kpi: KpiDef, actual: number | null) {
-  if (actual === null || actual === undefined || Number.isNaN(Number(actual))) return null;
-  if (kpi.lowerIsBetter) {
-    if (kpi.target === 0) return actual === 0 ? 100 : 0;
-    return Math.max(0, Math.min(140, (1 - (actual - kpi.target) / Math.abs(kpi.target)) * 100));
+const KPI_OVERRIDE_KEY = "ghc_beacon_kpi_override_v1";
+const WEIGHTS_KEY = "ghc_beacon_weights_v1";
+
+function loadKpiOverride(deptId: string): KpiDef[] | null {
+  try {
+    const all = JSON.parse(localStorage.getItem(KPI_OVERRIDE_KEY) || "{}");
+    return all[deptId] ?? null;
+  } catch {
+    return null;
   }
-  if (kpi.target === 0) return 100;
-  return Math.max(0, Math.min(140, (Number(actual) / kpi.target) * 100));
 }
 
-function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>) {
-  const scores = kpis.map(kpi => scoreForKpi(kpi, actuals[kpi.id])).filter((v): v is number => v !== null);
-  if (scores.length === 0) return 0;
-  return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+function loadWeights(deptId: string): Record<string, number> {
+  try {
+    const all = JSON.parse(localStorage.getItem(WEIGHTS_KEY) || "{}");
+    return all[deptId] || {};
+  } catch {
+    return {};
+  }
+}
+
+function scoreForKpi(kpi: KpiDef, actual: number | null) {
+  if (actual === null || actual === undefined || Number.isNaN(Number(actual))) return 0;
+  if (kpi.lowerIsBetter) {
+    return actual === 0 ? 100 : Math.min((kpi.target / actual) * 100, 100);
+  }
+  if (kpi.target === 0) return 100;
+  return Math.min((Number(actual) / kpi.target) * 100, 100);
+}
+
+function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>, weights: Record<string, number>) {
+  const withData = kpis.filter(kpi => actuals[kpi.id] !== null && actuals[kpi.id] !== undefined);
+  if (!withData.length) return 0;
+  const hasUserWeights = withData.some(kpi => (weights[kpi.id] ?? 0) > 0);
+  const equalWeight = 100 / withData.length;
+  let totalScore = 0;
+  let totalWeight = 0;
+  for (const kpi of withData) {
+    const weight = hasUserWeights ? (weights[kpi.id] ?? 0) : equalWeight;
+    totalScore += scoreForKpi(kpi, actuals[kpi.id]) * weight;
+    totalWeight += weight;
+  }
+  return totalWeight > 0 ? Math.round(totalScore / totalWeight) : 0;
 }
 
 function normalizeStore(store: Record<string, Record<string, number>>, depts: BscDepartment[]) {
@@ -106,19 +132,16 @@ export default function ExecutiveHomePage() {
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     try { return localStorage.getItem("ghc_command_center_period") || currentPk; } catch { return currentPk; }
   });
+  const [alertTab, setAlertTab] = useState<"scorecard" | "updates" | "dashboards">("scorecard");
 
   const { data: datasets = [] } = useQuery<AnalyticsDataset[]>({ queryKey: ["/api/v2/analytics/datasets"] });
-  const { data: insights = [] } = useQuery<AnalyticsInsight[]>({ queryKey: ["/api/v2/analytics/insights"] });
   const { data: dashboards = [] } = useQuery<AnalyticsDashboardDefinition[]>({ queryKey: ["/api/v2/analytics/definitions"] });
   const { data: apiDepts = [] } = useQuery<ApiBscDepartment[]>({ queryKey: ["/api/scorecard/departments"] });
   const { data: actuals = {} } = useQuery<Record<string, Record<string, number>>>({ queryKey: ["/api/scorecard/actuals"] });
 
-  const depts = useMemo<BscDepartment[]>(() => {
-    const merged = new Map<string, BscDepartment>();
-    DEFAULT_DEPARTMENTS.forEach(dept => merged.set(dept.id, dept));
-    apiDepts.forEach(d => merged.set(d.deptId, { id: d.deptId, name: d.name, icon: d.icon, color: d.color }));
-    return [...merged.values()];
-  }, [apiDepts]);
+  const depts = useMemo<BscDepartment[]>(() => (
+    apiDepts.map(d => ({ id: d.deptId, name: d.name, icon: d.icon, color: d.color }))
+  ), [apiDepts]);
 
   const normalizedStore = useMemo(() => normalizeStore(actuals, depts), [actuals, depts]);
 
@@ -150,10 +173,11 @@ export default function ExecutiveHomePage() {
   const scorecard = useMemo(() => {
     const periodActuals = normalizedStore[selectedPeriod] || {};
     const deptStats = depts.map(dept => {
-      const kpis = getKpisForDept(dept.id);
+      const kpis = loadKpiOverride(dept.id) ?? getKpisForDept(dept.id);
+      const weights = loadWeights(dept.id);
       const values: Record<string, number | null> = {};
       kpis.forEach(kpi => { values[kpi.id] = periodActuals[kpi.id] ?? null; });
-      const score = performanceScore(kpis, values);
+      const score = performanceScore(kpis, values, weights);
       const complete = kpis.filter(kpi => values[kpi.id] !== null).length;
       const red = kpis.filter(kpi => getStatus(kpi, values[kpi.id]) === "red").length;
       const amber = kpis.filter(kpi => getStatus(kpi, values[kpi.id]) === "amber").length;
@@ -179,33 +203,44 @@ export default function ExecutiveHomePage() {
 
   const latestDataset = [...datasets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
   const latestDashboard = [...dashboards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-  const latestInsight = [...insights].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   const publishedDashboards = dashboards.filter(d => d.status === "published").length;
   const sharedDashboards = dashboards.filter(d => d.shareEnabled).length;
+  const recentDashboards = [...dashboards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 4);
 
-  const decisionAlerts = [
-    ...scorecard.risks.slice(0, 4).map(item => ({
+  const scorecardAlerts = scorecard.risks.map(item => ({
       icon: item.red > 0 ? AlertCircle : AlertTriangle,
       title: `${item.dept.name} needs attention`,
-      detail: `${item.score}% score · ${item.red} red KPI${item.red === 1 ? "" : "s"} · ${item.amber} amber`,
+      detail: `${item.score}% score for ${periodLabel(selectedPeriod)} · ${item.red} red KPI${item.red === 1 ? "" : "s"} · ${item.amber} amber · ${item.complete}/${item.total} populated`,
       href: `/scorecard/department/${item.dept.id}`,
       color: item.red > 0 ? "text-red-500 bg-red-500/10" : "text-amber-500 bg-amber-500/10",
-    })),
+  }));
+
+  const updateAlerts = [
     ...(latestDataset ? [{
       icon: Database,
       title: "Latest analytics upload",
-      detail: `${latestDataset.name} · ${fmtDate(latestDataset.updatedAt)}`,
+      detail: `${latestDataset.name} · ${fmtDate(latestDataset.updatedAt)} · ${latestDataset.rowCount ?? 0} rows`,
       href: `/analytics/datasets/${latestDataset.id}/explore`,
       color: "text-blue-500 bg-blue-500/10",
     }] : []),
-    ...(latestInsight ? [{
-      icon: Lightbulb,
-      title: "Latest AI insight",
-      detail: latestInsight.title,
-      href: `/analytics/datasets/${latestInsight.datasetId}/explore?insightId=${latestInsight.id}`,
-      color: "text-violet-500 bg-violet-500/10",
+    ...(latestDashboard ? [{
+      icon: LayoutDashboard,
+      title: "Latest dashboard update",
+      detail: `${latestDashboard.title} · ${fmtDate(latestDashboard.updatedAt)} · ${latestDashboard.status}`,
+      href: `/analytics/dashboards/${latestDashboard.id}`,
+      color: "text-primary bg-primary/10",
     }] : []),
-  ].slice(0, 6);
+  ];
+
+  const dashboardAlerts = recentDashboards.map(dashboard => ({
+    icon: LayoutDashboard,
+    title: dashboard.title,
+    detail: `${dashboard.status} · ${dashboard.shareEnabled ? "Shared" : "Private"} · Updated ${fmtDate(dashboard.updatedAt)}`,
+    href: `/analytics/dashboards/${dashboard.id}`,
+    color: dashboard.status === "published" ? "text-emerald-500 bg-emerald-500/10" : "text-blue-500 bg-blue-500/10",
+  }));
+
+  const currentAlerts = alertTab === "scorecard" ? scorecardAlerts : alertTab === "updates" ? updateAlerts : dashboardAlerts;
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_12%_0%,hsl(var(--primary)/0.14),transparent_32%),radial-gradient(circle_at_88%_10%,rgba(14,165,233,0.13),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.22))]">
@@ -224,7 +259,7 @@ export default function ExecutiveHomePage() {
                     Performance command view for <span className="text-primary">{periodLabel(selectedPeriod)}</span>
                   </h1>
                   <p className="text-muted-foreground mt-3 max-w-2xl text-base">
-                    A sharper executive view across KPI health, below-target departments, analytics intelligence, and data freshness.
+                    A sharper executive view across KPI health, below-target departments, dashboard activity, and action alerts.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -271,7 +306,7 @@ export default function ExecutiveHomePage() {
                 <Activity className="h-4 w-4 text-primary" />
               </div>
               <p className={`text-4xl font-bold mt-3 ${scoreColor(scorecard.overall)}`} data-testid="text-overall-performance">{scorecard.overall}%</p>
-              <p className="text-xs text-muted-foreground mt-1">{scorecard.green} green · {scorecard.amber} amber · {scorecard.red} red</p>
+              <p className="text-xs text-muted-foreground mt-1">Average of departments with data · {scorecard.green} green · {scorecard.amber} amber · {scorecard.red} red</p>
             </CardContent>
           </Card>
           <Card className="overflow-hidden border-0 shadow-md bg-card/90">
@@ -311,24 +346,42 @@ export default function ExecutiveHomePage() {
           </Card>
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
+        <section className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
           <Card className="shadow-md bg-card/90">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-red-500" />
-                Decision alerts
-              </CardTitle>
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-red-500" />
+                  Decision alerts
+                </CardTitle>
+                <div className="flex rounded-xl border bg-muted/40 p-1">
+                  {[
+                    { key: "scorecard" as const, label: "Scorecard", count: scorecardAlerts.length },
+                    { key: "updates" as const, label: "Updates", count: updateAlerts.length },
+                    { key: "dashboards" as const, label: "Dashboards", count: dashboardAlerts.length },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setAlertTab(tab.key)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${alertTab === tab.key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      data-testid={`tab-alerts-${tab.key}`}
+                    >
+                      {tab.label} <span className="ml-1 opacity-70">{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {decisionAlerts.length > 0 ? decisionAlerts.map((item, index) => (
+              {currentAlerts.length > 0 ? currentAlerts.map((item, index) => (
                 <Link key={`${item.title}-${index}`} href={item.href}>
-                  <button className="w-full flex items-center gap-3 rounded-xl border p-3 text-left hover:bg-muted/40 transition-colors" data-testid={`button-decision-alert-${index}`}>
-                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${item.color}`}>
+                  <button className="w-full flex items-center gap-3 rounded-2xl border p-4 text-left hover:bg-muted/40 transition-colors bg-background/50" data-testid={`button-decision-alert-${index}`}>
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${item.color}`}>
                       <item.icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">{item.title}</p>
-                      <p className="text-xs text-muted-foreground truncate">{item.detail}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{item.detail}</p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-muted-foreground" />
                   </button>
@@ -336,8 +389,8 @@ export default function ExecutiveHomePage() {
               )) : (
                 <div className="py-10 text-center">
                   <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
-                  <p className="font-semibold">No critical alerts right now</p>
-                  <p className="text-sm text-muted-foreground">Scorecard and analytics signals are clear.</p>
+                  <p className="font-semibold">No alerts in this tab right now</p>
+                  <p className="text-sm text-muted-foreground">Choose another tab to review scorecard, update, or dashboard activity.</p>
                 </div>
               )}
             </CardContent>
@@ -346,44 +399,33 @@ export default function ExecutiveHomePage() {
           <Card className="shadow-md bg-card/90">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" />
-                Data freshness
+                <LayoutDashboard className="h-4 w-4 text-blue-500" />
+                Analytics dashboards
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="rounded-xl border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">Analytics data</p>
-                    <p className="text-xs text-muted-foreground">Last upload or dataset replacement</p>
-                  </div>
-                  <span className={`text-sm font-bold ${freshnessClass(latestDataset?.updatedAt)}`} data-testid="text-analytics-freshness">
-                    {fmtDate(latestDataset?.updatedAt)}
-                  </span>
+              {recentDashboards.length > 0 ? recentDashboards.map(dashboard => (
+                <Link key={dashboard.id} href={`/analytics/dashboards/${dashboard.id}`}>
+                  <button className="w-full rounded-2xl border p-3 text-left hover:bg-muted/40 transition-colors bg-background/50" data-testid={`button-dashboard-${dashboard.id}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{dashboard.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{dashboard.status} · {dashboard.shareEnabled ? "Shared externally" : "Internal only"}</p>
+                      </div>
+                      <Badge variant={dashboard.status === "published" ? "default" : "secondary"}>{dashboard.status}</Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> Updated {fmtDate(dashboard.updatedAt)}
+                    </p>
+                  </button>
+                </Link>
+              )) : (
+                <div className="rounded-xl border border-dashed p-6 text-center">
+                  <LayoutDashboard className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm font-semibold">No dashboards yet</p>
+                  <p className="text-xs text-muted-foreground">Published dashboards will appear here.</p>
                 </div>
-              </div>
-              <div className="rounded-xl border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">Dashboard intelligence</p>
-                    <p className="text-xs text-muted-foreground">Last dashboard update</p>
-                  </div>
-                  <span className={`text-sm font-bold ${freshnessClass(latestDashboard?.updatedAt)}`} data-testid="text-dashboard-freshness">
-                    {fmtDate(latestDashboard?.updatedAt)}
-                  </span>
-                </div>
-              </div>
-              <div className="rounded-xl border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">Balanced Scorecard</p>
-                    <p className="text-xs text-muted-foreground">Latest KPI reporting period</p>
-                  </div>
-                  <span className="text-sm font-bold text-foreground" data-testid="text-bsc-freshness">
-                    {scorecard.latestPeriod || "No KPI data"}
-                  </span>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </section>
@@ -436,21 +478,17 @@ export default function ExecutiveHomePage() {
           <Card className="shadow-md bg-card/90">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-blue-500" />
-                Analytics intelligence
+                <Activity className="h-4 w-4 text-primary" />
+                Score calculation
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {latestInsight ? (
-                <Link href={`/analytics/datasets/${latestInsight.datasetId}/explore?insightId=${latestInsight.id}`}>
-                  <button className="w-full rounded-xl border p-3 text-left hover:bg-muted/40 transition-colors" data-testid="button-latest-insight">
-                    <p className="text-sm font-semibold line-clamp-2">{latestInsight.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{latestInsight.question}</p>
-                  </button>
-                </Link>
-              ) : (
-                <p className="text-sm text-muted-foreground">No AI insights saved yet.</p>
-              )}
+              <div className="rounded-2xl border bg-background/50 p-4">
+                <p className="text-sm font-semibold">Overall performance = average department score</p>
+                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                  Each department score is calculated from populated KPIs for {periodLabel(selectedPeriod)}. KPI achievement is capped at 100%, lower-is-better KPIs are inverted, and saved KPI weights are used when present. The Command Center then averages departments that have data.
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <Link href="/analytics?tab=dashboards">
                   <Button variant="outline" className="w-full gap-1.5" data-testid="button-view-dashboards">
