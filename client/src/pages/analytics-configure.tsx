@@ -308,7 +308,7 @@ export default function AnalyticsConfigurePage() {
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 text-muted-foreground" />
                 <span>Replace Data File</span>
-                <span className="text-xs text-muted-foreground font-normal">— upload a new version of this dataset</span>
+                <span className="text-xs text-muted-foreground font-normal">— upload a new version, including multi-sheet actual/budget workbooks</span>
               </div>
               {replaceOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </button>
@@ -318,7 +318,7 @@ export default function AnalyticsConfigurePage() {
                 <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2.5 flex items-start gap-2">
                   <Info className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Column labels and types will be preserved for any columns that exist in both files. New columns will be auto-detected. All dashboards and insights will update automatically.
+                    Column labels and types will be preserved for any columns that exist in both files. Multi-sheet Excel files are modeled by matching shared keys like date, period, hotel, department, or region, so actuals and budgets can update together.
                   </p>
                 </div>
 
@@ -328,6 +328,12 @@ export default function AnalyticsConfigurePage() {
                   <span>Current file: <span className="font-medium text-foreground">{ds.fileName}</span></span>
                   <span>·</span>
                   <span>{ds.rowCount?.toLocaleString()} rows</span>
+                  {(ds.sheetNames?.length || 0) > 1 && (
+                    <>
+                      <span>·</span>
+                      <span>{ds.sheetNames?.length} sheets modeled</span>
+                    </>
+                  )}
                 </div>
 
                 {/* Drop zone */}

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Building2, Users, Activity, Bot, LogIn, Search, TrendingUp, Shield } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 
 const planColors: Record<string, string> = {
   Trial: "border-gray-600 text-gray-400",
@@ -99,7 +99,9 @@ export default function OwnerCompanyUsage() {
                       <XAxis type="number" tick={{ fill: "#6b7280", fontSize: 11 }} />
                       <YAxis dataKey="name" type="category" width={100} tick={{ fill: "#9ca3af", fontSize: 11 }} />
                       <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} itemStyle={{ color: "#a5b4fc" }} />
-                      <Bar dataKey="total" fill="#6366f1" radius={[0, 4, 4, 0]} name="Actions" />
+                      <Bar dataKey="total" fill="#6366f1" radius={[0, 4, 4, 0]} name="Actions">
+                        <LabelList dataKey="total" position="right" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -115,7 +117,9 @@ export default function OwnerCompanyUsage() {
                       <XAxis type="number" tick={{ fill: "#6b7280", fontSize: 11 }} />
                       <YAxis dataKey="name" type="category" width={100} tick={{ fill: "#9ca3af", fontSize: 11 }} />
                       <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} itemStyle={{ color: "#a5b4fc" }} />
-                      <Bar dataKey="logins" fill="#22d3ee" radius={[0, 4, 4, 0]} name="Logins" />
+                      <Bar dataKey="logins" fill="#22d3ee" radius={[0, 4, 4, 0]} name="Logins">
+                        <LabelList dataKey="logins" position="right" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>

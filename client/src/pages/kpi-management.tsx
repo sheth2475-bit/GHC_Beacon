@@ -20,7 +20,7 @@ import { ExcelUpload } from "@/components/excel-upload";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Trash2, Plus, Target, Search, Zap, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
+import { AreaChart, Area, ResponsiveContainer, Tooltip, LabelList } from "recharts";
 import type { Kpi, Department, KpiActual, TeamMember } from "@shared/schema";
 
 function KpiSparkline({ kpiId, actuals }: { kpiId: number; actuals: (KpiActual & { kpiName: string })[] }) {
@@ -47,7 +47,9 @@ function KpiSparkline({ kpiId, actuals }: { kpiId: number; actuals: (KpiActual &
               <stop offset="95%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <Area type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} fill={`url(#spark-${kpiId})`} dot={false} />
+          <Area type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} fill={`url(#spark-${kpiId})`} dot={{ r: 1.5, fill: color }}>
+            <LabelList dataKey="value" position="top" style={{ fontSize: 7, fill: color, fontWeight: 700 }} />
+          </Area>
           <Tooltip
             contentStyle={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
             formatter={(v: number) => [v, kpiActuals[0]?.month]}

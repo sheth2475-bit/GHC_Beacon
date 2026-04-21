@@ -16,7 +16,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, RadarChart,
-  PolarGrid, PolarAngleAxis, Radar,
+  PolarGrid, PolarAngleAxis, Radar, LabelList,
 } from "recharts";
 import type { Department, DashboardPlan } from "@shared/schema";
 
@@ -116,8 +116,12 @@ function TrendChartPreview({ section }: { section: any }) {
           <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "12px" }} />
-          <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fill="url(#colorValue)" />
-          <Line type="monotone" dataKey="target" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={1.5} dot={false} />
+          <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fill="url(#colorValue)">
+            <LabelList dataKey="value" position="top" style={{ fontSize: 9, fill: "currentColor", fontWeight: 700 }} />
+          </Area>
+          <Line type="monotone" dataKey="target" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={1.5} dot={{ r: 2 }}>
+            <LabelList dataKey="target" position="bottom" style={{ fontSize: 9, fill: "currentColor", fontWeight: 700 }} />
+          </Line>
         </AreaChart>
       </ResponsiveContainer>
       {section.recommended_kpis && section.recommended_kpis.length > 0 && (
@@ -143,6 +147,7 @@ function BarChartPreview({ section }: { section: any }) {
           <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "12px" }} />
           <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+            <LabelList dataKey="value" position="top" style={{ fontSize: 9, fill: "currentColor", fontWeight: 700 }} />
             {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
           </Bar>
         </BarChart>
@@ -160,7 +165,7 @@ function PieChartPreview({ section }: { section: any }) {
       {section.rationale && <p className="text-[11px] text-muted-foreground mb-3">{section.rationale}</p>}
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
-          <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
+          <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none" label={({ value }) => value} labelLine={false}>
             {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
           </Pie>
           <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "12px" }} />

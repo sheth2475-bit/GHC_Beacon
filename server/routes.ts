@@ -2065,6 +2065,130 @@ You can help the user understand their data, suggest chart types, explain insigh
       return "dimension";
     }
 
+    function normalizeAnalyticsCell(v: unknown) {
+      return v instanceof Date ? v.toISOString().split("T")[0] : v;
+    }
+
+    function parseAnalyticsWorkbook(buffer: Buffer) {
+      const wb = xlsx.read(buffer, { type: "buffer", cellDates: true });
+      const sheets = wb.SheetNames.map((sheetName) => {
+        const sheet = wb.Sheets[sheetName];
+        const parsedRows = xlsx.utils.sheet_to_json(sheet, { defval: null, cellDates: true }) as Record<string, unknown>[];
+        const rows = parsedRows
+          .map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), normalizeAnalyticsCell(v)])))
+          .filter(r => Object.values(r).some(v => v !== null && v !== undefined && String(v).trim() !== ""));
+        const columns = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
+        return { name: sheetName, rows, columns };
+      }).filter(s => s.rows.length > 0);
+      return { sheetNames: wb.SheetNames, sheets };
+    }
+
+    function isNumericLike(v: unknown) {
+      return v !== null && v !== undefined && String(v).trim() !== "" && !isNaN(Number(v));
+    }
+
+    function isModelKeyColumn(col: string, leftRows: Record<string, unknown>[], rightRows: Record<string, unknown>[]) {
+      const name = col.toLowerCase();
+      if (/\b(date|month|year|period|week|quarter|day|hotel|property|department|dept|region|country|city|branch|outlet|category|segment|id|code|name)\b/.test(name)) return true;
+      const sample = [...leftRows.slice(0, 20), ...rightRows.slice(0, 20)].map(r => r[col]).filter(v => v !== null && v !== undefined && String(v).trim() !== "");
+      if (!sample.length) return false;
+      const numericRatio = sample.filter(isNumericLike).length / sample.length;
+      const uniqueRatio = new Set(sample.map(v => String(v).trim().toLowerCase())).size / sample.length;
+      return numericRatio < 0.3 && uniqueRatio > 0.15;
+    }
+
+    function rowModelKey(row: Record<string, unknown>, keys: string[]) {
+      return keys.map(k => String(row[k] ?? "").trim().toLowerCase()).join("||");
+    }
+
+    function outputColumnName(col: string, sheetName: string, existing: Set<string>, keys: Set<string>) {
+      if (keys.has(col) || !existing.has(col)) return col;
+      const cleanSheet = sheetName.replace(/[_-]+/g, " ").trim() || "Sheet";
+      return `${col} (${cleanSheet})`;
+    }
+
+    function modelWorkbookSheets(sheets: { name: string; rows: Record<string, unknown>[]; columns: string[] }[]) {
+      if (sheets.length === 0) return { rows: [] as Record<string, unknown>[], strategy: "empty" };
+      if (sheets.length === 1) return { rows: sheets[0].rows, strategy: "single-sheet" };
+
+      const base = [...sheets].sort((a, b) => {
+        const aScore = (/actual|main|data|fact|transaction/i.test(a.name) ? 10000 : 0) + a.rows.length;
+        const bScore = (/actual|main|data|fact|transaction/i.test(b.name) ? 10000 : 0) + b.rows.length;
+        return bScore - aScore;
+      })[0];
+      const otherSheets = sheets.filter(s => s !== base);
+      const keysBySheet = new Map<string, string[]>();
+      let canRelate = true;
+      for (const sheet of otherSheets) {
+        const common = base.columns.filter(c => sheet.columns.includes(c) && isModelKeyColumn(c, base.rows, sheet.rows));
+        const keys = common.slice(0, 4);
+        keysBySheet.set(sheet.name, keys);
+        if (keys.length === 0) canRelate = false;
+      }
+
+      if (!canRelate) {
+        return {
+          rows: sheets.flatMap(sheet => sheet.rows.map(row => ({ "Source Sheet": sheet.name, ...row }))),
+          strategy: "append-with-source-sheet",
+        };
+      }
+
+      const modeled = base.rows.map(row => ({ ...row }));
+      const indexes = otherSheets.map(sheet => {
+        const keys = keysBySheet.get(sheet.name) || [];
+        const index = new Map<string, Record<string, unknown>[]>();
+        for (const row of sheet.rows) {
+          const key = rowModelKey(row, keys);
+          if (!index.has(key)) index.set(key, []);
+          index.get(key)!.push(row);
+        }
+        return { sheet, keys, index, matched: new Set<string>() };
+      });
+
+      for (const out of modeled) {
+        const existing = new Set(Object.keys(out));
+        for (const rel of indexes) {
+          const key = rowModelKey(out, rel.keys);
+          const match = rel.index.get(key)?.[0];
+          if (!match) continue;
+          rel.matched.add(key);
+          const keySet = new Set(rel.keys);
+          for (const [col, val] of Object.entries(match)) {
+            if (keySet.has(col)) continue;
+            out[outputColumnName(col, rel.sheet.name, existing, keySet)] = val;
+          }
+        }
+      }
+
+      for (const rel of indexes) {
+        const keySet = new Set(rel.keys);
+        for (const [key, rows] of rel.index.entries()) {
+          if (rel.matched.has(key)) continue;
+          for (const row of rows) {
+            const out: Record<string, unknown> = {};
+            for (const k of rel.keys) out[k] = row[k];
+            const existing = new Set(Object.keys(out));
+            for (const [col, val] of Object.entries(row)) {
+              if (keySet.has(col)) continue;
+              out[outputColumnName(col, rel.sheet.name, existing, keySet)] = val;
+            }
+            modeled.push(out);
+          }
+        }
+      }
+
+      return { rows: modeled, strategy: "related-sheets-merged" };
+    }
+
+    function buildAnalyticsColumnDefs(rows: Record<string, unknown>[]) {
+      const columns = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
+      return columns.map((col, i) => {
+        const vals = rows.map(r => r[col]);
+        const type = autoDetectColumnType(vals, col);
+        return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
+      });
+    }
+
     // Helper: aggregate data for chart
     // Evaluates formula columns (isFormula=true) and augments each row with computed values
     function applyFormulaColumns(
@@ -2287,40 +2411,26 @@ You can help the user understand their data, suggest chart types, explain insigh
         if (!company) return res.status(400).json({ message: "No company" });
         if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-        const wb = xlsx.read(req.file.buffer, { type: "buffer", cellDates: true });
-        const sheetNames = wb.SheetNames;
-        const sheet = wb.Sheets[sheetNames[0]];
-        const rows = xlsx.utils.sheet_to_json(sheet, { defval: null, cellDates: true }) as Record<string, unknown>[];
-        const columns = rows.length ? Object.keys(rows[0]) : [];
-
-        // Normalize Date objects → ISO date strings for consistent JSON storage
-        const normalizeVal = (v: unknown) =>
-          v instanceof Date ? v.toISOString().split("T")[0] : v;
-        const normalizedRows = rows.map(r =>
-          Object.fromEntries(Object.entries(r).map(([k, v]) => [k, normalizeVal(v)]))
-        );
+        const { sheetNames, sheets } = parseAnalyticsWorkbook(req.file.buffer);
+        const modeled = modelWorkbookSheets(sheets);
+        const rows = modeled.rows;
 
         const dataset = await storage.createAnalyticsDataset({
           companyId: company.id,
           createdBy: user.id,
           name: req.body.name || req.file.originalname.replace(/\.(xlsx|xls|csv)$/i, ""),
-          description: req.body.description || null,
+          description: req.body.description || (sheets.length > 1 ? `Modeled ${sheets.length} sheets using ${modeled.strategy.replace(/-/g, " ")}.` : null),
           fileName: req.file.originalname,
           sheetNames,
           rowCount: rows.length,
-          rawData: normalizedRows.slice(0, 5000) as unknown as typeof rows,
+          rawData: rows.slice(0, 5000) as unknown as typeof rows,
           status: "active",
         });
 
-        // Auto-detect columns — pass raw rows (with Date objects) and column name for best detection
-        const colDefs = columns.map((col, i) => {
-          const vals = rows.map(r => r[col]);
-          const type = autoDetectColumnType(vals, col);
-          return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
-        });
+        const colDefs = buildAnalyticsColumnDefs(rows);
         await storage.upsertAnalyticsDatasetColumns(dataset.id, colDefs);
 
-        res.json({ ...dataset, columns: colDefs });
+        res.json({ ...dataset, columns: colDefs, modelingStrategy: modeled.strategy });
       } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Upload failed" });
@@ -2350,25 +2460,17 @@ You can help the user understand their data, suggest chart types, explain insigh
         const ds = await storage.getAnalyticsDataset(datasetId);
         if (!ds) return res.status(404).json({ message: "Dataset not found" });
 
-        // Parse new file
-        const wb = xlsx.read(req.file.buffer, { type: "buffer", cellDates: true });
-        const sheetNames = wb.SheetNames;
-        const sheet = wb.Sheets[sheetNames[0]];
-        const rows = xlsx.utils.sheet_to_json(sheet, { defval: null, cellDates: true }) as Record<string, unknown>[];
-        const newColumns = rows.length ? Object.keys(rows[0]) : [];
-
-        const normalizeVal = (v: unknown) =>
-          v instanceof Date ? v.toISOString().split("T")[0] : v;
-        const normalizedRows = rows.map(r =>
-          Object.fromEntries(Object.entries(r).map(([k, v]) => [k, normalizeVal(v)]))
-        );
+        const { sheetNames, sheets } = parseAnalyticsWorkbook(req.file.buffer);
+        const modeled = modelWorkbookSheets(sheets);
+        const rows = modeled.rows;
+        const newColumns = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
 
         // Update raw data on the dataset
         await storage.updateAnalyticsDataset(datasetId, {
           fileName: req.file.originalname,
           sheetNames,
           rowCount: rows.length,
-          rawData: normalizedRows.slice(0, 5000) as unknown as Record<string, unknown>[],
+          rawData: rows.slice(0, 5000) as unknown as Record<string, unknown>[],
         });
 
         // Get existing column config so we can preserve labels/types for matching columns

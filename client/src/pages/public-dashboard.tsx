@@ -55,10 +55,10 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
     );
   }
 
-  if ((chartType === "bar" || chartType === "line") && data) {
+  if ((chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") && data) {
     const chartData = (data as { data?: { name: string; value: number; comparisonValue?: number }[]; comparisonLabel?: string }).data || [];
     const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
-    const maxItems = chartType === "bar" ? 20 : 30;
+    const maxItems = (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") ? 20 : 30;
     const displayData = chartData.slice(0, maxItems).map(d => ({ ...d, shortName: shortLabel(d.name) }));
     const count = displayData.length;
     const hasComparison = displayData.some(d => typeof d.comparisonValue === "number");
@@ -69,7 +69,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
     const labelAngle = hasTons ? -50 : hasMany ? -35 : -20;
     const tickSize = hasTons ? 7 : hasMany ? 7.5 : 8;
 
-    if (chartType === "bar") return (
+    if (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") return (
       <ResponsiveContainer width="100%" height={chartH}>
         <BarChart data={displayData} margin={{ top: 20, right: 6, left: -16, bottom: bottomMargin }}>
           <XAxis
@@ -87,14 +87,16 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
           <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[3, 3, 0, 0]}>
-            {!hasComparison && <LabelList
+            <LabelList
               dataKey="value"
               position="top"
               formatter={(v: number) => formatValue(v, displayFormat)}
               style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
-            />}
+            />
           </Bar>
-          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[3, 3, 0, 0]} />}
+          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[3, 3, 0, 0]}>
+            <LabelList dataKey="comparisonValue" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />
+          </Bar>}
         </BarChart>
       </ResponsiveContainer>
     );
@@ -116,7 +118,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
           <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
-            {count <= 40 && !hasComparison && (
+            {count <= 40 && (
               <LabelList
                 dataKey="value"
                 position="top"
@@ -125,7 +127,9 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
               />
             )}
           </Area>
-          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[3] } : false} />}
+          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[3] } : false}>
+            {count <= 40 && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />}
+          </Area>}
         </AreaChart>
       </ResponsiveContainer>
     );

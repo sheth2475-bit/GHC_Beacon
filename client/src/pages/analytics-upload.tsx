@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsDatasetColumn } from "@shared/schema";
 
-type UploadResult = AnalyticsDataset & { columns: AnalyticsDatasetColumn[] };
+type UploadResult = AnalyticsDataset & { columns: AnalyticsDatasetColumn[]; modelingStrategy?: string };
 
 const TYPE_COLORS: Record<string, string> = {
   dimension: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
@@ -105,7 +105,7 @@ export default function AnalyticsUploadPage() {
           </div>
           <div>
             <h1 className="text-xl font-black tracking-tight">Upload Dataset</h1>
-            <p className="text-xs text-muted-foreground">Upload an Excel file to start building analytics</p>
+            <p className="text-xs text-muted-foreground">Upload Excel or CSV data, including multi-sheet workbooks for actuals, budgets, and targets</p>
           </div>
         </div>
 
@@ -140,7 +140,7 @@ export default function AnalyticsUploadPage() {
                     </div>
                     <p className="font-bold text-sm mb-1">{dragOver ? "Drop to upload" : "Drop your file here"}</p>
                     <p className="text-xs text-muted-foreground mb-3">or click to browse</p>
-                    <p className="text-[11px] text-muted-foreground/60">Supports .xlsx, .xls, .csv · Max 20 MB</p>
+                    <p className="text-[11px] text-muted-foreground/60">Supports .xlsx, .xls, .csv · multi-sheet Excel modeling · Max 20 MB</p>
                   </>
                 )}
               </div>
@@ -176,10 +176,23 @@ export default function AnalyticsUploadPage() {
                   <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                   <div>
                     <p className="font-bold text-sm">{result.name} — uploaded successfully</p>
-                    <p className="text-xs text-muted-foreground">{result.rowCount?.toLocaleString()} rows · {result.columns.length} columns detected</p>
+                    <p className="text-xs text-muted-foreground">
+                      {result.rowCount?.toLocaleString()} rows · {result.columns.length} columns detected · {result.sheetNames?.length || 1} sheet(s)
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-3 flex-wrap">
+                  {(result.sheetNames || []).map(sheet => (
+                    <div key={sheet} className="text-xs rounded-full border bg-muted/40 px-2 py-0.5">
+                      <span className="text-muted-foreground">Sheet</span>
+                      <span className="font-semibold ml-1">{sheet}</span>
+                    </div>
+                  ))}
+                  {result.modelingStrategy && (
+                    <div className="text-xs rounded-full border bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 px-2 py-0.5">
+                      {result.modelingStrategy.replace(/-/g, " ")}
+                    </div>
+                  )}
                   {colTypeGroups && [
                     { label: "Measures", count: colTypeGroups.measure, color: "text-emerald-600" },
                     { label: "Dimensions", count: colTypeGroups.dimension, color: "text-blue-600" },

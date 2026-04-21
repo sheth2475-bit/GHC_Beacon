@@ -995,7 +995,13 @@ function KpiSparkline({ kpi, store, year, month }: { kpi: KpiDef; store: Record<
           }} />
         </Line>
         <Line type="monotone" dataKey="target" stroke="hsl(var(--muted-foreground))" strokeWidth={1}
-          strokeDasharray="3 2" dot={false} />
+          strokeDasharray="3 2" dot={false}>
+          <LabelList dataKey="target" position="bottom" content={(props: any) => {
+            const { x, y, value } = props;
+            if (value === null || value === undefined || x === undefined || y === undefined) return null;
+            return <text x={x} y={y + 10} fill="hsl(var(--muted-foreground))" fontSize={8} textAnchor="middle" fontWeight={600}>{value}</text>;
+          }} />
+        </Line>
         <Tooltip
           contentStyle={{ background:"hsl(var(--card))", border:"1px solid hsl(var(--border))", borderRadius:"6px", fontSize:10, padding:"2px 6px" }}
           formatter={(v:any, name:string) => [v !== null ? `${fmtVal(v, kpi.unit)} ${kpi.unit}` : "—", name === "actual" ? "Actual" : "Target"]}
@@ -1874,7 +1880,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                   <div className="relative">
                     <PieChart width={220} height={220}>
                       <Pie data={[{ value: hp }, { value: 100 - hp }]} cx="50%" cy="50%"
-                        innerRadius={76} outerRadius={104} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                        innerRadius={76} outerRadius={104} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0} label={({ value, index }) => index === 0 ? value : ""} labelLine={false}>
                         <Cell fill={statusColor} />
                         <Cell fill="hsl(var(--muted))" />
                       </Pie>
@@ -1897,7 +1903,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                 <div className="relative flex-shrink-0">
                   <PieChart width={110} height={110}>
                     <Pie data={[{ value: hp }, { value: 100 - hp }]} cx="50%" cy="50%"
-                      innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                      innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0} label={({ value, index }) => index === 0 ? value : ""} labelLine={false}>
                       <Cell fill={statusColor} />
                       <Cell fill="hsl(var(--muted))" />
                     </Pie>
@@ -2032,7 +2038,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                     <PieChart width={260} height={260}>
                       <Pie data={perspScores.map(ps => ({ name: ps.p, value: PERSP_WEIGHTS[ps.p] }))}
                         cx="50%" cy="50%" innerRadius={70} outerRadius={120} dataKey="value"
-                        strokeWidth={2} stroke="hsl(var(--background))">
+                        strokeWidth={2} stroke="hsl(var(--background))" label={({ value }) => `${value}%`} labelLine={false}>
                         {perspScores.map(ps => <Cell key={ps.p} fill={PERSP_COLORS[ps.p]} />)}
                       </Pie>
                       <Tooltip formatter={(v:any, name:string) => [`${v}%`, name]} contentStyle={{ fontSize:12 }} />
@@ -2061,7 +2067,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                 <div className="relative flex-shrink-0">
                   <PieChart width={110} height={110}>
                     <Pie data={perspScores.map(ps => ({ name: ps.p, value: PERSP_WEIGHTS[ps.p] }))}
-                      cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                      cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))" label={({ value }) => `${value}%`} labelLine={false}>
                       {perspScores.map(ps => <Cell key={ps.p} fill={PERSP_COLORS[ps.p]} />)}
                     </Pie>
                     <Tooltip formatter={(v:any, name:string) => [`${v}%`, name]} contentStyle={{ fontSize:10, borderRadius:6 }} />
@@ -2114,7 +2120,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                         <PieChart width={260} height={260}>
                           <Pie data={pieData.length ? pieData : [{ name:"No data", value:1, color:"#e5e7eb" }]}
                             cx="50%" cy="50%" innerRadius={70} outerRadius={120} dataKey="value"
-                            strokeWidth={2} stroke="hsl(var(--background))">
+                            strokeWidth={2} stroke="hsl(var(--background))" label={({ value }) => value} labelLine={false}>
                             {(pieData.length ? pieData : [{ color:"#e5e7eb" }]).map((d,i) => <Cell key={i} fill={d.color} />)}
                           </Pie>
                           <Tooltip contentStyle={{ fontSize:12 }} />
@@ -2137,7 +2143,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                     <div className="relative flex-shrink-0">
                       <PieChart width={110} height={110}>
                         <Pie data={pieData.length ? pieData : [{ name:"No data", value:1, color:"#e5e7eb" }]}
-                          cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                          cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))" label={({ value }) => value} labelLine={false}>
                           {(pieData.length ? pieData : [{ color:"#e5e7eb" }]).map((d,i) => <Cell key={i} fill={d.color} />)}
                         </Pie>
                       </PieChart>
@@ -2753,7 +2759,13 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
                   return <text x={x} y={y - 8} fill={c} fontSize={10} textAnchor="middle" fontWeight={600}>{value}</text>;
                 }} />
               </Area>
-              <Line type="monotone" dataKey="target" stroke="transparent" dot={false} name="Target" />
+              <Line type="monotone" dataKey="target" stroke="transparent" dot={false} name="Target">
+                <LabelList dataKey="target" position="bottom" content={(props: any) => {
+                  const { x, y, value } = props;
+                  if (value === null || value === undefined || x === undefined || y === undefined) return null;
+                  return <text x={x} y={y + 10} fill="hsl(var(--muted-foreground))" fontSize={8} textAnchor="middle" fontWeight={600}>{value}</text>;
+                }} />
+              </Line>
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>

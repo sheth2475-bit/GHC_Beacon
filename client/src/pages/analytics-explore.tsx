@@ -163,9 +163,11 @@ function BarChartWidget({ cfg, horizontal, displayFormat }: { cfg: { data: { nam
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
           <Bar dataKey="value" radius={[0, 4, 4, 0]}>
             {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-            {showLabels && !hasComparison && <LabelList dataKey="value" position="right" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+            {showLabels && <LabelList dataKey="value" position="right" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
           </Bar>
-          {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[0, 4, 4, 0]} />}
+          {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[0, 4, 4, 0]}>
+            {showLabels && <LabelList dataKey="comparisonValue" position="right" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          </Bar>}
         </BarChart>
       </ResponsiveContainer>
     );
@@ -180,9 +182,11 @@ function BarChartWidget({ cfg, horizontal, displayFormat }: { cfg: { data: { nam
         {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-          {showLabels && !hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
         </Bar>
-        {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]} />}
+        {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]}>
+          {showLabels && <LabelList dataKey="comparisonValue" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+        </Bar>}
       </BarChart>
     </ResponsiveContainer>
   );
@@ -208,9 +212,11 @@ function LineChartWidget({ cfg, filled, displayFormat }: { cfg: { data: { name: 
           <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
           <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill="url(#areaGrad)" dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
-            {showLabels && !hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+            {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
           </Area>
-          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={{ r: 3, fill: CHART_COLORS[3] }} />}
+          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={{ r: 3, fill: CHART_COLORS[3] }}>
+            {showLabels && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          </Area>}
         </AreaChart>
       </ResponsiveContainer>
     );
@@ -224,9 +230,11 @@ function LineChartWidget({ cfg, filled, displayFormat }: { cfg: { data: { name: 
         <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
         {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
         <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
-          {showLabels && !hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
         </Line>
-        {hasComparison && <Line type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[3] }} />}
+        {hasComparison && <Line type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[3] }}>
+          {showLabels && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+        </Line>}
       </LineChart>
     </ResponsiveContainer>
   );

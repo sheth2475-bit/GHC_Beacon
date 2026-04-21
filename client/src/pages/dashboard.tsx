@@ -14,7 +14,7 @@ import {
   AlertCircle, Lightbulb, MessageSquare,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import type {
@@ -447,7 +447,7 @@ export default function DashboardPage() {
                     kpiStatusData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={kpiStatusData} cx="50%" cy="45%" innerRadius="32%" outerRadius="55%" paddingAngle={3} dataKey="value" stroke="none">
+                          <Pie data={kpiStatusData} cx="50%" cy="45%" innerRadius="32%" outerRadius="55%" paddingAngle={3} dataKey="value" stroke="none" label={({ value }) => value} labelLine={false}>
                             {kpiStatusData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                           </Pie>
                           <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} formatter={(v: number, n: string) => [`${v} KPIs`, n]} />
@@ -464,6 +464,7 @@ export default function DashboardPage() {
                           <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={20} />
                           <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} formatter={(v: number) => [`${v} actions`]} />
                           <Bar dataKey="count" radius={[5, 5, 0, 0]}>
+                            <LabelList dataKey="count" position="top" style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
                             {actionChartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                           </Bar>
                         </BarChart>

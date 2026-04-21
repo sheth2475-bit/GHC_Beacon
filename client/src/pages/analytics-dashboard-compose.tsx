@@ -306,7 +306,7 @@ function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknow
   }
 
   // ── Bar / Line / Area (time series or categorical) ───────────────────────
-  if (chartType === "bar" || chartType === "line") {
+  if (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") {
     const seriesData = (activeData as { data?: { name: string; value: number }[] }).data;
     if (!seriesData || seriesData.length === 0) return null;
 
@@ -386,10 +386,10 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
     );
   }
 
-  if ((chartType === "bar" || chartType === "line") && data) {
+  if ((chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") && data) {
     const chartData = (data as { data?: { name: string; value: number; comparisonValue?: number }[]; comparisonLabel?: string }).data || [];
     const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
-    const maxItems = chartType === "bar" ? 20 : 30;
+    const maxItems = (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") ? 20 : 30;
     const displayData = chartData.slice(0, maxItems).map(d => ({ ...d, shortName: shortLabel(d.name) }));
     const count = displayData.length;
     const hasComparison = displayData.some(d => typeof d.comparisonValue === "number");
@@ -400,7 +400,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
     const labelAngle = hasTons ? -50 : hasMany ? -35 : -20;
     const tickSize = hasTons ? 7 : hasMany ? 7.5 : 8;
 
-    if (chartType === "bar") return (
+    if (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") return (
       <ResponsiveContainer width="100%" height={chartH}>
         <BarChart data={displayData} margin={{ top: 20, right: 6, left: -16, bottom: bottomMargin }}>
           <XAxis
@@ -418,14 +418,16 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
           <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[3, 3, 0, 0]}>
-            {!hasComparison && <LabelList
+            <LabelList
               dataKey="value"
               position="top"
               formatter={(v: number) => formatValue(v, displayFormat)}
               style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
-            />}
+            />
           </Bar>
-          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[3, 3, 0, 0]} />}
+          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[3, 3, 0, 0]}>
+            <LabelList dataKey="comparisonValue" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />
+          </Bar>}
         </BarChart>
       </ResponsiveContainer>
     );
@@ -447,7 +449,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
           <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
-            {count <= 40 && !hasComparison && (
+            {count <= 40 && (
               <LabelList
                 dataKey="value"
                 position="top"
@@ -456,7 +458,9 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
               />
             )}
           </Area>
-          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[3] } : false} />}
+          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[3] } : false}>
+            {count <= 40 && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />}
+          </Area>}
         </AreaChart>
       </ResponsiveContainer>
     );
@@ -555,12 +559,12 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
     );
   }
 
-  if ((chartType === "bar" || chartType === "line") && data) {
+  if ((chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") && data) {
     const seriesData = (data as { data?: { name: string; value: number; comparisonValue?: number }[] }).data || [];
     const displayData = seriesData.map(d => ({ ...d, shortName: d.name, value: typeof d.value === "number" ? d.value : Number(d.value) }));
     const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
     const hasComparison = displayData.some(d => typeof d.comparisonValue === "number");
-    if (chartType === "bar") return (
+    if (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") return (
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={displayData} margin={{ top: 24, right: 20, left: 0, bottom: 60 }}>
@@ -570,9 +574,11 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <Tooltip formatter={(v, name, p) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? comparisonLabel : p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
             {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
             <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[5, 5, 0, 0]}>
-              {!hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />}
+              <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
             </Bar>
-            {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[5, 5, 0, 0]} />}
+            {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[5, 5, 0, 0]}>
+              <LabelList dataKey="comparisonValue" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
+            </Bar>}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -587,9 +593,11 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <Tooltip formatter={(v, name, p) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? comparisonLabel : p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
             {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
             <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill={CHART_COLORS[0] + "20"} dot={displayData.length <= 40 ? { r: 4, fill: CHART_COLORS[0] } : false}>
-              {displayData.length <= 40 && !hasComparison && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: displayData.length > 20 ? 9 : 10, fill: "currentColor", fontWeight: 700 }} />}
+              {displayData.length <= 40 && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: displayData.length > 20 ? 9 : 10, fill: "currentColor", fontWeight: 700 }} />}
             </Area>
-            {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2.5} fill={CHART_COLORS[3] + "10"} dot={displayData.length <= 40 ? { r: 4, fill: CHART_COLORS[3] } : false} />}
+            {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2.5} fill={CHART_COLORS[3] + "10"} dot={displayData.length <= 40 ? { r: 4, fill: CHART_COLORS[3] } : false}>
+              {displayData.length <= 40 && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: displayData.length > 20 ? 9 : 10, fill: "currentColor", fontWeight: 700 }} />}
+            </Area>}
           </AreaChart>
         </ResponsiveContainer>
       </div>

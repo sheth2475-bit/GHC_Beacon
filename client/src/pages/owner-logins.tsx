@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 
@@ -111,8 +111,12 @@ export default function OwnerLogins() {
                     <XAxis dataKey="date" tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={v => v.slice(5)} />
                     <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} />
                     <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} labelStyle={{ color: "#e5e7eb" }} itemStyle={{ color: "#a5b4fc" }} />
-                    <Line type="monotone" dataKey="success" stroke="#6366f1" strokeWidth={2} dot={false} name="Successful" />
-                    <Line type="monotone" dataKey="failed" stroke="#f43f5e" strokeWidth={2} dot={false} name="Failed" />
+                    <Line type="monotone" dataKey="success" stroke="#6366f1" strokeWidth={2} dot={{ r: 2 }} name="Successful">
+                      <LabelList dataKey="success" position="top" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                    </Line>
+                    <Line type="monotone" dataKey="failed" stroke="#f43f5e" strokeWidth={2} dot={{ r: 2 }} name="Failed">
+                      <LabelList dataKey="failed" position="bottom" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                    </Line>
                     <Legend formatter={(v) => <span style={{ color: "#9ca3af", fontSize: 11 }}>{v}</span>} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -129,7 +133,9 @@ export default function OwnerLogins() {
                     <XAxis type="number" tick={{ fill: "#6b7280", fontSize: 11 }} />
                     <YAxis dataKey="name" type="category" width={90} tick={{ fill: "#9ca3af", fontSize: 11 }} />
                     <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} itemStyle={{ color: "#a5b4fc" }} />
-                    <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} name="Logins" />
+                    <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} name="Logins">
+                      <LabelList dataKey="count" position="right" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -152,7 +158,7 @@ export default function OwnerLogins() {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={140}>
                     <PieChart>
-                      <Pie data={data || []} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={55} paddingAngle={2}>
+                      <Pie data={data || []} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={55} paddingAngle={2} label={({ count }) => count} labelLine={false}>
                         {(data || []).map((_: any, i: number) => (
                           <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                         ))}

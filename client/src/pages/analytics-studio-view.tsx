@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area,
+  CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, LabelList,
 } from "recharts";
 import type { AnalyticsDashboard, AnalyticsDashboardWidget, AnalyticsDashboardNarrative, AnalyticsDashboardChat, AnalyticsDashboardUpload } from "@shared/schema";
 import {
@@ -148,7 +148,9 @@ function FocusWidgetContent({ widget }: { widget: AnalyticsDashboardWidget }) {
               <XAxis dataKey={cfg.xKey} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
               <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "13px" }} />
-              <Area type="monotone" dataKey={cfg.yKey} stroke={color} fill={`${color}20`} strokeWidth={2.5} dot={{ r: 4, fill: color, stroke: "hsl(var(--background))", strokeWidth: 2 }} />
+              <Area type="monotone" dataKey={cfg.yKey} stroke={color} fill={`${color}20`} strokeWidth={2.5} dot={{ r: 4, fill: color, stroke: "hsl(var(--background))", strokeWidth: 2 }}>
+                <LabelList dataKey={cfg.yKey} position="top" style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
+              </Area>
             </AreaChart>
           ) : (
             <BarChart data={cfg.data} barSize={36} margin={{ top: 12, right: 24, bottom: 12, left: 8 }}>
@@ -156,7 +158,9 @@ function FocusWidgetContent({ widget }: { widget: AnalyticsDashboardWidget }) {
               <XAxis dataKey={cfg.xKey} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
               <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "13px" }} />
-              <Bar dataKey={cfg.yKey} fill={color} radius={[6, 6, 0, 0]} />
+              <Bar dataKey={cfg.yKey} fill={color} radius={[6, 6, 0, 0]}>
+                <LabelList dataKey={cfg.yKey} position="top" style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
+              </Bar>
             </BarChart>
           )}
         </ResponsiveContainer>
@@ -171,7 +175,7 @@ function FocusWidgetContent({ widget }: { widget: AnalyticsDashboardWidget }) {
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={cfg.data} cx="50%" cy="45%" outerRadius="60%" innerRadius="32%" paddingAngle={3} dataKey="value" stroke="none">
+            <Pie data={cfg.data} cx="50%" cy="45%" outerRadius="60%" innerRadius="32%" paddingAngle={3} dataKey="value" stroke="none" label={({ value }) => value} labelLine={false}>
               {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
             </Pie>
             <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "13px" }} />
@@ -263,7 +267,9 @@ function ChartWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; on
             <XAxis dataKey={cfg.xKey} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
             <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} />
-            <Area type="monotone" dataKey={cfg.yKey} stroke={color} fill={`${color}20`} strokeWidth={2} dot={false} />
+            <Area type="monotone" dataKey={cfg.yKey} stroke={color} fill={`${color}20`} strokeWidth={2} dot={{ r: 2, fill: color }}>
+              <LabelList dataKey={cfg.yKey} position="top" style={{ fontSize: 8, fill: "currentColor", fontWeight: 700 }} />
+            </Area>
           </AreaChart>
         ) : (
           <BarChart data={cfg.data} barSize={28} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
@@ -271,7 +277,9 @@ function ChartWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; on
             <XAxis dataKey={cfg.xKey} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
             <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} />
-            <Bar dataKey={cfg.yKey} fill={color} radius={[4, 4, 0, 0]} />
+            <Bar dataKey={cfg.yKey} fill={color} radius={[4, 4, 0, 0]}>
+              <LabelList dataKey={cfg.yKey} position="top" style={{ fontSize: 8, fill: "currentColor", fontWeight: 700 }} />
+            </Bar>
           </BarChart>
         )}
       </ResponsiveContainer>
@@ -296,7 +304,7 @@ function PieWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFo
       <p className="text-sm font-bold mb-2">{widget.title}</p>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
-          <Pie data={cfg.data} cx="50%" cy="45%" outerRadius="55%" innerRadius="30%" paddingAngle={3} dataKey="value" stroke="none">
+          <Pie data={cfg.data} cx="50%" cy="45%" outerRadius="55%" innerRadius="30%" paddingAngle={3} dataKey="value" stroke="none" label={({ value }) => value} labelLine={false}>
             {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
           </Pie>
           <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} />

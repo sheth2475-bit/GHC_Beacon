@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, BarChart2, Bot, TrendingUp, Activity, Users } from "lucide-react";
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 
@@ -111,7 +111,9 @@ export default function OwnerFeatureUsage() {
                   <XAxis dataKey="date" tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={v => v.slice(5)} />
                   <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} itemStyle={{ color: "#a5b4fc" }} />
-                  <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={false} name="Actions" />
+                  <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={{ r: 2 }} name="Actions">
+                    <LabelList dataKey="count" position="top" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -127,8 +129,12 @@ export default function OwnerFeatureUsage() {
                   <XAxis dataKey="name" tick={{ fill: "#6b7280", fontSize: 10 }} />
                   <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} itemStyle={{ color: "#a5b4fc" }} />
-                  <Bar dataKey="total" fill="#6366f1" radius={[4, 4, 0, 0]} name="Total" />
-                  <Bar dataKey="week" fill="#22d3ee" radius={[4, 4, 0, 0]} name="This Week" />
+                  <Bar dataKey="total" fill="#6366f1" radius={[4, 4, 0, 0]} name="Total">
+                    <LabelList dataKey="total" position="top" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                  </Bar>
+                  <Bar dataKey="week" fill="#22d3ee" radius={[4, 4, 0, 0]} name="This Week">
+                    <LabelList dataKey="week" position="top" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -147,7 +153,9 @@ export default function OwnerFeatureUsage() {
                   <XAxis type="number" tick={{ fill: "#6b7280", fontSize: 11 }} />
                   <YAxis dataKey="name" type="category" width={120} tick={{ fill: "#9ca3af", fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} itemStyle={{ color: "#a5b4fc" }} />
-                  <Bar dataKey="count" fill="#a78bfa" radius={[0, 4, 4, 0]} name="Count" />
+                  <Bar dataKey="count" fill="#a78bfa" radius={[0, 4, 4, 0]} name="Count">
+                    <LabelList dataKey="count" position="right" style={{ fontSize: 9, fill: "#e5e7eb", fontWeight: 700 }} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -162,7 +170,7 @@ export default function OwnerFeatureUsage() {
                 <PieChart>
                   <Pie
                     data={moduleStats.slice(0, 7).map((m: any) => ({ name: MODULE_LABELS[m.module] || m.module, value: m.total }))}
-                    dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} paddingAngle={2}
+                    dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} paddingAngle={2} label={({ value }) => value} labelLine={false}
                   >
                     {moduleStats.slice(0, 7).map((_: any, i: number) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />

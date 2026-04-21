@@ -339,7 +339,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
                 <div className="relative">
                   <PieChart width={220} height={220}>
                     <Pie data={[{ value: hp }, { value: 100 - hp }]} cx="50%" cy="50%"
-                      innerRadius={76} outerRadius={104} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                      innerRadius={76} outerRadius={104} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0} label={({ value, index }) => index === 0 ? value : ""} labelLine={false}>
                       <Cell fill={statusColor} />
                       <Cell fill="hsl(var(--muted))" />
                     </Pie>
@@ -362,7 +362,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
               <div className="relative flex-shrink-0">
                 <PieChart width={110} height={110}>
                   <Pie data={[{ value: hp }, { value: 100 - hp }]} cx="50%" cy="50%"
-                    innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                    innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0} label={({ value, index }) => index === 0 ? value : ""} labelLine={false}>
                     <Cell fill={statusColor} />
                     <Cell fill="hsl(var(--muted))" />
                   </Pie>
@@ -479,7 +479,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
                   <PieChart width={260} height={260}>
                     <Pie data={perspScores.map(ps => ({ name: ps.p, value: PERSP_WEIGHTS[ps.p as Perspective] }))}
                       cx="50%" cy="50%" innerRadius={70} outerRadius={120} dataKey="value"
-                      strokeWidth={2} stroke="hsl(var(--background))">
+                      strokeWidth={2} stroke="hsl(var(--background))" label={({ value }) => `${value}%`} labelLine={false}>
                       {perspScores.map(ps => <Cell key={ps.p} fill={PERSP_COLORS[ps.p as Perspective]} />)}
                     </Pie>
                     <Tooltip formatter={(v: any, name: string) => [`${v}%`, name]} contentStyle={{ fontSize: 12 }} />
@@ -508,7 +508,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
               <div className="relative flex-shrink-0">
                 <PieChart width={110} height={110}>
                   <Pie data={perspScores.map(ps => ({ name: ps.p, value: PERSP_WEIGHTS[ps.p as Perspective] }))}
-                    cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                    cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))" label={({ value }) => `${value}%`} labelLine={false}>
                     {perspScores.map(ps => <Cell key={ps.p} fill={PERSP_COLORS[ps.p as Perspective]} />)}
                   </Pie>
                   <Tooltip formatter={(v: any, name: string) => [`${v}%`, name]} contentStyle={{ fontSize: 10, borderRadius: 6 }} />
@@ -548,7 +548,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
                   <PieChart width={260} height={260}>
                     <Pie data={pieData.length ? pieData : [{ name: "No data", value: 1, color: "#e5e7eb" }]}
                       cx="50%" cy="50%" innerRadius={70} outerRadius={120} dataKey="value"
-                      strokeWidth={2} stroke="hsl(var(--background))">
+                      strokeWidth={2} stroke="hsl(var(--background))" label={({ value }) => value} labelLine={false}>
                       {(pieData.length ? pieData : [{ color: "#e5e7eb" }]).map((d, i) => <Cell key={i} fill={d.color} />)}
                     </Pie>
                     <Tooltip contentStyle={{ fontSize: 12 }} />
@@ -571,7 +571,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
               <div className="relative flex-shrink-0">
                 <PieChart width={110} height={110}>
                   <Pie data={pieData.length ? pieData : [{ name: "No data", value: 1, color: "#e5e7eb" }]}
-                    cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))">
+                    cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" strokeWidth={1} stroke="hsl(var(--background))" label={({ value }) => value} labelLine={false}>
                     {(pieData.length ? pieData : [{ color: "#e5e7eb" }]).map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
                 </PieChart>
