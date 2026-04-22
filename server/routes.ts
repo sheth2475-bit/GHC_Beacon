@@ -4705,10 +4705,6 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       const company = await storage.getCompanyByUserId((req as any).user.id);
       if (!company) return res.status(404).json({ message: "Company not found" });
       let depts = await storage.getBscDepartments(company.id);
-      if (depts.length === 0 && process.env.NODE_ENV !== "production") {
-        await storage.saveBscDepartments(company.id, DEMO_BSC_DEPARTMENTS);
-        depts = await storage.getBscDepartments(company.id);
-      }
       // Filter by BSC dept access for non-admin users
       const accessibleIds = await getBscAccessibleDeptIds(req, company.id);
       if (accessibleIds !== null) {
@@ -4733,10 +4729,6 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       const company = await storage.getCompanyByUserId((req as any).user.id);
       if (!company) return res.status(404).json({ message: "Company not found" });
       let store = await storage.getBscActuals(company.id);
-      if (Object.keys(store).length === 0 && process.env.NODE_ENV !== "production") {
-        await storage.saveBscActualsBatch(company.id, DEMO_BSC_ACTUALS);
-        store = DEMO_BSC_ACTUALS;
-      }
       // Filter store by BSC dept access for non-admin users
       // Period keys are formatted as "deptId_YYYY-MM" e.g. "corp_2026-04"
       const accessibleIds = await getBscAccessibleDeptIds(req, company.id);
