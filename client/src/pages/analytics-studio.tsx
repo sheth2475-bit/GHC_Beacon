@@ -62,9 +62,9 @@ function freshnessTone(d: string | Date | null | undefined) {
 function DatasetThumbnail({ ds, onDelete }: { ds: AnalyticsDataset; onDelete: (id: number) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <div className="group relative flex flex-col rounded-xl overflow-hidden bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" data-testid={`card-dataset-${ds.id}`}>
+    <div className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" data-testid={`card-dataset-${ds.id}`}>
       {/* Thumbnail */}
-      <div className="relative aspect-video bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center border-b overflow-hidden">
+      <div className="relative aspect-video bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center border-b overflow-hidden rounded-t-xl">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 19px,hsl(var(--border)) 19px,hsl(var(--border)) 20px),repeating-linear-gradient(90deg,transparent,transparent 19px,hsl(var(--border)) 19px,hsl(var(--border)) 20px)" }} />
         </div>
@@ -125,12 +125,12 @@ function InsightThumbnail({ insight, onDelete }: { insight: AnalyticsInsight; on
   const href = `/analytics/datasets/${insight.datasetId}/explore?insightId=${insight.id}`;
   return (
     <div
-      className="group relative flex flex-col rounded-xl overflow-hidden bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+      className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
       data-testid={`card-insight-${insight.id}`}
       onClick={() => navigate(href)}
     >
       {/* Thumbnail */}
-      <div className={`relative aspect-video bg-gradient-to-br ${gradient} opacity-90 flex items-center justify-center border-b`}>
+      <div className={`relative aspect-video bg-gradient-to-br ${gradient} opacity-90 flex items-center justify-center border-b overflow-hidden rounded-t-xl`}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 38L10 20L20 30L30 10L40 22' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat-x", backgroundSize: "40px 40px" }} />
         <div className="relative flex flex-col items-center gap-1.5">
           <Lightbulb className="h-8 w-8 text-white/90" />
@@ -175,9 +175,9 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
   const VisIcon = def.visibility === "company" ? Globe : def.visibility === "department" ? Building2 : Lock;
   const isPublished = def.status === "published";
   return (
-    <div className="group relative flex flex-col rounded-xl overflow-hidden bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" data-testid={`card-definition-${def.id}`}>
+    <div className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" data-testid={`card-definition-${def.id}`}>
       {/* Thumbnail */}
-      <div className={`relative aspect-video flex items-center justify-center border-b overflow-hidden ${isPublished ? "bg-gradient-to-br from-emerald-500/20 to-teal-500/10" : "bg-gradient-to-br from-primary/15 to-primary/5"}`}>
+      <div className={`relative aspect-video flex items-center justify-center border-b overflow-hidden rounded-t-xl ${isPublished ? "bg-gradient-to-br from-emerald-500/20 to-teal-500/10" : "bg-gradient-to-br from-primary/15 to-primary/5"}`}>
         <div className="absolute inset-0 opacity-10">
           {[...Array(3)].map((_, row) => (
             <div key={row} className="flex items-end gap-1 px-4 absolute bottom-4 w-full" style={{ bottom: row * 0 }}>

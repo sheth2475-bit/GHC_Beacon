@@ -64,8 +64,10 @@ app.use((req, res, next) => {
   const { runMigrations } = await import("./migrations");
   await runMigrations().catch(console.error);
 
-  const { seedDatabase } = await import("./seed");
-  await seedDatabase().catch(console.error);
+  if (process.env.NODE_ENV !== "production") {
+    const { seedDatabase } = await import("./seed");
+    await seedDatabase().catch(console.error);
+  }
 
   const { startScheduler } = await import("./scheduler");
   startScheduler();
