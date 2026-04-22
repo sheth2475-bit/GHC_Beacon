@@ -1382,8 +1382,9 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       if (merged) {
         setStore(merged);
         localStorage.setItem(CORP_SEED_VER, "ok");
-      } else if (deptId === "corp" && isSeedStale()) {
+      } else if (deptId === "corp" && isSeedStale() && import.meta.env.DEV) {
         // DB returned empty — bootstrap with client seed as fallback, then persist to DB
+        // Only auto-seed in development; production users click "Load Sample Data" manually
         seedCorpSampleData();
         const seeded = loadStore();
         setStore(seeded);

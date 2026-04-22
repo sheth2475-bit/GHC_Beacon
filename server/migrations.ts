@@ -258,6 +258,35 @@ export async function runMigrations() {
       }
     }
 
+    // ── One-time: clear auto-seeded BSC demo data from production companies ──
+    // Before NODE_ENV guards were added, the GET /api/scorecard/departments and
+    // GET /api/scorecard/actuals routes auto-populated every new company with demo
+    // data. This migration removes those actuals from non-demo companies so they
+    // start with a clean slate.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bsc_demo_cleanup_v1 (
+        id SERIAL PRIMARY KEY,
+        done_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const cleanupDone = await client.query(`SELECT id FROM bsc_demo_cleanup_v1 LIMIT 1`);
+    if (cleanupDone.rows.length === 0) {
+      // Identify the demo company (owned by demo@performo.ai)
+      const demoCompanyRes = await client.query(
+        `SELECT company_id FROM users WHERE email = 'demo@performo.ai' LIMIT 1`
+      );
+      const demoCompanyId = demoCompanyRes.rows[0]?.company_id ?? -1;
+      // Delete auto-seeded actuals for every other company
+      const cleared = await client.query(
+        `DELETE FROM bsc_actuals WHERE company_id != $1 RETURNING company_id`,
+        [demoCompanyId]
+      );
+      if (cleared.rowCount && cleared.rowCount > 0) {
+        console.log(`[migrations] Cleared ${cleared.rowCount} auto-seeded BSC actuals from non-demo companies`);
+      }
+      await client.query(`INSERT INTO bsc_demo_cleanup_v1 DEFAULT VALUES`);
+    }
+
     // ── Orphan user cleanup ───────────────────────────────────────────────────
     // Delete users with no company_id that are not part of the demo accounts.
     // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai
