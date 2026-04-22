@@ -2337,9 +2337,30 @@ You can help the user understand their data, suggest chart types, explain insigh
 
     function detectComparisonSeries(rows: Record<string, unknown>[], columns: { columnName: string; label: string; columnType: string }[], requested?: VisualComparisonSeries | null): { column: string; current: string; comparison: string; comparisonLabel: string } | null {
       const requestedColumn = requested?.column ? String(requested.column) : "";
-      const col = requestedColumn
+      let col = requestedColumn
         ? columns.find(c => c.columnName.toLowerCase() === requestedColumn.toLowerCase() || c.label.toLowerCase() === requestedColumn.toLowerCase())
         : columns.find(c => c.columnType === "dimension" && /^(series|scenario|version|year)$/i.test(c.columnName));
+      // Broader auto-detection: any dimension with 2-4 unique values matching comparison patterns
+      if (!col && !requestedColumn) {
+        const COMPARISON_PATTERN = /^(actual|budget|target|plan|forecast|current|prior|previous|last|ytd|yoy|\d{4}|q[1-4][-_]\d{4}|[a-z]{3}[-_]\d{2,4})$/i;
+        const YEAR_PAIR = /^\d{4}$/;
+        for (const c of columns.filter(c2 => c2.columnType === "dimension")) {
+          const vals = Array.from(new Set(rows.map(r => String(r[c.columnName] ?? "").trim()).filter(Boolean)));
+          if (vals.length >= 2 && vals.length <= 4 && vals.every(v => COMPARISON_PATTERN.test(v))) {
+            // Prefer columns where all values are years or all are non-year comparison labels
+            const allYears = vals.every(v => YEAR_PAIR.test(v));
+            const hasBudgetActual = vals.some(v => /^(actual|current|mar-?2[0-9]|20\d\d)/i.test(v)) && vals.some(v => /^(budget|target|plan|prior|previous|last|mar-?[0-9])/i.test(v));
+            if (allYears || hasBudgetActual) { col = c; break; }
+          }
+        }
+        // Fallback: any dimension with exactly 2 unique values that look like comparison pairs
+        if (!col) {
+          for (const c of columns.filter(c2 => c2.columnType === "dimension")) {
+            const vals = Array.from(new Set(rows.map(r => String(r[c.columnName] ?? "").trim()).filter(Boolean)));
+            if (vals.length === 2 && vals.every(v => COMPARISON_PATTERN.test(v))) { col = c; break; }
+          }
+        }
+      }
       if (!col) return null;
       const values = Array.from(new Set(rows.map(row => String(row[col.columnName] ?? "").trim()).filter(Boolean)));
       if (values.length < 2) return null;
@@ -3066,6 +3087,18 @@ ${extractedText || "(none)"}`;
 
         const dataStats = computeDataStats(rows, activeColumns);
 
+        // Auto-detect comparison series (e.g. Series column with "2025"/"2026", "Actual"/"Budget")
+        const autoDetectedSeries = detectComparisonSeries(rows, activeColumns);
+        const seriesContext = autoDetectedSeries
+          ? `\nCOMPARISON SERIES DETECTED: Column "${autoDetectedSeries.column}" has values "${autoDetectedSeries.current}" (current) vs "${autoDetectedSeries.comparison}" (comparison). For bar/line/column charts, the system will AUTOMATICALLY render dual-series charts comparing these two values. Prefer "bar" or "line" chart types when the question involves comparing these series. Do NOT choose "kpi" unless the question explicitly asks for a single headline number for one series.\n`
+          : "";
+
+        // Derive dominant value format from Format column if present
+        const formatColVals = rows.map(r => String(r["Format"] ?? "")).filter(Boolean);
+        const dominantValueFormat = formatColVals.length > 0
+          ? Object.entries(formatColVals.reduce((a: Record<string, number>, v) => { a[v] = (a[v] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1])[0]?.[0] || "number"
+          : "number";
+
         const filterContext = (userFilters && userFilters.length > 0)
           ? `\nACTIVE FILTERS (rows already pre-filtered — build chart from this filtered subset only):\n${userFilters.map(f => `  ${f.column} = "${f.value}"`).join("\n")}\n`
           : "";
@@ -3092,7 +3125,7 @@ ${JSON.stringify(sampleRows, null, 2)}
 
 Data statistics:
 ${JSON.stringify(dataStats, null, 2)}
-${filterContext}${followUpContext}
+${seriesContext}${filterContext}${followUpContext}
 Current question: "${question}"
 
 CHART TYPE SELECTION RULES (choose the BEST fit):
@@ -3179,6 +3212,44 @@ IMPORTANT:
           ? candidateDateCol
           : null;
         const comparisonType = budgetCol ? "budget" : dateColForComparison ? "previousYear" : null;
+
+        // ── Series-based comparison (normalized datasets with Series column) ────
+        // If the filtered rows have a detectable comparison series (e.g. "2025"/"2026",
+        // "Actual"/"Budget") and the chart type is not table, delegate entirely to
+        // buildInsightChartConfig which already knows how to build dual-bar/dual-line.
+        if (autoDetectedSeries && !["table", "pie", "donut"].includes(finalChartType) && measureCol) {
+          const vf = ["percent", "minutes", "hours", "count"].includes(dominantValueFormat) ? dominantValueFormat : "number";
+          const built = buildInsightChartConfig(
+            rows, activeColumns, finalChartType,
+            measureCol.columnName, dimCol?.columnName || null,
+            agg, undefined, autoDetectedSeries, vf
+          );
+          let topValue = aiResult.topValue || null;
+          let bottomValue = aiResult.bottomValue || null;
+          const builtData = (built.config.data as { data?: {name: string; value: number}[] })?.data;
+          if (!topValue && builtData && builtData.length > 0) {
+            const sorted = [...builtData].sort((a, b) => b.value - a.value);
+            topValue = { name: sorted[0].name, value: sorted[0].value };
+            bottomValue = sorted.length > 1 ? { name: sorted[sorted.length - 1].name, value: sorted[sorted.length - 1].value } : null;
+          }
+          return res.json({
+            title: aiResult.title,
+            subtitle: aiResult.subtitle || null,
+            interpretation: aiResult.interpretation,
+            chartType: built.chartType,
+            chartConfig: built.config,
+            narrative: aiResult.narrative,
+            trendDirection: aiResult.trendDirection || null,
+            anomalyDetected: aiResult.anomalyDetected || false,
+            anomalyNote: aiResult.anomalyNote || null,
+            topValue,
+            bottomValue,
+            isFollowUp,
+            previousQuestion: isFollowUp ? previousQuestion : null,
+            suggestedQuestions: aiResult.suggestedQuestions || [],
+            question,
+          });
+        }
 
         // Determine if dimension is date-like for chronological sorting
         const isDimDate = dimCol?.columnType === "date" || (dimCol && dates.some(d => d.columnName === dimCol.columnName));
