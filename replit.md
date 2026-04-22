@@ -35,6 +35,13 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - DB-synced departments (`bsc_departments`) and actuals (`bsc_actuals`)
 - Public share link per department: `POST /api/scorecard/share`, `GET /api/scorecard/share?deptId=...`, viewed at `/public/scorecard/:token`
 - Scorecard overview and department dashboards default to one month behind the current calendar month
+- **Advanced KPI target types** (schema columns: `target_type`, `target_date`, `target_frequency`, `milestone_start_date`):
+  - `targetType: "numeric"` — standard fixed target (default)
+  - `targetType: "milestone_numeric"` — per-period milestone targets stored as `m_{kpiId}` in the period store; actual scored vs. that period's milestone target
+  - `targetType: "milestone_date"` — deadline-based; expected % completion is calculated as elapsed/total months × 100; actual % scored vs. expected %
+  - `targetFrequency: "annual"` — monthly actuals annualized (× 12) before scoring against the annual target; data entry shows `/mo` and annualized values
+- Corporate scorecard seed (v4) includes: cr_l2 Staff Turnover Rate (annual frequency), cr_l5 ARMS System Replacement (milestone_numeric), cr_l6 Leadership Dev. Program (milestone_date deadline Jun-26)
+- Milestone targets for period stored as `m_{kpiId}` key in the period store (no additional DB table)
 
 **Executive Command Center**
 - Logged-in default landing page at `/`

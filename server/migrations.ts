@@ -118,6 +118,18 @@ export async function runMigrations() {
     await client.query(`CREATE INDEX IF NOT EXISTS workflow_submissions_type_idx ON workflow_submissions(workflow_type)`);
     await client.query(`CREATE INDEX IF NOT EXISTS workflow_submissions_status_idx ON workflow_submissions(status)`);
 
+    // Add KPI milestone/frequency columns (idempotent)
+    const kpiCols = [
+      { col: "target_type",         type: "TEXT DEFAULT 'numeric'" },
+      { col: "target_date",         type: "TEXT" },
+      { col: "target_frequency",    type: "TEXT DEFAULT 'monthly'" },
+      { col: "milestone_start_date",type: "TEXT" },
+    ];
+    for (const { col, type } of kpiCols) {
+      await client.query(`ALTER TABLE kpis ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    }
+    await client.query(`ALTER TABLE kpi_actuals ADD COLUMN IF NOT EXISTS milestone_target TEXT`);
+
     // Add email columns (safe ALTER TABLE — idempotent)
     const emailCols = [
       { col: "owner_email", type: "TEXT" },

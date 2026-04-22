@@ -3,6 +3,16 @@ export type Perspective = "Financial" | "Customer" | "Internal" | "Learning";
 export interface KpiDef {
   id: string; name: string; perspective: Perspective;
   unit: string; target: number; lowerIsBetter?: boolean;
+  targetType?: "numeric" | "milestone_numeric" | "milestone_date";
+  targetDate?: string;
+  targetFrequency?: "monthly" | "annual";
+  milestoneStartDate?: string;
+}
+
+export type StatusCtx = {
+  periodStore?: Record<string, number>;
+  year?: number;
+  month?: number;
 }
 
 export interface BscDepartment {
@@ -126,9 +136,11 @@ export const DEPT_KPIS: Record<string, KpiDef[]> = {
     { id:"cr_i2", name:"Turnaround Compliance",    perspective:"Internal",  unit:"%",     target:94 },
     { id:"cr_i3", name:"Equipment Availability",   perspective:"Internal",  unit:"%",     target:96 },
     { id:"cr_l1", name:"Training Hrs/Employee",    perspective:"Learning",  unit:"hrs",   target:40 },
-    { id:"cr_l2", name:"Staff Turnover Rate",      perspective:"Learning",  unit:"%",     target:12, lowerIsBetter:true },
+    { id:"cr_l2", name:"Staff Turnover Rate",      perspective:"Learning",  unit:"%",     target:12, lowerIsBetter:true, targetFrequency:"annual" },
     { id:"cr_l3", name:"Safety Training Compl.",   perspective:"Learning",  unit:"%",     target:100 },
     { id:"cr_l4", name:"Digital Tool Adoption",    perspective:"Learning",  unit:"%",     target:80 },
+    { id:"cr_l5", name:"ARMS System Replacement",  perspective:"Learning",  unit:"%",     target:100, targetType:"milestone_numeric", milestoneStartDate:"2026-01" },
+    { id:"cr_l6", name:"Leadership Dev. Program",  perspective:"Learning",  unit:"%",     target:100, targetType:"milestone_date", targetDate:"2026-06", milestoneStartDate:"2026-01" },
   ],
 };
 
@@ -149,11 +161,43 @@ export function getKpisForDept(id: string): KpiDef[] {
   return DEPT_KPIS[id] || genericKpis(id);
 }
 
-export function getStatus(k: KpiDef, actual: number | null): "green" | "amber" | "red" | "nodata" {
+export function effectiveTargetAndActual(
+  k: KpiDef, actual: number, ctx?: StatusCtx
+): { effectiveTarget: number; effectiveActual: number; expectedPct?: number } {
+  const periodStore = ctx?.periodStore ?? {};
+  const year = ctx?.year ?? new Date().getFullYear();
+  const month = ctx?.month ?? new Date().getMonth();
+
+  if (k.targetType === "milestone_numeric") {
+    const ms = periodStore[`m_${k.id}`];
+    const effectiveTarget = (ms !== undefined && ms !== null) ? ms : k.target;
+    return { effectiveTarget, effectiveActual: actual };
+  }
+
+  if (k.targetType === "milestone_date" && k.targetDate) {
+    const [startY, startM] = (k.milestoneStartDate || "2026-01").split("-").map(Number);
+    const [endY, endM] = k.targetDate.split("-").map(Number);
+    const totalMonths = (endY - startY) * 12 + (endM - startM);
+    const elapsedMonths = (year - startY) * 12 + ((month + 1) - startM);
+    const expectedPct = totalMonths > 0
+      ? Math.min(100, Math.max(0, (elapsedMonths / totalMonths) * 100))
+      : 100;
+    return { effectiveTarget: Math.max(1, expectedPct), effectiveActual: actual, expectedPct };
+  }
+
+  if (k.targetFrequency === "annual") {
+    return { effectiveTarget: k.target, effectiveActual: actual * 12 };
+  }
+
+  return { effectiveTarget: k.target, effectiveActual: actual };
+}
+
+export function getStatus(k: KpiDef, actual: number | null, ctx?: StatusCtx): "green" | "amber" | "red" | "nodata" {
   if (actual === null || actual === undefined || isNaN(Number(actual))) return "nodata";
+  const { effectiveTarget, effectiveActual } = effectiveTargetAndActual(k, Number(actual), ctx);
   const pct = k.lowerIsBetter
-    ? k.target === 0 ? (actual === 0 ? 100 : 0) : Math.max(0, (1 - (actual - k.target) / Math.abs(k.target)) * 100)
-    : k.target === 0 ? 100 : (Number(actual) / k.target) * 100;
+    ? effectiveTarget === 0 ? (effectiveActual === 0 ? 100 : 0) : Math.max(0, (1 - (effectiveActual - effectiveTarget) / Math.abs(effectiveTarget)) * 100)
+    : effectiveTarget === 0 ? 100 : (effectiveActual / effectiveTarget) * 100;
   if (pct >= 95) return "green";
   if (pct >= 80) return "amber";
   return "red";

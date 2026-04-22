@@ -168,6 +168,10 @@ interface EditKpiForm {
   unit: string;
   frequency: string;
   targetValue: string;
+  targetType: string;
+  targetDate: string;
+  targetFrequency: string;
+  milestoneStartDate: string;
   greenThreshold: string;
   amberThreshold: string;
   redThreshold: string;
@@ -193,10 +197,12 @@ export default function KpiManagementPage() {
   const [actualMonth, setActualMonth] = useState("");
   const [actualComment, setActualComment] = useState("");
   const [actualStatus, setActualStatus] = useState("On Track");
+  const [actualMilestoneTarget, setActualMilestoneTarget] = useState("");
   const [editKpi, setEditKpi] = useState<Kpi | null>(null);
   const [editForm, setEditForm] = useState<EditKpiForm>({
     kpiName: "", description: "", formula: "", unit: "", frequency: "Monthly",
-    targetValue: "", greenThreshold: "", amberThreshold: "", redThreshold: "",
+    targetValue: "", targetType: "numeric", targetDate: "", targetFrequency: "monthly", milestoneStartDate: "",
+    greenThreshold: "", amberThreshold: "", redThreshold: "",
     ownerName: "", dataSource: "", departmentId: "",
   });
 
@@ -209,6 +215,10 @@ export default function KpiManagementPage() {
       unit: kpi.unit || "",
       frequency: kpi.frequency || "Monthly",
       targetValue: kpi.targetValue || "",
+      targetType: (kpi as any).targetType || "numeric",
+      targetDate: (kpi as any).targetDate || "",
+      targetFrequency: (kpi as any).targetFrequency || "monthly",
+      milestoneStartDate: (kpi as any).milestoneStartDate || "",
       greenThreshold: kpi.greenThreshold || "",
       amberThreshold: kpi.amberThreshold || "",
       redThreshold: kpi.redThreshold || "",
@@ -230,10 +240,12 @@ export default function KpiManagementPage() {
 
   const addActualMutation = useMutation({
     mutationFn: async () => {
+      const kpiType = (actualDialog as any)?.targetType;
       await apiRequest("POST", "/api/kpi-actuals", {
         kpiId: actualDialog!.id,
         reviewMonth: actualMonth,
         actualValue,
+        milestoneTarget: kpiType === "milestone_numeric" && actualMilestoneTarget ? actualMilestoneTarget : undefined,
         commentary: actualComment,
         status: actualStatus,
       });
@@ -245,6 +257,7 @@ export default function KpiManagementPage() {
       setActualValue("");
       setActualMonth("");
       setActualComment("");
+      setActualMilestoneTarget("");
       toast({ title: "Actual value saved" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -287,7 +300,7 @@ export default function KpiManagementPage() {
     const existing = allActuals
       .filter(x => x.kpiId === a.kpiId)
       .reduce((best, cur) => (cur.reviewMonth > best.reviewMonth ? cur : best), a);
-    latestActualByKpi[a.kpiId] = existing.status;
+    latestActualByKpi[a.kpiId] = existing.status ?? "On Track";
   }
 
   const trafficDot = (kpiId: number) => {
@@ -495,9 +508,43 @@ export default function KpiManagementPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
+                <Label>Target Type</Label>
+                <Select value={editForm.targetType} onValueChange={v => setEditForm(f => ({ ...f, targetType: v }))}>
+                  <SelectTrigger data-testid="select-edit-kpi-target-type"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="numeric">Numeric (standard)</SelectItem>
+                    <SelectItem value="milestone_numeric">Milestone — Numeric (period targets)</SelectItem>
+                    <SelectItem value="milestone_date">Milestone — Date (deadline based)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Target Frequency</Label>
+                <Select value={editForm.targetFrequency} onValueChange={v => setEditForm(f => ({ ...f, targetFrequency: v }))}>
+                  <SelectTrigger data-testid="select-edit-kpi-target-freq"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly (compare each month)</SelectItem>
+                    <SelectItem value="annual">Annual (annualize monthly actuals × 12)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {editForm.targetType !== "milestone_date" ? (
+              <div className="space-y-1.5">
                 <Label>Target Value</Label>
                 <Input value={editForm.targetValue} onChange={e => setEditForm(f => ({ ...f, targetValue: e.target.value }))} placeholder="e.g. 85" data-testid="input-edit-kpi-target" />
               </div>
+              ) : (
+              <div className="space-y-1.5">
+                <Label>Target Deadline (Month)</Label>
+                <Input type="month" value={editForm.targetDate} onChange={e => setEditForm(f => ({ ...f, targetDate: e.target.value }))} data-testid="input-edit-kpi-target-date" />
+              </div>
+              )}
+              {(editForm.targetType === "milestone_numeric" || editForm.targetType === "milestone_date") && (
+              <div className="space-y-1.5">
+                <Label>Milestone Start Date</Label>
+                <Input type="month" value={editForm.milestoneStartDate} onChange={e => setEditForm(f => ({ ...f, milestoneStartDate: e.target.value }))} placeholder="e.g. 2026-01" data-testid="input-edit-kpi-milestone-start" />
+              </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Department</Label>
                 <Select value={editForm.departmentId || "none"} onValueChange={v => setEditForm(f => ({ ...f, departmentId: v === "none" ? "" : v }))}>
@@ -565,10 +612,17 @@ export default function KpiManagementPage() {
                 <Input type="month" value={actualMonth} onChange={(e) => setActualMonth(e.target.value)} data-testid="input-actual-month" />
               </div>
               <div className="space-y-2">
-                <Label>Actual Value</Label>
+                <Label>{(actualDialog as any)?.targetType === "milestone_date" ? "% Complete" : "Actual Value"}</Label>
                 <Input value={actualValue} onChange={(e) => setActualValue(e.target.value)} placeholder="Enter value" data-testid="input-actual-value" />
               </div>
             </div>
+            {(actualDialog as any)?.targetType === "milestone_numeric" && (
+            <div className="space-y-2">
+              <Label>Period Milestone Target</Label>
+              <Input value={actualMilestoneTarget} onChange={(e) => setActualMilestoneTarget(e.target.value)} placeholder="e.g. 30 for 30% completion" data-testid="input-actual-milestone-target" />
+              <p className="text-xs text-muted-foreground">The target % or value this period's milestone should reach.</p>
+            </div>
+            )}
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={actualStatus} onValueChange={setActualStatus}>

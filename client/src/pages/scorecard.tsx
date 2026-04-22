@@ -35,7 +35,12 @@ type Perspective = "Financial" | "Customer" | "Internal" | "Learning";
 interface KpiDef {
   id: string; name: string; perspective: Perspective;
   unit: string; target: number; lowerIsBetter?: boolean;
+  targetType?: "numeric" | "milestone_numeric" | "milestone_date";
+  targetDate?: string;
+  targetFrequency?: "monthly" | "annual";
+  milestoneStartDate?: string;
 }
+type StatusCtx = { periodStore?: Record<string, number>; year?: number; month?: number };
 interface BscDepartment {
   id: string; name: string; icon: string; color: string;
 }
@@ -172,9 +177,11 @@ const DEPT_KPIS: Record<string, KpiDef[]> = {
     { id:"cr_i2", name:"Turnaround Compliance",    perspective:"Internal",  unit:"%",     target:94 },
     { id:"cr_i3", name:"Equipment Availability",   perspective:"Internal",  unit:"%",     target:96 },
     { id:"cr_l1", name:"Training Hrs/Employee",    perspective:"Learning",  unit:"hrs",   target:40 },
-    { id:"cr_l2", name:"Staff Turnover Rate",      perspective:"Learning",  unit:"%",     target:12, lowerIsBetter:true },
+    { id:"cr_l2", name:"Staff Turnover Rate",      perspective:"Learning",  unit:"%",     target:12, lowerIsBetter:true, targetFrequency:"annual" },
     { id:"cr_l3", name:"Safety Training Compl.",   perspective:"Learning",  unit:"%",     target:100 },
     { id:"cr_l4", name:"Digital Tool Adoption",    perspective:"Learning",  unit:"%",     target:80 },
+    { id:"cr_l5", name:"ARMS System Replacement",  perspective:"Learning",  unit:"%",     target:100, targetType:"milestone_numeric", milestoneStartDate:"2026-01" },
+    { id:"cr_l6", name:"Leadership Dev. Program",  perspective:"Learning",  unit:"%",     target:100, targetType:"milestone_date", targetDate:"2026-06", milestoneStartDate:"2026-01" },
   ],
 };
 
@@ -196,7 +203,7 @@ function genericKpis(deptId: string): KpiDef[] {
 const STORE_KEY        = "ghc_beacon_v2";
 const DEPT_KEY         = "bsc_departments";
 const WEIGHTS_KEY      = "ghc_beacon_weights_v1";
-const CORP_SEED_VER    = "ghc_corp_seed_v3"; // bump when seed data changes
+const CORP_SEED_VER    = "ghc_corp_seed_v4"; // bump when seed data changes
 
 function loadWeights(deptId: string): Record<string, number> {
   try {
@@ -339,20 +346,18 @@ function seedCorpSampleData() {
   //          cr_l1=40hrs(hi) cr_l2=12%(lo) cr_l3=100%(hi) cr_l4=80%(hi)
   // Apr-2026 status → 4 green | 9 amber | 2 red → perf score ≈ 84%
   const CORP_SAMPLE_DATA: Record<string, Record<string, number>> = {
-    // Oct-25: 2 green | 7 amber | 6 red  → score ≈ 77%
-    "2025-10": { cr_f1:2.8, cr_f2:15.5, cr_f3:23.8, cr_f4:1012, cr_c1:83.4, cr_c2:3.4, cr_c3:95.8, cr_c4:84.2, cr_i1:0.89, cr_i2:90.1, cr_i3:90.8, cr_l1:26, cr_l2:22.1, cr_l3:82, cr_l4:65 },
-    // Nov-25: 3 green | 7 amber | 5 red  → score ≈ 80%
-    "2025-11": { cr_f1:3.2, cr_f2:17.8, cr_f3:21.2, cr_f4:991, cr_c1:84.8, cr_c2:3.5, cr_c3:96.4, cr_c4:85.5, cr_i1:0.78, cr_i2:90.8, cr_i3:91.2, cr_l1:28, cr_l2:20.8, cr_l3:84, cr_l4:67 },
-    // Dec-25: 3 green | 8 amber | 4 red  → score ≈ 83%
-    "2025-12": { cr_f1:3.8, cr_f2:17.8, cr_f3:20.6, cr_f4:974, cr_c1:86.4, cr_c2:3.6, cr_c3:97.1, cr_c4:86.8, cr_i1:0.68, cr_i2:91.5, cr_i3:92.1, cr_l1:30, cr_l2:19.2, cr_l3:86, cr_l4:70 },
-    // Jan-26: 3 green | 8 amber | 4 red  → score ≈ 81% (post-holiday dip)
-    "2026-01": { cr_f1:3.4, cr_f2:17.6, cr_f3:21.4, cr_f4:1002, cr_c1:85.8, cr_c2:3.5, cr_c3:96.8, cr_c4:85.1, cr_i1:0.74, cr_i2:91.2, cr_i3:91.6, cr_l1:27, cr_l2:20.4, cr_l3:83, cr_l4:68 },
-    // Feb-26: 3 green | 8 amber | 4 red  → score ≈ 83%
-    "2026-02": { cr_f1:3.9, cr_f2:17.8, cr_f3:20.9, cr_f4:982, cr_c1:87.1, cr_c2:3.6, cr_c3:96.9, cr_c4:86.8, cr_i1:0.72, cr_i2:91.8, cr_i3:91.9, cr_l1:29, cr_l2:18.8, cr_l3:84, cr_l4:69 },
-    // Mar-26: 4 green | 7 amber | 4 red  → score ≈ 84%
-    "2026-03": { cr_f1:4.0, cr_f2:17.9, cr_f3:20.8, cr_f4:971, cr_c1:88.5, cr_c2:3.7, cr_c3:97.2, cr_c4:87.8, cr_i1:0.71, cr_i2:91.9, cr_i3:92.0, cr_l1:31, cr_l2:18.2, cr_l3:85, cr_l4:70 },
-    // Apr-26: 4 green | 9 amber | 2 red  → score ≈ 84%
-    "2026-04": { cr_f1:4.2, cr_f2:17.8, cr_f3:21.3, cr_f4:968, cr_c1:89.2, cr_c2:3.8, cr_c3:97.4, cr_c4:88.6, cr_i1:0.58, cr_i2:92.1, cr_i3:91.4, cr_l1:32, cr_l2:17.3, cr_l3:85, cr_l4:68 },
+    // Oct-25: cr_l2 now monthly rate (annualized × 12 vs 12% annual target)
+    "2025-10": { cr_f1:2.8, cr_f2:15.5, cr_f3:23.8, cr_f4:1012, cr_c1:83.4, cr_c2:3.4, cr_c3:95.8, cr_c4:84.2, cr_i1:0.89, cr_i2:90.1, cr_i3:90.8, cr_l1:26, cr_l2:1.84, cr_l3:82, cr_l4:65 },
+    "2025-11": { cr_f1:3.2, cr_f2:17.8, cr_f3:21.2, cr_f4:991,  cr_c1:84.8, cr_c2:3.5, cr_c3:96.4, cr_c4:85.5, cr_i1:0.78, cr_i2:90.8, cr_i3:91.2, cr_l1:28, cr_l2:1.73, cr_l3:84, cr_l4:67 },
+    "2025-12": { cr_f1:3.8, cr_f2:17.8, cr_f3:20.6, cr_f4:974,  cr_c1:86.4, cr_c2:3.6, cr_c3:97.1, cr_c4:86.8, cr_i1:0.68, cr_i2:91.5, cr_i3:92.1, cr_l1:30, cr_l2:1.60, cr_l3:86, cr_l4:70 },
+    // Jan-26: ARMS 5% actual vs 5% milestone=Green; Leadership 10% actual vs expected 17%=Red (1/6 elapsed)
+    "2026-01": { cr_f1:3.4, cr_f2:17.6, cr_f3:21.4, cr_f4:1002, cr_c1:85.8, cr_c2:3.5, cr_c3:96.8, cr_c4:85.1, cr_i1:0.74, cr_i2:91.2, cr_i3:91.6, cr_l1:27, cr_l2:1.70, cr_l3:83, cr_l4:68, cr_l5:5,  "m_cr_l5":5,  cr_l6:10 },
+    // Feb-26: ARMS 15% actual vs 15% milestone=Green; Leadership 35% vs expected 33%=Green (2/6)
+    "2026-02": { cr_f1:3.9, cr_f2:17.8, cr_f3:20.9, cr_f4:982,  cr_c1:87.1, cr_c2:3.6, cr_c3:96.9, cr_c4:86.8, cr_i1:0.72, cr_i2:91.8, cr_i3:91.9, cr_l1:29, cr_l2:1.57, cr_l3:84, cr_l4:69, cr_l5:15, "m_cr_l5":15, cr_l6:35 },
+    // Mar-26: ARMS 12% vs 20% milestone=Red; Leadership 45% vs expected 50%=Amber (3/6)
+    "2026-03": { cr_f1:4.0, cr_f2:17.9, cr_f3:20.8, cr_f4:971,  cr_c1:88.5, cr_c2:3.7, cr_c3:97.2, cr_c4:87.8, cr_i1:0.71, cr_i2:91.9, cr_i3:92.0, cr_l1:31, cr_l2:1.52, cr_l3:85, cr_l4:70, cr_l5:12, "m_cr_l5":20, cr_l6:45 },
+    // Apr-26: ARMS 25% vs 30% milestone=Amber; Leadership 60% vs expected 67%=Amber (4/6)
+    "2026-04": { cr_f1:4.2, cr_f2:17.8, cr_f3:21.3, cr_f4:968,  cr_c1:89.2, cr_c2:3.8, cr_c3:97.4, cr_c4:88.6, cr_i1:0.58, cr_i2:92.1, cr_i3:91.4, cr_l1:32, cr_l2:1.44, cr_l3:85, cr_l4:68, cr_l5:25, "m_cr_l5":30, cr_l6:60 },
   };
   for (const [pk, vals] of Object.entries(CORP_SAMPLE_DATA)) {
     merged[pk] = { ...(merged[pk] || {}), ...vals };
@@ -389,11 +394,40 @@ function fmtVal(v: number | null | undefined, unit: string): string {
 }
 
 // ── KPI logic ────────────────────────────────────────────────────────────────
-function getStatus(k: KpiDef, actual: number | null): "green" | "amber" | "red" | "nodata" {
+function effectiveTargetAndActual(
+  k: KpiDef, actual: number, ctx?: StatusCtx
+): { effectiveTarget: number; effectiveActual: number; expectedPct?: number } {
+  const periodStore = ctx?.periodStore ?? {};
+  const year = ctx?.year ?? new Date().getFullYear();
+  const month = ctx?.month ?? new Date().getMonth();
+
+  if (k.targetType === "milestone_numeric") {
+    const ms = periodStore[`m_${k.id}`];
+    const effectiveTarget = (ms !== undefined && ms !== null) ? ms : k.target;
+    return { effectiveTarget, effectiveActual: actual };
+  }
+  if (k.targetType === "milestone_date" && k.targetDate) {
+    const [startY, startM] = (k.milestoneStartDate || "2026-01").split("-").map(Number);
+    const [endY, endM] = k.targetDate.split("-").map(Number);
+    const totalMonths = (endY - startY) * 12 + (endM - startM);
+    const elapsedMonths = (year - startY) * 12 + ((month + 1) - startM);
+    const expectedPct = totalMonths > 0
+      ? Math.min(100, Math.max(0, (elapsedMonths / totalMonths) * 100))
+      : 100;
+    return { effectiveTarget: Math.max(1, expectedPct), effectiveActual: actual, expectedPct };
+  }
+  if (k.targetFrequency === "annual") {
+    return { effectiveTarget: k.target, effectiveActual: actual * 12 };
+  }
+  return { effectiveTarget: k.target, effectiveActual: actual };
+}
+
+function getStatus(k: KpiDef, actual: number | null, ctx?: StatusCtx): "green" | "amber" | "red" | "nodata" {
   if (actual === null || actual === undefined || isNaN(Number(actual))) return "nodata";
+  const { effectiveTarget, effectiveActual } = effectiveTargetAndActual(k, Number(actual), ctx);
   const pct = k.lowerIsBetter
-    ? k.target === 0 ? (actual === 0 ? 100 : 0) : Math.max(0, (1 - (actual - k.target) / Math.abs(k.target)) * 100)
-    : k.target === 0 ? 100 : (Number(actual) / k.target) * 100;
+    ? effectiveTarget === 0 ? (effectiveActual === 0 ? 100 : 0) : Math.max(0, (1 - (effectiveActual - effectiveTarget) / Math.abs(effectiveTarget)) * 100)
+    : effectiveTarget === 0 ? 100 : (effectiveActual / effectiveTarget) * 100;
   if (pct >= 95) return "green";
   if (pct >= 80) return "amber";
   return "red";
@@ -404,13 +438,13 @@ function getTrend(cur: number | null, prev: number | null): "up" | "down" | "fla
   if (Number(cur) < Number(prev) - 0.001) return "down";
   return "flat";
 }
-function healthPct(kpis: KpiDef[], actuals: Record<string, number | null>): number {
+function healthPct(kpis: KpiDef[], actuals: Record<string, number | null>, ctx?: StatusCtx): number {
   const withData = kpis.filter(k => actuals[k.id] !== null && actuals[k.id] !== undefined);
   if (!withData.length) return 0;
-  return Math.round(withData.filter(k => getStatus(k, actuals[k.id]!) === "green").length / withData.length * 100);
+  return Math.round(withData.filter(k => getStatus(k, actuals[k.id]!, ctx) === "green").length / withData.length * 100);
 }
 
-function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>, weights: Record<string, number>): number {
+function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>, weights: Record<string, number>, ctx?: StatusCtx): number {
   const withData = kpis.filter(k => actuals[k.id] !== null && actuals[k.id] !== undefined);
   if (!withData.length) return 0;
 
@@ -423,12 +457,13 @@ function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>
   for (const k of withData) {
     const actual = Number(actuals[k.id]!);
     const w = hasUserWeights ? (weights[k.id] ?? 0) : equalWeight;
+    const { effectiveTarget, effectiveActual } = effectiveTargetAndActual(k, actual, ctx);
 
     let achievement: number;
     if (k.lowerIsBetter) {
-      achievement = actual === 0 ? 100 : Math.min((k.target / actual) * 100, 100);
+      achievement = effectiveActual === 0 ? 100 : Math.min((effectiveTarget / effectiveActual) * 100, 100);
     } else {
-      achievement = k.target === 0 ? 100 : Math.min((actual / k.target) * 100, 100);
+      achievement = effectiveTarget === 0 ? 100 : Math.min((effectiveActual / effectiveTarget) * 100, 100);
     }
 
     totalScore  += achievement * w;
@@ -1258,6 +1293,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [depts, setDepts]   = useState(loadDepartments);
   const [deptsSynced, setDeptsSynced] = useState(false);
   const [entryVals, setEntryVals] = useState<Record<string, string>>({});
+  const [milestoneVals, setMilestoneVals] = useState<Record<string, string>>({});
   const [saved, setSaved]   = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1365,10 +1401,11 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const allActuals: Record<string, number|null> = {};
   kpis.forEach(k => { allActuals[k.id] = getActual(k.id); });
-  const hp       = performanceScore(kpis, allActuals, weights);
-  const onTrack  = kpis.filter(k => getStatus(k, allActuals[k.id]) === "green").length;
-  const atRisk   = kpis.filter(k => getStatus(k, allActuals[k.id]) === "amber").length;
-  const offTrack = kpis.filter(k => getStatus(k, allActuals[k.id]) === "red").length;
+  const mainCtx: StatusCtx = { periodStore: store[pk] || {}, year, month };
+  const hp       = performanceScore(kpis, allActuals, weights, mainCtx);
+  const onTrack  = kpis.filter(k => getStatus(k, allActuals[k.id], mainCtx) === "green").length;
+  const atRisk   = kpis.filter(k => getStatus(k, allActuals[k.id], mainCtx) === "amber").length;
+  const offTrack = kpis.filter(k => getStatus(k, allActuals[k.id], mainCtx) === "red").length;
 
   // Movers vs last month
   const movers = useMemo(() => {
@@ -1395,9 +1432,10 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       else { setSortCol(col); setSortDir("asc"); }
     };
     void toggle; // used via handleSort in JSX
+    const ctx: StatusCtx = { periodStore: store[pk] || {}, year, month };
     return [...kpis].sort((a, b) => {
       const aAct = getActual(a.id), bAct = getActual(b.id);
-      const aS = getStatus(a, aAct) || "none", bS = getStatus(b, bAct) || "none";
+      const aS = getStatus(a, aAct, ctx) || "none", bS = getStatus(b, bAct, ctx) || "none";
       if (sortCol === "status") {
         const d = (statusOrder[aS]??3) - (statusOrder[bS]??3);
         return sortDir === "asc" ? d : -d;
@@ -1411,7 +1449,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       }
       return 0;
     });
-  }, [kpis, sortCol, sortDir, store, pk]);
+  }, [kpis, sortCol, sortDir, store, pk, year, month]);
 
   const handleSort = (col: string) => {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -1431,16 +1469,17 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const clearFilter = () => setDashFilter({ status: null, perspective: null });
 
   const filteredKpis = useMemo(() => {
+    const ctx: StatusCtx = { periodStore: store[pk] || {}, year, month };
     return sortedKpis.filter(k => {
       const actual = getActual(k.id);
       // Always hide KPIs that have no actual data for the current period
       if (actual === null) return false;
-      const st = getStatus(k, actual);
+      const st = getStatus(k, actual, ctx);
       if (dashFilter.status && st !== dashFilter.status) return false;
       if (dashFilter.perspective && k.perspective !== dashFilter.perspective) return false;
       return true;
     });
-  }, [sortedKpis, dashFilter, store, pk]);
+  }, [sortedKpis, dashFilter, store, pk, year, month]);
 
   // ── Dashboard computed data ──────────────────────────────────────────────
 
@@ -1475,21 +1514,25 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         if (v !== undefined) hasAny = true;
       });
       if (!hasAny) return null;
-      return { label: `${MONTHS[m]} ${String(y).slice(2)}`, score: performanceScore(kpis, acts, weights) };
+      const periodCtx: StatusCtx = { periodStore: store[p] || {}, year: y, month: m };
+      return { label: `${MONTHS[m]} ${String(y).slice(2)}`, score: performanceScore(kpis, acts, weights, periodCtx) };
     });
     return points.filter((p): p is { label: string; score: number } => p !== null);
   }, [kpis, store, year, month, weights]);
 
   // Achievement % per KPI
-  const kpiData = useMemo(() => kpis.map(k => {
-    const actual = getActual(k.id);
-    const ach = actual === null ? null
-      : k.lowerIsBetter ? (actual === 0 ? 100 : Math.min((k.target / actual) * 100, 100))
-      : (k.target === 0 ? 100 : Math.min((actual / k.target) * 100, 100));
-    const w = (Object.keys(weights).length > 0 ? (weights[k.id] ?? 0) : (100 / kpis.length));
-    const weightedScore = ach !== null ? +(ach * w / 100).toFixed(2) : null;
-    return { kpi: k, actual, ach, status: getStatus(k, actual), w, weightedScore };
-  }), [kpis, store, pk, weights]);
+  const kpiData = useMemo(() => {
+    const ctx: StatusCtx = { periodStore: store[pk] || {}, year, month };
+    return kpis.map(k => {
+      const actual = getActual(k.id);
+      const ach = actual === null ? null
+        : k.lowerIsBetter ? (actual === 0 ? 100 : Math.min((k.target / actual) * 100, 100))
+        : (k.target === 0 ? 100 : Math.min((actual / k.target) * 100, 100));
+      const w = (Object.keys(weights).length > 0 ? (weights[k.id] ?? 0) : (100 / kpis.length));
+      const weightedScore = ach !== null ? +(ach * w / 100).toFixed(2) : null;
+      return { kpi: k, actual, ach, status: getStatus(k, actual, ctx), w, weightedScore };
+    });
+  }, [kpis, store, pk, weights, year, month]);
 
   const topKpis    = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => b.ach! - a.ach!).slice(0,5), [kpiData]);
   const lowestKpis = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => a.ach! - b.ach!).slice(0,5), [kpiData]);
@@ -1502,7 +1545,12 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const saveKpi = async (id:string) => {
     const val = entryVals[id]; if (!val && val !== "0") return;
-    const updated = { ...store, [pk]: { ...(store[pk]||{}), [id]: Number(val) } };
+    const updates: Record<string, number> = { [id]: Number(val) };
+    const kpi = kpis.find(k => k.id === id);
+    if (kpi?.targetType === "milestone_numeric" && milestoneVals[id] !== undefined && milestoneVals[id] !== "") {
+      updates[`m_${id}`] = Number(milestoneVals[id]);
+    }
+    const updated = { ...store, [pk]: { ...(store[pk]||{}), ...updates } };
     setStore(updated);
     saveStoreLocal(updated);
     setSaved(s => ({ ...s, [id]: true }));
@@ -1518,7 +1566,12 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const saveAll = async () => {
     const updates: Record<string,number> = {};
-    kpis.forEach(k => { if (entryVals[k.id] !== undefined && entryVals[k.id] !== "") updates[k.id] = Number(entryVals[k.id]); });
+    kpis.forEach(k => {
+      if (entryVals[k.id] !== undefined && entryVals[k.id] !== "") updates[k.id] = Number(entryVals[k.id]);
+      if (k.targetType === "milestone_numeric" && milestoneVals[k.id] !== undefined && milestoneVals[k.id] !== "") {
+        updates[`m_${k.id}`] = Number(milestoneVals[k.id]);
+      }
+    });
     if (!Object.keys(updates).length) { toast({ title:"Nothing to save", description:"Enter at least one value first." }); return; }
     const updated = { ...store, [pk]: { ...(store[pk]||{}), ...updates } };
     setStore(updated);
@@ -2473,26 +2526,58 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                     <div className="space-y-1.5">
                       {pkpis.map(k => {
                         const actual = getActual(k.id);
-                        const status = getStatus(k, actual);
+                        const periodStore = store[pk] || {};
+                        const ctx: StatusCtx = { periodStore, year, month };
+                        const status = getStatus(k, actual, ctx);
+                        const { effectiveTarget, effectiveActual, expectedPct } = actual !== null
+                          ? effectiveTargetAndActual(k, Number(actual), ctx)
+                          : { effectiveTarget: k.target, effectiveActual: 0, expectedPct: undefined };
+                        const storedMilestone = periodStore[`m_${k.id}`];
                         return (
                           <div key={k.id}
-                            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors flex-wrap sm:flex-nowrap">
-                            <span className="text-sm text-foreground flex-1 min-w-[160px]">{k.name}</span>
-                            <span className="text-xs text-muted-foreground shrink-0">
-                              Target: <span className="font-medium">{k.target} {k.unit}</span>
-                            </span>
-                            <span className="text-xs text-muted-foreground shrink-0">
-                              Now: <span className="font-medium">{actual ?? "—"}</span>
-                            </span>
-                            <RagBadge status={status} />
-                            <Input type="number" value={entryVals[k.id] ?? ""}
-                              onChange={e => { setEntryVals(v => ({ ...v, [k.id]: e.target.value })); setHasUnsaved(true); }}
-                              placeholder="Actual" className="w-24 h-8 text-sm text-right shrink-0"
-                              data-testid={`input-${k.id}`} />
-                            <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"
-                              onClick={() => saveKpi(k.id)} data-testid={`btn-save-${k.id}`}>
-                              {saved[k.id] ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Save className="h-3.5 w-3.5" />}
-                            </Button>
+                            className="flex flex-col gap-1.5 p-2.5 rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                              <span className="text-sm text-foreground flex-1 min-w-[160px]">
+                                {k.name}
+                                {k.targetType === "milestone_numeric" && <span className="ml-1.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">MILESTONE</span>}
+                                {k.targetType === "milestone_date" && <span className="ml-1.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 rounded">DATE TARGET</span>}
+                                {k.targetFrequency === "annual" && <span className="ml-1.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded">ANNUAL</span>}
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {k.targetType === "milestone_numeric"
+                                  ? <>Milestone: <span className="font-medium">{storedMilestone ?? (milestoneVals[k.id] || "—")} {k.unit}</span></>
+                                  : k.targetType === "milestone_date"
+                                  ? <>Expected: <span className="font-medium">{expectedPct !== undefined ? `${Math.round(expectedPct)}%` : "—"}</span></>
+                                  : k.targetFrequency === "annual"
+                                  ? <>Annual target: <span className="font-medium">{k.target} {k.unit}</span></>
+                                  : <>Target: <span className="font-medium">{k.target} {k.unit}</span></>
+                                }
+                              </span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {k.targetFrequency === "annual" && actual !== null
+                                  ? <>Now: <span className="font-medium">{fmtVal(actual, k.unit)}/mo</span> · Ann: <span className="font-medium">{fmtVal(effectiveActual, k.unit)}</span></>
+                                  : <>Now: <span className="font-medium">{actual !== null ? `${actual} ${k.unit}` : "—"}</span></>
+                                }
+                              </span>
+                              <RagBadge status={status} />
+                              <Input type="number" value={entryVals[k.id] ?? ""}
+                                onChange={e => { setEntryVals(v => ({ ...v, [k.id]: e.target.value })); setHasUnsaved(true); }}
+                                placeholder={k.targetType === "milestone_date" ? "% Complete" : "Actual"} className="w-24 h-8 text-sm text-right shrink-0"
+                                data-testid={`input-${k.id}`} />
+                              <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"
+                                onClick={() => saveKpi(k.id)} data-testid={`btn-save-${k.id}`}>
+                                {saved[k.id] ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Save className="h-3.5 w-3.5" />}
+                              </Button>
+                            </div>
+                            {k.targetType === "milestone_numeric" && (
+                              <div className="flex items-center gap-2 pl-2">
+                                <span className="text-xs text-muted-foreground">Period milestone target ({k.unit}):</span>
+                                <Input type="number" value={milestoneVals[k.id] ?? (storedMilestone !== undefined ? String(storedMilestone) : "")}
+                                  onChange={e => { setMilestoneVals(v => ({ ...v, [k.id]: e.target.value })); setHasUnsaved(true); }}
+                                  placeholder="Milestone %" className="w-28 h-7 text-xs text-right"
+                                  data-testid={`input-milestone-${k.id}`} />
+                              </div>
+                            )}
                           </div>
                         );
                       })}
