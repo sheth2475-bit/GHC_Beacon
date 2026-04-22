@@ -2183,10 +2183,20 @@ You can help the user understand their data, suggest chart types, explain insigh
 
     function buildAnalyticsColumnDefs(rows: Record<string, unknown>[]) {
       const columns = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
+      // Build a per-column format hint from the "Format" column if present
+      const formatColValues = rows.map(r => String(r["Format"] ?? "")).filter(Boolean);
+      const dominantFormat = formatColValues.length > 0
+        ? Object.entries(formatColValues.reduce((acc: Record<string, number>, v) => { acc[v] = (acc[v] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1])[0]?.[0] || "number"
+        : "number";
       return columns.map((col, i) => {
+        // Never auto-detect "Format" or "Unit" columns as measure/date - always dimension
+        if (col === "Format" || col === "Unit") {
+          return { columnName: col, label: col, columnType: "dimension", aggregation: null, format: "number", position: i, isFormula: false };
+        }
         const vals = rows.map(r => r[col]);
         const type = autoDetectColumnType(vals, col);
-        return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: "number", position: i, isFormula: false };
+        const fmt = type === "measure" ? (["percent", "minutes", "hours", "count"].includes(dominantFormat) ? dominantFormat : "number") : "number";
+        return { columnName: col, label: col, columnType: type, aggregation: type === "measure" ? "sum" : null, format: fmt, position: i, isFormula: false };
       });
     }
 
@@ -2359,7 +2369,8 @@ You can help the user understand their data, suggest chart types, explain insigh
       requestedDimension?: string | null,
       requestedAggregation?: string | null,
       filters?: VisualInsightFilter[],
-      comparisonSeries?: VisualComparisonSeries | null
+      comparisonSeries?: VisualComparisonSeries | null,
+      valueFormat?: string | null
     ) {
       const filteredRows = applyInsightFilters(rows, filters);
       const measureCol = pickColumn(columns, "measure", requestedMeasure);
@@ -2401,6 +2412,7 @@ You can help the user understand their data, suggest chart types, explain insigh
         const vals = currentRows.map(row => Number(row[measureCol.columnName])).filter(v => !isNaN(v));
         const value = aggregateSingleValue(currentRows, measureCol.columnName, agg);
         const comparisonValue = comparisonRows.length ? aggregateSingleValue(comparisonRows, measureCol.columnName, agg) : null;
+        const vf = valueFormat && ["percent", "minutes", "hours", "count"].includes(valueFormat) ? valueFormat : "number";
         return {
           chartType: "kpi",
           config: {
@@ -2408,12 +2420,14 @@ You can help the user understand their data, suggest chart types, explain insigh
             measureLabel: measureCol.label,
             aggregation: agg,
             chartType: "kpi",
+            valueFormat: vf,
             filters,
             comparisonSeries: series,
             data: {
               value: Math.round(value * 100) / 100,
               label: measureCol.label,
               count: vals.length,
+              valueFormat: vf,
               ...(comparisonValue !== null ? {
                 comparisonValue,
                 comparisonLabel: series?.comparisonLabel,
@@ -2433,6 +2447,7 @@ You can help the user understand their data, suggest chart types, explain insigh
         const compareRows = aggregateData(comparisonRows, measureCol.columnName, dim.columnName, agg, finalType === "pie" || finalType === "donut" ? 10 : 25, dim.columnType === "date");
         aggRows = mergeComparisonRows(actualRows, compareRows, series.comparisonLabel);
       }
+      const chartVf = valueFormat && ["percent", "minutes", "hours", "count"].includes(valueFormat) ? valueFormat : "number";
       return {
         chartType: finalType,
         config: {
@@ -2440,6 +2455,7 @@ You can help the user understand their data, suggest chart types, explain insigh
           dimension: dim?.columnName || null,
           aggregation: agg,
           chartType: finalType,
+          valueFormat: chartVf,
           filters,
           comparisonSeries: series,
           measureLabel: measureCol.label,
@@ -2760,26 +2776,33 @@ Return only JSON:
   "datasetName": "short dataset name",
   "description": "what was inferred",
   "rows": [
-    {"Date": "2026-01-01", "Section": "Monthly Flying Hours", "Metric": "Flying Hours", "Category": "QE-JOC", "Series": "2026", "Value": 1200, "Unit": "hours"}
+    {"Date": "2026-01-01", "Section": "Monthly Flying Hours", "Metric": "Flying Hours", "Category": "QE-JOC", "Series": "2026", "Value": 1200, "Unit": "hours", "Format": "number"},
+    {"Date": "2026-01-01", "Section": "Key Metrics", "Metric": "On Time Departure Rate", "Category": "", "Series": "", "Value": 74, "Unit": "%", "Format": "percent"},
+    {"Date": "2026-01-01", "Section": "Key Metrics", "Metric": "Seat Utilization", "Category": "", "Series": "", "Value": 68, "Unit": "%", "Format": "percent"},
+    {"Date": "2026-01-01", "Section": "Key Metrics", "Metric": "Average Turnaround Time", "Category": "", "Series": "", "Value": 55, "Unit": "minutes", "Format": "minutes"}
   ],
   "insights": [
-    {"title": "Total Flying Hours", "question": "What are total actual flying hours?", "chartType": "kpi", "measure": "Value", "dimension": null, "aggregation": "sum", "filters": [{"column": "Metric", "value": "Total Hours QE-JOC"}, {"column": "Series", "value": "Actual"}], "narrative": "short business narrative"},
-    {"title": "Monthly Flying Hours", "question": "Compare monthly flying hours by year", "chartType": "bar", "measure": "Value", "dimension": "Date", "aggregation": "sum", "filters": [{"column": "Metric", "value": "Flying Hours"}], "comparisonSeries": {"column": "Series", "current": "2026", "comparison": "2025", "comparisonLabel": "2025"}, "narrative": "short business narrative"}
+    {"title": "Total Flying Hours", "question": "What are total actual flying hours?", "chartType": "kpi", "measure": "Value", "dimension": null, "aggregation": "sum", "valueFormat": "number", "filters": [{"column": "Metric", "value": "Total Hours QE-JOC"}, {"column": "Series", "value": "Actual"}], "narrative": "short business narrative"},
+    {"title": "On Time Departure Rate", "question": "What is the on time departure rate?", "chartType": "kpi", "measure": "Value", "dimension": null, "aggregation": "avg", "valueFormat": "percent", "filters": [{"column": "Metric", "value": "On Time Departure Rate"}], "narrative": "short business narrative"},
+    {"title": "Average Turnaround Time", "question": "What is the average turnaround time?", "chartType": "kpi", "measure": "Value", "dimension": null, "aggregation": "avg", "valueFormat": "minutes", "filters": [{"column": "Metric", "value": "Average Turnaround Time"}], "narrative": "short business narrative"},
+    {"title": "Monthly Flying Hours", "question": "Compare monthly flying hours by year", "chartType": "bar", "measure": "Value", "dimension": "Date", "aggregation": "sum", "valueFormat": "number", "filters": [{"column": "Metric", "value": "Flying Hours"}], "comparisonSeries": {"column": "Series", "current": "2026", "comparison": "2025", "comparisonLabel": "2025"}, "narrative": "short business narrative"}
   ],
   "dashboardTitle": "Executive Dashboard"
 }
 
-Rules:
-- Use a normalized, editable Excel shape for screenshots with multiple unrelated charts: Date, Section, Metric, Category, Series, Value, Unit.
-- Do not mix unrelated measures into a single unfiltered Actual column. Every KPI or chart value must have a Metric name so insights can filter to the correct KPI.
-- Preserve visible KPIs as their own rows, including percentages and minutes: On Time Departure Rate, Seat Utilization, Unscheduled Requests, Average Turnaround Time, Issues affecting maintenance of AOC, etc.
-- Preserve visible comparisons using Series values such as 2025/2026, Mar-25/Mar-26, Budgeted/Actual, Booked/Operated/Cancelled.
-- If exact source numbers are visible in data labels/tables, use them. If only chart shapes are visible, estimate reasonable values and make the description say they are starter values.
-- Prefer 12-40 rows, not a single summary row.
-- Dates must be YYYY-MM-DD when possible.
-- chartType must be one of: kpi, bar, column, line, area, pie, donut, table.
-- At least 5 insights for executive dashboard screenshots: the headline KPI(s), a year/month comparison, an utilization/category comparison, a flight/performance breakdown, and a table/detail view.
-- Insights should include filters whenever the dataset contains multiple Metric/Section values. Use comparisonSeries when the visual compares years, actual vs budget, or other series.
+CRITICAL RULES — follow all of them:
+1. CAPTURE EVERY VISIBLE KPI. Scan the ENTIRE visual for ALL metrics — charts, sidebars, scorecards, info boxes, summary cards. Nothing should be missed. For a flight ops dashboard that typically includes: Flying Hours, On Time Departure Rate, Seat Utilization, Average Turnaround Time, Unscheduled Requests, AOC Maintenance Issues, Delays, etc.
+2. COLUMN FORMAT: Always include a "Format" column in every row with one of: "number", "percent", "minutes", "hours", "count". Set "%" or ratio metrics to "percent", time metrics to "minutes" or "hours", whole-number metrics to "count", all others to "number".
+3. UNIT column: Use "%" for percentages, "minutes" for duration in minutes, "hours" for duration in hours, "count" for whole-number counts, and a descriptive unit otherwise.
+4. INSIGHT valueFormat: Every insight must include "valueFormat" matching the metric's format — "percent" for rates/percentages, "minutes" for durations in minutes, "hours" for durations in hours, "count" for whole numbers, "number" for everything else.
+5. NORMALIZED ROWS: Use columns Date, Section, Metric, Category, Series, Value, Unit, Format. Never put unrelated measures in the same unfiltered Value column without a Metric discriminator.
+6. Preserve visible comparisons using Series values such as 2025/2026, Budgeted/Actual, Booked/Operated/Cancelled.
+7. Use visible data label values when available. If only shapes are visible, estimate reasonable values and note them in description.
+8. Prefer 20-60 rows covering all chart data AND all sidebar KPIs.
+9. Dates must be YYYY-MM-DD when possible. If no date is on a KPI, use the current reporting period date.
+10. chartType must be one of: kpi, bar, column, line, area, pie, donut, table.
+11. Create at minimum one KPI insight for EACH distinct KPI visible in the dashboard (including sidebar metrics). Then create chart insights for the time series and breakdowns. Add a detail table.
+12. Insights must include filters whenever the dataset contains multiple Metric/Section values.
 
 Extracted PowerPoint text, if any:
 ${extractedText || "(none)"}`;
@@ -2794,7 +2817,7 @@ ${extractedText || "(none)"}`;
             ],
           }],
           response_format: { type: "json_object" },
-          max_tokens: 3500,
+          max_tokens: 6000,
         });
 
         const parsed = safeJsonParseObject(completion.choices[0].message.content);
@@ -2818,7 +2841,7 @@ ${extractedText || "(none)"}`;
         const columns = buildAnalyticsColumnDefs(rows);
         await storage.upsertAnalyticsDatasetColumns(dataset.id, columns);
 
-        const requestedInsights = Array.isArray(parsed.insights) ? parsed.insights.slice(0, 6) as Record<string, unknown>[] : [];
+        const requestedInsights = Array.isArray(parsed.insights) ? parsed.insights.slice(0, 10) as Record<string, unknown>[] : [];
         const defaultInsights: Record<string, unknown>[] = [
           { title: `Total ${columns.find(c => c.columnType === "measure")?.label || "Actual"}`, question: "What is the total?", chartType: "kpi" },
           { title: "Monthly Trend", question: "Show the trend over time", chartType: "line", dimension: columns.find(c => c.columnType === "date")?.label },
@@ -2833,7 +2856,8 @@ ${extractedText || "(none)"}`;
           const chartType = String(spec.chartType || "bar");
           const filters = Array.isArray(spec.filters) ? spec.filters as VisualInsightFilter[] : undefined;
           const comparisonSeries = spec.comparisonSeries && typeof spec.comparisonSeries === "object" ? spec.comparisonSeries as VisualComparisonSeries : null;
-          const built = buildInsightChartConfig(rows, columns, chartType, spec.measure ? String(spec.measure) : null, spec.dimension ? String(spec.dimension) : null, spec.aggregation ? String(spec.aggregation) : null, filters, comparisonSeries);
+          const valueFormat = spec.valueFormat ? String(spec.valueFormat) : null;
+          const built = buildInsightChartConfig(rows, columns, chartType, spec.measure ? String(spec.measure) : null, spec.dimension ? String(spec.dimension) : null, spec.aggregation ? String(spec.aggregation) : null, filters, comparisonSeries, valueFormat);
           const insight = await storage.createAnalyticsInsight({
             companyId: company.id,
             createdBy: user.id,

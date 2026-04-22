@@ -88,6 +88,7 @@ const TYPE_COLORS: Record<string, string> = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 type NumberDisplayFormat = "compact" | "full";
+type ValueFormat = "number" | "percent" | "minutes" | "hours" | "count";
 
 function formatValue(v: number | null | undefined, mode: NumberDisplayFormat = "compact"): string {
   if (v === null || v === undefined || isNaN(v as number)) return "—";
@@ -97,6 +98,22 @@ function formatValue(v: number | null | undefined, mode: NumberDisplayFormat = "
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
+}
+
+function formatKpiValue(v: number | null | undefined, displayFormat: NumberDisplayFormat = "compact", valueFormat: ValueFormat = "number"): string {
+  if (v === null || v === undefined || isNaN(v as number)) return "—";
+  const n = Number(v);
+  if (valueFormat === "percent") return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
+  if (valueFormat === "minutes") return `${Math.round(n)} mins`;
+  if (valueFormat === "hours") return `${n % 1 === 0 ? n : n.toFixed(1)} hrs`;
+  if (valueFormat === "count") return Number.isInteger(n) ? n.toLocaleString() : Math.round(n).toLocaleString();
+  return formatValue(n, displayFormat);
+}
+
+function resolveValueFormat(cfg: Record<string, unknown> | null): ValueFormat {
+  const vf = (cfg?.valueFormat as string) || ((cfg?.data as Record<string, unknown>)?.valueFormat as string);
+  if (vf === "percent" || vf === "minutes" || vf === "hours" || vf === "count") return vf;
+  return "number";
 }
 
 function formatVariancePct(v: unknown): string {
@@ -212,26 +229,27 @@ function downloadCSV(data: { name: string; value: number }[], title: string) {
 const CHART_MARGIN = { top: 8, right: 16, left: 0, bottom: 60 };
 const CHART_HEIGHT = 300;
 
-function KpiCard({ data, displayFormat }: { data: { value?: number | null; label?: string; count?: number; comparisonValue?: number | null; comparisonLabel?: string; variance?: number | null; variancePct?: number | null }; displayFormat: NumberDisplayFormat }) {
+function KpiCard({ data, displayFormat, valueFormat = "number" }: { data: { value?: number | null; label?: string; count?: number; comparisonValue?: number | null; comparisonLabel?: string; variance?: number | null; variancePct?: number | null; valueFormat?: string }; displayFormat: NumberDisplayFormat; valueFormat?: ValueFormat }) {
   const hasComparison = typeof data?.comparisonValue === "number";
   const variance = typeof data?.variance === "number" ? data.variance : null;
   const varianceGood = variance === null ? null : variance >= 0;
+  const vf: ValueFormat = (data?.valueFormat === "percent" || data?.valueFormat === "minutes" || data?.valueFormat === "hours" || data?.valueFormat === "count") ? data.valueFormat as ValueFormat : valueFormat;
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <div className="relative mb-2">
         <div className="absolute inset-0 blur-2xl bg-primary/10 rounded-full scale-150" />
         <p className="relative text-6xl font-black tabular-nums text-foreground tracking-tight">
-          {formatValue(data?.value, displayFormat)}
+          {formatKpiValue(data?.value, displayFormat, vf)}
         </p>
       </div>
       <p className="text-base text-muted-foreground font-medium mt-1">{data?.label ?? "—"}</p>
       {hasComparison && (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs" data-testid="text-kpi-comparison">
           <span className="rounded-full border bg-muted/30 px-2.5 py-1 text-muted-foreground">
-            vs {data.comparisonLabel || "Comparison"}: <strong className="text-foreground">{formatValue(data.comparisonValue, displayFormat)}</strong>
+            vs {data.comparisonLabel || "Comparison"}: <strong className="text-foreground">{formatKpiValue(data.comparisonValue, displayFormat, vf)}</strong>
           </span>
           <span className={`rounded-full border px-2.5 py-1 font-semibold ${varianceGood ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20"}`}>
-            {variance !== null && variance > 0 ? "+" : ""}{formatValue(variance, displayFormat)} · {formatVariancePct(data.variancePct)}
+            {variance !== null && variance > 0 ? "+" : ""}{formatKpiValue(variance, displayFormat, vf)} · {formatVariancePct(data.variancePct)}
           </span>
         </div>
       )}
@@ -242,7 +260,8 @@ function KpiCard({ data, displayFormat }: { data: { value?: number | null; label
 
 const LABEL_STYLE = { fontSize: 10, fill: "hsl(var(--muted-foreground))", fontWeight: 500 };
 
-function BarChartWidget({ cfg, horizontal, displayFormat }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; horizontal?: boolean; displayFormat: NumberDisplayFormat }) {
+function BarChartWidget({ cfg, horizontal, displayFormat, formatter }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; horizontal?: boolean; displayFormat: NumberDisplayFormat; formatter?: (v: number) => string }) {
+  const fv = formatter ?? ((v: number) => formatValue(v, displayFormat));
   const showLabels = cfg.data.length <= 15;
   const hasComparison = cfg.data.some(d => typeof d.comparisonValue === "number");
   if (horizontal) {
@@ -250,16 +269,16 @@ function BarChartWidget({ cfg, horizontal, displayFormat }: { cfg: { data: { nam
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <BarChart data={cfg.data} layout="vertical" margin={{ top: 4, right: showLabels ? 52 : 24, left: 4, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
+          <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={fv} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={90} />
-          <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+          <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
           <Bar dataKey="value" radius={[0, 4, 4, 0]}>
             {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-            {showLabels && <LabelList dataKey="value" position="right" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+            {showLabels && <LabelList dataKey="value" position="right" formatter={fv} style={LABEL_STYLE} />}
           </Bar>
           {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[0, 4, 4, 0]}>
-            {showLabels && <LabelList dataKey="comparisonValue" position="right" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+            {showLabels && <LabelList dataKey="comparisonValue" position="right" formatter={fv} style={LABEL_STYLE} />}
           </Bar>}
         </BarChart>
       </ResponsiveContainer>
@@ -270,22 +289,23 @@ function BarChartWidget({ cfg, horizontal, displayFormat }: { cfg: { data: { nam
       <BarChart data={cfg.data} margin={{ top: showLabels ? 22 : 8, right: 16, left: 0, bottom: 60 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
-        <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+        <YAxis tick={{ fontSize: 10 }} tickFormatter={fv} />
+        <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
         {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          {showLabels && <LabelList dataKey="value" position="top" formatter={fv} style={LABEL_STYLE} />}
         </Bar>
         {hasComparison && <Bar dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]}>
-          {showLabels && <LabelList dataKey="comparisonValue" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          {showLabels && <LabelList dataKey="comparisonValue" position="top" formatter={fv} style={LABEL_STYLE} />}
         </Bar>}
       </BarChart>
     </ResponsiveContainer>
   );
 }
 
-function LineChartWidget({ cfg, filled, displayFormat }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; filled?: boolean; displayFormat: NumberDisplayFormat }) {
+function LineChartWidget({ cfg, filled, displayFormat, formatter }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; filled?: boolean; displayFormat: NumberDisplayFormat; formatter?: (v: number) => string }) {
+  const fv = formatter ?? ((v: number) => formatValue(v, displayFormat));
   const showLabels = cfg.data.length <= 15;
   const lineMargin = { top: showLabels ? 22 : 8, right: 16, left: 0, bottom: 60 };
   const hasComparison = cfg.data.some(d => typeof d.comparisonValue === "number");
@@ -301,14 +321,14 @@ function LineChartWidget({ cfg, filled, displayFormat }: { cfg: { data: { name: 
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-          <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
-          <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+          <YAxis tick={{ fontSize: 10 }} tickFormatter={fv} />
+          <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
           <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill="url(#areaGrad)" dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
-            {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+            {showLabels && <LabelList dataKey="value" position="top" formatter={fv} style={LABEL_STYLE} />}
           </Area>
           {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={{ r: 3, fill: CHART_COLORS[3] }}>
-            {showLabels && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+            {showLabels && <LabelList dataKey="comparisonValue" position="bottom" formatter={fv} style={LABEL_STYLE} />}
           </Area>}
         </AreaChart>
       </ResponsiveContainer>
@@ -319,21 +339,22 @@ function LineChartWidget({ cfg, filled, displayFormat }: { cfg: { data: { name: 
       <LineChart data={cfg.data} margin={lineMargin}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => formatValue(v, displayFormat)} />
-        <Tooltip formatter={(v, name) => [formatValue(Number(v), displayFormat), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+        <YAxis tick={{ fontSize: 10 }} tickFormatter={fv} />
+        <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
         {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
         <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
-          {showLabels && <LabelList dataKey="value" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          {showLabels && <LabelList dataKey="value" position="top" formatter={fv} style={LABEL_STYLE} />}
         </Line>
         {hasComparison && <Line type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[3] }}>
-          {showLabels && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={LABEL_STYLE} />}
+          {showLabels && <LabelList dataKey="comparisonValue" position="bottom" formatter={fv} style={LABEL_STYLE} />}
         </Line>}
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
-function PieChartWidget({ cfg, donut, displayFormat }: { cfg: { data: { name: string; value: number }[] }; donut?: boolean; displayFormat: NumberDisplayFormat }) {
+function PieChartWidget({ cfg, donut, displayFormat, formatter }: { cfg: { data: { name: string; value: number }[] }; donut?: boolean; displayFormat: NumberDisplayFormat; formatter?: (v: number) => string }) {
+  const fv = formatter ?? ((v: number) => formatValue(v, displayFormat));
   const total = cfg.data.reduce((s, d) => s + d.value, 0);
   return (
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -345,12 +366,12 @@ function PieChartWidget({ cfg, donut, displayFormat }: { cfg: { data: { name: st
           outerRadius={110}
           dataKey="value"
           paddingAngle={donut ? 3 : 0}
-          label={({ name, value, percent }) => `${name} ${formatValue(Number(value), displayFormat)} (${(percent * 100).toFixed(0)}%)`}
+          label={({ name, value, percent }) => `${name} ${fv(Number(value))} (${(percent * 100).toFixed(0)}%)`}
           labelLine={false}
         >
           {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
         </Pie>
-        <Tooltip formatter={v => [formatValue(Number(v), displayFormat), "Value"]} />
+        <Tooltip formatter={v => [fv(Number(v)), "Value"]} />
         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
       </RechartPie>
     </ResponsiveContainer>
@@ -391,19 +412,21 @@ function InsightChart({ result, override }: { result: AskResult; override: strin
   if (!cfg) return null;
   const data = cfg.data as Record<string, unknown> | null | undefined;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
+  const valueFormat = resolveValueFormat(cfg as Record<string, unknown>);
   const normalizedData = normalizeSeriesData(data);
+  const fv = (v: number) => formatKpiValue(v, displayFormat, valueFormat);
 
-  if (chartType === "kpi") return <KpiCard data={buildKpiData(data, cfg, normalizedData)} displayFormat={displayFormat} />;
+  if (chartType === "kpi") return <KpiCard data={buildKpiData(data, cfg, normalizedData)} displayFormat={displayFormat} valueFormat={valueFormat} />;
 
   const barData = data as { data?: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string } | null | undefined;
   const chartData = normalizedData;
 
-  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} />;
-  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} horizontal displayFormat={displayFormat} />;
-  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} />;
-  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} filled displayFormat={displayFormat} />;
-  if (chartType === "pie") return <PieChartWidget cfg={{ data: chartData }} displayFormat={displayFormat} />;
-  if (chartType === "donut") return <PieChartWidget cfg={{ data: chartData }} donut displayFormat={displayFormat} />;
+  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} formatter={fv} />;
+  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} horizontal displayFormat={displayFormat} formatter={fv} />;
+  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} formatter={fv} />;
+  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} filled displayFormat={displayFormat} formatter={fv} />;
+  if (chartType === "pie") return <PieChartWidget cfg={{ data: chartData }} displayFormat={displayFormat} formatter={fv} />;
+  if (chartType === "donut") return <PieChartWidget cfg={{ data: chartData }} donut displayFormat={displayFormat} formatter={fv} />;
   if (chartType === "table") return <TableWidget cfg={buildTableData(data, normalizedData)} displayFormat={displayFormat} />;
 
   return null;
