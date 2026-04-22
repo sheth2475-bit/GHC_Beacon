@@ -35,7 +35,10 @@ type FullDataset = AnalyticsDataset & {
   columns: AnalyticsDatasetColumn[];
   insights: AnalyticsInsight[];
   autoInsights: AnalyticsAutoInsight[];
+  dimensionValues?: Record<string, string[]>;
 };
+
+type ActiveFilter = { column: string; value: string };
 
 type AskResult = {
   title: string;
@@ -501,6 +504,8 @@ export default function AnalyticsExplorePage() {
   const [newDashName, setNewDashName] = useState("");
   const [followUpMode, setFollowUpMode] = useState(false);
   const [preloadApplied, setPreloadApplied] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [filterPanelExpanded, setFilterPanelExpanded] = useState<Record<string, boolean>>({});
 
   // Auto-load a saved insight when navigated via ?insightId=
   useEffect(() => {
@@ -524,10 +529,19 @@ export default function AnalyticsExplorePage() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
+  const toggleFilter = useCallback((col: string, val: string) => {
+    setActiveFilters(prev => {
+      const exists = prev.some(f => f.column === col && f.value === val);
+      if (exists) return prev.filter(f => !(f.column === col && f.value === val));
+      return [...prev, { column: col, value: val }];
+    });
+  }, []);
+
   const askMutation = useMutation({
     mutationFn: (q: string) => apiRequest("POST", `/api/v2/analytics/datasets/${id}/ask`, {
       question: q,
       chartTypeOverride: chartOverride && !["area", "column", "donut"].includes(chartOverride) ? chartOverride : undefined,
+      filters: activeFilters.length > 0 ? activeFilters : undefined,
       // Send previous result as context for follow-up questions
       ...(followUpMode && result ? {
         previousQuestion: result.question,
@@ -878,6 +892,59 @@ export default function AnalyticsExplorePage() {
               </div>
             )}
 
+            {/* Data Filters — dimension value explorer */}
+            {ds.dimensionValues && Object.keys(ds.dimensionValues).length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Data Filters</p>
+                  {activeFilters.length > 0 && (
+                    <button onClick={() => setActiveFilters([])} className="text-[9px] text-destructive/70 hover:text-destructive transition-colors">Clear</button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {Object.entries(ds.dimensionValues).filter(([, v]) => v.length > 0).map(([col, vals]) => {
+                    const isExpanded = filterPanelExpanded[col] === true;
+                    const displayVals = isExpanded ? vals : vals.slice(0, 6);
+                    const hasMore = !isExpanded && vals.length > 6;
+                    return (
+                      <div key={col}>
+                        <button
+                          onClick={() => setFilterPanelExpanded(p => ({ ...p, [col]: !isExpanded }))}
+                          className="w-full flex items-center justify-between px-1 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <span className="uppercase tracking-wide">{col}</span>
+                          <ChevronRight className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                        </button>
+                        <div className="flex flex-wrap gap-1 mt-1 pl-1">
+                          {displayVals.map(val => {
+                            const active = activeFilters.some(f => f.column === col && f.value === val);
+                            return (
+                              <button
+                                key={val}
+                                onClick={() => toggleFilter(col, val)}
+                                data-testid={`filter-value-${col}-${val}`}
+                                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                                  active
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                                }`}
+                                title={val}
+                              >
+                                {val.length > 18 ? val.slice(0, 16) + "…" : val}
+                              </button>
+                            );
+                          })}
+                          {hasMore && (
+                            <button onClick={() => setFilterPanelExpanded(p => ({ ...p, [col]: true }))} className="text-[10px] text-primary/70 hover:text-primary px-1">+{vals.length - 6} more</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* History */}
             {history.length > 0 && (
               <div>
@@ -902,7 +969,27 @@ export default function AnalyticsExplorePage() {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
           {/* Search bar — always sticky at top of center */}
-          <div className="px-5 py-4 border-b bg-background shrink-0">
+          <div className="px-5 py-4 border-b bg-background shrink-0 space-y-2">
+            {/* Active filter chips */}
+            {activeFilters.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Filters:</span>
+                {activeFilters.map(f => (
+                  <button
+                    key={`${f.column}:${f.value}`}
+                    onClick={() => toggleFilter(f.column, f.value)}
+                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-colors"
+                    data-testid={`filter-chip-${f.column}-${f.value}`}
+                  >
+                    <span className="font-medium">{f.column}</span>
+                    <span className="opacity-60">=</span>
+                    <span>{f.value}</span>
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                ))}
+                <button onClick={() => setActiveFilters([])} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors ml-1">Clear all</button>
+              </div>
+            )}
             <div className="flex gap-2 items-center">
               <div className={`flex-1 flex gap-2 items-center rounded-xl border-2 bg-background px-4 py-3 transition-all duration-200 ${askMutation.isPending ? "border-primary/40 shadow-lg shadow-primary/5" : "border-border hover:border-primary/40 focus-within:border-primary/60 focus-within:shadow-lg focus-within:shadow-primary/5"}`}>
                 <Sparkles className={`h-4 w-4 shrink-0 transition-colors ${askMutation.isPending ? "text-primary animate-pulse" : "text-muted-foreground/50"}`} />

@@ -2801,8 +2801,9 @@ CRITICAL RULES — follow all of them:
 8. Prefer 20-60 rows covering all chart data AND all sidebar KPIs.
 9. Dates must be YYYY-MM-DD when possible. If no date is on a KPI, use the current reporting period date.
 10. chartType must be one of: kpi, bar, column, line, area, pie, donut, table.
-11. Create at minimum one KPI insight for EACH distinct KPI visible in the dashboard (including sidebar metrics). Then create chart insights for the time series and breakdowns. Add a detail table.
-12. Insights must include filters whenever the dataset contains multiple Metric/Section values.
+11. Create one KPI insight for EACH distinct KPI visible in the dashboard (including every sidebar/scorecard metric). Then add chart insights for time series and breakdowns. Add a detail table. Target 10–15 total insights — up to 15 will be saved.
+12. Insights must include filters whenever the dataset contains multiple Metric/Section values. Every KPI insight MUST have a filter like {"column": "Metric", "value": "<exact metric name>"} so that only that metric's rows are used for the KPI value.
+13. For a dashboard with KPI scorecard sidebars, each visible metric (On Time Departure Rate, Seat Utilization, Average Turnaround Time, Unscheduled Requests, AOC Issues, etc.) must become its own separate KPI insight card with the correct valueFormat.
 
 Extracted PowerPoint text, if any:
 ${extractedText || "(none)"}`;
@@ -2817,7 +2818,7 @@ ${extractedText || "(none)"}`;
             ],
           }],
           response_format: { type: "json_object" },
-          max_tokens: 6000,
+          max_tokens: 8000,
         });
 
         const parsed = safeJsonParseObject(completion.choices[0].message.content);
@@ -2848,7 +2849,7 @@ ${extractedText || "(none)"}`;
           { title: "Category Comparison", question: "Compare by category", chartType: "bar", dimension: columns.find(c => c.columnType === "dimension")?.label },
           { title: "Detail Table", question: "Show the data table", chartType: "table" },
         ];
-        const insightSpecs = (requestedInsights.length ? requestedInsights : defaultInsights).slice(0, 6);
+        const insightSpecs = (requestedInsights.length ? requestedInsights : defaultInsights).slice(0, 15);
 
         const savedInsights = [];
         for (let i = 0; i < insightSpecs.length; i++) {
@@ -2901,7 +2902,18 @@ ${extractedText || "(none)"}`;
       const columns = await storage.getAnalyticsDatasetColumns(ds.id);
       const insights = await storage.getAnalyticsInsightsByDataset(ds.id);
       const autoInsights = await storage.getAnalyticsAutoInsights(ds.id);
-      res.json({ ...ds, columns, insights, autoInsights });
+      // Compute unique values per dimension column (for filter UI)
+      const rawRows = (ds.rawData as Record<string, unknown>[]) || [];
+      const dimensionValues: Record<string, string[]> = {};
+      for (const col of columns) {
+        if (col.columnType === "dimension") {
+          const vals = Array.from(new Set(rawRows.map(r => String(r[col.columnName] ?? "")).filter(v => v !== "" && v !== "undefined"))).sort();
+          if (vals.length > 0 && vals.length <= 50) {
+            dimensionValues[col.columnName] = vals;
+          }
+        }
+      }
+      res.json({ ...ds, columns, insights, autoInsights, dimensionValues });
     });
 
     app.get("/api/v2/analytics/datasets/:id/export", requireAuth, async (req: Request, res: Response) => {
@@ -3024,13 +3036,19 @@ ${extractedText || "(none)"}`;
         const columns = await storage.getAnalyticsDatasetColumns(ds.id);
         const rawRows = (ds.rawData as Record<string, unknown>[]) || [];
         // Augment rows with computed formula column values
-        const rows = applyFormulaColumns(rawRows, columns);
-        const { question, chartTypeOverride, previousQuestion, previousResult } = req.body as {
+        const allRows = applyFormulaColumns(rawRows, columns);
+        const { question, chartTypeOverride, previousQuestion, previousResult, filters: userFilters } = req.body as {
           question: string;
           chartTypeOverride?: string;
           previousQuestion?: string;
           previousResult?: { title: string; chartType: string; measure?: string; dimension?: string; aggregation?: string };
+          filters?: { column: string; value: string }[];
         };
+
+        // Apply user-selected filters to narrow the dataset
+        const rows = (userFilters && userFilters.length > 0)
+          ? allRows.filter(r => userFilters.every(f => String(r[f.column] ?? "") === f.value))
+          : allRows;
 
         const activeColumns = columns.filter(c => c.columnType !== "ignore");
         const measures = columns.filter(c => c.columnType === "measure");
@@ -3047,6 +3065,10 @@ ${extractedText || "(none)"}`;
         });
 
         const dataStats = computeDataStats(rows, activeColumns);
+
+        const filterContext = (userFilters && userFilters.length > 0)
+          ? `\nACTIVE FILTERS (rows already pre-filtered — build chart from this filtered subset only):\n${userFilters.map(f => `  ${f.column} = "${f.value}"`).join("\n")}\n`
+          : "";
 
         const isFollowUp = !!previousQuestion && !!previousResult;
         const followUpContext = isFollowUp ? `
@@ -3070,7 +3092,7 @@ ${JSON.stringify(sampleRows, null, 2)}
 
 Data statistics:
 ${JSON.stringify(dataStats, null, 2)}
-${followUpContext}
+${filterContext}${followUpContext}
 Current question: "${question}"
 
 CHART TYPE SELECTION RULES (choose the BEST fit):
