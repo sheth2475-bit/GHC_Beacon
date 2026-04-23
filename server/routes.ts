@@ -4800,6 +4800,23 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // Re-run the batch filter on existing actuals to purge cross-company contamination.
+  // Only company admins may call this for their own company.
+  app.post("/api/scorecard/actuals/compact", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const user = (req as any).user;
+      if (user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      const existing = await storage.getBscActuals(company.id);
+      await storage.saveBscActualsBatch(company.id, existing);
+      const after = await storage.getBscActuals(company.id);
+      const before = Object.values(existing).reduce((s, v) => s + Object.keys(v).length, 0);
+      const afterCount = Object.values(after).reduce((s, v) => s + Object.keys(v).length, 0);
+      res.json({ ok: true, before, after: afterCount, removed: before - afterCount });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // ── Dashboard Share Link ─────────────────────────────────────────────────────
   app.post("/api/v2/analytics/definitions/:id/share", requireAuth, async (req: Request, res: Response) => {
     try {

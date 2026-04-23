@@ -91,18 +91,18 @@ export default function AnalyticsUploadPage() {
   });
 
   const handleFile = useCallback((f: File) => {
-    const validData = /\.(xlsx|xls|csv)$/i.test(f.name);
+    const validData = /\.(xlsx|xlsm|xls|csv)$/i.test(f.name);
     const validVisual = /\.(png|jpe?g|webp|pptx)$/i.test(f.name);
     if (uploadMode === "data" && !validData) {
-      toast({ title: "Invalid file", description: "Please upload an Excel (.xlsx, .xls) or CSV file, or switch to Screenshot / PowerPoint mode.", variant: "destructive" });
+      toast({ title: "Invalid file type", description: "Please upload an Excel (.xlsx, .xlsm, .xls) or CSV file, or switch to Screenshot / PowerPoint mode.", variant: "destructive" });
       return;
     }
     if (uploadMode === "visual" && !validVisual) {
-      toast({ title: "Invalid file", description: "Please upload a dashboard screenshot (.png, .jpg, .webp) or PowerPoint (.pptx).", variant: "destructive" });
+      toast({ title: "Invalid file type", description: "Please upload a dashboard screenshot (.png, .jpg, .webp) or PowerPoint (.pptx).", variant: "destructive" });
       return;
     }
     setFile(f);
-    if (!name) setName(f.name.replace(/\.(xlsx|xls|csv|png|jpe?g|webp|pptx)$/i, ""));
+    if (!name) setName(f.name.replace(/\.(xlsx|xlsm|xls|csv|png|jpe?g|webp|pptx)$/i, ""));
   }, [name, toast, uploadMode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -187,7 +187,7 @@ export default function AnalyticsUploadPage() {
               onClick={() => !file && fileInputRef.current?.click()}
               data-testid="dropzone-upload"
             >
-              <input ref={fileInputRef} type="file" accept={uploadMode === "visual" ? ".png,.jpg,.jpeg,.webp,.pptx" : ".xlsx,.xls,.csv"} className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} data-testid="input-file" />
+              <input ref={fileInputRef} type="file" accept={uploadMode === "visual" ? ".png,.jpg,.jpeg,.webp,.pptx" : ".xlsx,.xlsm,.xls,.csv"} className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} data-testid="input-file" />
               <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
                 {file ? (
                   <>
@@ -208,7 +208,7 @@ export default function AnalyticsUploadPage() {
                     <p className="font-bold text-sm mb-1">{dragOver ? "Drop to upload" : "Drop your file here"}</p>
                     <p className="text-xs text-muted-foreground mb-3">or click to browse</p>
                     <p className="text-[11px] text-muted-foreground/60">
-                      {uploadMode === "visual" ? "Supports .png, .jpg, .webp, .pptx · creates starter Excel data + dashboard · Max 20 MB" : "Supports .xlsx, .xls, .csv · multi-sheet Excel modeling · Max 20 MB"}
+                      {uploadMode === "visual" ? "Supports .png, .jpg, .webp, .pptx · creates starter Excel data + dashboard · Max 20 MB" : "Supports .xlsx, .xlsm, .xls, .csv · multi-sheet Excel modeling · Max 20 MB"}
                     </p>
                   </>
                 )}

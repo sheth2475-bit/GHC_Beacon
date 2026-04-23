@@ -218,7 +218,7 @@ export default function ExecutiveHomePage() {
     } catch {}
   }, [selectedPeriod]);
 
-  const scorecard = useMemo(() => {
+  const { scorecard, deptStats } = useMemo(() => {
     const periodActuals = normalizedStore[selectedPeriod] || {};
     const deptStats = depts.map(dept => {
       const kpis = loadKpiOverride(dept.id) ?? getKpisForDept(dept.id);
@@ -238,14 +238,17 @@ export default function ExecutiveHomePage() {
       .filter(item => item.complete > 0 && item.score < 85)
       .sort((a, b) => a.score - b.score || b.red - a.red);
     return {
-      overall,
-      completeness,
-      green: deptStats.filter(item => item.score >= 85 && item.complete > 0).length,
-      amber: deptStats.filter(item => item.score >= 70 && item.score < 85 && item.complete > 0).length,
-      red: deptStats.filter(item => item.score < 70 && item.complete > 0).length,
-      noData: deptStats.filter(item => item.complete === 0).length,
-      risks: focusDepartments,
-      latestPeriod: Object.keys(normalizedStore).sort().at(-1),
+      deptStats,
+      scorecard: {
+        overall,
+        completeness,
+        green: deptStats.filter(item => item.score >= 85 && item.complete > 0).length,
+        amber: deptStats.filter(item => item.score >= 70 && item.score < 85 && item.complete > 0).length,
+        red: deptStats.filter(item => item.score < 70 && item.complete > 0).length,
+        noData: deptStats.filter(item => item.complete === 0).length,
+        risks: focusDepartments,
+        latestPeriod: Object.keys(normalizedStore).sort().at(-1),
+      },
     };
   }, [depts, normalizedStore, selectedPeriod]);
 
@@ -463,42 +466,62 @@ export default function ExecutiveHomePage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-violet-500" />
-                  Departments needing leadership focus
+                  Department scorecard overview
                 </CardTitle>
-                <Badge variant="secondary" data-testid="badge-focus-count">Below 85%: {scorecard.risks.length}</Badge>
+                <div className="flex items-center gap-2">
+                  {scorecard.green > 0 && <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 bg-emerald-500/5 text-[11px]">{scorecard.green} on track</Badge>}
+                  {scorecard.amber > 0 && <Badge variant="outline" className="text-amber-600 border-amber-500/30 bg-amber-500/5 text-[11px]">{scorecard.amber} amber</Badge>}
+                  {scorecard.red > 0 && <Badge variant="outline" className="text-red-600 border-red-500/30 bg-red-500/5 text-[11px]">{scorecard.red} red</Badge>}
+                  {scorecard.noData > 0 && <Badge variant="secondary" className="text-[11px]">{scorecard.noData} no data</Badge>}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {scorecard.risks.length > 0 ? scorecard.risks.map(item => (
-                  <Link key={item.dept.id} href={`/scorecard/department/${item.dept.id}`}>
-                    <button className="w-full rounded-2xl border p-4 text-left hover:bg-muted/40 transition-colors bg-background/60" data-testid={`button-risk-dept-${item.dept.id}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl h-9 w-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${item.dept.color}18` }}>{item.dept.icon}</span>
-                          <div>
-                            <p className="font-semibold">{item.dept.name}</p>
-                            <p className="text-[10px] text-muted-foreground">Target threshold: 85%</p>
+              {deptStats.length === 0 ? (
+                <div className="rounded-xl border border-dashed p-8 text-center">
+                  <Target className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="font-semibold text-sm">No scorecard departments configured</p>
+                  <p className="text-xs text-muted-foreground mt-1">Go to the Scorecard to set up your departments and enter KPI actuals.</p>
+                  <Link href="/scorecard"><Button size="sm" className="mt-3 gap-1.5"><Target className="h-3.5 w-3.5" /> Open Scorecard</Button></Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {deptStats.map(item => {
+                    const barColor = item.complete === 0 ? "bg-muted-foreground/30" : item.score >= 85 ? "bg-emerald-500" : item.score >= 70 ? "bg-amber-500" : "bg-red-500";
+                    const borderColor = item.complete === 0 ? "" : item.score >= 85 ? "border-emerald-500/20" : item.score >= 70 ? "border-amber-500/20" : "border-red-500/20";
+                    return (
+                      <Link key={item.dept.id} href={`/scorecard/department/${item.dept.id}`}>
+                        <button className={`w-full rounded-2xl border p-4 text-left hover:bg-muted/40 transition-colors bg-background/60 ${borderColor}`} data-testid={`button-dept-overview-${item.dept.id}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl h-9 w-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${item.dept.color}18` }}>{item.dept.icon}</span>
+                              <div>
+                                <p className="font-semibold text-sm">{item.dept.name}</p>
+                                <p className="text-[10px] text-muted-foreground">{item.complete}/{item.total} KPIs · target 85%</p>
+                              </div>
+                            </div>
+                            <span className={`text-xl font-bold ${item.complete === 0 ? "text-muted-foreground" : scoreColor(item.score)}`}>
+                              {item.complete === 0 ? "—" : `${item.score}%`}
+                            </span>
                           </div>
-                        </div>
-                        <span className={`text-xl font-bold ${scoreColor(item.score)}`}>{item.score}%</span>
-                      </div>
-                      <div className="mt-4 h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={item.score >= 70 ? "h-full bg-amber-500 rounded-full" : "h-full bg-red-500 rounded-full"}
-                          style={{ width: `${Math.min(100, item.score)}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-3">{item.complete}/{item.total} KPIs populated · {item.red} red · {item.amber} amber</p>
-                    </button>
-                  </Link>
-                )) : (
-                  <div className="md:col-span-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-                    <p className="font-semibold">No departments are currently off track.</p>
-                  </div>
-                )}
-              </div>
+                          <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: item.complete === 0 ? "0%" : `${Math.min(100, item.score)}%` }} />
+                          </div>
+                          {item.complete > 0 && (item.red > 0 || item.amber > 0) && (
+                            <p className="text-[10px] text-muted-foreground mt-2">{item.red > 0 ? `${item.red} red · ` : ""}{item.amber > 0 ? `${item.amber} amber` : ""}</p>
+                          )}
+                          {item.complete === 0 && (
+                            <p className="text-[10px] text-amber-600 mt-2">No actuals entered for {periodLabel(selectedPeriod)}</p>
+                          )}
+                          {item.complete > 0 && item.red === 0 && item.amber === 0 && (
+                            <p className="text-[10px] text-emerald-600 mt-2">All KPIs on track</p>
+                          )}
+                        </button>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
