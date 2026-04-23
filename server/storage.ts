@@ -841,10 +841,32 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteAnalyticsDataset(id: number): Promise<void> {
     await db.delete(analyticsAutoInsights).where(eq(analyticsAutoInsights.datasetId, id));
-    const insights = await db.select({ id: analyticsInsights.id }).from(analyticsInsights).where(eq(analyticsInsights.datasetId, id));
-    for (const insight of insights) {
-      await db.delete(analyticsDashboardItems).where(eq(analyticsDashboardItems.insightId, insight.id));
+
+    // Collect all insight IDs belonging to this dataset
+    const insights = await db.select({ id: analyticsInsights.id })
+      .from(analyticsInsights).where(eq(analyticsInsights.datasetId, id));
+    const insightIds = insights.map(i => i.id);
+
+    if (insightIds.length > 0) {
+      // Find which dashboard definitions have items pointing at these insights
+      const affectedRows = await db.select({ definitionId: analyticsDashboardItems.definitionId })
+        .from(analyticsDashboardItems)
+        .where(inArray(analyticsDashboardItems.insightId, insightIds));
+      const affectedDefIds = [...new Set(affectedRows.map(r => r.definitionId).filter((v): v is number => v !== null))];
+
+      // Remove all items that reference insights from this dataset
+      await db.delete(analyticsDashboardItems).where(inArray(analyticsDashboardItems.insightId, insightIds));
+
+      // Delete any dashboard definition that is now completely empty
+      for (const defId of affectedDefIds) {
+        const remaining = await db.select({ id: analyticsDashboardItems.id })
+          .from(analyticsDashboardItems).where(eq(analyticsDashboardItems.definitionId, defId));
+        if (remaining.length === 0) {
+          await db.delete(analyticsDashboardDefinitions).where(eq(analyticsDashboardDefinitions.id, defId));
+        }
+      }
     }
+
     await db.delete(analyticsInsights).where(eq(analyticsInsights.datasetId, id));
     await db.delete(analyticsDatasetColumns).where(eq(analyticsDatasetColumns.datasetId, id));
     await db.delete(analyticsDatasets).where(eq(analyticsDatasets.id, id));

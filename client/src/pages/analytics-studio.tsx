@@ -315,7 +315,12 @@ export default function AnalyticsStudioPage() {
 
   const deleteDatasetMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/v2/analytics/datasets/${id}`).then(r => r.json()),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/datasets"] }); toast({ title: "Dataset deleted" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/datasets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/insights"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions"] });
+      toast({ title: "Dataset deleted" });
+    },
   });
   const deleteInsightMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/v2/analytics/insights/${id}`).then(r => r.json()),
@@ -633,12 +638,37 @@ export default function AnalyticsStudioPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-red-500" />Confirm Delete</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete this {deleteTarget?.type} and all associated data. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              {deleteTarget?.type === "dataset" ? "Delete Dataset?" : "Confirm Delete"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              {deleteTarget?.type === "dataset" ? (() => {
+                const relatedInsights = insights.filter(i => i.datasetId === deleteTarget.id);
+                const insightCount = relatedInsights.length;
+                return (
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <p>Deleting this dataset will permanently remove:</p>
+                    <ul className="list-disc list-inside space-y-1 pl-1">
+                      <li>The dataset and all its column configuration</li>
+                      {insightCount > 0 && (
+                        <li><span className="font-semibold text-foreground">{insightCount} insight{insightCount !== 1 ? "s" : ""}</span> built on this data</li>
+                      )}
+                      <li>Any dashboards that contained only those insights</li>
+                    </ul>
+                    <p className="font-medium text-red-600 dark:text-red-400">This cannot be undone.</p>
+                  </div>
+                );
+              })() : (
+                <p>This will permanently delete this {deleteTarget?.type} and all associated data. This cannot be undone.</p>
+              )}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={handleDelete}>Delete</AlertDialogAction>
+            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={handleDelete} data-testid="button-confirm-delete">
+              Delete{deleteTarget?.type === "dataset" ? " Everything" : ""}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
