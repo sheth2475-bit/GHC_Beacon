@@ -849,10 +849,10 @@ export class DatabaseStorage implements IStorage {
 
     if (insightIds.length > 0) {
       // Find which dashboard definitions have items pointing at these insights
-      const affectedRows = await db.select({ definitionId: analyticsDashboardItems.definitionId })
+      const affectedRows = await db.select({ dashboardId: analyticsDashboardItems.dashboardId })
         .from(analyticsDashboardItems)
         .where(inArray(analyticsDashboardItems.insightId, insightIds));
-      const affectedDefIds = [...new Set(affectedRows.map(r => r.definitionId).filter((v): v is number => v !== null))];
+      const affectedDefIds = [...new Set(affectedRows.map(r => r.dashboardId))];
 
       // Remove all items that reference insights from this dataset
       await db.delete(analyticsDashboardItems).where(inArray(analyticsDashboardItems.insightId, insightIds));
@@ -860,7 +860,7 @@ export class DatabaseStorage implements IStorage {
       // Delete any dashboard definition that is now completely empty
       for (const defId of affectedDefIds) {
         const remaining = await db.select({ id: analyticsDashboardItems.id })
-          .from(analyticsDashboardItems).where(eq(analyticsDashboardItems.definitionId, defId));
+          .from(analyticsDashboardItems).where(eq(analyticsDashboardItems.dashboardId, defId));
         if (remaining.length === 0) {
           await db.delete(analyticsDashboardDefinitions).where(eq(analyticsDashboardDefinitions.id, defId));
         }
