@@ -21,6 +21,7 @@ import {
   Target,
 } from "lucide-react";
 import type { AnalyticsDashboardDefinition, AnalyticsDataset } from "@shared/schema";
+import { useAuth } from "@/lib/auth";
 import {
   getKpisForDept,
   getStatus,
@@ -140,6 +141,33 @@ function scoreColor(score: number) {
   return "text-red-600 dark:text-red-400";
 }
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Good morning";
+  if (h >= 12 && h < 17) return "Good afternoon";
+  if (h >= 17 && h < 21) return "Good evening";
+  return "Good night";
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function avatarGradient(name: string) {
+  const gradients = [
+    "linear-gradient(135deg,#3b82f6,#8b5cf6)",
+    "linear-gradient(135deg,#0ea5e9,#06b6d4)",
+    "linear-gradient(135deg,#10b981,#14b8a6)",
+    "linear-gradient(135deg,#f59e0b,#f97316)",
+    "linear-gradient(135deg,#ec4899,#f43f5e)",
+    "linear-gradient(135deg,#8b5cf6,#6366f1)",
+  ];
+  const idx = name.charCodeAt(0) % gradients.length;
+  return gradients[idx];
+}
+
 export default function ExecutiveHomePage() {
   const today = new Date();
   const currentPk = periodKey(today.getFullYear(), today.getMonth());
@@ -148,6 +176,9 @@ export default function ExecutiveHomePage() {
     return readCommandPeriod(currentPk, defaultPk);
   });
   const [alertTab, setAlertTab] = useState<"scorecard" | "updates" | "dashboards">("scorecard");
+
+  const { user } = useAuth();
+  const { data: companyData } = useQuery<{ companyName: string; industry?: string } | null>({ queryKey: ["/api/company"] });
 
   const { data: datasets = [] } = useQuery<AnalyticsDataset[]>({ queryKey: ["/api/v2/analytics/datasets"] });
   const { data: dashboards = [] } = useQuery<AnalyticsDashboardDefinition[]>({ queryKey: ["/api/v2/analytics/definitions"] });
@@ -283,30 +314,60 @@ export default function ExecutiveHomePage() {
                   <span className="rounded-full border bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground">{scorecard.completeness}% KPI completeness</span>
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 xl:items-center">
-                <div className="flex items-center gap-2 rounded-xl border bg-background/80 px-3 py-2 shadow-sm">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  <select
-                    value={selectedPeriod}
-                    onChange={(event) => setSelectedPeriod(event.target.value)}
-                    className="bg-transparent text-sm font-semibold outline-none"
-                    data-testid="select-command-period"
-                  >
-                    {availablePeriods.map(period => (
-                      <option key={period} value={period}>{periodLabel(period)}</option>
-                    ))}
-                  </select>
+              <div className="flex flex-col gap-3 xl:items-end">
+                {/* ── User welcome card ── */}
+                {user && (
+                  <div className="flex items-center gap-3 rounded-2xl border bg-background/75 px-4 py-3 shadow-md backdrop-blur-sm" data-testid="card-user-welcome">
+                    <div
+                      className="h-11 w-11 rounded-xl flex items-center justify-center font-bold text-base text-white shrink-0 shadow-sm"
+                      style={{ background: avatarGradient(user.name) }}
+                      data-testid="avatar-user-initials"
+                    >
+                      {getInitials(user.name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-muted-foreground font-medium leading-none mb-0.5">{getGreeting()}</p>
+                      <p className="text-sm font-bold leading-tight truncate" data-testid="text-user-name">{user.name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate mt-0.5" data-testid="text-user-email">{user.email}</p>
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1.5">
+                      {companyData?.companyName && (
+                        <Badge variant="outline" className="text-[9px] bg-primary/5 border-primary/20 text-primary font-semibold px-2 py-0.5 h-auto" data-testid="badge-company-name">
+                          {companyData.companyName}
+                        </Badge>
+                      )}
+                      <span className="text-[9px] text-muted-foreground capitalize font-medium" data-testid="text-user-role">
+                        {user.role.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {/* ── Period selector + navigation ── */}
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <div className="flex items-center gap-2 rounded-xl border bg-background/80 px-3 py-2 shadow-sm">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    <select
+                      value={selectedPeriod}
+                      onChange={(event) => setSelectedPeriod(event.target.value)}
+                      className="bg-transparent text-sm font-semibold outline-none"
+                      data-testid="select-command-period"
+                    >
+                      {availablePeriods.map(period => (
+                        <option key={period} value={period}>{periodLabel(period)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Link href="/analytics">
+                    <Button variant="outline" className="gap-2" data-testid="button-open-analytics">
+                      <BarChart3 className="h-4 w-4" /> Analytics
+                    </Button>
+                  </Link>
+                  <Link href="/scorecard">
+                    <Button className="gap-2" data-testid="button-open-scorecard">
+                      <Target className="h-4 w-4" /> Scorecard
+                    </Button>
+                  </Link>
                 </div>
-                <Link href="/analytics">
-                  <Button variant="outline" className="gap-2" data-testid="button-open-analytics">
-                    <BarChart3 className="h-4 w-4" /> Analytics
-                  </Button>
-                </Link>
-                <Link href="/scorecard">
-                  <Button className="gap-2" data-testid="button-open-scorecard">
-                    <Target className="h-4 w-4" /> Scorecard
-                  </Button>
-                </Link>
               </div>
             </div>
           </div>
