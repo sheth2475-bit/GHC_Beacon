@@ -19,6 +19,7 @@ import {
   RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
   Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles, Globe, Copy, Link2,
+  FileImage, FileText, Loader2, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1332,9 +1333,13 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [shareDialog, setShareDialog] = useState(false);
   const [shareEnabled, setShareEnabled] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
   const [, nav] = useLocation();
   const fileRef = useRef<HTMLInputElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const dashboardExportRef = useRef<HTMLDivElement>(null);
   const scorecardRef = useRef<HTMLDivElement>(null);
 
   // kpiOverride = the full KPI list from the last Excel upload (null = use predefined)
@@ -1917,6 +1922,70 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     }
   };
 
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [exportMenuOpen]);
+
+  async function captureExportArea(): Promise<HTMLCanvasElement> {
+    const html2canvas = (await import("html2canvas")).default;
+    const el = dashboardExportRef.current;
+    if (!el) throw new Error("Dashboard content not found");
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: document.documentElement.classList.contains("dark") ? "#0f172a" : "#f8fafc",
+      logging: false,
+      allowTaint: false,
+    });
+    return canvas;
+  }
+
+  async function handleExportImage() {
+    setExporting(true);
+    setExportMenuOpen(false);
+    try {
+      const canvas = await captureExportArea();
+      const link = document.createElement("a");
+      link.download = `${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      toast({ title: "Image exported", description: `${dept.name} scorecard saved as PNG` });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportPdf() {
+    setExporting(true);
+    setExportMenuOpen(false);
+    try {
+      const canvas = await captureExportArea();
+      const { jsPDF } = await import("jspdf");
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+      const pdfW = 297; // A4 landscape mm
+      const pdfH = Math.round((imgH / imgW) * pdfW);
+      const pdf = new jsPDF({ orientation: pdfW > pdfH ? "landscape" : "portrait", unit: "mm", format: [pdfW, Math.max(pdfH, 210)] });
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pdfW, pdfH);
+      pdf.save(`${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pdf`);
+      toast({ title: "PDF exported", description: `${dept.name} scorecard saved as PDF` });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const perspectives: Perspective[] = ["Financial", "Customer", "Internal", "Learning"];
 
   if (accessDenied) {
@@ -1940,7 +2009,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
+    <div className="p-6 space-y-6 max-w-screen-2xl mx-auto" ref={dashboardExportRef}>
       {/* Back + period */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <Button variant="ghost" size="sm" onClick={()=>nav("/scorecard")}
@@ -1977,6 +2046,47 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
               <Activity className="h-3.5 w-3.5" />Load Sample Data
             </Button>
           )}
+          {/* Export dropdown */}
+          <div className="relative" ref={exportMenuRef}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 h-8"
+              onClick={() => setExportMenuOpen(o => !o)}
+              disabled={exporting}
+              data-testid="button-export-scorecard"
+            >
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              Export
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </Button>
+            {exportMenuOpen && (
+              <div className="absolute right-0 top-9 z-50 bg-card border rounded-xl shadow-lg p-1.5 w-44" data-testid="export-menu">
+                <button
+                  onClick={handleExportImage}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-muted/60 transition-colors text-left"
+                  data-testid="button-export-png"
+                >
+                  <FileImage className="h-4 w-4 text-primary shrink-0" />
+                  <span>
+                    <span className="font-medium block">Save as Image</span>
+                    <span className="text-[10px] text-muted-foreground">PNG, full dashboard</span>
+                  </span>
+                </button>
+                <button
+                  onClick={handleExportPdf}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-muted/60 transition-colors text-left"
+                  data-testid="button-export-pdf"
+                >
+                  <FileText className="h-4 w-4 text-red-500 shrink-0" />
+                  <span>
+                    <span className="font-medium block">Save as PDF</span>
+                    <span className="text-[10px] text-muted-foreground">A4, dashboard view</span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
           <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setShareDialog(true)} data-testid="button-share-scorecard">
             <Globe className="h-3.5 w-3.5" />Share
             {shareEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />}
