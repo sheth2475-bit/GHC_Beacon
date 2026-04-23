@@ -1,26 +1,20 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import path from "path";
-
-const isDev = process.env.NODE_ENV !== "production";
 
 export default defineConfig({
   plugins: [
     react(),
-    // Dev-only: runtime error overlay and Replit-specific dev tools
-    ...(isDev
+    runtimeErrorOverlay(),
+    ...(process.env.REPL_ID !== undefined
       ? [
-          (await import("@replit/vite-plugin-runtime-error-modal")).default(),
-          ...(process.env.REPL_ID !== undefined
-            ? [
-                await import("@replit/vite-plugin-cartographer").then((m) =>
-                  m.cartographer(),
-                ),
-                await import("@replit/vite-plugin-dev-banner").then((m) =>
-                  m.devBanner(),
-                ),
-              ]
-            : []),
+          await import("@replit/vite-plugin-cartographer").then((m) =>
+            m.cartographer()
+          ),
+          await import("@replit/vite-plugin-dev-banner").then((m) =>
+            m.devBanner()
+          ),
         ]
       : []),
   ],
@@ -35,8 +29,6 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-    // Raise chunk size warning threshold — app has many large UI libraries
-    chunkSizeWarningLimit: 1000,
   },
   server: {
     fs: {
