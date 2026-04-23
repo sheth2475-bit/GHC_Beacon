@@ -688,6 +688,7 @@ export const analyticsDashboardItems = pgTable("analytics_dashboard_items", {
   insightId: integer("insight_id").notNull().references(() => analyticsInsights.id),
   position: integer("position").notNull().default(0),
   titleOverride: text("title_override"),
+  colorOverride: text("color_override"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

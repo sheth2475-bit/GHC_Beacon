@@ -44,6 +44,21 @@ type InsightFull = AnalyticsDashboardItem & { insight: AnalyticsInsight };
 
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4"];
 
+const COLOR_PALETTE = [
+  { hex: "#3b82f6", name: "Blue" },
+  { hex: "#8b5cf6", name: "Purple" },
+  { hex: "#10b981", name: "Emerald" },
+  { hex: "#f59e0b", name: "Amber" },
+  { hex: "#ef4444", name: "Red" },
+  { hex: "#ec4899", name: "Pink" },
+  { hex: "#06b6d4", name: "Cyan" },
+  { hex: "#f97316", name: "Orange" },
+  { hex: "#84cc16", name: "Lime" },
+  { hex: "#6366f1", name: "Indigo" },
+  { hex: "#14b8a6", name: "Teal" },
+  { hex: "#a78bfa", name: "Violet" },
+];
+
 type NumberDisplayFormat = "compact" | "full";
 type ValueFormat = "number" | "percent" | "minutes" | "hours" | "count";
 
@@ -380,7 +395,7 @@ function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknow
   return null;
 }
 
-function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filteredData?: unknown }) {
+function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight; filteredData?: unknown; color?: string }) {
   const baseCfg = insight.chartConfig as Record<string, unknown> | null;
   const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
   if (!cfg) return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
@@ -388,6 +403,8 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
   const data = cfg.data as Record<string, unknown>;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
   const valueFormat = resolveValueFormat(cfg);
+  const c0 = color || CHART_COLORS[0];
+  const c3 = CHART_COLORS[3];
 
   if (chartType === "kpi" && data) {
     const kpi = data as { value: number; label: string; comparisonValue?: number; comparisonLabel?: string; variance?: number; variancePct?: number | null; valueFormat?: string };
@@ -437,7 +454,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[3, 3, 0, 0]}>
+          <Bar dataKey="value" fill={c0} radius={[3, 3, 0, 0]}>
             <LabelList
               dataKey="value"
               position="top"
@@ -445,7 +462,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
               style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
             />
           </Bar>
-          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[3, 3, 0, 0]}>
+          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={c3} radius={[3, 3, 0, 0]}>
             <LabelList dataKey="comparisonValue" position="top" formatter={fv} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />
           </Bar>}
         </BarChart>
@@ -468,7 +485,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
+          <Area type="monotone" dataKey="value" stroke={c0} strokeWidth={2} fill={c0 + "20"} dot={count <= 40 ? { r: 2.5, fill: c0 } : false}>
             {count <= 40 && (
               <LabelList
                 dataKey="value"
@@ -478,7 +495,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
               />
             )}
           </Area>
-          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[3] } : false}>
+          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={c3} strokeWidth={2} fill={c3 + "10"} dot={count <= 40 ? { r: 2.5, fill: c3 } : false}>
             {count <= 40 && <LabelList dataKey="comparisonValue" position="bottom" formatter={fv} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />}
           </Area>}
         </AreaChart>
@@ -557,7 +574,7 @@ function MiniChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
 }
 
 /* ── Full-size chart for focus mode ── */
-function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filteredData?: unknown }) {
+function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight; filteredData?: unknown; color?: string }) {
   const baseCfg = insight.chartConfig as Record<string, unknown> | null;
   const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
   if (!cfg) return <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No data</div>;
@@ -565,6 +582,8 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
   const data = cfg.data as Record<string, unknown>;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
   const valueFormat = resolveValueFormat(cfg);
+  const c0 = color || CHART_COLORS[0];
+  const c3 = CHART_COLORS[3];
 
   if (chartType === "kpi" && data) {
     const kpi = data as { value: number; label: string; count?: number; comparisonValue?: number; comparisonLabel?: string; variance?: number; variancePct?: number | null; valueFormat?: string };
@@ -598,10 +617,10 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fv} width={52} />
             <Tooltip formatter={(v, name, p) => [fv(Number(v)), name === "comparisonValue" ? comparisonLabel : p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
             {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-            <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[5, 5, 0, 0]}>
+            <Bar dataKey="value" fill={c0} radius={[5, 5, 0, 0]}>
               <LabelList dataKey="value" position="top" formatter={fv} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
             </Bar>
-            {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[5, 5, 0, 0]}>
+            {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={c3} radius={[5, 5, 0, 0]}>
               <LabelList dataKey="comparisonValue" position="top" formatter={fv} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
             </Bar>}
           </BarChart>
@@ -617,10 +636,10 @@ function FullChart({ insight, filteredData }: { insight: AnalyticsInsight; filte
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fv} width={52} />
             <Tooltip formatter={(v, name, p) => [fv(Number(v)), name === "comparisonValue" ? comparisonLabel : p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
             {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-            <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill={CHART_COLORS[0] + "20"} dot={displayData.length <= 40 ? { r: 4, fill: CHART_COLORS[0] } : false}>
+            <Area type="monotone" dataKey="value" stroke={c0} strokeWidth={2.5} fill={c0 + "20"} dot={displayData.length <= 40 ? { r: 4, fill: c0 } : false}>
               {displayData.length <= 40 && <LabelList dataKey="value" position="top" formatter={fv} style={{ fontSize: displayData.length > 20 ? 9 : 10, fill: "currentColor", fontWeight: 700 }} />}
             </Area>
-            {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2.5} fill={CHART_COLORS[3] + "10"} dot={displayData.length <= 40 ? { r: 4, fill: CHART_COLORS[3] } : false}>
+            {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={c3} strokeWidth={2.5} fill={c3 + "10"} dot={displayData.length <= 40 ? { r: 4, fill: c3 } : false}>
               {displayData.length <= 40 && <LabelList dataKey="comparisonValue" position="bottom" formatter={fv} style={{ fontSize: displayData.length > 20 ? 9 : 10, fill: "currentColor", fontWeight: 700 }} />}
             </Area>}
           </AreaChart>
@@ -692,13 +711,14 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
 
   const smartNarrative = generateSmartNarrative(item.insight, filteredData);
   const narrativeText = smartNarrative || item.insight.narrative;
+  const color = item.colorOverride || CHART_COLORS[0];
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-background" data-testid="focus-mode-overlay">
-      {/* Top bar */}
+      <div className="h-1 shrink-0" style={{ backgroundColor: color }} />
       <div className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
         <div className="flex items-center gap-2">
-          <Maximize2 className="h-4 w-4 text-primary" />
+          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
           <span className="font-bold text-sm">{item.titleOverride || item.insight.title}</span>
           <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize">{item.insight.chartType} · Focus Mode</span>
         </div>
@@ -711,11 +731,9 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
           Back to dashboard
         </button>
       </div>
-      {/* Chart area */}
       <div className="flex-1 overflow-hidden p-6 flex flex-col min-h-0">
-        <FullChart insight={item.insight} filteredData={filteredData} />
+        <FullChart insight={item.insight} filteredData={filteredData} color={color} />
       </div>
-      {/* Narrative footer */}
       {narrativeText && (
         <div className="shrink-0 border-t bg-muted/20 px-6 py-3 max-h-28 overflow-auto">
           <p className="text-xs text-muted-foreground leading-relaxed">{narrativeText}</p>
@@ -725,15 +743,19 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
   );
 }
 
-function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filteredData, onFocus }: {
-  item: InsightFull; idx: number; total: number;
+function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filteredData, onFocus, dashboardId, onColorChange }: {
+  item: InsightFull; idx: number; total: number; dashboardId: number;
   onRemove: () => void; onMoveUp: () => void; onMoveDown: () => void;
   filteredData?: unknown; onFocus: () => void;
+  onColorChange: (color: string | null) => void;
 }) {
-  const chartLabel: Record<string, string> = { kpi: "KPI Card", bar: "Bar", line: "Line", pie: "Pie", table: "Table" };
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const chartLabel: Record<string, string> = { kpi: "KPI Card", bar: "Bar", line: "Line", pie: "Pie", table: "Table", area: "Area", donut: "Donut", column: "Column" };
+  const currentColor = item.colorOverride || CHART_COLORS[0];
+
   return (
     <div className="group rounded-xl border bg-card overflow-hidden hover:shadow-md transition-all" data-testid={`item-insight-${item.id}`}>
-      <div className="h-[3px] bg-gradient-to-r from-purple-500 to-purple-400" />
+      <div className="h-[3px]" style={{ backgroundColor: currentColor }} />
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0">
@@ -741,6 +763,42 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
             <span className="text-[10px] text-muted-foreground">{chartLabel[item.insight.chartType] || item.insight.chartType}</span>
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
+            {/* Color picker */}
+            <div className="relative">
+              <button
+                onClick={() => setColorPickerOpen(o => !o)}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/60"
+                title="Change chart color"
+                data-testid={`button-color-widget-${item.id}`}
+              >
+                <span className="h-3 w-3 rounded-full border border-border/50" style={{ backgroundColor: currentColor }} />
+              </button>
+              {colorPickerOpen && (
+                <div className="absolute right-0 top-6 z-50 bg-card border rounded-xl shadow-lg p-2 w-36" data-testid={`color-picker-${item.id}`}>
+                  <p className="text-[9px] font-semibold text-muted-foreground mb-1.5 px-0.5">Chart color</p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {COLOR_PALETTE.map(c => (
+                      <button
+                        key={c.hex}
+                        onClick={() => { onColorChange(c.hex); setColorPickerOpen(false); }}
+                        className="h-6 w-6 rounded-md border-2 transition-transform hover:scale-110"
+                        style={{ backgroundColor: c.hex, borderColor: currentColor === c.hex ? "white" : "transparent", outline: currentColor === c.hex ? `2px solid ${c.hex}` : "none" }}
+                        title={c.name}
+                        data-testid={`color-swatch-${c.name.toLowerCase()}-${item.id}`}
+                      />
+                    ))}
+                  </div>
+                  {item.colorOverride && (
+                    <button
+                      onClick={() => { onColorChange(null); setColorPickerOpen(false); }}
+                      className="mt-1.5 w-full text-[9px] text-muted-foreground hover:text-foreground text-center py-0.5 rounded hover:bg-muted/50"
+                    >
+                      Reset to default
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <button onClick={onFocus} className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/60" title="Focus mode" data-testid={`button-focus-widget-${item.id}`}>
               <Maximize2 className="h-3 w-3 text-muted-foreground" />
             </button>
@@ -749,7 +807,7 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
             <button onClick={onRemove} className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-500/10 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
           </div>
         </div>
-        <MiniChart insight={item.insight} filteredData={filteredData} />
+        <MiniChart insight={item.insight} filteredData={filteredData} color={currentColor} />
         {(() => {
           const smartNarrative = generateSmartNarrative(item.insight, filteredData);
           const text = smartNarrative || item.insight.narrative;
@@ -910,6 +968,13 @@ export default function AnalyticsDashboardComposePage() {
   const reorderMutation = useMutation({
     mutationFn: (orderedIds: number[]) => apiRequest("POST", `/api/v2/analytics/definitions/${id}/reorder`, { orderedIds }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] }),
+  });
+
+  const colorMutation = useMutation({
+    mutationFn: ({ itemId, colorOverride }: { itemId: number; colorOverride: string | null }) =>
+      apiRequest("PATCH", `/api/v2/analytics/definitions/${id}/items/${itemId}/color`, { colorOverride }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions", id] }),
+    onError: () => toast({ title: "Failed to update chart color", variant: "destructive" }),
   });
 
   const generateNarrative = async () => {
@@ -1293,11 +1358,13 @@ export default function AnalyticsDashboardComposePage() {
                       item={item}
                       idx={idx}
                       total={dash.items?.length ?? 0}
+                      dashboardId={Number(id)}
                       onRemove={() => setRemoveId(item.id)}
                       onMoveUp={() => handleMoveUp(idx)}
                       onMoveDown={() => handleMoveDown(idx)}
                       filteredData={overrideData}
                       onFocus={() => { setFocusedItem(item); setFocusedItemFilteredData(overrideData); }}
+                      onColorChange={(colorOverride) => colorMutation.mutate({ itemId: item.id, colorOverride })}
                     />
                   );
                 })}

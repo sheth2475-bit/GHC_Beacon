@@ -224,6 +224,7 @@ export interface IStorage {
   addAnalyticsDashboardItem(data: InsertAnalyticsDashboardItem): Promise<AnalyticsDashboardItem>;
   removeAnalyticsDashboardItem(id: number): Promise<void>;
   reorderAnalyticsDashboardItems(dashboardId: number, orderedIds: number[]): Promise<void>;
+  updateAnalyticsDashboardItemColor(id: number, colorOverride: string | null): Promise<AnalyticsDashboardItem>;
 
   // Workflow Center — Templates
   getWorkflowTemplates(companyId: number): Promise<import("@shared/schema").WorkflowTemplate[]>;
@@ -970,6 +971,13 @@ export class DatabaseStorage implements IStorage {
   }
   async removeAnalyticsDashboardItem(id: number): Promise<void> {
     await db.delete(analyticsDashboardItems).where(eq(analyticsDashboardItems.id, id));
+  }
+  async updateAnalyticsDashboardItemColor(id: number, colorOverride: string | null): Promise<AnalyticsDashboardItem> {
+    const [row] = await db.update(analyticsDashboardItems)
+      .set({ colorOverride })
+      .where(eq(analyticsDashboardItems.id, id))
+      .returning();
+    return row;
   }
   async reorderAnalyticsDashboardItems(dashboardId: number, orderedIds: number[]): Promise<void> {
     for (let i = 0; i < orderedIds.length; i++) {

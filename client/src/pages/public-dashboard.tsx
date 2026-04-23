@@ -34,17 +34,19 @@ function shortLabel(name: string, maxLen = 8): string {
 
 type CfgData = Record<string, unknown>;
 
-function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig: unknown }) {
+function MiniChart({ chartType, chartConfig, color }: { chartType: string; chartConfig: unknown; color?: string }) {
   const cfg = chartConfig as Record<string, unknown> | null;
   if (!cfg) return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
   const data = cfg.data as CfgData;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
+  const c0 = color || CHART_COLORS[0];
+  const c3 = CHART_COLORS[3];
 
   if (chartType === "kpi" && data) {
     const kpi = data as { value: number; label: string; comparisonValue?: number; comparisonLabel?: string; variance?: number; variancePct?: number | null };
     return (
       <div className="flex flex-col items-center justify-center h-40">
-        <div className="text-4xl font-black tracking-tight" style={{ color: CHART_COLORS[0] }}>{formatValue(kpi.value, displayFormat)}</div>
+        <div className="text-4xl font-black tracking-tight" style={{ color: c0 }}>{formatValue(kpi.value, displayFormat)}</div>
         <p className="text-xs text-muted-foreground mt-1.5 text-center px-2">{kpi.label}</p>
         {typeof kpi.comparisonValue === "number" && (
           <p className={`text-[10px] mt-1 font-semibold ${Number(kpi.variance) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
@@ -86,7 +88,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[3, 3, 0, 0]}>
+          <Bar dataKey="value" fill={c0} radius={[3, 3, 0, 0]}>
             <LabelList
               dataKey="value"
               position="top"
@@ -94,7 +96,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
               style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }}
             />
           </Bar>
-          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={CHART_COLORS[3]} radius={[3, 3, 0, 0]}>
+          {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={c3} radius={[3, 3, 0, 0]}>
             <LabelList dataKey="comparisonValue" position="top" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />
           </Bar>}
         </BarChart>
@@ -117,7 +119,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} fill={CHART_COLORS[0] + "20"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[0] } : false}>
+          <Area type="monotone" dataKey="value" stroke={c0} strokeWidth={2} fill={c0 + "20"} dot={count <= 40 ? { r: 2.5, fill: c0 } : false}>
             {count <= 40 && (
               <LabelList
                 dataKey="value"
@@ -127,7 +129,7 @@ function MiniChart({ chartType, chartConfig }: { chartType: string; chartConfig:
               />
             )}
           </Area>
-          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={count <= 40 ? { r: 2.5, fill: CHART_COLORS[3] } : false}>
+          {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={c3} strokeWidth={2} fill={c3 + "10"} dot={count <= 40 ? { r: 2.5, fill: c3 } : false}>
             {count <= 40 && <LabelList dataKey="comparisonValue" position="bottom" formatter={(v: number) => formatValue(v, displayFormat)} style={{ fontSize: hasTons ? 7 : 8, fill: "currentColor", fontWeight: 600 }} />}
           </Area>}
         </AreaChart>
@@ -270,7 +272,7 @@ export default function PublicDashboard() {
               <Card key={item.id} className="overflow-hidden">
                 <CardContent className="p-4">
                   <p className="text-sm font-semibold mb-3 truncate">{item.insight.title}</p>
-                  <MiniChart chartType={item.insight.chartType} chartConfig={item.insight.chartConfig} />
+                  <MiniChart chartType={item.insight.chartType} chartConfig={item.insight.chartConfig} color={(item as { colorOverride?: string | null }).colorOverride || undefined} />
                   {item.insight.narrativeSummary && (
                     <p className="text-xs text-muted-foreground mt-3 leading-relaxed line-clamp-3">{item.insight.narrativeSummary}</p>
                   )}

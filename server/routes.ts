@@ -3588,6 +3588,12 @@ Return a JSON object with key "insights" containing an array:
       res.json({ ok: true });
     });
 
+    app.patch("/api/v2/analytics/definitions/:id/items/:itemId/color", requireAuth, async (req: Request, res: Response) => {
+      const { colorOverride } = req.body;
+      const item = await storage.updateAnalyticsDashboardItemColor(Number(req.params.itemId), colorOverride ?? null);
+      res.json(item);
+    });
+
     app.post("/api/v2/analytics/definitions/:id/reorder", requireAuth, async (req: Request, res: Response) => {
       await storage.reorderAnalyticsDashboardItems(Number(req.params.id), req.body.orderedIds);
       res.json({ ok: true });
