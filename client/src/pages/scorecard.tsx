@@ -1615,10 +1615,18 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     // Columns: KPI Name | Perspective | Target | Unit | Lower is Better | Target Type | Target Date | Weight % | Jan…Dec
     const META_COLS = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better", "Target Type", "Target Date", "Weight %"];
     const header1 = [...META_COLS, ...MONTHS.map(m => `${m} ${year}`)];
-    const totalKpis = kpis.length;
+
+    // For brand-new custom departments (no predefined KPI set, no uploaded override),
+    // use the corporate KPIs as a rich starter template so the user has a complete
+    // example to rename and customise. Actual columns are left blank.
+    const isCustomNewDept = !DEPT_KPIS[deptId] && !kpiOverride;
+    const templateKpis: KpiDef[] = isCustomNewDept
+      ? DEPT_KPIS["corp"].map(k => ({ ...k, id: k.id.replace(/^cr_/, `${deptId}_`) }))
+      : kpis;
+    const totalKpis = templateKpis.length;
 
     const dataRows1: (string | number)[][] = [];
-    kpis.forEach(k => {
+    templateKpis.forEach(k => {
       const storedW = weights[k.id];
       const displayW = storedW !== undefined ? storedW : +(100 / totalKpis).toFixed(4);
       const targetType = k.targetType === "milestone_numeric" ? "milestone_numeric"
@@ -1632,8 +1640,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         targetType, targetDate, displayW,
       ];
       MONTHS.forEach((_, mi) => {
-        const p = periodKey(year, mi);
-        const v = store?.[p]?.[k.id];
+        // Starter template for new depts: leave actuals blank so user fills them in
+        const v = isCustomNewDept ? undefined : store?.[periodKey(year, mi)]?.[k.id];
         row.push(v !== undefined ? Number(v) : ("" as any));
       });
       dataRows1.push(row);
@@ -1645,8 +1653,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           "milestone_target", "", "",
         ];
         MONTHS.forEach((_, mi) => {
-          const p = periodKey(year, mi);
-          const v = store?.[p]?.[`m_${k.id}`];
+          const v = isCustomNewDept ? undefined : store?.[periodKey(year, mi)]?.[`m_${k.id}`];
           mRow.push(v !== undefined ? Number(v) : ("" as any));
         });
         dataRows1.push(mRow);
@@ -1670,7 +1677,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     });
     const header2 = [...META_COLS, ...histCols.map(c => c.label)];
     const dataRows2: (string | number)[][] = [];
-    kpis.forEach(k => {
+    templateKpis.forEach(k => {
       const targetType = k.targetType === "milestone_numeric" ? "milestone_numeric"
                        : k.targetType === "milestone_date"    ? "milestone_date"
                        : k.targetFrequency === "annual"       ? "annual"
@@ -1681,8 +1688,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         targetType, k.targetDate ?? "", "",
       ];
       histCols.forEach(({ year: y, mi }) => {
-        const p = periodKey(y, mi);
-        const v = storeNow?.[p]?.[k.id];
+        const v = isCustomNewDept ? undefined : storeNow?.[periodKey(y, mi)]?.[k.id];
         row.push(v !== undefined ? Number(v) : ("" as any));
       });
       dataRows2.push(row);
@@ -1693,8 +1699,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           "milestone_target", "", "",
         ];
         histCols.forEach(({ year: y, mi }) => {
-          const p = periodKey(y, mi);
-          const v = storeNow?.[p]?.[`m_${k.id}`];
+          const v = isCustomNewDept ? undefined : storeNow?.[periodKey(y, mi)]?.[`m_${k.id}`];
           mRow.push(v !== undefined ? Number(v) : ("" as any));
         });
         dataRows2.push(mRow);
