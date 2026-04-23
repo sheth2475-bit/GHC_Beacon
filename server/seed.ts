@@ -641,11 +641,9 @@ export async function seedDatabase() {
     }
 
     // ── Ensure analytics V2 datasets, insights, definitions ─────
-    const existingDatasets = await storage.getAnalyticsDatasets(companyId);
-    if (existingDatasets.length === 0 || existingDatasets.some(d => d.name === "OYO Hotel Performance Data")) {
-      await seedAnalyticsData(companyId, existing.id);
-      console.log("Seed: restored analytics V2 data (datasets, insights, definitions)");
-    }
+    // seedAnalyticsData is idempotent: it checks internally whether the dataset
+    // already has 120+ rows with all required columns before doing any work.
+    await seedAnalyticsData(companyId, existing.id);
 
     // ── Ensure workflow groups ────────────────────────────────────
     await seedWorkflowGroups(companyId, existing.id);

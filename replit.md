@@ -68,6 +68,13 @@ Built with React + TypeScript + Tailwind CSS + shadcn/ui + Recharts on the front
 - `analytics_dashboard_definitions`: added `share_token TEXT`, `share_enabled BOOLEAN DEFAULT FALSE`
 - `scorecard_shares`: `id`, `company_id`, `dept_id`, `share_token TEXT UNIQUE`, `share_enabled BOOLEAN`, `created_by`, `created_at`
 
+## Dev-to-Production Parity (Audit April 2026)
+- **Seed runs in all environments**: `seedDatabase()` runs in both dev and production (removed `NODE_ENV !== "production"` guard). All seed functions are idempotent — they check for existing data before inserting, so fresh production deployments get full demo data (company, BSC departments, actuals, analytics, projects, etc.) and subsequent restarts skip already-seeded rows.
+- **SESSION_SECRET validation**: On startup, if `SESSION_SECRET` is not set, the app exits with a fatal error in production. In development, it falls back to an insecure default with a console warning.
+- **Response body logging**: Dev mode logs API responses truncated to 400 chars and never logs sensitive auth endpoints. Production logs only method/path/status/duration — no response bodies in prod logs.
+- **Dev-only Vite plugins**: `runtimeErrorOverlay()` (Replit error modal) is conditionally loaded only in development builds, keeping the production bundle clean.
+- **BSC seed in production**: Since seed runs in all envs, `seedBscData` (departments + 7 months of actuals) now populates on first production deployment and is skipped on subsequent restarts if data exists.
+
 ## External Dependencies
 - **OpenAI**: GPT-4o via Replit AI Integrations (Analytics Studio AI, Beacon Assistant)
 - **PostgreSQL**: Primary database

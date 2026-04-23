@@ -5,6 +5,7 @@ import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+const isProd = process.env.NODE_ENV === "production";
 
 declare module "http" {
   interface IncomingMessage {
@@ -12,9 +13,25 @@ declare module "http" {
   }
 }
 
+// ── Startup environment validation ─────────────────────────────────────────
+if (!process.env.SESSION_SECRET) {
+  if (isProd) {
+    console.error("FATAL: SESSION_SECRET environment variable must be set in production.");
+    process.exit(1);
+  } else {
+    process.env.SESSION_SECRET = "dev-only-secret-not-for-production";
+    console.warn("[startup] SESSION_SECRET not set — using insecure dev default.");
+  }
+}
+
+if (!process.env.DATABASE_URL) {
+  console.error("FATAL: DATABASE_URL environment variable must be set.");
+  process.exit(1);
+}
+
 app.use(
   express.json({
-    limit: "1mb",
+    limit: "10mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
@@ -34,25 +51,33 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+// ── Request/response logging ───────────────────────────────────────────────
+// In production: log only method, path, status, and duration (no response body).
+// In development: include truncated response body for debugging.
+const SENSITIVE_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/me"];
+const MAX_LOG_BODY = 400;
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+  if (!isProd) {
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
+  }
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (!isProd && capturedJsonResponse && !SENSITIVE_PATHS.includes(path)) {
+        const body = JSON.stringify(capturedJsonResponse);
+        logLine += ` :: ${body.length > MAX_LOG_BODY ? body.slice(0, MAX_LOG_BODY) + "…" : body}`;
       }
-
       log(logLine);
     }
   });
@@ -64,10 +89,12 @@ app.use((req, res, next) => {
   const { runMigrations } = await import("./migrations");
   await runMigrations().catch(console.error);
 
-  if (process.env.NODE_ENV !== "production") {
-    const { seedDatabase } = await import("./seed");
-    await seedDatabase().catch(console.error);
-  }
+  // Seed runs in both dev and production — all functions are idempotent
+  // (each checks for existing data before inserting). This ensures:
+  //   • Fresh production deployments get demo data and BSC scorecard content
+  //   • Subsequent restarts skip already-seeded data automatically
+  const { seedDatabase } = await import("./seed");
+  await seedDatabase().catch(console.error);
 
   const { startScheduler } = await import("./scheduler");
   startScheduler();
@@ -78,7 +105,11 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    if (isProd) {
+      console.error(`[error] ${status} ${message}`);
+    } else {
+      console.error("Internal Server Error:", err);
+    }
 
     if (res.headersSent) {
       return next(err);
@@ -87,20 +118,14 @@ app.use((req, res, next) => {
     return res.status(status).json({ message });
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
+  // Serve static (production) or Vite dev server (development)
+  if (isProd) {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {
