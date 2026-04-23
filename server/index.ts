@@ -15,7 +15,7 @@ declare module "http" {
 
 // ── Startup environment validation ─────────────────────────────────────────
 if (!process.env.SESSION_SECRET) {
-  if (isProd) {
+  if (process.env.NODE_ENV === "production") {
     console.error("FATAL: SESSION_SECRET environment variable must be set in production.");
     process.exit(1);
   } else {
@@ -118,8 +118,10 @@ app.use((req, res, next) => {
     return res.status(status).json({ message });
   });
 
-  // Serve static (production) or Vite dev server (development)
-  if (isProd) {
+  // Serve static (production) or Vite dev server (development).
+  // IMPORTANT: keep process.env.NODE_ENV here directly so esbuild can
+  // eliminate the `import("./vite")` branch as dead code in the CJS build.
+  if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
