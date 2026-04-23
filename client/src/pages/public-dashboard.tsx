@@ -12,6 +12,19 @@ import {
 
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4"];
 
+const THEMES: Record<string, { name: string; colors: string[] }> = {
+  classic: { name: "Classic", colors: ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899","#06b6d4","#f97316","#84cc16","#6366f1"] },
+  ocean:   { name: "Ocean",   colors: ["#0ea5e9","#06b6d4","#0284c7","#38bdf8","#22d3ee","#7dd3fc","#0369a1","#bae6fd","#0c4a6e","#e0f2fe"] },
+  sunset:  { name: "Sunset",  colors: ["#f97316","#ef4444","#f59e0b","#ec4899","#eab308","#fb923c","#dc2626","#fbbf24","#f43f5e","#fde68a"] },
+  forest:  { name: "Forest",  colors: ["#10b981","#84cc16","#22c55e","#14b8a6","#a3e635","#4ade80","#16a34a","#65a30d","#059669","#bbf7d0"] },
+  rose:    { name: "Rose",    colors: ["#f43f5e","#ec4899","#e11d48","#db2777","#fb7185","#f9a8d4","#be123c","#fda4af","#9f1239","#fce7f3"] },
+  slate:   { name: "Slate",   colors: ["#64748b","#94a3b8","#475569","#334155","#cbd5e1","#1e293b","#7c8fa3","#b5c3d4","#2d3a4a","#e2e8f0"] },
+};
+const DEFAULT_THEME = "classic";
+function getPalette(theme?: string | null): string[] {
+  return (theme && THEMES[theme]?.colors) ? THEMES[theme].colors : THEMES[DEFAULT_THEME].colors;
+}
+
 type NumberDisplayFormat = "compact" | "full";
 
 function formatValue(v: number, mode: NumberDisplayFormat = "compact") {
@@ -39,8 +52,9 @@ function MiniChart({ chartType, chartConfig, color }: { chartType: string; chart
   if (!cfg) return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
   const data = cfg.data as CfgData;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
-  const c0 = color || CHART_COLORS[0];
-  const c3 = CHART_COLORS[3];
+  const palette = getPalette(color);
+  const c0 = palette[0];
+  const c3 = palette[3] ?? CHART_COLORS[3];
 
   if (chartType === "kpi" && data) {
     const kpi = data as { value: number; label: string; comparisonValue?: number; comparisonLabel?: string; variance?: number; variancePct?: number | null };
@@ -88,7 +102,8 @@ function MiniChart({ chartType, chartConfig, color }: { chartType: string; chart
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Bar dataKey="value" fill={c0} radius={[3, 3, 0, 0]}>
+          <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+            {displayData.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
             <LabelList
               dataKey="value"
               position="top"
@@ -167,7 +182,7 @@ function MiniChart({ chartType, chartConfig, color }: { chartType: string; chart
               }}
               labelLine={false}
             >
-              {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              {slices.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
             </Pie>
             <Tooltip formatter={(v) => [formatValue(Number(v), displayFormat), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
           </RechartPie>
@@ -175,7 +190,7 @@ function MiniChart({ chartType, chartConfig, color }: { chartType: string; chart
         <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
           {slices.map((d, i) => (
             <div key={i} className="flex items-center gap-1 min-w-0">
-              <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: palette[i % palette.length] }} />
               <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={d.name}>{d.name}</span>
               <span className="text-[9px] font-semibold shrink-0">{formatValue(d.value, displayFormat)}</span>
               <span className="text-[9px] text-muted-foreground shrink-0">{total ? `(${((d.value / total) * 100).toFixed(0)}%)` : ""}</span>

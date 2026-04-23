@@ -42,22 +42,22 @@ type DashboardFull = AnalyticsDashboardDefinition & {
 
 type InsightFull = AnalyticsDashboardItem & { insight: AnalyticsInsight };
 
-const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4"];
+const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"];
 
-const COLOR_PALETTE = [
-  { hex: "#3b82f6", name: "Blue" },
-  { hex: "#8b5cf6", name: "Purple" },
-  { hex: "#10b981", name: "Emerald" },
-  { hex: "#f59e0b", name: "Amber" },
-  { hex: "#ef4444", name: "Red" },
-  { hex: "#ec4899", name: "Pink" },
-  { hex: "#06b6d4", name: "Cyan" },
-  { hex: "#f97316", name: "Orange" },
-  { hex: "#84cc16", name: "Lime" },
-  { hex: "#6366f1", name: "Indigo" },
-  { hex: "#14b8a6", name: "Teal" },
-  { hex: "#a78bfa", name: "Violet" },
-];
+const THEMES: Record<string, { name: string; colors: string[] }> = {
+  classic:    { name: "Classic",    colors: ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899","#06b6d4","#84cc16","#f97316","#6366f1"] },
+  ocean:      { name: "Ocean",      colors: ["#0ea5e9","#06b6d4","#0891b2","#38bdf8","#67e8f9","#2563eb","#1d4ed8","#7dd3fc","#93c5fd","#bfdbfe"] },
+  sunset:     { name: "Sunset",     colors: ["#f97316","#f59e0b","#ef4444","#ec4899","#d946ef","#fb923c","#fbbf24","#e11d48","#c026d3","#a855f7"] },
+  forest:     { name: "Forest",     colors: ["#10b981","#22c55e","#84cc16","#34d399","#4ade80","#a3e635","#6ee7b7","#86efac","#059669","#16a34a"] },
+  rose:       { name: "Rose",       colors: ["#f43f5e","#ec4899","#a855f7","#8b5cf6","#fb7185","#f9a8d4","#e879f9","#c084fc","#fda4af","#d946ef"] },
+  slate:      { name: "Mono",       colors: ["#64748b","#475569","#334155","#94a3b8","#1e293b","#0f172a","#cbd5e1","#e2e8f0","#374151","#6b7280"] },
+};
+
+const DEFAULT_THEME = "classic";
+function getPalette(colorOverride?: string | null): string[] {
+  if (!colorOverride) return THEMES[DEFAULT_THEME].colors;
+  return THEMES[colorOverride]?.colors ?? THEMES[DEFAULT_THEME].colors;
+}
 
 type NumberDisplayFormat = "compact" | "full";
 type ValueFormat = "number" | "percent" | "minutes" | "hours" | "count";
@@ -403,8 +403,9 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
   const data = cfg.data as Record<string, unknown>;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
   const valueFormat = resolveValueFormat(cfg);
-  const c0 = color || CHART_COLORS[0];
-  const c3 = CHART_COLORS[3];
+  const palette = getPalette(color);
+  const c0 = palette[0];
+  const c3 = palette[3] ?? CHART_COLORS[3];
 
   if (chartType === "kpi" && data) {
     const kpi = data as { value: number; label: string; comparisonValue?: number; comparisonLabel?: string; variance?: number; variancePct?: number | null; valueFormat?: string };
@@ -454,7 +455,8 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Bar dataKey="value" fill={c0} radius={[3, 3, 0, 0]}>
+          <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+            {displayData.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
             <LabelList
               dataKey="value"
               position="top"
@@ -534,7 +536,7 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
               }}
               labelLine={false}
             >
-              {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              {slices.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
             </Pie>
             <Tooltip formatter={(v) => [fv(Number(v)), ""]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
           </RechartPie>
@@ -543,7 +545,7 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
         <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
           {slices.map((d, i) => (
             <div key={i} className="flex items-center gap-1 min-w-0">
-              <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="shrink-0 h-2 w-2 rounded-full" style={{ backgroundColor: palette[i % palette.length] }} />
               <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={d.name}>{d.name}</span>
               <span className="text-[9px] font-semibold shrink-0">{fv(d.value)}</span>
               <span className="text-[9px] text-muted-foreground shrink-0">{total ? `(${((d.value / total) * 100).toFixed(0)}%)` : ""}</span>
@@ -582,8 +584,9 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
   const data = cfg.data as Record<string, unknown>;
   const displayFormat = (cfg.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
   const valueFormat = resolveValueFormat(cfg);
-  const c0 = color || CHART_COLORS[0];
-  const c3 = CHART_COLORS[3];
+  const palette = getPalette(color);
+  const c0 = palette[0];
+  const c3 = palette[3] ?? CHART_COLORS[3];
 
   if (chartType === "kpi" && data) {
     const kpi = data as { value: number; label: string; count?: number; comparisonValue?: number; comparisonLabel?: string; variance?: number; variancePct?: number | null; valueFormat?: string };
@@ -617,7 +620,8 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fv} width={52} />
             <Tooltip formatter={(v, name, p) => [fv(Number(v)), name === "comparisonValue" ? comparisonLabel : p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
             {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-            <Bar dataKey="value" fill={c0} radius={[5, 5, 0, 0]}>
+            <Bar dataKey="value" radius={[5, 5, 0, 0]}>
+              {displayData.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
               <LabelList dataKey="value" position="top" formatter={fv} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
             </Bar>
             {hasComparison && <Bar dataKey="comparisonValue" name={comparisonLabel} fill={c3} radius={[5, 5, 0, 0]}>
@@ -665,7 +669,7 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
                 const y = cy + r * Math.sin(-midAngle * Math.PI / 180);
                 return <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 12, fontWeight: 700 }}>{`${(percent * 100).toFixed(0)}%`}</text>;
               }} labelLine={false}>
-              {slices.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              {slices.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
             </Pie>
             <Tooltip formatter={v => [fv(Number(v)), ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
           </RechartPie>
@@ -673,7 +677,7 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
         <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center">
           {slices.map((d, i) => (
             <div key={i} className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: palette[i % palette.length] }} />
               <span className="text-sm text-muted-foreground">{d.name}</span>
               <span className="text-sm font-bold">{fv(d.value)}</span>
               <span className="text-sm text-muted-foreground">{total ? `(${((d.value / total) * 100).toFixed(1)}%)` : ""}</span>
@@ -711,14 +715,16 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
 
   const smartNarrative = generateSmartNarrative(item.insight, filteredData);
   const narrativeText = smartNarrative || item.insight.narrative;
-  const color = item.colorOverride || CHART_COLORS[0];
+  const themePalette = getPalette(item.colorOverride);
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-background" data-testid="focus-mode-overlay">
-      <div className="h-1 shrink-0" style={{ backgroundColor: color }} />
+      <div className="h-1 shrink-0" style={{ background: `linear-gradient(to right, ${themePalette.slice(0, 5).join(", ")})` }} />
       <div className="flex items-center justify-between px-6 py-3 border-b bg-card shrink-0">
         <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+          <div className="flex gap-0.5">
+            {themePalette.slice(0, 4).map((c, i) => <span key={i} className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c }} />)}
+          </div>
           <span className="font-bold text-sm">{item.titleOverride || item.insight.title}</span>
           <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize">{item.insight.chartType} · Focus Mode</span>
         </div>
@@ -732,7 +738,7 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
         </button>
       </div>
       <div className="flex-1 overflow-hidden p-6 flex flex-col min-h-0">
-        <FullChart insight={item.insight} filteredData={filteredData} color={color} />
+        <FullChart insight={item.insight} filteredData={filteredData} color={item.colorOverride || undefined} />
       </div>
       {narrativeText && (
         <div className="shrink-0 border-t bg-muted/20 px-6 py-3 max-h-28 overflow-auto">
@@ -749,13 +755,15 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
   filteredData?: unknown; onFocus: () => void;
   onColorChange: (color: string | null) => void;
 }) {
-  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const chartLabel: Record<string, string> = { kpi: "KPI Card", bar: "Bar", line: "Line", pie: "Pie", table: "Table", area: "Area", donut: "Donut", column: "Column" };
-  const currentColor = item.colorOverride || CHART_COLORS[0];
+  const currentTheme = item.colorOverride || DEFAULT_THEME;
+  const currentPalette = getPalette(currentTheme);
 
   return (
     <div className="group rounded-xl border bg-card overflow-hidden hover:shadow-md transition-all" data-testid={`item-insight-${item.id}`}>
-      <div className="h-[3px]" style={{ backgroundColor: currentColor }} />
+      {/* Rainbow stripe using theme palette */}
+      <div className="h-[3px]" style={{ background: `linear-gradient(to right, ${currentPalette.slice(0, 5).join(", ")})` }} />
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0">
@@ -763,37 +771,48 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
             <span className="text-[10px] text-muted-foreground">{chartLabel[item.insight.chartType] || item.insight.chartType}</span>
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
-            {/* Color picker */}
+            {/* Theme picker */}
             <div className="relative">
               <button
-                onClick={() => setColorPickerOpen(o => !o)}
-                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/60"
-                title="Change chart color"
+                onClick={() => setThemePickerOpen(o => !o)}
+                className="h-5 flex items-center gap-0.5 px-1 rounded hover:bg-muted/60"
+                title="Change color theme"
                 data-testid={`button-color-widget-${item.id}`}
               >
-                <span className="h-3 w-3 rounded-full border border-border/50" style={{ backgroundColor: currentColor }} />
+                {currentPalette.slice(0, 3).map((c, i) => (
+                  <span key={i} className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c }} />
+                ))}
               </button>
-              {colorPickerOpen && (
-                <div className="absolute right-0 top-6 z-50 bg-card border rounded-xl shadow-lg p-2 w-36" data-testid={`color-picker-${item.id}`}>
-                  <p className="text-[9px] font-semibold text-muted-foreground mb-1.5 px-0.5">Chart color</p>
-                  <div className="grid grid-cols-4 gap-1">
-                    {COLOR_PALETTE.map(c => (
-                      <button
-                        key={c.hex}
-                        onClick={() => { onColorChange(c.hex); setColorPickerOpen(false); }}
-                        className="h-6 w-6 rounded-md border-2 transition-transform hover:scale-110"
-                        style={{ backgroundColor: c.hex, borderColor: currentColor === c.hex ? "white" : "transparent", outline: currentColor === c.hex ? `2px solid ${c.hex}` : "none" }}
-                        title={c.name}
-                        data-testid={`color-swatch-${c.name.toLowerCase()}-${item.id}`}
-                      />
-                    ))}
+              {themePickerOpen && (
+                <div className="absolute right-0 top-6 z-50 bg-card border rounded-xl shadow-lg p-2.5 w-48" data-testid={`color-picker-${item.id}`}>
+                  <p className="text-[9px] font-semibold text-muted-foreground mb-2 px-0.5 uppercase tracking-wide">Color theme</p>
+                  <div className="flex flex-col gap-1">
+                    {Object.entries(THEMES).map(([key, theme]) => {
+                      const isActive = currentTheme === key;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => { onColorChange(key); setThemePickerOpen(false); }}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/60 transition-colors text-left w-full ${isActive ? "bg-muted/80 ring-1 ring-border" : ""}`}
+                          data-testid={`color-theme-${key}-${item.id}`}
+                        >
+                          <div className="flex gap-0.5 shrink-0">
+                            {theme.colors.slice(0, 5).map((c, i) => (
+                              <span key={i} className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} />
+                            ))}
+                          </div>
+                          <span className="text-[10px] font-medium">{theme.name}</span>
+                          {isActive && <span className="ml-auto text-[8px] text-primary font-bold">✓</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                   {item.colorOverride && (
                     <button
-                      onClick={() => { onColorChange(null); setColorPickerOpen(false); }}
-                      className="mt-1.5 w-full text-[9px] text-muted-foreground hover:text-foreground text-center py-0.5 rounded hover:bg-muted/50"
+                      onClick={() => { onColorChange(null); setThemePickerOpen(false); }}
+                      className="mt-1.5 w-full text-[9px] text-muted-foreground hover:text-foreground text-center py-1 rounded hover:bg-muted/50"
                     >
-                      Reset to default
+                      Reset to Classic
                     </button>
                   )}
                 </div>
@@ -807,7 +826,7 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
             <button onClick={onRemove} className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-500/10 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
           </div>
         </div>
-        <MiniChart insight={item.insight} filteredData={filteredData} color={currentColor} />
+        <MiniChart insight={item.insight} filteredData={filteredData} color={currentTheme} />
         {(() => {
           const smartNarrative = generateSmartNarrative(item.insight, filteredData);
           const text = smartNarrative || item.insight.narrative;
