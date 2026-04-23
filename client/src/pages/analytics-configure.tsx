@@ -474,6 +474,7 @@ export default function AnalyticsConfigurePage() {
                           <SelectItem value="sum">Sum</SelectItem>
                           <SelectItem value="avg">Average</SelectItem>
                           <SelectItem value="count">Count</SelectItem>
+                          <SelectItem value="countd">Distinct Count</SelectItem>
                           <SelectItem value="min">Min</SelectItem>
                           <SelectItem value="max">Max</SelectItem>
                         </SelectContent>
@@ -551,7 +552,7 @@ export default function AnalyticsConfigurePage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-semibold text-sm">{col.label}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">{col.aggregation}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">{col.aggregation === "countd" ? "Distinct Count" : col.aggregation}</span>
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border">{col.format}</span>
                             </div>
                             <code className="text-[11px] text-muted-foreground font-mono block mt-0.5 truncate">{col.formulaExpression}</code>
@@ -645,9 +646,10 @@ export default function AnalyticsConfigurePage() {
                           <SelectContent>
                             <SelectItem value="sum">Sum</SelectItem>
                             <SelectItem value="avg">Average</SelectItem>
+                            <SelectItem value="count">Count</SelectItem>
+                            <SelectItem value="countd">Distinct Count</SelectItem>
                             <SelectItem value="min">Min</SelectItem>
                             <SelectItem value="max">Max</SelectItem>
-                            <SelectItem value="count">Count</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

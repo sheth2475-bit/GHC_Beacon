@@ -2541,14 +2541,45 @@ You can help the user understand their data, suggest chart types, explain insigh
       limit?: number,
       sortChronological?: boolean
     ): { name: string; value: number }[] {
+      const isCountLike = aggregation === "count" || aggregation === "countd";
       if (!dimension) {
+        if (isCountLike) {
+          const nonNull = rows.filter(r => r[measure] !== null && r[measure] !== undefined && r[measure] !== "");
+          const total = aggregation === "countd"
+            ? new Set(nonNull.map(r => String(r[measure]))).size
+            : nonNull.length;
+          return [{ name: measure, value: total }];
+        }
         const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
         const total = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
-          : aggregation === "count" ? vals.length
           : aggregation === "min" ? Math.min(...vals)
           : aggregation === "max" ? Math.max(...vals)
           : vals.reduce((a, b) => a + b, 0);
         return [{ name: measure, value: Math.round(total * 100) / 100 }];
+      }
+      // For count/countd, group raw rows by dimension then count per group
+      if (isCountLike) {
+        const rawGroups: Record<string, string[]> = {};
+        for (const row of rows) {
+          const rawKey = row[dimension];
+          let key: string;
+          const parsed = rawKey ? new Date(String(rawKey)) : null;
+          if (parsed && !isNaN(parsed.getTime()) && String(rawKey).length >= 6) {
+            key = parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+          } else {
+            key = String(rawKey ?? "Unknown").trim() || "Unknown";
+          }
+          if (!rawGroups[key]) rawGroups[key] = [];
+          const v = row[measure];
+          if (v !== null && v !== undefined && v !== "") rawGroups[key].push(String(v));
+        }
+        let result = Object.entries(rawGroups).map(([name, vals]) => ({
+          name,
+          value: aggregation === "countd" ? new Set(vals).size : vals.length,
+        }));
+        result.sort((a, b) => b.value - a.value);
+        if (limit) result = result.slice(0, limit);
+        return result;
       }
       const groups: Record<string, number[]> = {};
       for (const row of rows) {
@@ -2567,7 +2598,6 @@ You can help the user understand their data, suggest chart types, explain insigh
       }
       let result = Object.entries(groups).map(([name, vals]) => {
         const value = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
-          : aggregation === "count" ? vals.length
           : aggregation === "min" ? Math.min(...vals)
           : aggregation === "max" ? Math.max(...vals)
           : vals.reduce((a, b) => a + b, 0);
@@ -2588,9 +2618,15 @@ You can help the user understand their data, suggest chart types, explain insigh
     }
 
     function aggregateSingleValue(rows: Record<string, unknown>[], measure: string, aggregation: string = "sum"): number {
+      if (aggregation === "count") {
+        return rows.filter(r => r[measure] !== null && r[measure] !== undefined && r[measure] !== "").length;
+      }
+      if (aggregation === "countd") {
+        const nonNull = rows.filter(r => r[measure] !== null && r[measure] !== undefined && r[measure] !== "");
+        return new Set(nonNull.map(r => String(r[measure]))).size;
+      }
       const vals = rows.map(r => Number(r[measure])).filter(v => !isNaN(v));
       const value = aggregation === "avg" ? vals.reduce((a, b) => a + b, 0) / (vals.length || 1)
-        : aggregation === "count" ? vals.length
         : aggregation === "min" ? Math.min(...vals)
         : aggregation === "max" ? Math.max(...vals)
         : vals.reduce((a, b) => a + b, 0);

@@ -702,7 +702,7 @@ export default function AnalyticsExplorePage() {
     return {
       measure: cfg?.measure || "—",
       dimension: cfg?.dimension || "None",
-      aggregation: cfg?.aggregation ? cfg.aggregation.charAt(0).toUpperCase() + cfg.aggregation.slice(1) : "—",
+      aggregation: cfg?.aggregation ? (cfg.aggregation === "countd" ? "Distinct Count" : cfg.aggregation.charAt(0).toUpperCase() + cfg.aggregation.slice(1)) : "—",
       chartType: currentChartLabel,
     };
   })() : null;
