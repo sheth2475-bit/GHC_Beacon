@@ -11,7 +11,7 @@ import {
   BarChart3, Plus, Search, Trash2, Globe, Lock, Building2,
   Clock, Upload, Sparkles, ChevronRight, Database,
   Lightbulb, LayoutDashboard, FileSpreadsheet,
-  AlertTriangle, ArrowRight, Play, MoreVertical, Eye,
+  AlertTriangle, ArrowRight, Play, MoreVertical, Eye, Pencil,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsInsight, AnalyticsDashboardDefinition } from "@shared/schema";
 import {
@@ -172,8 +172,27 @@ function InsightThumbnail({ insight, onDelete }: { insight: AnalyticsInsight; on
 // ── Dashboard thumbnail card ──────────────────────────────────────────────────
 function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefinition; onDelete: (id: number) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameVal, setRenameVal] = useState(def.title);
+  const { toast } = useToast();
   const VisIcon = def.visibility === "company" ? Globe : def.visibility === "department" ? Building2 : Lock;
   const isPublished = def.status === "published";
+
+  const renameMutation = useMutation({
+    mutationFn: (title: string) => apiRequest("PATCH", `/api/v2/analytics/definitions/${def.id}`, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/v2/analytics/definitions"] });
+      toast({ title: "Dashboard renamed" });
+    },
+    onError: () => toast({ title: "Rename failed", variant: "destructive" }),
+  });
+
+  const commitRename = () => {
+    const trimmed = renameVal.trim();
+    if (trimmed && trimmed !== def.title) renameMutation.mutate(trimmed);
+    setRenaming(false);
+  };
+
   return (
     <div className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" data-testid={`card-definition-${def.id}`}>
       {/* Thumbnail */}
@@ -212,7 +231,19 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
           <LayoutDashboard className={`h-4 w-4 ${isPublished ? "text-emerald-600 dark:text-emerald-400" : "text-primary"}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold leading-tight line-clamp-2 mb-1">{def.title}</p>
+          {renaming ? (
+            <input
+              autoFocus
+              className="text-sm font-semibold w-full bg-transparent border-b border-primary outline-none pb-0.5 mb-1"
+              value={renameVal}
+              onChange={e => setRenameVal(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setRenameVal(def.title); setRenaming(false); } }}
+              data-testid={`input-rename-def-${def.id}`}
+            />
+          ) : (
+            <p className="text-sm font-semibold leading-tight line-clamp-2 mb-1">{def.title}</p>
+          )}
           {def.description && <p className="text-[11px] text-muted-foreground line-clamp-1">{def.description}</p>}
           <div className="flex items-center gap-2 mt-0.5">
             <p className="text-[11px] text-muted-foreground flex items-center gap-1">
@@ -224,7 +255,7 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
           </div>
         </div>
         <div className="relative">
-          <button onClick={() => setMenuOpen(v => !v)} className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-all">
+          <button onClick={() => setMenuOpen(v => !v)} className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-all" data-testid={`button-menu-def-${def.id}`}>
             <MoreVertical className="h-4 w-4 text-muted-foreground" />
           </button>
           {menuOpen && (
@@ -232,6 +263,13 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
               <Link href={`/analytics/dashboards/${def.id}`}>
                 <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted" onClick={() => setMenuOpen(false)}>Open</button>
               </Link>
+              <button
+                className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted flex items-center gap-1.5"
+                onClick={() => { setRenameVal(def.title); setRenaming(true); setMenuOpen(false); }}
+                data-testid={`button-rename-def-${def.id}`}
+              >
+                <Pencil className="h-3 w-3" /> Rename
+              </button>
               <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted text-red-500" onClick={() => { onDelete(def.id); setMenuOpen(false); }}>Delete</button>
             </div>
           )}

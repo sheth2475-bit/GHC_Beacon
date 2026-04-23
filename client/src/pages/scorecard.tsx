@@ -204,6 +204,12 @@ const STORE_KEY        = "ghc_beacon_v2";
 const DEPT_KEY         = "bsc_departments";
 const WEIGHTS_KEY      = "ghc_beacon_weights_v1";
 const CORP_SEED_VER    = "ghc_corp_seed_v4"; // bump when seed data changes
+const BSC_COMPANY_KEY  = "bsc_company_id";   // tracks which company owns the cached data
+
+// Wipe all BSC-related localStorage so stale data never bleeds between accounts
+function clearBscLocalStorage() {
+  [STORE_KEY, DEPT_KEY, WEIGHTS_KEY, CORP_SEED_VER, "ghc_beacon_kpi_override_v1"].forEach(k => localStorage.removeItem(k));
+}
 
 function loadWeights(deptId: string): Record<string, number> {
   try {
@@ -282,8 +288,8 @@ function parsePerspective(val: string): Perspective | null {
 }
 
 function loadDepartments(): BscDepartment[] {
-  try { const d = localStorage.getItem(DEPT_KEY); return d ? JSON.parse(d) : DEFAULT_DEPARTMENTS; }
-  catch { return DEFAULT_DEPARTMENTS; }
+  try { const d = localStorage.getItem(DEPT_KEY); return d ? JSON.parse(d) : []; }
+  catch { return []; }
 }
 function saveDepartments(d: BscDepartment[]) {
   localStorage.setItem(DEPT_KEY, JSON.stringify(d));
@@ -294,21 +300,37 @@ function saveDepartments(d: BscDepartment[]) {
   }).catch(() => {});
 }
 
+// Guard: if the logged-in company differs from what's cached, wipe all BSC localStorage
+// so stale data from another account never bleeds through.
+async function ensureCompanyCache() {
+  try {
+    const res = await fetch("/api/auth/me");
+    if (!res.ok) return;
+    const user = await res.json() as { companyId: number };
+    const stored = localStorage.getItem(BSC_COMPANY_KEY);
+    if (stored !== String(user.companyId)) {
+      clearBscLocalStorage();
+      localStorage.setItem(BSC_COMPANY_KEY, String(user.companyId));
+    }
+  } catch {}
+}
+
 async function syncActualsFromDb() {
   try {
-    const res = await fetch("/api/scorecard/actuals");
-    if (!res.ok) return;
-    const dbStore = await res.json() as Record<string, Record<string, number>>;
-    if (Object.keys(dbStore).length === 0) return;
-    // DB is the single source of truth — always overwrite local data with DB values.
-    // This keeps the in-app view identical to the public share link view.
-    const local = loadStore();
-    const merged = { ...local };
-    for (const [pk, vals] of Object.entries(dbStore)) {
-      merged[pk] = { ...(merged[pk] || {}), ...vals };
+    const [actualsRes] = await Promise.all([
+      fetch("/api/scorecard/actuals"),
+      ensureCompanyCache(),
+    ]);
+    if (!actualsRes.ok) return undefined;
+    const dbStore = await actualsRes.json() as Record<string, Record<string, number>>;
+    // DB is the single source of truth — replace local cache entirely.
+    // When DB returns empty, remove stale localStorage so old data can't linger.
+    if (Object.keys(dbStore).length === 0) {
+      localStorage.removeItem(STORE_KEY);
+      return {};
     }
-    localStorage.setItem(STORE_KEY, JSON.stringify(merged));
-    return merged;
+    localStorage.setItem(STORE_KEY, JSON.stringify(dbStore));
+    return dbStore;
   } catch { return undefined; }
 }
 
@@ -317,7 +339,11 @@ async function syncDepartmentsFromDb(): Promise<BscDepartment[] | undefined> {
     const res = await fetch("/api/scorecard/departments");
     if (!res.ok) return undefined;
     const rows = await res.json() as { deptId: string; name: string; icon: string; color: string }[];
-    if (rows.length === 0) return undefined;
+    if (rows.length === 0) {
+      // No departments on server — clear stale cache so user sees the empty state
+      localStorage.removeItem(DEPT_KEY);
+      return [];
+    }
     const depts: BscDepartment[] = rows.map(r => ({ id: r.deptId, name: r.name, icon: r.icon, color: r.color }));
     localStorage.setItem(DEPT_KEY, JSON.stringify(depts));
     return depts;
