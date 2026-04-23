@@ -292,13 +292,15 @@ function loadDepartments(): BscDepartment[] {
   try { const d = localStorage.getItem(DEPT_KEY); return d ? JSON.parse(d) : []; }
   catch { return []; }
 }
-function saveDepartments(d: BscDepartment[]) {
+async function saveDepartments(d: BscDepartment[]): Promise<boolean> {
   localStorage.setItem(DEPT_KEY, JSON.stringify(d));
-  // Async sync to DB (fire and forget)
-  fetch("/api/scorecard/departments", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(d.map((dep, i) => ({ deptId: dep.id, name: dep.name, icon: dep.icon, color: dep.color, sortOrder: i }))),
-  }).catch(() => {});
+  try {
+    const res = await fetch("/api/scorecard/departments", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(d.map((dep, i) => ({ deptId: dep.id, name: dep.name, icon: dep.icon, color: dep.color, sortOrder: i }))),
+    });
+    return res.ok;
+  } catch { return false; }
 }
 
 // Guard: if the logged-in company differs from what's cached, wipe all BSC localStorage
@@ -723,6 +725,7 @@ function ScorecardLanding() {
   const [departments, setDepartments] = useState<BscDepartment[]>(loadDepartments);
   const [store, setStore] = useState(loadStore);
   const [showAdd, setShowAdd] = useState(false);
+  const [deptSynced, setDeptSynced] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const { toast } = useToast();
@@ -736,7 +739,10 @@ function ScorecardLanding() {
 
   // ── Sync from DB on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    syncDepartmentsFromDb().then(depts => { if (depts) setDepartments(depts); });
+    syncDepartmentsFromDb().then(depts => {
+      if (depts) setDepartments(depts);
+      setDeptSynced(true);
+    });
     syncActualsFromDb().then(merged => { if (merged) setStore(merged); });
   }, []);
 
@@ -752,17 +758,25 @@ function ScorecardLanding() {
     });
   };
 
-  const handleAdd = (d: BscDepartment) => {
+  const handleAdd = async (d: BscDepartment) => {
     const updated = [...departments, d];
     setDepartments(updated);
-    saveDepartments(updated);
+    const ok = await saveDepartments(updated);
+    if (!ok) {
+      setDepartments(departments);
+      toast({ title: "Failed to save department", description: "Could not connect to the server. Please try again.", variant: "destructive" });
+    }
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const updated = departments.filter(d => d.id !== id);
     setDepartments(updated);
-    saveDepartments(updated);
+    const ok = await saveDepartments(updated);
+    if (!ok) {
+      setDepartments(departments);
+      toast({ title: "Failed to delete department", description: "Could not connect to the server. Please try again.", variant: "destructive" });
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -774,7 +788,7 @@ function ScorecardLanding() {
     e.dataTransfer.dropEffect = "move";
     setOverIndex(index);
   };
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     if (dragIndex === null || dragIndex === dropIndex) { setDragIndex(null); setOverIndex(null); return; }
     const reordered = [...departments];
@@ -1006,13 +1020,13 @@ function ScorecardLanding() {
         })}
 
         {/* Add Department card */}
-        <Card className="cursor-pointer hover:shadow-md transition-all border-dashed hover:border-primary/50 group"
-          onClick={() => setShowAdd(true)} data-testid="card-add-department">
+        <Card className={`transition-all border-dashed ${deptSynced ? "cursor-pointer hover:shadow-md hover:border-primary/50 group" : "opacity-60 cursor-default"}`}
+          onClick={() => { if (deptSynced) setShowAdd(true); }} data-testid="card-add-department">
           <CardContent className="p-4 flex flex-col items-center justify-center gap-3 min-h-[148px] text-muted-foreground group-hover:text-primary transition-colors">
             <div className="h-10 w-10 rounded-xl border-2 border-dashed border-current flex items-center justify-center">
-              <Plus className="h-5 w-5" />
+              {deptSynced ? <Plus className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />}
             </div>
-            <p className="text-sm font-medium">Add Department</p>
+            <p className="text-sm font-medium">{deptSynced ? "Add Department" : "Loading..."}</p>
           </CardContent>
         </Card>
       </div>

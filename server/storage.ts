@@ -1214,12 +1214,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async saveBscActualsBatch(companyId: number, store: Record<string, Record<string, number>>) {
-    const { bscActuals } = await import("@shared/schema");
+    const { bscActuals, bscDepartments } = await import("@shared/schema");
+    // Fetch all known dept IDs for this company to correctly resolve deptId from kpiId
+    const deptRows = await db.select({ deptId: bscDepartments.deptId })
+      .from(bscDepartments).where(eq(bscDepartments.companyId, companyId));
+    const knownDeptIds = deptRows.map(r => r.deptId).sort((a, b) => b.length - a.length); // longest first
+
     await db.delete(bscActuals).where(eq(bscActuals.companyId, companyId));
     const rows: { companyId: number; deptId: string; periodKey: string; kpiId: string; actualValue: number }[] = [];
     for (const [periodKey, kpiMap] of Object.entries(store)) {
       for (const [kpiId, actualValue] of Object.entries(kpiMap)) {
-        const deptId = kpiId.split("_")[0];
+        // Find the longest known deptId that is a prefix of the kpiId (handles underscores in dept IDs)
+        const deptId = knownDeptIds.find(did => kpiId === did || kpiId.startsWith(did + "_")) ?? kpiId.split("_")[0];
         rows.push({ companyId, deptId, periodKey, kpiId, actualValue });
       }
     }

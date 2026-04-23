@@ -4771,14 +4771,18 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       const company = await storage.getCompanyByUserId((req as any).user.id);
       if (!company) return res.status(404).json({ message: "Company not found" });
       let store = await storage.getBscActuals(company.id);
-      // Filter store by BSC dept access for non-admin users
-      // Period keys are formatted as "deptId_YYYY-MM" e.g. "corp_2026-04"
+      // Filter store by BSC dept access for non-admin users.
+      // Period keys are "YYYY-MM"; access is determined by kpiId prefix matching deptId.
       const accessibleIds = await getBscAccessibleDeptIds(req, company.id);
       if (accessibleIds !== null) {
         const filtered: typeof store = {};
-        for (const [key, vals] of Object.entries(store)) {
-          const deptId = key.split("_")[0];
-          if (accessibleIds.includes(deptId)) filtered[key] = vals;
+        for (const [periodKey, vals] of Object.entries(store)) {
+          const filteredVals: Record<string, number> = {};
+          for (const [kpiId, val] of Object.entries(vals)) {
+            const accessible = accessibleIds.some(did => kpiId === did || kpiId.startsWith(did + "_"));
+            if (accessible) filteredVals[kpiId] = val;
+          }
+          if (Object.keys(filteredVals).length > 0) filtered[periodKey] = filteredVals;
         }
         return res.json(filtered);
       }
