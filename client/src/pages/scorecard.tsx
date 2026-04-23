@@ -1586,49 +1586,100 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const downloadTemplate = () => {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Actuals for selected year — columns Jan..Dec
-    const header1 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better", "Weight %",
-      ...MONTHS.map(m => `${m} ${year}`)];
+    // Columns: KPI Name | Perspective | Target | Unit | Lower is Better | Target Type | Target Date | Weight % | Jan…Dec
+    const META_COLS = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better", "Target Type", "Target Date", "Weight %"];
+    const header1 = [...META_COLS, ...MONTHS.map(m => `${m} ${year}`)];
     const totalKpis = kpis.length;
-    const dataRows1 = kpis.map(k => {
+
+    const dataRows1: (string | number)[][] = [];
+    kpis.forEach(k => {
       const storedW = weights[k.id];
       const displayW = storedW !== undefined ? storedW : +(100 / totalKpis).toFixed(4);
-      const row: (string | number)[] = [k.name, k.perspective, k.target, k.unit, k.lowerIsBetter ? "Yes" : "No", displayW];
+      const targetType = k.targetType === "milestone_numeric" ? "milestone_numeric"
+                       : k.targetType === "milestone_date"    ? "milestone_date"
+                       : k.targetFrequency === "annual"       ? "annual"
+                       : "regular";
+      const targetDate = k.targetDate ?? "";
+      const row: (string | number)[] = [
+        k.name, k.perspective, k.target, k.unit,
+        k.lowerIsBetter ? "Yes" : "No",
+        targetType, targetDate, displayW,
+      ];
       MONTHS.forEach((_, mi) => {
         const p = periodKey(year, mi);
         const v = store?.[p]?.[k.id];
         row.push(v !== undefined ? Number(v) : ("" as any));
       });
-      return row;
+      dataRows1.push(row);
+
+      // For milestone_numeric KPIs: add a companion row for the per-period milestone target
+      if (k.targetType === "milestone_numeric") {
+        const mRow: (string | number)[] = [
+          `${k.name} — Milestone Target`, k.perspective, k.target, k.unit, "No",
+          "milestone_target", "", "",
+        ];
+        MONTHS.forEach((_, mi) => {
+          const p = periodKey(year, mi);
+          const v = store?.[p]?.[`m_${k.id}`];
+          mRow.push(v !== undefined ? Number(v) : ("" as any));
+        });
+        dataRows1.push(mRow);
+      }
     });
+
     const ws1 = XLSX.utils.aoa_to_sheet([header1, ...dataRows1]);
-    ws1["!cols"] = [{ wch:32 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 }, { wch:10 },
-      ...MONTHS.map(() => ({ wch:10 }))];
+    ws1["!cols"] = [
+      { wch:36 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 },
+      { wch:18 }, { wch:12 }, { wch:10 },
+      ...MONTHS.map(() => ({ wch:10 })),
+    ];
     XLSX.utils.book_append_sheet(wb, ws1, `Actuals ${year}`);
 
-    // Sheet 2: Historical — all stored periods in "Mon YYYY" column format
+    // Sheet 2: Historical — all stored periods
     const storeNow = loadStore();
-    // Collect all unique years stored
     const storedYears = [...new Set(Object.keys(storeNow).map(p => Number(p.slice(0,4))))].sort();
-    // Build ordered column list: Jan YYYY, Feb YYYY, ... for each stored year
     const histCols: { label: string; year: number; mi: number }[] = [];
     storedYears.forEach(y => {
       MONTHS.forEach((m, mi) => histCols.push({ label: `${m} ${y}`, year: y, mi }));
     });
-    const header2 = ["KPI Name", "Perspective", "Target", "Unit", "Lower is Better",
-      ...histCols.map(c => c.label)];
-    const dataRows2 = kpis.map(k => {
-      const row: (string | number)[] = [k.name, k.perspective, k.target, k.unit, k.lowerIsBetter ? "Yes" : "No"];
+    const header2 = [...META_COLS, ...histCols.map(c => c.label)];
+    const dataRows2: (string | number)[][] = [];
+    kpis.forEach(k => {
+      const targetType = k.targetType === "milestone_numeric" ? "milestone_numeric"
+                       : k.targetType === "milestone_date"    ? "milestone_date"
+                       : k.targetFrequency === "annual"       ? "annual"
+                       : "regular";
+      const row: (string | number)[] = [
+        k.name, k.perspective, k.target, k.unit,
+        k.lowerIsBetter ? "Yes" : "No",
+        targetType, k.targetDate ?? "", "",
+      ];
       histCols.forEach(({ year: y, mi }) => {
         const p = periodKey(y, mi);
         const v = storeNow?.[p]?.[k.id];
         row.push(v !== undefined ? Number(v) : ("" as any));
       });
-      return row;
+      dataRows2.push(row);
+
+      if (k.targetType === "milestone_numeric") {
+        const mRow: (string | number)[] = [
+          `${k.name} — Milestone Target`, k.perspective, k.target, k.unit, "No",
+          "milestone_target", "", "",
+        ];
+        histCols.forEach(({ year: y, mi }) => {
+          const p = periodKey(y, mi);
+          const v = storeNow?.[p]?.[`m_${k.id}`];
+          mRow.push(v !== undefined ? Number(v) : ("" as any));
+        });
+        dataRows2.push(mRow);
+      }
     });
     const ws2 = XLSX.utils.aoa_to_sheet([header2, ...dataRows2]);
-    ws2["!cols"] = [{ wch:32 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 },
-      ...histCols.map(() => ({ wch:10 }))];
+    ws2["!cols"] = [
+      { wch:36 }, { wch:16 }, { wch:10 }, { wch:8 }, { wch:16 },
+      { wch:18 }, { wch:12 }, { wch:10 },
+      ...histCols.map(() => ({ wch:10 })),
+    ];
     XLSX.utils.book_append_sheet(wb, ws2, "Historical");
 
     XLSX.writeFile(wb, `BSC_${dept.name.replace(/\s+/g,"_")}_${year}.xlsx`);
@@ -1680,12 +1731,39 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       // seenIds tracks ids already added in this upload pass
       const seenIds = new Set<string>();
 
+      // Track last seen milestone_numeric KPI id so companion rows can reference it
+      let lastMilestoneNumericId: string | null = null;
+
       for (const row of rows) {
         const kpiName = String(row["KPI Name"] || row["KPI"] || "").trim();
         if (!kpiName) continue;
 
-        // Resolve KPI: try to match against predefined KPIs to preserve stable IDs.
-        // If matched, use the predefined ID but respect any target/unit overrides from the file.
+        const targetTypeRaw = String(row["Target Type"] ?? "").trim().toLowerCase();
+
+        // ── Milestone Target companion row ────────────────────────────────────
+        // Rows with Target Type = "milestone_target" (or name ending "— Milestone Target")
+        // carry the per-period milestone values that pair with the previous milestone_numeric KPI
+        const isMilestoneTargetRow =
+          targetTypeRaw === "milestone_target" ||
+          kpiName.endsWith("— Milestone Target");
+
+        if (isMilestoneTargetRow && lastMilestoneNumericId) {
+          const milestoneKey = `m_${lastMilestoneNumericId}`;
+          detectedCols.forEach(({ key, year: colYear, mi }) => {
+            const val = row[key];
+            const strVal = String(val ?? "").trim();
+            if (strVal === "" || isNaN(Number(strVal))) return;
+            const p = periodKey(colYear, mi);
+            if (!updatedStore[p]) updatedStore[p] = {};
+            updatedStore[p][milestoneKey] = Number(strVal);
+            totalUpdates++;
+          });
+          continue;
+        }
+        lastMilestoneNumericId = null;
+
+        // ── Resolve KPI identity ──────────────────────────────────────────────
+        // Try to match against predefined KPIs to preserve stable IDs.
         const matched = predefinedKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase())
                      ?? predefinedKpis.find(k => norm(k.name) === norm(kpiName));
 
@@ -1697,7 +1775,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
         if (matched) {
           kpiId   = matched.id;
-          // Allow target/unit/perspective overrides from the file
           const fileTarget = parseFloat(String(row["Target"] ?? ""));
           target  = !isNaN(fileTarget) ? fileTarget : matched.target;
           unit    = String(row["Unit"] ?? "").trim() || matched.unit;
@@ -1708,7 +1785,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                         : lowerRaw === "no"  || lowerRaw === "false" ? false
                         : matched.lowerIsBetter ?? false;
         } else {
-          // New / custom KPI — create a stable ID from the dept + normalised name
           kpiId   = `${deptId}_cx_${norm(kpiName).slice(0, 24)}`;
           const perspRaw = String(row["Perspective"] || "").trim();
           perspective = parsePerspective(perspRaw) ?? "Financial";
@@ -1718,7 +1794,24 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           lowerIsBetter = lowerRaw === "yes" || lowerRaw === "true" || lowerRaw === "1";
         }
 
-        const kpi: KpiDef = { id: kpiId, name: kpiName, perspective, unit, target, lowerIsBetter };
+        // Build KpiDef, carrying over target type / date / frequency from file or predefined
+        const kpi: KpiDef = {
+          id: kpiId, name: kpiName, perspective, unit, target, lowerIsBetter,
+          ...(matched?.targetType        && { targetType:        matched.targetType }),
+          ...(matched?.targetDate        && { targetDate:        matched.targetDate }),
+          ...(matched?.targetFrequency   && { targetFrequency:   matched.targetFrequency }),
+          ...(matched?.milestoneStartDate && { milestoneStartDate: matched.milestoneStartDate }),
+        };
+
+        // Allow file to override targetType / targetDate
+        if (targetTypeRaw === "milestone_numeric") { kpi.targetType = "milestone_numeric"; lastMilestoneNumericId = kpiId; }
+        else if (targetTypeRaw === "milestone_date") { kpi.targetType = "milestone_date"; }
+        else if (targetTypeRaw === "annual") { kpi.targetFrequency = "annual"; }
+
+        if (kpi.targetType === "milestone_numeric") lastMilestoneNumericId = kpiId;
+
+        const targetDateRaw = String(row["Target Date"] ?? "").trim();
+        if (targetDateRaw) kpi.targetDate = targetDateRaw;
 
         if (!seenIds.has(kpiId)) {
           uploadedKpiDefs.push(kpi);
