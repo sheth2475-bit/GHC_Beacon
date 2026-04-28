@@ -410,6 +410,68 @@ export async function runMigrations() {
       await client.query(`INSERT INTO bsc_empty_dept_cleanup_v1 DEFAULT VALUES`);
     }
 
+    // ── Add HR department to demo company with Jan–Apr 2026 actuals ──────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bsc_hr_dept_seed_v1 (
+        id SERIAL PRIMARY KEY,
+        done_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const hrSeedDone = await client.query(`SELECT id FROM bsc_hr_dept_seed_v1 LIMIT 1`);
+    if (hrSeedDone.rows.length === 0) {
+      const demoRes = await client.query(`SELECT company_id FROM users WHERE email = 'demo@performo.ai' LIMIT 1`);
+      const demoCid = demoRes.rows[0]?.company_id;
+      if (demoCid) {
+        // Insert HR dept if missing
+        const hrDeptExists = await client.query(
+          `SELECT id FROM bsc_departments WHERE company_id = $1 AND dept_id = 'hr' LIMIT 1`, [demoCid]
+        );
+        if (hrDeptExists.rows.length === 0) {
+          const sortRes = await client.query(`SELECT COALESCE(MAX(sort_order), 2) AS m FROM bsc_departments WHERE company_id = $1`, [demoCid]);
+          const so = (sortRes.rows[0]?.m ?? 2) + 1;
+          await client.query(
+            `INSERT INTO bsc_departments (company_id, dept_id, name, icon, color, sort_order) VALUES ($1, 'hr', 'HR', '👥', '#F59E0B', $2)`,
+            [demoCid, so]
+          );
+        }
+        // Insert HR actuals Jan–Apr 2026 only if none exist
+        const hrActualsExist = await client.query(
+          `SELECT id FROM bsc_actuals WHERE company_id = $1 AND dept_id = 'hr' LIMIT 1`, [demoCid]
+        );
+        if (hrActualsExist.rows.length === 0) {
+          const hrActuals: [string, string, number][] = [
+            ["2026-01","hr_f1",97],  ["2026-01","hr_c1",0],   ["2026-01","hr_c2",71],  ["2026-01","hr_c3",8],   ["2026-01","hr_c4",9],
+            ["2026-01","hr_i1",20],  ["2026-01","hr_i2",22],  ["2026-01","m_hr_i2",20],["2026-01","hr_i3",78],  ["2026-01","hr_i4",82],
+            ["2026-01","hr_i5",45],  ["2026-01","hr_i6",105], ["2026-01","hr_i7",0.65],["2026-01","hr_i8",22],  ["2026-01","m_hr_i8",20],
+            ["2026-01","hr_i9",8],   ["2026-01","hr_l1",7.5], ["2026-01","hr_l2",72],
+
+            ["2026-02","hr_f1",98],  ["2026-02","hr_c1",1],   ["2026-02","hr_c2",74],  ["2026-02","hr_c3",9],   ["2026-02","hr_c4",11],
+            ["2026-02","hr_i1",35],  ["2026-02","hr_i2",32],  ["2026-02","m_hr_i2",30],["2026-02","hr_i3",85],  ["2026-02","hr_i4",87],
+            ["2026-02","hr_i5",42],  ["2026-02","hr_i6",98],  ["2026-02","hr_i7",0.72],["2026-02","hr_i8",42],  ["2026-02","m_hr_i8",40],
+            ["2026-02","hr_i9",8.5], ["2026-02","hr_l1",7.5], ["2026-02","hr_l2",75],
+
+            ["2026-03","hr_f1",96],  ["2026-03","hr_c1",0],   ["2026-03","hr_c2",78],  ["2026-03","hr_c3",7],   ["2026-03","hr_c4",8],
+            ["2026-03","hr_i1",50],  ["2026-03","hr_i2",48],  ["2026-03","m_hr_i2",45],["2026-03","hr_i3",90],  ["2026-03","hr_i4",92],
+            ["2026-03","hr_i5",38],  ["2026-03","hr_i6",95],  ["2026-03","hr_i7",0.60],["2026-03","hr_i8",62],  ["2026-03","m_hr_i8",60],
+            ["2026-03","hr_i9",8],   ["2026-03","hr_l1",7.5], ["2026-03","hr_l2",80],
+
+            ["2026-04","hr_f1",99],  ["2026-04","hr_c1",0],   ["2026-04","hr_c2",80],  ["2026-04","hr_c3",8],   ["2026-04","hr_c4",7],
+            ["2026-04","hr_i1",65],  ["2026-04","hr_i2",63],  ["2026-04","m_hr_i2",60],["2026-04","hr_i3",95],  ["2026-04","hr_i4",96],
+            ["2026-04","hr_i5",36],  ["2026-04","hr_i6",92],  ["2026-04","hr_i7",0.65],["2026-04","hr_i8",78],  ["2026-04","m_hr_i8",75],
+            ["2026-04","hr_i9",8.5], ["2026-04","hr_l1",8],   ["2026-04","hr_l2",85],
+          ];
+          for (const [pk, kpiId, val] of hrActuals) {
+            await client.query(
+              `INSERT INTO bsc_actuals (company_id, dept_id, period_key, kpi_id, actual_value) VALUES ($1, 'hr', $2, $3, $4)`,
+              [demoCid, pk, kpiId, val]
+            );
+          }
+          console.log(`[migrations] Added HR department and Jan–Apr 2026 actuals to demo company`);
+        }
+      }
+      await client.query(`INSERT INTO bsc_hr_dept_seed_v1 DEFAULT VALUES`);
+    }
+
     // ── Orphan user cleanup ───────────────────────────────────────────────────
     // Delete users with no company_id that are not part of the demo accounts.
     // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai

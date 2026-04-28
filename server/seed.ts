@@ -1337,12 +1337,13 @@ async function seedBscData(companyId: number) {
     { deptId: "corp", name: "Corporate",   icon: "🏢", color: "#3B82F6", sortOrder: 0 },
     { deptId: "eng",  name: "Engineering", icon: "🔧", color: "#8B5CF6", sortOrder: 1 },
     { deptId: "it",   name: "IT",          icon: "💻", color: "#06B6D4", sortOrder: 2 },
+    { deptId: "hr",   name: "HR",          icon: "👥", color: "#F59E0B", sortOrder: 3 },
   ].filter(d => !existingDeptIds.has(d.deptId));
   if (deptsToInsert.length > 0) {
     await db.insert(bscDeptsTable).values(deptsToInsert.map(d => ({ ...d, companyId })));
   }
 
-  // 7 months of scorecard actuals (Oct 2025 – Apr 2026) — Corp, Engineering, IT only
+  // 7 months of scorecard actuals (Oct 2025 – Apr 2026) — Corp, Engineering, IT; HR Jan–Apr 2026 only
   const store: Record<string, Record<string, number>> = {
     "2025-10": {
       cr_f1:2.8,  cr_f2:15.5, cr_f3:23.8, cr_f4:1012, cr_c1:83.4, cr_c2:3.4, cr_c3:95.8, cr_c4:84.2, cr_i1:0.89, cr_i2:90.1, cr_i3:90.8, cr_l1:26, cr_l2:22.1, cr_l3:82, cr_l4:65,
@@ -1364,23 +1365,27 @@ async function seedBscData(companyId: number) {
       eng_f1:8950, eng_f2:89.2, eng_c1:95.1, eng_c2:4.0, eng_i1:93.8, eng_i2:1.8, eng_l1:19, eng_l2:94,
       eng_cx_averagedealysonplannedma:10, eng_cx_flightdelayspercentageen:1.9, eng_cx_level1auditfindingseng:0, eng_cx_bookedtrainingcoursescar:100, eng_cx_staffwithmandatorytraini:100, eng_cx_repetitivedefectrateper1:4, eng_cx_melsameacftevents:2, eng_cx_rieeventarcftsevents:2, eng_cx_robberyapporval:13, eng_cx_reviewprocessandprocedur:20, eng_cx_budgetadherencecapex:158694.83, eng_cx_recuirementfilledvsvacan:81.6,
       it_i1:45, m_it_i1:45, it_c1:86, it_i2:86, it_c2:93.5, it_i3:48, it_c3:3.2, it_l1:80, it_l2:3, it_i4:10, it_f1:101, it_i5:0, it_i6:82, it_c4:1,
+      hr_f1:97, hr_c1:0, hr_c2:71, hr_c3:8, hr_c4:9, hr_i1:20, hr_i2:22, m_hr_i2:20, hr_i3:78, hr_i4:82, hr_i5:45, hr_i6:105, hr_i7:0.65, hr_i8:22, m_hr_i8:20, hr_i9:8, hr_l1:7.5, hr_l2:72,
     },
     "2026-02": {
       cr_f1:3.9,  cr_f2:17.8, cr_f3:20.9, cr_f4:982, cr_c1:87.1, cr_c2:3.6, cr_c3:96.9, cr_c4:86.8, cr_i1:0.72, cr_i2:91.8, cr_i3:91.9, cr_l1:29, cr_l2:18.8, cr_l3:84, cr_l4:69,
       eng_f1:8720, eng_f2:92.4, eng_c1:96.8, eng_c2:4.1, eng_i1:94.9, eng_i2:1.6, eng_l1:21, eng_l2:96,
       eng_cx_averagedealysonplannedma:1, eng_cx_flightdelayspercentageen:2.8, eng_cx_level1auditfindingseng:0, eng_cx_bookedtrainingcoursescar:96.5, eng_cx_staffwithmandatorytraini:100, eng_cx_repetitivedefectrateper1:1, eng_cx_melsameacftevents:2, eng_cx_rieeventarcftsevents:2, eng_cx_robberyapporval:24, eng_cx_reviewprocessandprocedur:20, eng_cx_budgetadherencecapex:761281.56, eng_cx_recuirementfilledvsvacan:81.6,
       it_i1:58, m_it_i1:58, it_c1:87, it_i2:88, it_c2:94, it_i3:52, it_c3:3.3, it_l1:85, it_l2:4, it_i4:11, it_f1:100, it_i5:0, it_i6:86, it_c4:1,
+      hr_f1:98, hr_c1:1, hr_c2:74, hr_c3:9, hr_c4:11, hr_i1:35, hr_i2:32, m_hr_i2:30, hr_i3:85, hr_i4:87, hr_i5:42, hr_i6:98, hr_i7:0.72, hr_i8:42, m_hr_i8:40, hr_i9:8.5, hr_l1:7.5, hr_l2:75,
     },
     "2026-03": {
       cr_f1:4.0,  cr_f2:17.9, cr_f3:20.8, cr_f4:971, cr_c1:88.5, cr_c2:3.7, cr_c3:97.2, cr_c4:87.8, cr_i1:0.71, cr_i2:91.9, cr_i3:92.0, cr_l1:31, cr_l2:18.2, cr_l3:85, cr_l4:70,
       eng_f1:8480, eng_f2:93.6, eng_c1:97.2, eng_c2:4.2, eng_i1:95.6, eng_i2:1.5, eng_l1:23, eng_l2:98,
       eng_cx_averagedealysonplannedma:13, eng_cx_flightdelayspercentageen:8.33, eng_cx_level1auditfindingseng:0, eng_cx_bookedtrainingcoursescar:90.5, eng_cx_staffwithmandatorytraini:100, eng_cx_repetitivedefectrateper1:0, eng_cx_melsameacftevents:2, eng_cx_rieeventarcftsevents:1, eng_cx_robberyapporval:6, eng_cx_reviewprocessandprocedur:20, eng_cx_budgetadherencecapex:1123256.9, eng_cx_recuirementfilledvsvacan:81.6,
       it_i1:72, m_it_i1:70, it_c1:88, it_i2:90, it_c2:95, it_i3:54, it_c3:3.2, it_l1:88, it_l2:4, it_i4:11, it_f1:99, it_i5:0, it_i6:88, it_c4:0,
+      hr_f1:96, hr_c1:0, hr_c2:78, hr_c3:7, hr_c4:8, hr_i1:50, hr_i2:48, m_hr_i2:45, hr_i3:90, hr_i4:92, hr_i5:38, hr_i6:95, hr_i7:0.60, hr_i8:62, m_hr_i8:60, hr_i9:8, hr_l1:7.5, hr_l2:80,
     },
     "2026-04": {
       cr_f1:6.8, cr_f2:19.6, cr_f3:19.8, cr_f4:890, cr_c1:93.4, cr_c2:4.35, cr_c3:97.6, cr_c4:93.2, cr_i1:0.43, cr_i2:95.4, cr_i3:94.8, cr_l1:36, cr_l2:1.4, cr_l3:94, cr_l4:76, cr_l5:72, m_cr_l5:65,
       eng_f1:8310, eng_f2:94.8, eng_c1:97.8, eng_c2:4.2, eng_i1:96.1, eng_i2:1.4, eng_l1:24, eng_l2:99,
       it_i1:84, m_it_i1:80, it_c1:90, it_i2:92, it_c2:96, it_i3:55, it_c3:3.5, it_l1:92, it_l2:5, it_i4:13, it_f1:98, it_i5:0, it_i6:92, it_c4:0,
+      hr_f1:99, hr_c1:0, hr_c2:80, hr_c3:8, hr_c4:7, hr_i1:65, hr_i2:63, m_hr_i2:60, hr_i3:95, hr_i4:96, hr_i5:36, hr_i6:92, hr_i7:0.65, hr_i8:78, m_hr_i8:75, hr_i9:8.5, hr_l1:8, hr_l2:85,
     },
   };
 
