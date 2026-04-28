@@ -29,6 +29,7 @@ import {
   MONTHS,
   type BscDepartment,
   type KpiDef,
+  type StatusCtx,
 } from "@/lib/scorecard-data";
 
 interface ApiBscDepartment {
@@ -71,16 +72,19 @@ function loadWeights(deptId: string): Record<string, number> {
   }
 }
 
-function scoreForKpi(kpi: KpiDef, actual: number | null) {
+function scoreForKpi(kpi: KpiDef, actual: number | null, periodActuals?: Record<string, number | null>) {
   if (actual === null || actual === undefined || Number.isNaN(Number(actual))) return 0;
+  const target = (kpi.targetType === "milestone_numeric" && periodActuals)
+    ? (periodActuals[`m_${kpi.id}`] ?? kpi.target)
+    : kpi.target;
   if (kpi.lowerIsBetter) {
-    return actual === 0 ? 100 : Math.min((kpi.target / actual) * 100, 100);
+    return actual === 0 ? 100 : Math.min((Number(target) / Number(actual)) * 100, 100);
   }
-  if (kpi.target === 0) return 100;
-  return Math.min((Number(actual) / kpi.target) * 100, 100);
+  if (Number(target) === 0) return 100;
+  return Math.min((Number(actual) / Number(target)) * 100, 100);
 }
 
-function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>, weights: Record<string, number>) {
+function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>, weights: Record<string, number>, periodActuals?: Record<string, number | null>) {
   const withData = kpis.filter(kpi => actuals[kpi.id] !== null && actuals[kpi.id] !== undefined);
   if (!withData.length) return 0;
   const hasUserWeights = withData.some(kpi => (weights[kpi.id] ?? 0) > 0);
@@ -89,7 +93,7 @@ function performanceScore(kpis: KpiDef[], actuals: Record<string, number | null>
   let totalWeight = 0;
   for (const kpi of withData) {
     const weight = hasUserWeights ? (weights[kpi.id] ?? 0) : equalWeight;
-    totalScore += scoreForKpi(kpi, actuals[kpi.id]) * weight;
+    totalScore += scoreForKpi(kpi, actuals[kpi.id], periodActuals) * weight;
     totalWeight += weight;
   }
   return totalWeight > 0 ? Math.round(totalScore / totalWeight) : 0;
@@ -220,15 +224,17 @@ export default function ExecutiveHomePage() {
 
   const { scorecard, deptStats } = useMemo(() => {
     const periodActuals = normalizedStore[selectedPeriod] || {};
+    const [pYear, pMon] = selectedPeriod.split("-").map(Number);
+    const periodCtx: StatusCtx = { periodStore: periodActuals, year: pYear, month: (pMon || 1) - 1 };
     const deptStats = depts.map(dept => {
       const kpis = loadKpiOverride(dept.id) ?? getKpisForDept(dept.id);
       const weights = loadWeights(dept.id);
       const values: Record<string, number | null> = {};
       kpis.forEach(kpi => { values[kpi.id] = periodActuals[kpi.id] ?? null; });
-      const score = performanceScore(kpis, values, weights);
+      const score = performanceScore(kpis, values, weights, periodActuals);
       const complete = kpis.filter(kpi => values[kpi.id] !== null).length;
-      const red = kpis.filter(kpi => getStatus(kpi, values[kpi.id]) === "red").length;
-      const amber = kpis.filter(kpi => getStatus(kpi, values[kpi.id]) === "amber").length;
+      const red = kpis.filter(kpi => getStatus(kpi, values[kpi.id], periodCtx) === "red").length;
+      const amber = kpis.filter(kpi => getStatus(kpi, values[kpi.id], periodCtx) === "amber").length;
       return { dept, score, complete, total: kpis.length, red, amber };
     });
     const withData = deptStats.filter(item => item.complete > 0);

@@ -812,12 +812,13 @@ function ScorecardLanding() {
 
   // ── Company-wide health computation ─────────────────────────────────────
   const companyStats = useMemo(() => {
+    const periodCtx: StatusCtx = { periodStore: store?.[pk] || {}, year, month };
     const deptHps = departments.map(d => {
       const dk = loadKpiOverride(d.id) ?? getKpisForDept(d.id);
       const dw = loadWeights(d.id);
       const da: Record<string, number|null> = {};
       dk.forEach(k => { const v = store?.[pk]?.[k.id]; da[k.id] = v !== undefined ? Number(v) : null; });
-      return performanceScore(dk, da, dw);
+      return performanceScore(dk, da, dw, periodCtx);
     });
     const withData = deptHps.filter(h => h > 0);
     const hp = withData.length ? Math.round(withData.reduce((s,h) => s+h, 0) / withData.length) : 0;
@@ -918,7 +919,8 @@ function ScorecardLanding() {
           const deptWeights = loadWeights(dept.id);
           const acts: Record<string, number | null> = {};
           kpis.forEach(k => { const v = store?.[pk]?.[k.id]; acts[k.id] = v !== undefined ? Number(v) : null; });
-          const hp       = performanceScore(kpis, acts, deptWeights);
+          const cardCtx: StatusCtx = { periodStore: store?.[pk] || {}, year, month };
+          const hp       = performanceScore(kpis, acts, deptWeights, cardCtx);
           const hc       = healthColor(hp);
           const hs       = healthStatus(hp);
           const populated = kpis.filter(k => acts[k.id] !== null).length;
@@ -926,9 +928,12 @@ function ScorecardLanding() {
           const latestDeptPeriod = latestPeriodWithData(store, dept.id);
 
           // prev-month score for trend
+          const prevYear  = month === 0 ? year - 1 : year;
+          const prevMonth = month === 0 ? 11 : month - 1;
           const prevActs: Record<string, number | null> = {};
           kpis.forEach(k => { const v = store?.[ppk]?.[k.id]; prevActs[k.id] = v !== undefined ? Number(v) : null; });
-          const prevHp = performanceScore(kpis, prevActs, deptWeights);
+          const prevCtx: StatusCtx = { periodStore: store?.[ppk] || {}, year: prevYear, month: prevMonth };
+          const prevHp = performanceScore(kpis, prevActs, deptWeights, prevCtx);
           const hpDelta = hp - prevHp;
 
           // per-perspective dots
@@ -936,7 +941,7 @@ function ScorecardLanding() {
             const pk2 = kpis.filter(k => k.perspective === p);
             const pa: Record<string,number|null> = {};
             pk2.forEach(k => { pa[k.id] = acts[k.id]; });
-            const php = performanceScore(pk2, pa, deptWeights);
+            const php = performanceScore(pk2, pa, deptWeights, cardCtx);
             return { p, color: healthColor(php), initial: PERSP_INITIALS[p] };
           });
 
