@@ -1366,7 +1366,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [saving, setSaving] = useState(false);
   const [hasUnsaved, setHasUnsaved] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [showScoreBreakdown, setShowScoreBreakdown] = useState(true);
+
   const [weights, setWeights]     = useState<Record<string,number>>(() => loadWeights(deptId));
   const [sortCol, setSortCol]   = useState<string>("status");
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
@@ -1602,6 +1602,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
 
   const topKpis    = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => b.ach! - a.ach!).slice(0,5), [kpiData]);
   const lowestKpis = useMemo(() => [...kpiData].filter(d => d.ach !== null).sort((a,b) => a.ach! - b.ach!).slice(0,5), [kpiData]);
+  const totalActiveW = useMemo(() => kpiData.filter(d => d.ach !== null).reduce((s, d) => s + d.w, 0), [kpiData]);
   const prevHp     = scoreTrend.length >= 2 ? scoreTrend[scoreTrend.length - 2].score : undefined;
   const SortIcon = ({ col }: { col: string }) => (
     <span className="ml-1 text-muted-foreground/60">
@@ -2501,133 +2502,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
               );
             })()}
           </div>
-
-          {/* ── Score Breakdown ── */}
-          {(() => {
-            const active = kpiData.filter(d => d.ach !== null);
-            const totalActiveW = active.reduce((s, d) => s + d.w, 0);
-            const rows = kpiData.map(d => ({
-              ...d,
-              contribution: (d.ach !== null && totalActiveW > 0) ? +(d.ach * d.w / totalActiveW).toFixed(2) : null,
-            })).sort((a, b) => (b.contribution ?? -1) - (a.contribution ?? -1));
-            const maxContrib = Math.max(...rows.map(r => r.contribution ?? 0), 1);
-            return (
-              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                <button
-                  onClick={() => setShowScoreBreakdown(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
-                  data-testid="button-toggle-score-breakdown"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={cn("h-2 w-2 rounded-full", hp >= 95 ? "bg-emerald-500" : hp >= 80 ? "bg-amber-500" : "bg-red-500")} />
-                    <span className="font-semibold text-sm">Score Breakdown</span>
-                    <span className="text-xs text-muted-foreground">— how the {hp}% overall score is built from each KPI</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground hidden sm:block">
-                      {active.length} of {kpis.length} KPIs have data
-                    </span>
-                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showScoreBreakdown && "rotate-180")} />
-                  </div>
-                </button>
-
-                {showScoreBreakdown && (
-                  <div>
-                    <div className="px-4 py-2 border-t border-b bg-muted/20 text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="font-medium text-foreground">Formula:</span>
-                      <span>Score = Σ (Achievement% × Weight) ÷ Total Weight</span>
-                      <span className="text-muted-foreground/60">·</span>
-                      <span>Each KPI's <strong>Score Points</strong> = its share of the {hp}%</span>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b bg-muted/20">
-                            <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground w-6"></th>
-                            <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">KPI Name</th>
-                            <th className="text-left px-2 py-2.5 text-xs font-semibold text-muted-foreground">Perspective</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Weight %</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Achievement %</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Score Points</th>
-                            <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground min-w-[120px]"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {rows.map(d => {
-                            const pc = P_COLOR[d.kpi.perspective];
-                            const achColor = d.ach === null ? "#94a3b8" : d.ach >= 95 ? "#10b981" : d.ach >= 80 ? "#f59e0b" : "#ef4444";
-                            const barPct = d.contribution !== null ? (d.contribution / maxContrib) * 100 : 0;
-                            const barColor = d.ach === null ? "#e5e7eb" : d.ach >= 95 ? "#10b981" : d.ach >= 80 ? "#f59e0b" : "#ef4444";
-                            return (
-                              <tr key={d.kpi.id}
-                                className="hover:bg-muted/30 transition-colors cursor-pointer"
-                                onClick={() => nav(`/scorecard/kpi/${d.kpi.id}`)}>
-                                <td className="px-4 py-2.5">
-                                  <div className={cn("w-2 h-2 rounded-full",
-                                    d.status === "green" ? "bg-emerald-500" : d.status === "amber" ? "bg-amber-500" : d.status === "red" ? "bg-red-500" : "bg-muted-foreground/30")} />
-                                </td>
-                                <td className="px-4 py-2.5 font-medium max-w-[200px]">
-                                  <span className="line-clamp-1">{d.kpi.name}</span>
-                                </td>
-                                <td className="px-2 py-2.5">
-                                  <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", pc.bg, pc.text)}>
-                                    {PERSP_INITIALS[d.kpi.perspective]}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                                  {d.w.toFixed(1)}%
-                                </td>
-                                <td className="px-3 py-2.5 text-right font-semibold tabular-nums" style={{ color: achColor }}>
-                                  {d.ach !== null ? `${d.ach.toFixed(1)}%` : <span className="text-muted-foreground font-normal text-xs">no data</span>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
-                                  {d.contribution !== null ? `${d.contribution.toFixed(2)}` : <span className="text-muted-foreground font-normal text-xs">—</span>}
-                                </td>
-                                <td className="px-4 py-2.5">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden min-w-[80px]">
-                                      <div className="h-full rounded-full transition-all"
-                                        style={{ width: `${barPct}%`, background: barColor }} />
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t-2 bg-muted/30 font-semibold">
-                            <td colSpan={3} className="px-4 py-3 text-sm font-bold">Overall Performance Score</td>
-                            <td className="px-3 py-3 text-right text-sm tabular-nums text-muted-foreground">
-                              {totalActiveW > 0 ? `${totalActiveW.toFixed(1)}%` : "—"}
-                            </td>
-                            <td className="px-3 py-3 text-right text-sm tabular-nums text-muted-foreground">weighted avg</td>
-                            <td className="px-3 py-3 text-right text-sm tabular-nums font-bold"
-                              style={{ color: hp >= 95 ? "#10b981" : hp >= 80 ? "#f59e0b" : "#ef4444" }}>
-                              {hp.toFixed(0)} pts
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={cn("px-2 py-0.5 rounded-full text-xs font-bold",
-                                hp >= 95 ? "bg-emerald-100 text-emerald-700" : hp >= 80 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
-                                {hp}%
-                              </span>
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                    {active.length < kpis.length && (
-                      <div className="px-4 py-2 border-t bg-muted/10 text-xs text-muted-foreground">
-                        {kpis.length - active.length} KPI{kpis.length - active.length > 1 ? "s" : ""} excluded from score (no data for {MONTHS[month]} {year}).
-                        Score is calculated over the {active.length} KPIs that have actuals.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
           {/* ── Row 3: Top KPIs + Lowest Performing ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -2784,6 +2658,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                         onClick={() => handleSort("actual")}>Actual <SortIcon col="actual" /></th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Ach %</th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Weight %</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground" title="Each KPI's contribution to the overall score (Achievement × Weight ÷ Total Weight)">Score Pts</th>
                       <th className="text-center px-4 py-2.5 text-xs font-semibold text-muted-foreground">Trend</th>
                       <th className="px-4 py-2.5" />
                     </tr>
@@ -2791,7 +2666,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                   <tbody className="divide-y">
                     {filteredKpis.length === 0 && (
                       <tr>
-                        <td colSpan={9} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                        <td colSpan={10} className="px-4 py-10 text-center text-sm text-muted-foreground">
                           No KPIs match the current filter. <button onClick={clearFilter} className="underline text-primary hover:text-primary/80">Clear filter</button>
                         </td>
                       </tr>
@@ -2807,6 +2682,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                       const goodDelta = rawDelta !== null ? (k.lowerIsBetter ? -rawDelta : rawDelta) : null;
                       const achColor  = ach === null ? undefined : ach >= 95 ? "#10b981" : ach >= 80 ? "#f59e0b" : "#ef4444";
                       const rowBg = st === "red" ? "bg-red-50/40 dark:bg-red-950/10" : st === "amber" ? "bg-amber-50/40 dark:bg-amber-950/10" : "";
+                      const scorePts = (ach !== null && d && totalActiveW > 0) ? +(ach * d.w / totalActiveW).toFixed(2) : null;
                       return (
                         <tr key={k.id} onClick={() => nav(`/scorecard/kpi/${k.id}`)}
                           className={cn("cursor-pointer hover:bg-muted/50 transition-colors group", rowBg)}>
@@ -2832,6 +2708,17 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                           <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                             {d ? `${d.w.toFixed(1)}%` : "—"}
                           </td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {scorePts !== null ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-14 h-1.5 rounded-full bg-muted/50 overflow-hidden hidden sm:block">
+                                  <div className="h-full rounded-full"
+                                    style={{ width: `${Math.min(scorePts / (hp || 1) * 100, 100)}%`, background: achColor ?? "#94a3b8" }} />
+                                </div>
+                                <span className="font-semibold text-xs" style={{ color: achColor }}>{scorePts.toFixed(1)}</span>
+                              </div>
+                            ) : <span className="text-muted-foreground/50">—</span>}
+                          </td>
                           <td className="px-4 py-3 text-center">
                             {goodDelta !== null
                               ? <span className="inline-flex items-center gap-0.5 text-xs font-semibold"
@@ -2848,6 +2735,36 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                       );
                     })}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 bg-muted/30">
+                      <td colSpan={6} className="px-4 py-3 text-xs font-bold text-muted-foreground">
+                        Overall Score = Σ (Ach% × Weight) ÷ Total Weight
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">
+                        {totalActiveW > 0 ? `${totalActiveW.toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-14 h-1.5 rounded-full overflow-hidden hidden sm:block"
+                            style={{ background: hp >= 95 ? "#10b98133" : hp >= 80 ? "#f59e0b33" : "#ef444433" }}>
+                            <div className="h-full rounded-full"
+                              style={{ width: `${hp}%`, background: hp >= 95 ? "#10b981" : hp >= 80 ? "#f59e0b" : "#ef4444" }} />
+                          </div>
+                          <span className="font-bold text-sm" style={{ color: hp >= 95 ? "#10b981" : hp >= 80 ? "#f59e0b" : "#ef4444" }}>
+                            {hp}%
+                          </span>
+                        </div>
+                      </td>
+                      <td colSpan={2} className="px-4 py-3">
+                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold",
+                          hp >= 95 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          : hp >= 80 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400")}>
+                          {hp >= 95 ? "Excellent" : hp >= 80 ? "On Track" : hp >= 60 ? "At Risk" : "Critical"}
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </BscWidgetShell>
