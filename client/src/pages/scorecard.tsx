@@ -1366,7 +1366,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [saving, setSaving] = useState(false);
   const [hasUnsaved, setHasUnsaved] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(true);
   const [weights, setWeights]     = useState<Record<string,number>>(() => loadWeights(deptId));
   const [sortCol, setSortCol]   = useState<string>("status");
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
