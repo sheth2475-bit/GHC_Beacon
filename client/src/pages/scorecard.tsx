@@ -19,7 +19,7 @@ import {
   RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
   Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles, Globe, Copy, Link2,
-  FileImage, FileText, Loader2, ChevronDown,
+  FileImage, FileText, Loader2, ChevronDown, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
