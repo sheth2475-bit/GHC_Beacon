@@ -2502,6 +2502,132 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
             })()}
           </div>
 
+          {/* ── Score Breakdown ── */}
+          {(() => {
+            const active = kpiData.filter(d => d.ach !== null);
+            const totalActiveW = active.reduce((s, d) => s + d.w, 0);
+            const rows = kpiData.map(d => ({
+              ...d,
+              contribution: (d.ach !== null && totalActiveW > 0) ? +(d.ach * d.w / totalActiveW).toFixed(2) : null,
+            })).sort((a, b) => (b.contribution ?? -1) - (a.contribution ?? -1));
+            const maxContrib = Math.max(...rows.map(r => r.contribution ?? 0), 1);
+            return (
+              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                <button
+                  onClick={() => setShowScoreBreakdown(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+                  data-testid="button-toggle-score-breakdown"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={cn("h-2 w-2 rounded-full", hp >= 95 ? "bg-emerald-500" : hp >= 80 ? "bg-amber-500" : "bg-red-500")} />
+                    <span className="font-semibold text-sm">Score Breakdown</span>
+                    <span className="text-xs text-muted-foreground">— how the {hp}% overall score is built from each KPI</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground hidden sm:block">
+                      {active.length} of {kpis.length} KPIs have data
+                    </span>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showScoreBreakdown && "rotate-180")} />
+                  </div>
+                </button>
+
+                {showScoreBreakdown && (
+                  <div>
+                    <div className="px-4 py-2 border-t border-b bg-muted/20 text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-medium text-foreground">Formula:</span>
+                      <span>Score = Σ (Achievement% × Weight) ÷ Total Weight</span>
+                      <span className="text-muted-foreground/60">·</span>
+                      <span>Each KPI's <strong>Score Points</strong> = its share of the {hp}%</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/20">
+                            <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground w-6"></th>
+                            <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">KPI Name</th>
+                            <th className="text-left px-2 py-2.5 text-xs font-semibold text-muted-foreground">Perspective</th>
+                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Weight %</th>
+                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Achievement %</th>
+                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Score Points</th>
+                            <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground min-w-[120px]"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {rows.map(d => {
+                            const pc = P_COLOR[d.kpi.perspective];
+                            const achColor = d.ach === null ? "#94a3b8" : d.ach >= 95 ? "#10b981" : d.ach >= 80 ? "#f59e0b" : "#ef4444";
+                            const barPct = d.contribution !== null ? (d.contribution / maxContrib) * 100 : 0;
+                            const barColor = d.ach === null ? "#e5e7eb" : d.ach >= 95 ? "#10b981" : d.ach >= 80 ? "#f59e0b" : "#ef4444";
+                            return (
+                              <tr key={d.kpi.id}
+                                className="hover:bg-muted/30 transition-colors cursor-pointer"
+                                onClick={() => nav(`/scorecard/kpi/${d.kpi.id}`)}>
+                                <td className="px-4 py-2.5">
+                                  <div className={cn("w-2 h-2 rounded-full",
+                                    d.status === "green" ? "bg-emerald-500" : d.status === "amber" ? "bg-amber-500" : d.status === "red" ? "bg-red-500" : "bg-muted-foreground/30")} />
+                                </td>
+                                <td className="px-4 py-2.5 font-medium max-w-[200px]">
+                                  <span className="line-clamp-1">{d.kpi.name}</span>
+                                </td>
+                                <td className="px-2 py-2.5">
+                                  <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", pc.bg, pc.text)}>
+                                    {PERSP_INITIALS[d.kpi.perspective]}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                                  {d.w.toFixed(1)}%
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-semibold tabular-nums" style={{ color: achColor }}>
+                                  {d.ach !== null ? `${d.ach.toFixed(1)}%` : <span className="text-muted-foreground font-normal text-xs">no data</span>}
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
+                                  {d.contribution !== null ? `${d.contribution.toFixed(2)}` : <span className="text-muted-foreground font-normal text-xs">—</span>}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden min-w-[80px]">
+                                      <div className="h-full rounded-full transition-all"
+                                        style={{ width: `${barPct}%`, background: barColor }} />
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 bg-muted/30 font-semibold">
+                            <td colSpan={3} className="px-4 py-3 text-sm font-bold">Overall Performance Score</td>
+                            <td className="px-3 py-3 text-right text-sm tabular-nums text-muted-foreground">
+                              {totalActiveW > 0 ? `${totalActiveW.toFixed(1)}%` : "—"}
+                            </td>
+                            <td className="px-3 py-3 text-right text-sm tabular-nums text-muted-foreground">weighted avg</td>
+                            <td className="px-3 py-3 text-right text-sm tabular-nums font-bold"
+                              style={{ color: hp >= 95 ? "#10b981" : hp >= 80 ? "#f59e0b" : "#ef4444" }}>
+                              {hp.toFixed(0)} pts
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={cn("px-2 py-0.5 rounded-full text-xs font-bold",
+                                hp >= 95 ? "bg-emerald-100 text-emerald-700" : hp >= 80 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                                {hp}%
+                              </span>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    {active.length < kpis.length && (
+                      <div className="px-4 py-2 border-t bg-muted/10 text-xs text-muted-foreground">
+                        {kpis.length - active.length} KPI{kpis.length - active.length > 1 ? "s" : ""} excluded from score (no data for {MONTHS[month]} {year}).
+                        Score is calculated over the {active.length} KPIs that have actuals.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* ── Row 3: Top KPIs + Lowest Performing ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -2605,137 +2731,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
               </table>
             </BscWidgetShell>
           </div>
-
-          {/* ── Score Breakdown ── */}
-          {(() => {
-            const active = kpiData.filter(d => d.ach !== null);
-            const totalActiveW = active.reduce((s, d) => s + d.w, 0);
-            const rows = kpiData.map(d => ({
-              ...d,
-              contribution: (d.ach !== null && totalActiveW > 0) ? +(d.ach * d.w / totalActiveW).toFixed(2) : null,
-            })).sort((a, b) => (b.contribution ?? -1) - (a.contribution ?? -1));
-            const maxContrib = Math.max(...rows.map(r => r.contribution ?? 0), 1);
-            return (
-              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                {/* Header */}
-                <button
-                  onClick={() => setShowScoreBreakdown(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
-                  data-testid="button-toggle-score-breakdown"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={cn("h-2 w-2 rounded-full", hp >= 95 ? "bg-emerald-500" : hp >= 80 ? "bg-amber-500" : "bg-red-500")} />
-                    <span className="font-semibold text-sm">Score Breakdown</span>
-                    <span className="text-xs text-muted-foreground">— how the {hp}% overall score is built from each KPI</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground hidden sm:block">
-                      {active.length} of {kpis.length} KPIs have data
-                    </span>
-                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showScoreBreakdown && "rotate-180")} />
-                  </div>
-                </button>
-
-                {showScoreBreakdown && (
-                  <div>
-                    {/* Formula explanation */}
-                    <div className="px-4 py-2 border-t border-b bg-muted/20 text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="font-medium text-foreground">Formula:</span>
-                      <span>Score = Σ (Achievement% × Weight) ÷ Total Weight</span>
-                      <span className="text-muted-foreground/60">·</span>
-                      <span>Each KPI's <strong>Score Points</strong> = its share of the {hp}%</span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b bg-muted/20">
-                            <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground w-6"></th>
-                            <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">KPI Name</th>
-                            <th className="text-left px-2 py-2.5 text-xs font-semibold text-muted-foreground">Perspective</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Weight %</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Achievement %</th>
-                            <th className="text-right px-3 py-2.5 text-xs font-semibold text-muted-foreground">Score Points</th>
-                            <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground min-w-[120px]"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {rows.map(d => {
-                            const pc = P_COLOR[d.kpi.perspective];
-                            const achColor = d.ach === null ? "#94a3b8" : d.ach >= 95 ? "#10b981" : d.ach >= 80 ? "#f59e0b" : "#ef4444";
-                            const barPct = d.contribution !== null ? (d.contribution / maxContrib) * 100 : 0;
-                            const barColor = d.ach === null ? "#e5e7eb" : d.ach >= 95 ? "#10b981" : d.ach >= 80 ? "#f59e0b" : "#ef4444";
-                            return (
-                              <tr key={d.kpi.id}
-                                className="hover:bg-muted/30 transition-colors cursor-pointer"
-                                onClick={() => nav(`/scorecard/kpi/${d.kpi.id}`)}>
-                                <td className="px-4 py-2.5">
-                                  <div className={cn("w-2 h-2 rounded-full",
-                                    d.status === "green" ? "bg-emerald-500" : d.status === "amber" ? "bg-amber-500" : d.status === "red" ? "bg-red-500" : "bg-muted-foreground/30")} />
-                                </td>
-                                <td className="px-4 py-2.5 font-medium max-w-[200px]">
-                                  <span className="line-clamp-1">{d.kpi.name}</span>
-                                </td>
-                                <td className="px-2 py-2.5">
-                                  <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-medium", pc.bg, pc.text)}>
-                                    {PERSP_INITIALS[d.kpi.perspective]}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                                  {d.w.toFixed(1)}%
-                                </td>
-                                <td className="px-3 py-2.5 text-right font-semibold tabular-nums" style={{ color: achColor }}>
-                                  {d.ach !== null ? `${d.ach.toFixed(1)}%` : <span className="text-muted-foreground font-normal text-xs">no data</span>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right font-bold tabular-nums" style={{ color: achColor }}>
-                                  {d.contribution !== null ? `${d.contribution.toFixed(2)}` : <span className="text-muted-foreground font-normal text-xs">—</span>}
-                                </td>
-                                <td className="px-4 py-2.5">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden min-w-[80px]">
-                                      <div className="h-full rounded-full transition-all"
-                                        style={{ width: `${barPct}%`, background: barColor }} />
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t-2 bg-muted/30 font-semibold">
-                            <td colSpan={3} className="px-4 py-3 text-sm font-bold">Overall Performance Score</td>
-                            <td className="px-3 py-3 text-right text-sm tabular-nums text-muted-foreground">
-                              {totalActiveW > 0 ? `${totalActiveW.toFixed(1)}%` : "—"}
-                            </td>
-                            <td className="px-3 py-3 text-right text-sm tabular-nums text-muted-foreground">weighted avg</td>
-                            <td className="px-3 py-3 text-right text-sm tabular-nums font-bold"
-                              style={{ color: hp >= 95 ? "#10b981" : hp >= 80 ? "#f59e0b" : "#ef4444" }}>
-                              {hp.toFixed(0)} pts
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={cn("px-2 py-0.5 rounded-full text-xs font-bold",
-                                hp >= 95 ? "bg-emerald-100 text-emerald-700" : hp >= 80 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
-                                {hp}%
-                              </span>
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-
-                    {/* KPI count note */}
-                    {active.length < kpis.length && (
-                      <div className="px-4 py-2 border-t bg-muted/10 text-xs text-muted-foreground">
-                        {kpis.length - active.length} KPI{kpis.length - active.length > 1 ? "s" : ""} excluded from score (no data for {MONTHS[month]} {year}).
-                        Score is calculated over the {active.length} KPIs that have actuals.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
 
           {/* ── KPI Scorecard Table (full, clickable to detail) ── */}
           <div ref={scorecardRef}>
