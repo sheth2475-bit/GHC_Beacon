@@ -1316,16 +1316,31 @@ async function seedPlatformOwner() {
 
 async function seedBscData(companyId: number) {
   const existingDepts = await storage.getBscDepartments(companyId);
-  // Only skip if corp already exists — indicates this seed (or a full manual setup) ran previously
+
+  // Skip if corp already exists — seed ran previously (or admin set it up manually)
   if (existingDepts.some(d => d.deptId === 'corp')) return;
 
-  // Demo setup: Corporate, Engineering, IT only
-  const departments = [
+  // Hard stop: if corp or eng actuals already exist for this company, never touch the data.
+  // This protects real user-entered data in both dev and production.
+  // (We don't block on IT-only actuals since the IT migration seeds those separately.)
+  const existingActuals = await storage.getBscActuals(companyId);
+  const hasCropOrEngActuals = Object.values(existingActuals).some(period =>
+    Object.keys(period).some(k => k.startsWith('cr_') || k.startsWith('eng_'))
+  );
+  if (hasCropOrEngActuals) return;
+
+  // Demo setup: Corporate, Engineering, IT only.
+  // Use additive inserts — never DELETE existing rows.
+  const { bscDepartments: bscDeptsTable } = await import("@shared/schema");
+  const existingDeptIds = new Set(existingDepts.map(d => d.deptId));
+  const deptsToInsert = [
     { deptId: "corp", name: "Corporate",   icon: "🏢", color: "#3B82F6", sortOrder: 0 },
     { deptId: "eng",  name: "Engineering", icon: "🔧", color: "#8B5CF6", sortOrder: 1 },
     { deptId: "it",   name: "IT",          icon: "💻", color: "#06B6D4", sortOrder: 2 },
-  ];
-  await storage.saveBscDepartments(companyId, departments);
+  ].filter(d => !existingDeptIds.has(d.deptId));
+  if (deptsToInsert.length > 0) {
+    await db.insert(bscDeptsTable).values(deptsToInsert.map(d => ({ ...d, companyId })));
+  }
 
   // 7 months of scorecard actuals (Oct 2025 – Apr 2026) — Corp, Engineering, IT only
   const store: Record<string, Record<string, number>> = {

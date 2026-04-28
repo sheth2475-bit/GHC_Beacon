@@ -258,16 +258,22 @@ export async function runMigrations() {
       if (legacyCheck.rows.length > 0) {
         const legacyCompanyIds = legacyCheck.rows.map((r: any) => r.company_id);
         for (const cid of legacyCompanyIds) {
-          // Only remove the specific stale departments and their actuals — preserve corp/eng/it data
-          await client.query(
-            `DELETE FROM bsc_actuals WHERE company_id = $1 AND dept_id IN ('ops', 'fin', 'hr')`,
-            [cid]
-          );
-          await client.query(
-            `DELETE FROM bsc_departments WHERE company_id = $1 AND dept_id IN ('ops', 'fin', 'hr')`,
-            [cid]
-          );
-          console.log(`[migrations] Removed stale ops/fin/hr BSC departments for company ${cid}`);
+          // ONLY remove department rows that have ZERO actuals — never touch rows with real data
+          const removed = await client.query(`
+            DELETE FROM bsc_departments
+            WHERE company_id = $1
+              AND dept_id IN ('ops', 'fin', 'hr')
+              AND NOT EXISTS (
+                SELECT 1 FROM bsc_actuals a
+                WHERE a.company_id = bsc_departments.company_id
+                  AND a.dept_id = bsc_departments.dept_id
+              )
+            RETURNING dept_id
+          `, [cid]);
+          if (removed.rowCount && removed.rowCount > 0) {
+            const deptIds = removed.rows.map((r: any) => r.dept_id).join(', ');
+            console.log(`[migrations] Removed empty stale BSC departments (${deptIds}) for company ${cid}`);
+          }
         }
       }
       await client.query(`INSERT INTO bsc_legacy_dept_cleanup_v1 DEFAULT VALUES`);
