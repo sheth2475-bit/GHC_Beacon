@@ -287,6 +287,49 @@ export async function runMigrations() {
       await client.query(`INSERT INTO bsc_demo_cleanup_v1 DEFAULT VALUES`);
     }
 
+    // ── Add IT department to demo company if missing ─────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bsc_it_dept_seed_v1 (
+        id SERIAL PRIMARY KEY,
+        done_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const itSeedDone = await client.query(`SELECT id FROM bsc_it_dept_seed_v1 LIMIT 1`);
+    if (itSeedDone.rows.length === 0) {
+      const demoRes = await client.query(`SELECT company_id FROM users WHERE email = 'demo@performo.ai' LIMIT 1`);
+      const demoCid = demoRes.rows[0]?.company_id;
+      if (demoCid) {
+        const existing = await client.query(`SELECT id FROM bsc_departments WHERE company_id = $1 AND dept_id = 'it' LIMIT 1`, [demoCid]);
+        if (existing.rows.length === 0) {
+          // Get current max sort_order
+          const sortRes = await client.query(`SELECT COALESCE(MAX(sort_order),4) AS m FROM bsc_departments WHERE company_id = $1`, [demoCid]);
+          const so = (sortRes.rows[0]?.m ?? 4) + 1;
+          await client.query(
+            `INSERT INTO bsc_departments (company_id, dept_id, name, icon, color, sort_order) VALUES ($1, 'it', 'IT', '💻', '#06B6D4', $2)`,
+            [demoCid, so]
+          );
+          // Seed 7 months of IT actuals
+          const itActuals: [string, string, number][] = [
+            ["2025-10","it_i1",5],  ["2025-10","m_it_i1",10], ["2025-10","it_c1",82], ["2025-10","it_i2",78], ["2025-10","it_c2",88], ["2025-10","it_i3",55], ["2025-10","it_c3",2.8], ["2025-10","it_l1",65], ["2025-10","it_l2",1], ["2025-10","it_i4",6], ["2025-10","it_f1",108], ["2025-10","it_i5",3], ["2025-10","it_c4",4],
+            ["2025-11","it_i1",18], ["2025-11","m_it_i1",20], ["2025-11","it_c1",84], ["2025-11","it_i2",81], ["2025-11","it_c2",90], ["2025-11","it_i3",52], ["2025-11","it_c3",3.0], ["2025-11","it_l1",70], ["2025-11","it_l2",2], ["2025-11","it_i4",8], ["2025-11","it_f1",105], ["2025-11","it_i5",5], ["2025-11","it_c4",3],
+            ["2025-12","it_i1",30], ["2025-12","m_it_i1",30], ["2025-12","it_c1",85], ["2025-12","it_i2",84], ["2025-12","it_c2",92], ["2025-12","it_i3",50], ["2025-12","it_c3",3.0], ["2025-12","it_l1",75], ["2025-12","it_l2",3], ["2025-12","it_i4",9], ["2025-12","it_f1",103], ["2025-12","it_i5",7], ["2025-12","it_c4",2],
+            ["2026-01","it_i1",45], ["2026-01","m_it_i1",45], ["2026-01","it_c1",86], ["2026-01","it_i2",86], ["2026-01","it_c2",93.5], ["2026-01","it_i3",48], ["2026-01","it_c3",3.2], ["2026-01","it_l1",80], ["2026-01","it_l2",3], ["2026-01","it_i4",10], ["2026-01","it_f1",101], ["2026-01","it_i5",8], ["2026-01","it_c4",1],
+            ["2026-02","it_i1",58], ["2026-02","m_it_i1",58], ["2026-02","it_c1",87], ["2026-02","it_i2",88], ["2026-02","it_c2",94], ["2026-02","it_i3",52], ["2026-02","it_c3",3.3], ["2026-02","it_l1",85], ["2026-02","it_l2",4], ["2026-02","it_i4",11], ["2026-02","it_f1",100], ["2026-02","it_i5",9], ["2026-02","it_c4",1],
+            ["2026-03","it_i1",72], ["2026-03","m_it_i1",70], ["2026-03","it_c1",88], ["2026-03","it_i2",90], ["2026-03","it_c2",95], ["2026-03","it_i3",54], ["2026-03","it_c3",3.2], ["2026-03","it_l1",88], ["2026-03","it_l2",4], ["2026-03","it_i4",11], ["2026-03","it_f1",99], ["2026-03","it_i5",10], ["2026-03","it_c4",0],
+            ["2026-04","it_i1",84], ["2026-04","m_it_i1",80], ["2026-04","it_c1",90], ["2026-04","it_i2",92], ["2026-04","it_c2",96], ["2026-04","it_i3",55], ["2026-04","it_c3",3.5], ["2026-04","it_l1",92], ["2026-04","it_l2",5], ["2026-04","it_i4",13], ["2026-04","it_f1",98], ["2026-04","it_i5",12], ["2026-04","it_c4",0],
+          ];
+          for (const [pk, kpiId, val] of itActuals) {
+            await client.query(
+              `INSERT INTO bsc_actuals (company_id, dept_id, period_key, kpi_id, actual_value) VALUES ($1, 'it', $2, $3, $4) ON CONFLICT DO NOTHING`,
+              [demoCid, pk, kpiId, val]
+            );
+          }
+          console.log(`[migrations] Added IT department and 7 months of actuals to demo company`);
+        }
+      }
+      await client.query(`INSERT INTO bsc_it_dept_seed_v1 DEFAULT VALUES`);
+    }
+
     // ── Orphan user cleanup ───────────────────────────────────────────────────
     // Delete users with no company_id that are not part of the demo accounts.
     // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai

@@ -1318,17 +1318,18 @@ async function seedBscData(companyId: number) {
   const existingDepts = await storage.getBscDepartments(companyId);
   if (existingDepts.length > 0) return;
 
-  // Full demo setup: Corporate, Engineering, Operations, Finance, HR
+  // Full demo setup: Corporate, Engineering, Operations, Finance, HR, IT
   const departments = [
     { deptId: "corp", name: "Corporate",   icon: "🏢", color: "#3B82F6", sortOrder: 0 },
     { deptId: "eng",  name: "Engineering", icon: "🔧", color: "#8B5CF6", sortOrder: 1 },
     { deptId: "ops",  name: "Operations",  icon: "✈️", color: "#10B981", sortOrder: 2 },
     { deptId: "fin",  name: "Finance",     icon: "💰", color: "#F59E0B", sortOrder: 3 },
     { deptId: "hr",   name: "HR",          icon: "👥", color: "#EF4444", sortOrder: 4 },
+    { deptId: "it",   name: "IT",          icon: "💻", color: "#06B6D4", sortOrder: 5 },
   ];
   await storage.saveBscDepartments(companyId, departments);
 
-  // 7 months of scorecard actuals (Oct 2025 – Apr 2026) — all departments
+  // 7 months of scorecard actuals (Oct 2025 – Apr 2026) — all departments incl. IT
   const store: Record<string, Record<string, number>> = {
     "2025-10": {
       cr_f1:2.8,  cr_f2:15.5, cr_f3:23.8, cr_f4:1012, cr_c1:83.4, cr_c2:3.4, cr_c3:95.8, cr_c4:84.2, cr_i1:0.89, cr_i2:90.1, cr_i3:90.8, cr_l1:26, cr_l2:22.1, cr_l3:82, cr_l4:65,
@@ -1336,6 +1337,7 @@ async function seedBscData(companyId: number) {
       ops_f1:11200, ops_f2:73.1, ops_c1:93.2, ops_c2:4.1, ops_i1:91.4, ops_i2:0.62, ops_l1:88, ops_l2:12.1,
       fin_f1:20.1, fin_f2:47,  fin_c1:3.9, fin_c2:98.1, fin_i1:6, fin_i2:5.8, fin_l1:34, fin_l2:72,
       hr_f1:2700,  hr_f2:1100, hr_c1:4,    hr_c2:82,   hr_i1:33, hr_i2:3.4, hr_l1:88, hr_l2:14.1,
+      it_i1:5, m_it_i1:10, it_c1:82, it_i2:78, it_c2:88, it_i3:55, it_c3:2.8, it_l1:65, it_l2:1, it_i4:6, it_f1:108, it_i5:3, it_c4:4,
     },
     "2025-11": {
       cr_f1:3.2,  cr_f2:17.8, cr_f3:21.2, cr_f4:991, cr_c1:84.8, cr_c2:3.5, cr_c3:96.4, cr_c4:85.5, cr_i1:0.78, cr_i2:90.8, cr_i3:91.2, cr_l1:28, cr_l2:20.8, cr_l3:84, cr_l4:67,
@@ -1343,6 +1345,7 @@ async function seedBscData(companyId: number) {
       ops_f1:11600, ops_f2:72.4, ops_c1:94.1, ops_c2:4.2, ops_i1:92.8, ops_i2:0.55, ops_l1:91, ops_l2:11.4,
       fin_f1:20.8, fin_f2:46,  fin_c1:4.0, fin_c2:98.5, fin_i1:5, fin_i2:5.2, fin_l1:38, fin_l2:75,
       hr_f1:2620,  hr_f2:1140, hr_c1:4.1,  hr_c2:84,   hr_i1:31, hr_i2:3.1, hr_l1:90, hr_l2:13.5,
+      it_i1:18, m_it_i1:20, it_c1:84, it_i2:81, it_c2:90, it_i3:52, it_c3:3.0, it_l1:70, it_l2:2, it_i4:8, it_f1:105, it_i5:5, it_c4:3,
     },
     "2025-12": {
       cr_f1:3.8,  cr_f2:17.8, cr_f3:20.6, cr_f4:974, cr_c1:86.4, cr_c2:3.6, cr_c3:97.1, cr_c4:86.8, cr_i1:0.68, cr_i2:91.5, cr_i3:92.1, cr_l1:30, cr_l2:19.2, cr_l3:86, cr_l4:70,
@@ -1350,6 +1353,7 @@ async function seedBscData(companyId: number) {
       ops_f1:12100, ops_f2:71.8, ops_c1:95.6, ops_c2:4.4, ops_i1:94.2, ops_i2:0.48, ops_l1:93, ops_l2:10.8,
       fin_f1:21.5, fin_f2:44,  fin_c1:4.1, fin_c2:99.0, fin_i1:5, fin_i2:4.8, fin_l1:42, fin_l2:78,
       hr_f1:2540,  hr_f2:1180, hr_c1:4.2,  hr_c2:86,   hr_i1:29, hr_i2:2.8, hr_l1:93, hr_l2:12.9,
+      it_i1:30, m_it_i1:30, it_c1:85, it_i2:84, it_c2:92, it_i3:50, it_c3:3.0, it_l1:75, it_l2:3, it_i4:9, it_f1:103, it_i5:7, it_c4:2,
     },
     "2026-01": {
       cr_f1:3.4,  cr_f2:17.6, cr_f3:21.4, cr_f4:1002, cr_c1:85.8, cr_c2:3.5, cr_c3:96.8, cr_c4:85.1, cr_i1:0.74, cr_i2:91.2, cr_i3:91.6, cr_l1:27, cr_l2:20.4, cr_l3:83, cr_l4:68,
@@ -1358,6 +1362,7 @@ async function seedBscData(companyId: number) {
       ops_f1:11400, ops_f2:72.9, ops_c1:92.4, ops_c2:4.0, ops_i1:91.0, ops_i2:0.6,  ops_l1:87, ops_l2:11.9,
       fin_f1:19.8, fin_f2:48,  fin_c1:3.8, fin_c2:97.8, fin_i1:6, fin_i2:6.1, fin_l1:32, fin_l2:71,
       hr_f1:2680,  hr_f2:1120, hr_c1:3.9,  hr_c2:81,   hr_i1:34, hr_i2:3.5, hr_l1:86, hr_l2:14.4,
+      it_i1:45, m_it_i1:45, it_c1:86, it_i2:86, it_c2:93.5, it_i3:48, it_c3:3.2, it_l1:80, it_l2:3, it_i4:10, it_f1:101, it_i5:8, it_c4:1,
     },
     "2026-02": {
       cr_f1:3.9,  cr_f2:17.8, cr_f3:20.9, cr_f4:982, cr_c1:87.1, cr_c2:3.6, cr_c3:96.9, cr_c4:86.8, cr_i1:0.72, cr_i2:91.8, cr_i3:91.9, cr_l1:29, cr_l2:18.8, cr_l3:84, cr_l4:69,
@@ -1366,6 +1371,7 @@ async function seedBscData(companyId: number) {
       ops_f1:11800, ops_f2:72.1, ops_c1:94.5, ops_c2:4.3, ops_i1:93.1, ops_i2:0.51, ops_l1:92, ops_l2:11.1,
       fin_f1:21.0, fin_f2:45,  fin_c1:4.0, fin_c2:98.6, fin_i1:5, fin_i2:5.0, fin_l1:40, fin_l2:77,
       hr_f1:2600,  hr_f2:1160, hr_c1:4.1,  hr_c2:85,   hr_i1:30, hr_i2:3.0, hr_l1:92, hr_l2:13.2,
+      it_i1:58, m_it_i1:58, it_c1:87, it_i2:88, it_c2:94, it_i3:52, it_c3:3.3, it_l1:85, it_l2:4, it_i4:11, it_f1:100, it_i5:9, it_c4:1,
     },
     "2026-03": {
       cr_f1:4.0,  cr_f2:17.9, cr_f3:20.8, cr_f4:971, cr_c1:88.5, cr_c2:3.7, cr_c3:97.2, cr_c4:87.8, cr_i1:0.71, cr_i2:91.9, cr_i3:92.0, cr_l1:31, cr_l2:18.2, cr_l3:85, cr_l4:70,
@@ -1374,6 +1380,7 @@ async function seedBscData(companyId: number) {
       ops_f1:12200, ops_f2:71.5, ops_c1:96.0, ops_c2:4.5, ops_i1:94.5, ops_i2:0.44, ops_l1:94, ops_l2:10.4,
       fin_f1:21.8, fin_f2:44,  fin_c1:4.2, fin_c2:99.1, fin_i1:5, fin_i2:4.6, fin_l1:44, fin_l2:80,
       hr_f1:2520,  hr_f2:1200, hr_c1:4.2,  hr_c2:87,   hr_i1:28, hr_i2:2.6, hr_l1:95, hr_l2:12.5,
+      it_i1:72, m_it_i1:70, it_c1:88, it_i2:90, it_c2:95, it_i3:54, it_c3:3.2, it_l1:88, it_l2:4, it_i4:11, it_f1:99, it_i5:10, it_c4:0,
     },
     "2026-04": {
       // Corporate — updated Apr 2026 actuals (realistic, mix of green/amber/red)
@@ -1382,6 +1389,7 @@ async function seedBscData(companyId: number) {
       ops_f1:12450, ops_f2:71.2, ops_c1:97.1, ops_c2:4.6, ops_i1:95.2, ops_i2:0.4, ops_l1:96, ops_l2:9.9,
       fin_f1:22.3, fin_f2:43,  fin_c1:4.3, fin_c2:99.3, fin_i1:4, fin_i2:4.2, fin_l1:46, fin_l2:82,
       hr_f1:2490,  hr_f2:1220, hr_c1:4.3,  hr_c2:88,   hr_i1:27, hr_i2:2.4, hr_l1:96, hr_l2:12,
+      it_i1:84, m_it_i1:80, it_c1:90, it_i2:92, it_c2:96, it_i3:55, it_c3:3.5, it_l1:92, it_l2:5, it_i4:13, it_f1:98, it_i5:12, it_c4:0,
     },
   };
 
