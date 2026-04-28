@@ -330,6 +330,37 @@ export async function runMigrations() {
       await client.query(`INSERT INTO bsc_it_dept_seed_v1 DEFAULT VALUES`);
     }
 
+    // ── Add missing it_i6 KPI actuals to demo company ────────────────────────
+    // Initial IT seed only included 12 KPIs. This adds the 13th: "Review Process
+    // and Procedures" (it_i6, target 90%) for all 7 seeded months.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bsc_it_kpi_fix_v1 (
+        id SERIAL PRIMARY KEY,
+        done_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const itKpiFix = await client.query(`SELECT id FROM bsc_it_kpi_fix_v1 LIMIT 1`);
+    if (itKpiFix.rows.length === 0) {
+      const demoRes2 = await client.query(`SELECT company_id FROM users WHERE email = 'demo@performo.ai' LIMIT 1`);
+      const demoCid2 = demoRes2.rows[0]?.company_id;
+      if (demoCid2) {
+        const it6Actuals: [string, number][] = [
+          ["2025-10", 65], ["2025-11", 70], ["2025-12", 76],
+          ["2026-01", 82], ["2026-02", 86], ["2026-03", 88], ["2026-04", 92],
+        ];
+        for (const [pk, val] of it6Actuals) {
+          await client.query(
+            `INSERT INTO bsc_actuals (company_id, dept_id, period_key, kpi_id, actual_value) VALUES ($1, 'it', $2, 'it_i6', $3) ON CONFLICT DO NOTHING`,
+            [demoCid2, pk, val]
+          );
+        }
+        // Also clean up stale it_i5 actuals that had wrong values (target is now 0, any value is green — harmless but keep accurate)
+        // The old it_i5 values (3,5,7,8,9,10,12) are fine to leave; the KPI now shows them all as green.
+        console.log(`[migrations] Added it_i6 actuals to demo company IT scorecard`);
+      }
+      await client.query(`INSERT INTO bsc_it_kpi_fix_v1 DEFAULT VALUES`);
+    }
+
     // ── Orphan user cleanup ───────────────────────────────────────────────────
     // Delete users with no company_id that are not part of the demo accounts.
     // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai
