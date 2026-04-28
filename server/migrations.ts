@@ -240,22 +240,37 @@ export async function runMigrations() {
     await client.query(`CREATE INDEX IF NOT EXISTS presentations_created_by_idx ON presentations(created_by)`);
     console.log("[migrations] presentation_studio tables ready");
 
-    // ── BSC legacy department cleanup ────────────────────────────────────────
-    // Remove stale demo departments (ops/fin/hr/it) that existed in old versions.
-    // For companies that have ANY legacy dept, wipe their entire BSC data so the
-    // auto-seed can repopulate with the canonical [corp, eng] setup + actuals.
-    const legacyCheck = await client.query(`
-      SELECT DISTINCT company_id FROM bsc_departments
-      WHERE dept_id IN ('ops', 'fin', 'hr', 'it')
+    // ── BSC legacy department cleanup (one-time, idempotent) ─────────────────
+    // Remove stale demo departments (ops/fin/hr) that existed in old versions.
+    // IT is now a valid department and is no longer considered legacy.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bsc_legacy_dept_cleanup_v1 (
+        id SERIAL PRIMARY KEY,
+        done_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    if (legacyCheck.rows.length > 0) {
-      const legacyCompanyIds = legacyCheck.rows.map((r: any) => r.company_id);
-      for (const cid of legacyCompanyIds) {
-        await client.query(`DELETE FROM bsc_actuals WHERE company_id = $1`, [cid]);
-        await client.query(`DELETE FROM bsc_departments WHERE company_id = $1`, [cid]);
-        await client.query(`DELETE FROM scorecard_shares WHERE company_id = $1`, [cid]);
-        console.log(`[migrations] Cleared legacy BSC data for company ${cid} — auto-seed will repopulate`);
+    const legacyCleanupDone = await client.query(`SELECT id FROM bsc_legacy_dept_cleanup_v1 LIMIT 1`);
+    if (legacyCleanupDone.rows.length === 0) {
+      const legacyCheck = await client.query(`
+        SELECT DISTINCT company_id FROM bsc_departments
+        WHERE dept_id IN ('ops', 'fin', 'hr')
+      `);
+      if (legacyCheck.rows.length > 0) {
+        const legacyCompanyIds = legacyCheck.rows.map((r: any) => r.company_id);
+        for (const cid of legacyCompanyIds) {
+          // Only remove the specific stale departments and their actuals — preserve corp/eng/it data
+          await client.query(
+            `DELETE FROM bsc_actuals WHERE company_id = $1 AND dept_id IN ('ops', 'fin', 'hr')`,
+            [cid]
+          );
+          await client.query(
+            `DELETE FROM bsc_departments WHERE company_id = $1 AND dept_id IN ('ops', 'fin', 'hr')`,
+            [cid]
+          );
+          console.log(`[migrations] Removed stale ops/fin/hr BSC departments for company ${cid}`);
+        }
       }
+      await client.query(`INSERT INTO bsc_legacy_dept_cleanup_v1 DEFAULT VALUES`);
     }
 
     // ── One-time: clear auto-seeded BSC demo data from production companies ──
@@ -359,6 +374,34 @@ export async function runMigrations() {
         console.log(`[migrations] Added it_i6 actuals to demo company IT scorecard`);
       }
       await client.query(`INSERT INTO bsc_it_kpi_fix_v1 DEFAULT VALUES`);
+    }
+
+    // ── Remove stale empty legacy departments (fin/hr/ops) from all companies ──
+    // Old versions auto-seeded fin/hr/ops for new companies. These should be
+    // removed if the company has no actuals for them so they don't appear as
+    // dead links in the sidebar.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bsc_empty_dept_cleanup_v1 (
+        id SERIAL PRIMARY KEY,
+        done_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    const emptyDeptCleanupDone = await client.query(`SELECT id FROM bsc_empty_dept_cleanup_v1 LIMIT 1`);
+    if (emptyDeptCleanupDone.rows.length === 0) {
+      const del = await client.query(`
+        DELETE FROM bsc_departments
+        WHERE dept_id IN ('ops', 'fin', 'hr')
+        AND NOT EXISTS (
+          SELECT 1 FROM bsc_actuals a
+          WHERE a.company_id = bsc_departments.company_id
+          AND a.dept_id = bsc_departments.dept_id
+        )
+        RETURNING company_id, dept_id
+      `);
+      if (del.rowCount && del.rowCount > 0) {
+        console.log(`[migrations] Removed ${del.rowCount} empty legacy BSC department(s): ${del.rows.map((r: any) => `company=${r.company_id} dept=${r.dept_id}`).join(', ')}`);
+      }
+      await client.query(`INSERT INTO bsc_empty_dept_cleanup_v1 DEFAULT VALUES`);
     }
 
     // ── Orphan user cleanup ───────────────────────────────────────────────────
