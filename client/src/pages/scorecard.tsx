@@ -108,14 +108,26 @@ const DEPT_KPIS: Record<string, KpiDef[]> = {
     { id:"fin_l2", name:"Digital Adoption",       perspective:"Learning",  unit:"%",    target:80 },
   ],
   hr: [
-    { id:"hr_f1", name:"Cost per Hire",           perspective:"Financial", unit:"USD",  target:2500, lowerIsBetter:true },
-    { id:"hr_f2", name:"Training Cost/Employee",  perspective:"Financial", unit:"USD",  target:1200 },
-    { id:"hr_c1", name:"Employee Satisfaction",   perspective:"Customer",  unit:"/5",   target:4.2 },
-    { id:"hr_c2", name:"Offer Acceptance Rate",   perspective:"Customer",  unit:"%",    target:85 },
-    { id:"hr_i1", name:"Time to Hire",            perspective:"Internal",  unit:"days", target:30,  lowerIsBetter:true },
-    { id:"hr_i2", name:"Absenteeism Rate",        perspective:"Internal",  unit:"%",    target:3,   lowerIsBetter:true },
-    { id:"hr_l1", name:"Training Completion",     perspective:"Learning",  unit:"%",    target:95 },
-    { id:"hr_l2", name:"Turnover Rate",           perspective:"Learning",  unit:"%",    target:12,  lowerIsBetter:true },
+    // Financial
+    { id:"hr_f1",  name:"Budget Adherence %",                                    perspective:"Financial", unit:"%",    target:100 },
+    // Customer / Stakeholder
+    { id:"hr_c1",  name:"# Level 1 Audit Findings",                              perspective:"Customer",  unit:"#",    target:0,   lowerIsBetter:true },
+    { id:"hr_c2",  name:"Offer Acceptance Rate",                                  perspective:"Customer",  unit:"%",    target:75 },
+    { id:"hr_c3",  name:"Time to Resolve Employee Issues",                        perspective:"Customer",  unit:"days", target:10,  lowerIsBetter:true },
+    { id:"hr_c4",  name:"Employee Grievance Resolution Rate %",                   perspective:"Customer",  unit:"days", target:10,  lowerIsBetter:true },
+    // Internal Process
+    { id:"hr_i1",  name:"Development and Sign-off of HR Policy",                 perspective:"Internal",  unit:"%",    target:100, targetType:"milestone_date", targetDate:"2026-06", milestoneStartDate:"2026-01" },
+    { id:"hr_i2",  name:"HR Process Digitalization %",                            perspective:"Internal",  unit:"%",    target:75,  targetType:"milestone_numeric" },
+    { id:"hr_i3",  name:"% Employees with Assigned KPIs",                         perspective:"Internal",  unit:"%",    target:100 },
+    { id:"hr_i4",  name:"Digital Onboarding Completion %",                        perspective:"Internal",  unit:"%",    target:100 },
+    { id:"hr_i5",  name:"Time to Hire Positions (days) – Job Open to Offer Acceptance",  perspective:"Internal",  unit:"days", target:40,  lowerIsBetter:true },
+    { id:"hr_i6",  name:"Time to Fill Positions (days) – Offer Acceptance to Onboarding", perspective:"Internal", unit:"days", target:100, lowerIsBetter:true },
+    { id:"hr_i7",  name:"Voluntary Turnover Rate %",                              perspective:"Internal",  unit:"%",    target:8,   lowerIsBetter:true, targetFrequency:"annual" },
+    { id:"hr_i8",  name:"Review Processes & Procedures Update Rate %",            perspective:"Internal",  unit:"%",    target:90,  targetType:"milestone_numeric" },
+    { id:"hr_i9",  name:"% Performance Appraisals Completed on Time",             perspective:"Internal",  unit:"%",    target:100, targetFrequency:"annual" },
+    // Learning & Growth
+    { id:"hr_l1",  name:"% Leadership Roles with Successor Identified",           perspective:"Learning",  unit:"%",    target:90,  targetFrequency:"annual" },
+    { id:"hr_l2",  name:"Hiring of N-1 & N-2 as per approved org. chart",         perspective:"Learning",  unit:"%",    target:100 },
   ],
   qhse: [
     { id:"q_f1",  name:"Safety Budget Util",      perspective:"Financial", unit:"%",    target:95 },
