@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useRoute, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
@@ -770,6 +770,8 @@ function ScorecardLanding() {
     if (!ok) {
       setDepartments(departments);
       toast({ title: "Failed to save department", description: "Could not connect to the server. Please try again.", variant: "destructive" });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["/api/scorecard/departments"] });
     }
   };
 
@@ -781,6 +783,8 @@ function ScorecardLanding() {
     if (!ok) {
       setDepartments(departments);
       toast({ title: "Failed to delete department", description: "Could not connect to the server. Please try again.", variant: "destructive" });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["/api/scorecard/departments"] });
     }
   };
 
