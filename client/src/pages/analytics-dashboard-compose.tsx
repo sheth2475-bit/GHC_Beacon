@@ -16,7 +16,7 @@ import {
   X, ArrowUp, ArrowDown,
   AlertTriangle, Lightbulb, ChevronRight, ChevronDown, ChevronUp,
   RefreshCw, SlidersHorizontal, Filter, Search, Calendar, Database,
-  Maximize2,
+  Maximize2, Eye, EyeOff,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -316,6 +316,13 @@ function normalizeSeriesData(d: Record<string, unknown>): { name: string; value:
   return [];
 }
 
+/** Returns true when an insight's stored data includes a comparison series (e.g. prev year). */
+function insightHasComparison(insight: AnalyticsInsight): boolean {
+  const data = (insight.chartConfig as { data?: Record<string, unknown> } | null)?.data;
+  if (!data) return false;
+  return !!(data as { comparisonLabel?: string }).comparisonLabel;
+}
+
 function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknown): string | null {
   const cfg = insight.chartConfig as {
     data?: unknown;
@@ -414,7 +421,7 @@ function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknow
   return null;
 }
 
-function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight; filteredData?: unknown; color?: string }) {
+function MiniChart({ insight, filteredData, color, hideComparison }: { insight: AnalyticsInsight; filteredData?: unknown; color?: string; hideComparison?: boolean }) {
   const baseCfg = insight.chartConfig as Record<string, unknown> | null;
   const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
   if (!cfg) return <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">No data</div>;
@@ -445,10 +452,11 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
   if ((chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") && data) {
     const chartData = normalizeSeriesData(data as Record<string, unknown>);
     const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
+    const measureLabel = (data as { measureLabel?: string }).measureLabel || "Value";
     const maxItems = (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") ? 20 : 30;
     const displayData = chartData.slice(0, maxItems).map(d => ({ ...d, shortName: shortLabel(d.name) }));
     const count = displayData.length;
-    const hasComparison = displayData.some(d => typeof d.comparisonValue === "number");
+    const hasComparison = !hideComparison && displayData.some(d => typeof d.comparisonValue === "number");
     const hasMany = count > 8;
     const hasTons = count > 15;
     const chartH = hasTons ? 240 : hasMany ? 210 : count > 5 ? 185 : 165;
@@ -474,7 +482,7 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+          <Bar dataKey="value" name={measureLabel} radius={[3, 3, 0, 0]}>
             {displayData.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
             <LabelList
               dataKey="value"
@@ -506,7 +514,7 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
             labelFormatter={() => ""}
           />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
-          <Area type="monotone" dataKey="value" stroke={c0} strokeWidth={2} fill={c0 + "20"} dot={count <= 40 ? { r: 2.5, fill: c0 } : false}>
+          <Area type="monotone" dataKey="value" name={measureLabel} stroke={c0} strokeWidth={2} fill={c0 + "20"} dot={count <= 40 ? { r: 2.5, fill: c0 } : false}>
             {count <= 40 && (
               <LabelList
                 dataKey="value"
@@ -595,7 +603,7 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
 }
 
 /* ── Full-size chart for focus mode ── */
-function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight; filteredData?: unknown; color?: string }) {
+function FullChart({ insight, filteredData, color, hideComparison }: { insight: AnalyticsInsight; filteredData?: unknown; color?: string; hideComparison?: boolean }) {
   const baseCfg = insight.chartConfig as Record<string, unknown> | null;
   const cfg: Record<string, unknown> | null = filteredData != null ? { ...(baseCfg || {}), data: filteredData } : baseCfg;
   if (!cfg) return <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No data</div>;
@@ -628,7 +636,8 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
     const seriesData = normalizeSeriesData(data as Record<string, unknown>);
     const displayData = seriesData.map(d => ({ ...d, shortName: d.name, value: typeof d.value === "number" ? d.value : Number(d.value) }));
     const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
-    const hasComparison = displayData.some(d => typeof d.comparisonValue === "number");
+    const measureLabel = (data as { measureLabel?: string }).measureLabel || "Value";
+    const hasComparison = !hideComparison && displayData.some(d => typeof d.comparisonValue === "number");
     const fv = (v: number) => formatKpiValue(v, displayFormat, valueFormat);
     if (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") return (
       <div className="flex-1 min-h-0">
@@ -639,7 +648,7 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fv} width={52} />
             <Tooltip formatter={(v, name, p) => [fv(Number(v)), name === "comparisonValue" ? comparisonLabel : p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
             {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-            <Bar dataKey="value" radius={[5, 5, 0, 0]}>
+            <Bar dataKey="value" name={measureLabel} radius={[5, 5, 0, 0]}>
               {displayData.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
               <LabelList dataKey="value" position="top" formatter={fv} style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
             </Bar>
@@ -659,7 +668,7 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fv} width={52} />
             <Tooltip formatter={(v, name, p) => [fv(Number(v)), name === "comparisonValue" ? comparisonLabel : p.payload?.name || ""]} contentStyle={{ fontSize: 12, borderRadius: 8 }} labelFormatter={() => ""} />
             {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-            <Area type="monotone" dataKey="value" stroke={c0} strokeWidth={2.5} fill={c0 + "20"} dot={displayData.length <= 40 ? { r: 4, fill: c0 } : false}>
+            <Area type="monotone" dataKey="value" name={measureLabel} stroke={c0} strokeWidth={2.5} fill={c0 + "20"} dot={displayData.length <= 40 ? { r: 4, fill: c0 } : false}>
               {displayData.length <= 40 && <LabelList dataKey="value" position="top" formatter={fv} style={{ fontSize: displayData.length > 20 ? 9 : 10, fill: "currentColor", fontWeight: 700 }} />}
             </Area>
             {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={comparisonLabel} stroke={c3} strokeWidth={2.5} fill={c3 + "10"} dot={displayData.length <= 40 ? { r: 4, fill: c3 } : false}>
@@ -726,6 +735,7 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
 
 /* ── Focus mode overlay ── */
 function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFull; filteredData?: unknown; onClose: () => void }) {
+  const [hideComparison, setHideComparison] = useState(false);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -735,6 +745,8 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
   const smartNarrative = generateSmartNarrative(item.insight, filteredData);
   const narrativeText = smartNarrative || item.insight.narrative;
   const themePalette = getPalette(item.colorOverride);
+  const hasComparisonData = insightHasComparison(item.insight);
+  const comparisonLabel = ((item.insight.chartConfig as { data?: { comparisonLabel?: string } } | null)?.data?.comparisonLabel) || "Comparison";
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-background" data-testid="focus-mode-overlay">
@@ -746,6 +758,17 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
           </div>
           <span className="font-bold text-sm">{item.titleOverride || item.insight.title}</span>
           <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize">{item.insight.chartType} · Focus Mode</span>
+          {hasComparisonData && (
+            <button
+              onClick={() => setHideComparison(h => !h)}
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-colors ${hideComparison ? "text-muted-foreground border-border" : "text-primary border-primary/30 bg-primary/5"}`}
+              title={hideComparison ? "Show comparison period" : "Hide comparison period"}
+              data-testid="button-toggle-comparison-focus"
+            >
+              {hideComparison ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              vs {comparisonLabel}
+            </button>
+          )}
         </div>
         <button
           onClick={onClose}
@@ -757,7 +780,7 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
         </button>
       </div>
       <div className="flex-1 overflow-hidden p-6 flex flex-col min-h-0">
-        <FullChart insight={item.insight} filteredData={filteredData} color={item.colorOverride || undefined} />
+        <FullChart insight={item.insight} filteredData={filteredData} color={item.colorOverride || undefined} hideComparison={hideComparison} />
       </div>
       {narrativeText && (
         <div className="shrink-0 border-t bg-muted/20 px-6 py-3 max-h-28 overflow-auto">
@@ -775,9 +798,12 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
   onColorChange: (color: string | null) => void;
 }) {
   const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [hideComparison, setHideComparison] = useState(false);
   const chartLabel: Record<string, string> = { kpi: "KPI Card", bar: "Bar", line: "Line", pie: "Pie", table: "Table", area: "Area", donut: "Donut", column: "Column" };
   const currentTheme = item.colorOverride || DEFAULT_THEME;
   const currentPalette = getPalette(currentTheme);
+  const hasComparisonData = insightHasComparison(item.insight);
+  const comparisonLabel = ((item.insight.chartConfig as { data?: { comparisonLabel?: string } } | null)?.data?.comparisonLabel) || "Comparison";
 
   return (
     <div className="group rounded-xl border bg-card overflow-hidden hover:shadow-md transition-all" data-testid={`item-insight-${item.id}`}>
@@ -837,6 +863,16 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
                 </div>
               )}
             </div>
+            {hasComparisonData && (
+              <button
+                onClick={() => setHideComparison(h => !h)}
+                className={`h-5 flex items-center gap-0.5 px-1.5 rounded transition-colors ${hideComparison ? "text-muted-foreground/50 hover:bg-muted/60" : "text-primary hover:bg-primary/10"}`}
+                title={hideComparison ? `Show vs ${comparisonLabel}` : `Hide vs ${comparisonLabel}`}
+                data-testid={`button-toggle-comparison-${item.id}`}
+              >
+                {hideComparison ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              </button>
+            )}
             <button onClick={onFocus} className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted/60" title="Focus mode" data-testid={`button-focus-widget-${item.id}`}>
               <Maximize2 className="h-3 w-3 text-muted-foreground" />
             </button>
@@ -845,7 +881,7 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
             <button onClick={onRemove} className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-500/10 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
           </div>
         </div>
-        <MiniChart insight={item.insight} filteredData={filteredData} color={currentTheme} />
+        <MiniChart insight={item.insight} filteredData={filteredData} color={currentTheme} hideComparison={hideComparison} />
         {(() => {
           const smartNarrative = generateSmartNarrative(item.insight, filteredData);
           const text = smartNarrative || item.insight.narrative;
