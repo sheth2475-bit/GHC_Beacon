@@ -1574,7 +1574,7 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════
   {
     const multer = (await import("multer")).default;
-    const analyticsUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+    const analyticsUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // 200 MB — supports up to ~1M rows
     const getOai = async () => {
       const OpenAI = (await import("openai")).default;
       return new OpenAI({
@@ -2111,7 +2111,7 @@ You can help the user understand their data, suggest chart types, explain insigh
     const multer = (await import("multer")).default;
     const xlsx = await import("xlsx");
     const zlib = await import("node:zlib");
-    const v2Upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+    const v2Upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // 200 MB — supports up to ~1M rows
 
     const getOaiV2 = async () => {
       const OpenAI = (await import("openai")).default;
