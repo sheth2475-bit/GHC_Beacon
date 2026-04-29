@@ -27,10 +27,21 @@ import {
 
 const CHART_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16"];
 
+function parseNumeric(v: unknown): number {
+  if (typeof v === "number") return v;
+  const s = String(v ?? "").replace(/[,$%\s]/g, "").trim();
+  return s === "" ? NaN : Number(s);
+}
+
 function buildClientWidgets(rows: Record<string, unknown>[]): Partial<AnalyticsDashboardWidget>[] {
   if (!rows.length) return [];
   const cols = Object.keys(rows[0]);
-  const numericCols = cols.filter(c => rows.every(r => r[c] !== null && r[c] !== "" && !isNaN(Number(r[c]))));
+  const numericCols = cols.filter(c => {
+    const nonEmpty = rows.filter(r => r[c] !== null && r[c] !== "" && r[c] !== undefined);
+    if (nonEmpty.length === 0) return false;
+    const numericCount = nonEmpty.filter(r => !isNaN(parseNumeric(r[c]))).length;
+    return numericCount / nonEmpty.length >= 0.7;
+  });
   const textCols = cols.filter(c => !numericCols.includes(c));
   const timeCol = cols.find(c => /date|month|period|week|year|quarter/i.test(c));
   const categoryCol = textCols.find(c => c !== timeCol) || textCols[0];
@@ -38,16 +49,16 @@ function buildClientWidgets(rows: Record<string, unknown>[]): Partial<AnalyticsD
   let pos = 0;
 
   for (const col of numericCols.slice(0, 4)) {
-    const vals = rows.map(r => Number(r[col])).filter(v => !isNaN(v));
+    const vals = rows.map(r => parseNumeric(r[col])).filter(v => !isNaN(v));
     const total = vals.reduce((a, b) => a + b, 0);
     const avg = vals.length ? total / vals.length : 0;
-    widgets.push({ id: -(pos + 1), widgetType: "kpi_card", title: col.replace(/_/g, " "), config: { metric: col, value: avg, total, count: vals.length, label: col.replace(/_/g, " ") }, position: pos++ });
+    widgets.push({ id: -(pos + 1), widgetType: "kpi_card", title: col.replace(/_/g, " "), config: { metric: col, value: total, avg, total, count: vals.length, label: col.replace(/_/g, " ") }, position: pos++ });
   }
 
   if (timeCol && numericCols.length > 0) {
     const metric = numericCols[0];
     const grouped: Record<string, number> = {};
-    for (const r of rows) { const k = String(r[timeCol] || ""); grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0); }
+    for (const r of rows) { const k = String(r[timeCol] || ""); grouped[k] = (grouped[k] || 0) + parseNumeric(r[metric] || 0); }
     const chartData = Object.entries(grouped).map(([k, v]) => ({ [timeCol]: k, [metric]: Math.round(v * 100) / 100 }));
     widgets.push({ id: -(pos + 1), widgetType: "line_chart", title: `${metric.replace(/_/g, " ")} over time`, config: { data: chartData, xKey: timeCol, yKey: metric, color: "#3b82f6" }, position: pos++ });
   }
@@ -55,7 +66,7 @@ function buildClientWidgets(rows: Record<string, unknown>[]): Partial<AnalyticsD
   if (categoryCol && numericCols.length > 0) {
     const metric = numericCols[0];
     const grouped: Record<string, number> = {};
-    for (const r of rows) { const k = String(r[categoryCol] || "Other"); grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0); }
+    for (const r of rows) { const k = String(r[categoryCol] || "Other"); grouped[k] = (grouped[k] || 0) + parseNumeric(r[metric] || 0); }
     const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
     const chartData = sorted.map(([k, v]) => ({ [categoryCol]: k, [metric]: Math.round(v * 100) / 100 }));
     widgets.push({ id: -(pos + 1), widgetType: "bar_chart", title: `${metric.replace(/_/g, " ")} by ${categoryCol.replace(/_/g, " ")}`, config: { data: chartData, xKey: categoryCol, yKey: metric, color: "#8b5cf6" }, position: pos++ });
@@ -64,7 +75,7 @@ function buildClientWidgets(rows: Record<string, unknown>[]): Partial<AnalyticsD
   if (categoryCol && numericCols.length >= 2) {
     const metric = numericCols[1];
     const grouped: Record<string, number> = {};
-    for (const r of rows) { const k = String(r[categoryCol] || "Other"); grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0); }
+    for (const r of rows) { const k = String(r[categoryCol] || "Other"); grouped[k] = (grouped[k] || 0) + parseNumeric(r[metric] || 0); }
     const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 6);
     const pieData = sorted.map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
     widgets.push({ id: -(pos + 1), widgetType: "pie_chart", title: `${metric.replace(/_/g, " ")} distribution`, config: { data: pieData }, position: pos++ });
@@ -120,17 +131,19 @@ function FocusModeOverlay({ widget, onClose }: { widget: AnalyticsDashboardWidge
 
 function FocusWidgetContent({ widget }: { widget: AnalyticsDashboardWidget }) {
   if (widget.widgetType === "kpi_card") {
-    const cfg = widget.config as { metric: string; value: number; total: number; count: number; label: string } | null;
+    const cfg = widget.config as { metric: string; value: number; avg?: number; total: number; count: number; label: string } | null;
     if (!cfg) return null;
-    const val = typeof cfg.value === "number" ? cfg.value : 0;
-    const displayVal = Number.isInteger(val) ? val.toLocaleString() : val.toFixed(2).replace(/\.?0+$/, "");
+    const total = typeof cfg.total === "number" ? cfg.total : (typeof cfg.value === "number" ? cfg.value : 0);
+    const displayVal = Number.isInteger(total) ? total.toLocaleString() : total.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    const avg = typeof cfg.avg === "number" ? cfg.avg : null;
+    const displayAvg = avg !== null ? avg.toLocaleString(undefined, { maximumFractionDigits: 2 }) : null;
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
           <TrendingUp className="h-8 w-8 text-primary" />
         </div>
         <p className="text-8xl font-black tabular-nums text-foreground">{displayVal}</p>
-        <p className="text-sm text-muted-foreground">{cfg.count} data points · Total: {typeof cfg.total === "number" ? cfg.total.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}</p>
+        <p className="text-sm text-muted-foreground">{cfg.count} rows{displayAvg ? ` · Avg per row: ${displayAvg}` : ""}</p>
       </div>
     );
   }
@@ -217,10 +230,12 @@ function FocusWidgetContent({ widget }: { widget: AnalyticsDashboardWidget }) {
 
 /* ── KPI Card widget ── */
 function KpiCard({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFocus: () => void }) {
-  const cfg = widget.config as { metric: string; value: number; total: number; count: number; label: string } | null;
+  const cfg = widget.config as { metric: string; value: number; avg?: number; total: number; count: number; label: string } | null;
   if (!cfg) return null;
-  const val = typeof cfg.value === "number" ? cfg.value : 0;
-  const displayVal = Number.isInteger(val) ? val.toLocaleString() : val.toFixed(2).replace(/\.?0+$/, "");
+  const total = typeof cfg.total === "number" ? cfg.total : (typeof cfg.value === "number" ? cfg.value : 0);
+  const displayVal = Number.isInteger(total) ? total.toLocaleString() : total.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const avg = typeof cfg.avg === "number" ? cfg.avg : (typeof cfg.value === "number" && cfg.count ? cfg.value / cfg.count : null);
+  const displayAvg = avg !== null ? (Number.isInteger(avg) ? avg.toLocaleString() : avg.toLocaleString(undefined, { maximumFractionDigits: 2 })) : null;
   return (
     <div className="group relative rounded-xl border bg-card p-4 hover:shadow-sm transition-all" data-testid={`widget-kpi-${widget.id}`}>
       <button
@@ -238,7 +253,7 @@ function KpiCard({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFocu
         </div>
       </div>
       <p className="text-3xl font-black tabular-nums text-foreground">{displayVal}</p>
-      <p className="text-[10px] text-muted-foreground mt-1">{cfg.count} data points · Total: {typeof cfg.total === "number" ? cfg.total.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}</p>
+      <p className="text-[10px] text-muted-foreground mt-1">{cfg.count} rows{displayAvg ? ` · Avg: ${displayAvg}` : ""}</p>
     </div>
   );
 }
@@ -475,12 +490,28 @@ export default function AnalyticsStudioViewPage() {
     try {
       const fd = new FormData();
       fd.append("file", uploadFile);
-      await fetch(`/api/analytics/dashboards/${id}/upload`, { method: "POST", body: fd });
+      const res = await fetch(`/api/analytics/dashboards/${id}/upload`, { method: "POST", body: fd });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: "Upload failed", description: result?.message || "An unexpected error occurred.", variant: "destructive" });
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/analytics/dashboards", id] });
       setUploadFile(null);
       setFilterCol(""); setFilterVal("");
-      toast({ title: "Data refreshed successfully" });
-    } catch { toast({ title: "Upload failed", variant: "destructive" }); }
+      const rowCount: number = result?.rowCount ?? 0;
+      const errors: { row: number; column: string; message: string }[] = result?.errors ?? [];
+      if (errors.length > 0) {
+        const sample = errors.slice(0, 5).map(e => `Row ${e.row}: ${e.column} — ${e.message}`).join("\n");
+        toast({
+          title: `Uploaded with ${errors.length} row warning${errors.length > 1 ? "s" : ""}`,
+          description: `${rowCount} rows read. Issues found:\n${sample}${errors.length > 5 ? `\n…and ${errors.length - 5} more` : ""}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Data refreshed successfully", description: `${rowCount} rows processed` });
+      }
+    } catch { toast({ title: "Upload failed", description: "Could not connect to the server.", variant: "destructive" }); }
     finally { setUploading(false); }
   };
 

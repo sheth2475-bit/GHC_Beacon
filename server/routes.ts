@@ -1584,10 +1584,21 @@ export async function registerRoutes(
     };
 
     // Helper: build widgets from data rows
+    function parseNum(v: unknown): number {
+      if (typeof v === "number") return v;
+      const s = String(v ?? "").replace(/[,$%\s]/g, "").trim();
+      return s === "" ? NaN : Number(s);
+    }
+
     function buildWidgetsFromData(rows: Record<string, unknown>[], config: Record<string, unknown> | null): { widgetType: string; title: string; config: unknown; position: number }[] {
       if (!rows || !rows.length) return [];
       const cols = Object.keys(rows[0]);
-      const numericCols = cols.filter(c => rows.every(r => r[c] !== null && r[c] !== "" && !isNaN(Number(r[c]))));
+      const numericCols = cols.filter(c => {
+        const nonEmpty = rows.filter(r => r[c] !== null && r[c] !== "" && r[c] !== undefined);
+        if (nonEmpty.length === 0) return false;
+        const numericCount = nonEmpty.filter(r => !isNaN(parseNum(r[c]))).length;
+        return numericCount / nonEmpty.length >= 0.7;
+      });
       const textCols = cols.filter(c => !numericCols.includes(c));
       const timeCol = cols.find(c => /date|month|period|week|year|quarter/i.test(c));
       const categoryCol = textCols.find(c => c !== timeCol) || textCols[0];
@@ -1597,13 +1608,13 @@ export async function registerRoutes(
 
       // KPI cards for numeric columns (top 4)
       for (const col of numericCols.slice(0, 4)) {
-        const vals = rows.map(r => Number(r[col])).filter(v => !isNaN(v));
+        const vals = rows.map(r => parseNum(r[col])).filter(v => !isNaN(v));
         const total = vals.reduce((a, b) => a + b, 0);
         const avg = vals.length ? total / vals.length : 0;
         widgets.push({
           widgetType: "kpi_card",
           title: col.replace(/_/g, " "),
-          config: { metric: col, value: avg, total, count: vals.length, label: col.replace(/_/g, " ") },
+          config: { metric: col, value: total, avg, total, count: vals.length, label: col.replace(/_/g, " ") },
           position: pos++,
         });
       }
@@ -1614,7 +1625,7 @@ export async function registerRoutes(
         const grouped: Record<string, number> = {};
         for (const r of rows) {
           const k = String(r[timeCol] || "");
-          grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0);
+          grouped[k] = (grouped[k] || 0) + parseNum(r[metric] || 0);
         }
         const chartData = Object.entries(grouped).map(([k, v]) => ({ [timeCol]: k, [metric]: Math.round(v * 100) / 100 }));
         widgets.push({
@@ -1631,7 +1642,7 @@ export async function registerRoutes(
         const grouped: Record<string, number> = {};
         for (const r of rows) {
           const k = String(r[categoryCol] || "Other");
-          grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0);
+          grouped[k] = (grouped[k] || 0) + parseNum(r[metric] || 0);
         }
         const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
         const chartData = sorted.map(([k, v]) => ({ [categoryCol]: k, [metric]: Math.round(v * 100) / 100 }));
@@ -1649,7 +1660,7 @@ export async function registerRoutes(
         const grouped: Record<string, number> = {};
         for (const r of rows) {
           const k = String(r[categoryCol] || "Other");
-          grouped[k] = (grouped[k] || 0) + Number(r[metric] || 0);
+          grouped[k] = (grouped[k] || 0) + parseNum(r[metric] || 0);
         }
         const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 6);
         const pieData = sorted.map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
@@ -1858,16 +1869,16 @@ Keep it practical: 5-12 columns. Include columns for dates, key metrics, dimensi
           }
         }
 
-        // Validate numeric columns
+        // Validate numeric columns across ALL rows (no row cap)
         if (templateCols.length > 0) {
-          for (let i = 0; i < Math.min(rows.length, 500); i++) {
+          for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             for (const col of templateCols) {
               if (col.type === "number" || col.type === "percent") {
                 const key = Object.keys(row).find(k =>
                   k.toLowerCase().replace(/[^a-z0-9]/g, "") === col.key.toLowerCase().replace(/[^a-z0-9]/g, "")
                 );
-                if (key && row[key] !== "" && isNaN(Number(row[key]))) {
+                if (key && row[key] !== "" && isNaN(parseNum(row[key]))) {
                   errors.push({ row: i + 2, column: col.name, message: `Invalid number: "${row[key]}"` });
                 }
               }
@@ -1875,7 +1886,8 @@ Keep it practical: 5-12 columns. Include columns for dates, key metrics, dimensi
           }
         }
 
-        const status = errors.length === 0 ? "valid" : errors.length > rows.length * 0.3 ? "invalid" : "valid";
+        // Always treat as valid so widgets are always built; errors are returned as warnings
+        const status = "valid";
         const upload = await storage.createAnalyticsDashboardUpload({
           dashboardId: id,
           uploadedBy: (req as any).user.id,
@@ -1886,12 +1898,10 @@ Keep it practical: 5-12 columns. Include columns for dates, key metrics, dimensi
           validationErrors: errors as never,
         });
 
-        // Auto-build widgets if valid
-        if (status === "valid") {
-          const widgets = buildWidgetsFromData(rows as Record<string, unknown>[], dash.config as Record<string, unknown>);
-          await storage.upsertAnalyticsDashboardWidgets(id, widgets);
-          await storage.updateAnalyticsDashboard(id, { status: "draft" });
-        }
+        // Always build widgets from all rows
+        const widgets = buildWidgetsFromData(rows as Record<string, unknown>[], dash.config as Record<string, unknown>);
+        await storage.upsertAnalyticsDashboardWidgets(id, widgets);
+        await storage.updateAnalyticsDashboard(id, { status: "draft" });
 
         res.json({ upload, errors, rowCount: rows.length, status });
       } catch (err: any) {
