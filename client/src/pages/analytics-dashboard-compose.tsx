@@ -297,6 +297,25 @@ function shortLabel(name: string, maxLen = 8): string {
 }
 
 // ── Smart narrative generator — context-aware insights for CEO / manager ────
+/**
+ * Normalises chart data into [{name, value}] regardless of whether the backend
+ * stored it as the standard `data.data` array or the AI-query `data.rows + data.columns` format.
+ */
+function normalizeSeriesData(d: Record<string, unknown>): { name: string; value: number; comparisonValue?: number }[] {
+  if (Array.isArray((d as { data?: unknown }).data)) {
+    return (d as { data: { name: string; value: number; comparisonValue?: number }[] }).data;
+  }
+  const rows = (d as { rows?: Record<string, unknown>[] }).rows;
+  const cols = (d as { columns?: string[] }).columns;
+  if (Array.isArray(rows) && Array.isArray(cols) && cols.length >= 2) {
+    return rows.map(r => ({
+      name: String(r[cols[0]] ?? ""),
+      value: Number(r[cols[1]] ?? 0),
+    }));
+  }
+  return [];
+}
+
 function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknown): string | null {
   const cfg = insight.chartConfig as {
     data?: unknown;
@@ -339,7 +358,7 @@ function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknow
 
   // ── Bar / Line / Area (time series or categorical) ───────────────────────
   if (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") {
-    const seriesData = (activeData as { data?: { name: string; value: number }[] }).data;
+    const seriesData = normalizeSeriesData(activeData as Record<string, unknown>);
     if (!seriesData || seriesData.length === 0) return null;
 
     const values = seriesData.map(d => d.value).filter(v => isFinite(v));
@@ -377,7 +396,7 @@ function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknow
 
   // ── Pie chart ────────────────────────────────────────────────────────────
   if (chartType === "pie") {
-    const seriesData = (activeData as { data?: { name: string; value: number }[] }).data;
+    const seriesData = normalizeSeriesData(activeData as Record<string, unknown>);
     if (!seriesData || seriesData.length === 0) return null;
 
     const total = seriesData.reduce((a, b) => a + b.value, 0);
@@ -424,7 +443,7 @@ function MiniChart({ insight, filteredData, color }: { insight: AnalyticsInsight
   }
 
   if ((chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") && data) {
-    const chartData = (data as { data?: { name: string; value: number; comparisonValue?: number }[]; comparisonLabel?: string }).data || [];
+    const chartData = normalizeSeriesData(data as Record<string, unknown>);
     const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
     const maxItems = (chartType === "bar" || chartType === "column" || chartType === "horizontal-bar") ? 20 : 30;
     const displayData = chartData.slice(0, maxItems).map(d => ({ ...d, shortName: shortLabel(d.name) }));
@@ -606,7 +625,7 @@ function FullChart({ insight, filteredData, color }: { insight: AnalyticsInsight
   }
 
   if ((chartType === "bar" || chartType === "column" || chartType === "horizontal-bar" || chartType === "line" || chartType === "area") && data) {
-    const seriesData = (data as { data?: { name: string; value: number; comparisonValue?: number }[] }).data || [];
+    const seriesData = normalizeSeriesData(data as Record<string, unknown>);
     const displayData = seriesData.map(d => ({ ...d, shortName: d.name, value: typeof d.value === "number" ? d.value : Number(d.value) }));
     const comparisonLabel = (data as { comparisonLabel?: string }).comparisonLabel || "Comparison";
     const hasComparison = displayData.some(d => typeof d.comparisonValue === "number");
