@@ -10,7 +10,7 @@ import {
   ArrowLeft, Sparkles, Loader2, Send, Save, Pin, BarChart2, BarChart3,
   TrendingUp, PieChart, Table2, Hash, AlignLeft, Calendar, Activity,
   RefreshCw, Lightbulb, ChevronRight, CheckCircle2, X, Plus, Download,
-  Settings2, Layers, Info, Zap, Eye, BookMarked, LayoutDashboard, ArrowRight,
+  Settings2, Layers, Info, Zap, Eye, EyeOff, BookMarked, LayoutDashboard, ArrowRight,
   SlidersHorizontal, Clock, Database, BarChartHorizontal,
 } from "lucide-react";
 import {
@@ -263,10 +263,11 @@ function KpiCard({ data, displayFormat, valueFormat = "number" }: { data: { valu
 
 const LABEL_STYLE = { fontSize: 10, fill: "hsl(var(--muted-foreground))", fontWeight: 500 };
 
-function BarChartWidget({ cfg, horizontal, displayFormat, formatter }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; horizontal?: boolean; displayFormat: NumberDisplayFormat; formatter?: (v: number) => string }) {
+function BarChartWidget({ cfg, horizontal, displayFormat, formatter, hideComparison }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; horizontal?: boolean; displayFormat: NumberDisplayFormat; formatter?: (v: number) => string; hideComparison?: boolean }) {
   const fv = formatter ?? ((v: number) => formatValue(v, displayFormat));
   const showLabels = cfg.data.length <= 15;
-  const hasComparison = cfg.data.some(d => typeof d.comparisonValue === "number");
+  const measureLabel = cfg.measureLabel || "Value";
+  const hasComparison = !hideComparison && cfg.data.some(d => typeof d.comparisonValue === "number");
   if (horizontal) {
     return (
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -274,9 +275,9 @@ function BarChartWidget({ cfg, horizontal, displayFormat, formatter }: { cfg: { 
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
           <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={fv} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={90} />
-          <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+          <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : measureLabel]} />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-          <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+          <Bar dataKey="value" name={measureLabel} radius={[0, 4, 4, 0]}>
             {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
             {showLabels && <LabelList dataKey="value" position="right" formatter={fv} style={LABEL_STYLE} />}
           </Bar>
@@ -293,9 +294,9 @@ function BarChartWidget({ cfg, horizontal, displayFormat, formatter }: { cfg: { 
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 10 }} tickFormatter={fv} />
-        <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+        <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : measureLabel]} />
         {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+        <Bar dataKey="value" name={measureLabel} radius={[4, 4, 0, 0]}>
           {cfg.data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
           {showLabels && <LabelList dataKey="value" position="top" formatter={fv} style={LABEL_STYLE} />}
         </Bar>
@@ -307,11 +308,12 @@ function BarChartWidget({ cfg, horizontal, displayFormat, formatter }: { cfg: { 
   );
 }
 
-function LineChartWidget({ cfg, filled, displayFormat, formatter }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; filled?: boolean; displayFormat: NumberDisplayFormat; formatter?: (v: number) => string }) {
+function LineChartWidget({ cfg, filled, displayFormat, formatter, hideComparison }: { cfg: { data: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string }; filled?: boolean; displayFormat: NumberDisplayFormat; formatter?: (v: number) => string; hideComparison?: boolean }) {
   const fv = formatter ?? ((v: number) => formatValue(v, displayFormat));
   const showLabels = cfg.data.length <= 15;
   const lineMargin = { top: showLabels ? 22 : 8, right: 16, left: 0, bottom: 60 };
-  const hasComparison = cfg.data.some(d => typeof d.comparisonValue === "number");
+  const measureLabel = cfg.measureLabel || "Value";
+  const hasComparison = !hideComparison && cfg.data.some(d => typeof d.comparisonValue === "number");
   if (filled) {
     return (
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -325,9 +327,9 @@ function LineChartWidget({ cfg, filled, displayFormat, formatter }: { cfg: { dat
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
           <YAxis tick={{ fontSize: 10 }} tickFormatter={fv} />
-          <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+          <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : measureLabel]} />
           {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-          <Area type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} fill="url(#areaGrad)" dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
+          <Area type="monotone" dataKey="value" name={measureLabel} stroke={CHART_COLORS[0]} strokeWidth={2.5} fill="url(#areaGrad)" dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
             {showLabels && <LabelList dataKey="value" position="top" formatter={fv} style={LABEL_STYLE} />}
           </Area>
           {hasComparison && <Area type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2} fill={CHART_COLORS[3] + "10"} dot={{ r: 3, fill: CHART_COLORS[3] }}>
@@ -343,9 +345,9 @@ function LineChartWidget({ cfg, filled, displayFormat, formatter }: { cfg: { dat
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 10 }} tickFormatter={fv} />
-        <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : (cfg.measureLabel || "Value")]} />
+        <Tooltip formatter={(v, name) => [fv(Number(v)), name === "comparisonValue" ? (cfg.comparisonLabel || "Comparison") : measureLabel]} />
         {hasComparison && <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px" }} />}
-        <Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
+        <Line type="monotone" dataKey="value" name={measureLabel} stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[0] }} activeDot={{ r: 5 }}>
           {showLabels && <LabelList dataKey="value" position="top" formatter={fv} style={LABEL_STYLE} />}
         </Line>
         {hasComparison && <Line type="monotone" dataKey="comparisonValue" name={cfg.comparisonLabel || "Comparison"} stroke={CHART_COLORS[3]} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS[3] }}>
@@ -409,7 +411,7 @@ function TableWidget({ cfg, displayFormat }: { cfg: { rows?: Record<string, unkn
   );
 }
 
-function InsightChart({ result, override }: { result: AskResult; override: string }) {
+function InsightChart({ result, override, hideComparison }: { result: AskResult; override: string; hideComparison?: boolean }) {
   const chartType = override || result.chartType;
   const cfg = result.chartConfig;
   if (!cfg) return null;
@@ -424,10 +426,10 @@ function InsightChart({ result, override }: { result: AskResult; override: strin
   const barData = data as { data?: { name: string; value: number; comparisonValue?: number }[]; measureLabel?: string; comparisonLabel?: string } | null | undefined;
   const chartData = normalizedData;
 
-  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} formatter={fv} />;
-  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} horizontal displayFormat={displayFormat} formatter={fv} />;
-  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} formatter={fv} />;
-  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} filled displayFormat={displayFormat} formatter={fv} />;
+  if (chartType === "bar") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} formatter={fv} hideComparison={hideComparison} />;
+  if (chartType === "column") return <BarChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} horizontal displayFormat={displayFormat} formatter={fv} hideComparison={hideComparison} />;
+  if (chartType === "line") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} displayFormat={displayFormat} formatter={fv} hideComparison={hideComparison} />;
+  if (chartType === "area") return <LineChartWidget cfg={{ data: chartData, measureLabel: barData?.measureLabel, comparisonLabel: barData?.comparisonLabel }} filled displayFormat={displayFormat} formatter={fv} hideComparison={hideComparison} />;
   if (chartType === "pie") return <PieChartWidget cfg={{ data: chartData }} displayFormat={displayFormat} formatter={fv} />;
   if (chartType === "donut") return <PieChartWidget cfg={{ data: chartData }} donut displayFormat={displayFormat} formatter={fv} />;
   if (chartType === "table") return <TableWidget cfg={buildTableData(data, normalizedData)} displayFormat={displayFormat} />;
@@ -496,6 +498,7 @@ export default function AnalyticsExplorePage() {
   // State
   const [question, setQuestion] = useState("");
   const [chartOverride, setChartOverride] = useState<string>("");
+  const [hideComparison, setHideComparison] = useState(false);
   const [result, setResult] = useState<AskResult | null>(null);
   const [history, setHistory] = useState<AskResult[]>([]);
   const [savedInsightId, setSavedInsightId] = useState<number | null>(null);
@@ -508,6 +511,8 @@ export default function AnalyticsExplorePage() {
   const [filterPanelExpanded, setFilterPanelExpanded] = useState<Record<string, boolean>>({});
 
   // Auto-load a saved insight when navigated via ?insightId=
+  useEffect(() => { setHideComparison(false); }, [result]);
+
   useEffect(() => {
     if (!ds || !preloadInsightId || preloadApplied) return;
     const insight = ds.insights?.find(i => i.id === preloadInsightId);
@@ -684,6 +689,7 @@ export default function AnalyticsExplorePage() {
   const activeChartType = chartOverride || result?.chartType || "";
   const currentChartLabel = CHART_TYPE_OPTIONS.find(o => o.value === activeChartType)?.label || "Auto";
   const currentDisplayFormat = (result?.chartConfig?.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
+  const resultHasComparison = !!(result?.chartConfig?.data as { comparisonLabel?: string } | null | undefined)?.comparisonLabel;
 
   const setNumberDisplayFormat = (displayFormat: NumberDisplayFormat) => {
     setResult(prev => prev ? {
@@ -1208,13 +1214,27 @@ export default function AnalyticsExplorePage() {
                     <Hash className="h-3 w-3" />
                     {currentDisplayFormat === "full" ? "Full numbers" : "Compact numbers"}
                   </button>
+                  {resultHasComparison && (
+                    <>
+                      <span className="h-5 w-px bg-border mx-1" />
+                      <button
+                        onClick={() => setHideComparison(h => !h)}
+                        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${hideComparison ? "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground" : "bg-primary text-primary-foreground border-primary shadow-sm"}`}
+                        data-testid="button-toggle-comparison"
+                        title={hideComparison ? "Show comparison" : "Hide comparison"}
+                      >
+                        {hideComparison ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                        Comparison
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* Chart canvas */}
                 <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
                   <div className={`h-[3px] bg-gradient-to-r ${result.trendDirection === "up" ? "from-emerald-500 to-emerald-300" : result.trendDirection === "down" ? "from-red-500 to-red-300" : result.anomalyDetected ? "from-amber-500 to-amber-300" : "from-primary via-primary/60 to-primary/20"}`} />
                   <div className="p-5">
-                    <InsightChart result={result} override={activeChartType} />
+                    <InsightChart result={result} override={activeChartType} hideComparison={hideComparison} />
                   </div>
                 </div>
 
