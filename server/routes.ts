@@ -1672,6 +1672,78 @@ export async function registerRoutes(
         });
       }
 
+      // ── Auto date detection: Year-over-Year & Month-on-Month comparisons ──
+      const parseMonthYear = (val: string): { year: string; month: number } | null => {
+        const m = val.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
+        return m ? { year: m[1], month: parseInt(m[2]) } : null;
+      };
+
+      // Find the column whose values most resemble YYYY-MM or YYYY-MM-DD dates
+      const monthCol = cols.find(c => {
+        if (numericCols.includes(c)) return false;
+        const sample = rows.slice(0, 30).map(r => String(r[c] ?? "")).filter(v => v !== "");
+        if (sample.length === 0) return false;
+        return sample.filter(v => parseMonthYear(v) !== null).length / sample.length >= 0.5;
+      });
+
+      if (monthCol && numericCols.length > 0) {
+        const metric = numericCols[0];
+        const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+        // Aggregate by year × month
+        const byYearMonth: Record<string, Record<number, number>> = {};
+        for (const r of rows) {
+          const parsed = parseMonthYear(String(r[monthCol] ?? ""));
+          if (!parsed) continue;
+          const { year, month } = parsed;
+          if (!byYearMonth[year]) byYearMonth[year] = {};
+          byYearMonth[year][month] = (byYearMonth[year][month] || 0) + parseNum(r[metric] || 0);
+        }
+        const years = Object.keys(byYearMonth).sort();
+
+        if (years.length >= 2) {
+          // Year-over-Year totals bar chart
+          const yearData = years.map(y => ({
+            year: y,
+            [metric]: Math.round(Object.values(byYearMonth[y]).reduce((a, b) => a + b, 0) * 100) / 100,
+          }));
+          widgets.push({
+            widgetType: "bar_chart",
+            title: `${metric.replace(/_/g, " ")} — Year over Year`,
+            config: { data: yearData, xKey: "year", yKey: metric, color: "#10b981" },
+            position: pos++,
+          });
+
+          // Month-on-Month: current year vs prior year side-by-side
+          const currentYear = years[years.length - 1];
+          const priorYear = years[years.length - 2];
+          const momData = MONTH_LABELS
+            .map((label, i) => {
+              const mo = i + 1;
+              const curr = Math.round((byYearMonth[currentYear]?.[mo] || 0) * 100) / 100;
+              const prior = Math.round((byYearMonth[priorYear]?.[mo] || 0) * 100) / 100;
+              return { month: label, [currentYear]: curr, [priorYear]: prior };
+            })
+            .filter(d => (d[currentYear] as number) > 0 || (d[priorYear] as number) > 0);
+
+          if (momData.length > 0) {
+            widgets.push({
+              widgetType: "comparison_chart",
+              title: `${metric.replace(/_/g, " ")} — ${currentYear} vs ${priorYear} (Month by Month)`,
+              config: {
+                data: momData,
+                xKey: "month",
+                series: [
+                  { key: currentYear, color: "#3b82f6", label: `${currentYear} (Current)` },
+                  { key: priorYear, color: "#94a3b8", label: `${priorYear} (Prior Year)` },
+                ],
+              },
+              position: pos++,
+            });
+          }
+        }
+      }
+
       // Data table (all rows, first 100)
       widgets.push({
         widgetType: "table",

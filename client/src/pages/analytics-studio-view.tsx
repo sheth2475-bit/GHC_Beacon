@@ -81,6 +81,59 @@ function buildClientWidgets(rows: Record<string, unknown>[]): Partial<AnalyticsD
     widgets.push({ id: -(pos + 1), widgetType: "pie_chart", title: `${metric.replace(/_/g, " ")} distribution`, config: { data: pieData }, position: pos++ });
   }
 
+  // ── Auto date detection: Year-over-Year & Month-on-Month ──
+  const parseMonthYear = (val: string): { year: string; month: number } | null => {
+    const m = val.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
+    return m ? { year: m[1], month: parseInt(m[2]) } : null;
+  };
+  const monthCol = cols.find(c => {
+    if (numericCols.includes(c)) return false;
+    const sample = rows.slice(0, 30).map(r => String(r[c] ?? "")).filter(v => v !== "");
+    if (sample.length === 0) return false;
+    return sample.filter(v => parseMonthYear(v) !== null).length / sample.length >= 0.5;
+  });
+  if (monthCol && numericCols.length > 0) {
+    const metric = numericCols[0];
+    const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const byYearMonth: Record<string, Record<number, number>> = {};
+    for (const r of rows) {
+      const parsed = parseMonthYear(String(r[monthCol] ?? ""));
+      if (!parsed) continue;
+      const { year, month } = parsed;
+      if (!byYearMonth[year]) byYearMonth[year] = {};
+      byYearMonth[year][month] = (byYearMonth[year][month] || 0) + parseNumeric(r[metric] || 0);
+    }
+    const years = Object.keys(byYearMonth).sort();
+    if (years.length >= 2) {
+      const yearData = years.map(y => ({ year: y, [metric]: Math.round(Object.values(byYearMonth[y]).reduce((a, b) => a + b, 0) * 100) / 100 }));
+      widgets.push({ id: -(pos + 1), widgetType: "bar_chart", title: `${metric.replace(/_/g, " ")} — Year over Year`, config: { data: yearData, xKey: "year", yKey: metric, color: "#10b981" }, position: pos++ });
+
+      const currentYear = years[years.length - 1];
+      const priorYear = years[years.length - 2];
+      const momData = MONTH_LABELS
+        .map((label, i) => {
+          const mo = i + 1;
+          return { month: label, [currentYear]: Math.round((byYearMonth[currentYear]?.[mo] || 0) * 100) / 100, [priorYear]: Math.round((byYearMonth[priorYear]?.[mo] || 0) * 100) / 100 };
+        })
+        .filter(d => (d[currentYear] as number) > 0 || (d[priorYear] as number) > 0);
+      if (momData.length > 0) {
+        widgets.push({
+          id: -(pos + 1),
+          widgetType: "comparison_chart",
+          title: `${metric.replace(/_/g, " ")} — ${currentYear} vs ${priorYear} (Month by Month)`,
+          config: {
+            data: momData, xKey: "month",
+            series: [
+              { key: currentYear, color: "#3b82f6", label: `${currentYear} (Current)` },
+              { key: priorYear, color: "#94a3b8", label: `${priorYear} (Prior Year)` },
+            ],
+          },
+          position: pos++,
+        });
+      }
+    }
+  }
+
   widgets.push({ id: -(pos + 1), widgetType: "table", title: "Data Table", config: { columns: cols, rows: rows.slice(0, 100) }, position: pos++ });
   return widgets;
 }
@@ -176,6 +229,29 @@ function FocusWidgetContent({ widget }: { widget: AnalyticsDashboardWidget }) {
               </Bar>
             </BarChart>
           )}
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
+  if (widget.widgetType === "comparison_chart") {
+    const cfg = widget.config as { data: Record<string, unknown>[]; xKey: string; series: { key: string; color: string; label: string }[] } | null;
+    if (!cfg || !cfg.data || cfg.data.length === 0 || !cfg.series?.length) return null;
+    return (
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={cfg.data} barGap={4} barSize={24} margin={{ top: 12, right: 24, bottom: 12, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey={cfg.xKey} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={52} />
+            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "13px" }} />
+            <Legend iconType="circle" iconSize={10} formatter={(v: string) => <span className="text-sm text-foreground">{v}</span>} />
+            {cfg.series.map(s => (
+              <Bar key={s.key} dataKey={s.key} fill={s.color} name={s.label} radius={[4, 4, 0, 0]}>
+                <LabelList dataKey={s.key} position="top" style={{ fontSize: 10, fill: "currentColor", fontWeight: 700 }} />
+              </Bar>
+            ))}
+          </BarChart>
         </ResponsiveContainer>
       </div>
     );
@@ -297,6 +373,37 @@ function ChartWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; on
             </Bar>
           </BarChart>
         )}
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ── Comparison (YoY / MoM grouped bar) widget ── */
+function ComparisonWidget({ widget, onFocus }: { widget: AnalyticsDashboardWidget; onFocus: () => void }) {
+  const cfg = widget.config as { data: Record<string, unknown>[]; xKey: string; series: { key: string; color: string; label: string }[] } | null;
+  if (!cfg || !cfg.data || cfg.data.length === 0 || !cfg.series?.length) return null;
+  return (
+    <div className="group relative rounded-xl border bg-card p-4 col-span-full" data-testid={`widget-comparison-${widget.id}`}>
+      <button
+        onClick={onFocus}
+        className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted border border-transparent hover:border-border"
+        title="Focus mode"
+        data-testid={`button-focus-widget-${widget.id}`}
+      >
+        <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+      <p className="text-sm font-bold mb-3">{widget.title}</p>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={cfg.data} barGap={3} barSize={18} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+          <XAxis dataKey={cfg.xKey} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={40} />
+          <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "11px" }} />
+          <Legend iconType="circle" iconSize={7} formatter={(v: string) => <span className="text-[10px] text-foreground">{v}</span>} />
+          {cfg.series.map(s => (
+            <Bar key={s.key} dataKey={s.key} fill={s.color} name={s.label} radius={[3, 3, 0, 0]} />
+          ))}
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );
@@ -564,6 +671,7 @@ export default function AnalyticsStudioViewPage() {
 
   const kpiWidgets = activeWidgets.filter(w => w.widgetType === "kpi_card");
   const chartWidgets = activeWidgets.filter(w => ["bar_chart", "line_chart", "area_chart"].includes(w.widgetType));
+  const comparisonWidgets = activeWidgets.filter(w => w.widgetType === "comparison_chart");
   const pieWidgets = activeWidgets.filter(w => w.widgetType === "pie_chart");
   const tableWidgets = activeWidgets.filter(w => w.widgetType === "table");
   const hasData = dash.widgets.length > 0;
@@ -753,6 +861,13 @@ export default function AnalyticsStudioViewPage() {
                 {chartWidgets.length > 0 && (
                   <div className={`grid gap-4 ${chartWidgets.length >= 2 ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
                     {chartWidgets.map(w => <ChartWidget key={w.id} widget={w} onFocus={() => setFocusedWidget(w)} />)}
+                  </div>
+                )}
+
+                {/* Year-over-Year / Month-on-Month comparison charts */}
+                {comparisonWidgets.length > 0 && (
+                  <div className="space-y-4">
+                    {comparisonWidgets.map(w => <ComparisonWidget key={w.id} widget={w} onFocus={() => setFocusedWidget(w)} />)}
                   </div>
                 )}
 
