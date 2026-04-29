@@ -2865,14 +2865,15 @@ You can help the user understand their data, suggest chart types, explain insigh
           fileName: req.file.originalname,
           sheetNames,
           rowCount: rows.length,
-          rawData: rows.slice(0, 5000) as unknown as typeof rows,
+          rawData: rows as unknown as typeof rows,
           status: "active",
         });
 
         const colDefs = buildAnalyticsColumnDefs(rows);
         await storage.upsertAnalyticsDatasetColumns(dataset.id, colDefs);
 
-        res.json({ ...dataset, columns: colDefs, modelingStrategy: modeled.strategy });
+        const { rawData: _rd, ...datasetMeta } = dataset;
+        res.json({ ...datasetMeta, columns: colDefs, modelingStrategy: modeled.strategy });
       } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Upload failed" });
@@ -2974,7 +2975,7 @@ ${extractedText || "(none)"}`;
           fileName: `${datasetName.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "visual_dataset"}_starter.xlsx`,
           sheetNames: ["Generated Data"],
           rowCount: rows.length,
-          rawData: rows.slice(0, 5000) as unknown as Record<string, unknown>[],
+          rawData: rows as unknown as Record<string, unknown>[],
           status: "active",
         });
 
@@ -3093,7 +3094,7 @@ ${extractedText || "(none)"}`;
           fileName: req.file.originalname,
           sheetNames,
           rowCount: rows.length,
-          rawData: rows.slice(0, 5000) as unknown as Record<string, unknown>[],
+          rawData: rows as unknown as Record<string, unknown>[],
         });
 
         // Get existing column config so we can preserve labels/types for matching columns
@@ -3145,7 +3146,8 @@ ${extractedText || "(none)"}`;
         const savedCols = await storage.upsertAnalyticsDatasetColumns(datasetId, allColDefs);
         const refreshed = await refreshInsightsForDataset(datasetId);
         const updated = await storage.getAnalyticsDataset(datasetId);
-        res.json({ ...updated, columns: savedCols, rowCount: rows.length, refreshedInsights: refreshed });
+        const { rawData: _rd2, ...updatedMeta } = updated || {};
+        res.json({ ...updatedMeta, columns: savedCols, rowCount: rows.length, refreshedInsights: refreshed });
       } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Replace failed" });

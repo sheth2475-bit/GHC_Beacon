@@ -821,9 +821,24 @@ export class DatabaseStorage implements IStorage {
   // ─── Analytics Studio V2 ───────────────────────────────────────────────────
 
   async getAnalyticsDatasets(companyId: number): Promise<AnalyticsDataset[]> {
-    return db.select().from(analyticsDatasets)
+    // Exclude rawData from list response — it can be tens of MB for large uploads.
+    // rawData is only needed when computing a specific insight (fetched via getAnalyticsDataset).
+    const rows = await db.select({
+      id: analyticsDatasets.id,
+      companyId: analyticsDatasets.companyId,
+      createdBy: analyticsDatasets.createdBy,
+      name: analyticsDatasets.name,
+      description: analyticsDatasets.description,
+      fileName: analyticsDatasets.fileName,
+      sheetNames: analyticsDatasets.sheetNames,
+      rowCount: analyticsDatasets.rowCount,
+      status: analyticsDatasets.status,
+      createdAt: analyticsDatasets.createdAt,
+      updatedAt: analyticsDatasets.updatedAt,
+    }).from(analyticsDatasets)
       .where(eq(analyticsDatasets.companyId, companyId))
       .orderBy(desc(analyticsDatasets.createdAt));
+    return rows as unknown as AnalyticsDataset[];
   }
   async getAnalyticsDataset(id: number): Promise<AnalyticsDataset | undefined> {
     const [row] = await db.select().from(analyticsDatasets).where(eq(analyticsDatasets.id, id));
