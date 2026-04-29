@@ -4934,7 +4934,16 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
         .where(and(eq(analyticsDashboardDefinitions.shareToken, token), eq(analyticsDashboardDefinitions.shareEnabled, true)));
       if (!def) return res.status(404).json({ message: "Dashboard not found or link is disabled" });
       const items = await storage.getAnalyticsDashboardItems(def.id);
-      res.json({ dashboard: def, items });
+      // Include the primary dataset (rawData + columns) so the public page can run client-side filters
+      let dataset: { id: number; rawData: unknown[]; columns: unknown[] } | null = null;
+      const primaryDatasetId = (items as any[]).find(i => i.insight?.datasetId)?.insight?.datasetId ?? null;
+      if (primaryDatasetId) {
+        const ds = await storage.getAnalyticsDataset(primaryDatasetId);
+        if (ds) {
+          dataset = { id: ds.id, rawData: (ds.rawData as unknown[]) ?? [], columns: (ds.columns as unknown[]) ?? [] };
+        }
+      }
+      res.json({ dashboard: def, items, dataset });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
