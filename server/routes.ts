@@ -758,8 +758,28 @@ export async function registerRoutes(
         passwordHash,
         companyId: company.id,
         role: role || "executive",
+        mustChangePassword: true,
       });
       const { passwordHash: _, ...safeUser } = user;
+
+      // Send welcome email with credentials (non-blocking — don't fail if email fails)
+      try {
+        const { sendWelcomeEmail } = await import("./email");
+        const companyData = await storage.getCompany(company.id);
+        const proto = req.headers["x-forwarded-proto"] || "https";
+        const host = req.headers["x-forwarded-host"] || req.headers.host || "ghc-beacon.replit.app";
+        await sendWelcomeEmail({
+          to: email,
+          name,
+          email,
+          password,
+          companyName: companyData?.companyName || "GHC Beacon",
+          loginUrl: `${proto}://${host}/auth`,
+        });
+      } catch (emailErr) {
+        console.error("Welcome email failed (non-fatal):", emailErr);
+      }
+
       res.status(201).json(safeUser);
     } catch (err: any) {
       next(err);

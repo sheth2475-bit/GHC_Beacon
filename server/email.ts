@@ -345,6 +345,79 @@ export async function sendActionReminder(payload: ReminderPayload): Promise<void
   }
 }
 
+// ── Welcome / New User Email ──────────────────────────────────────────────────
+export interface WelcomeEmailPayload {
+  to: string;
+  name: string;
+  email: string;
+  password: string;
+  companyName: string;
+  loginUrl: string;
+}
+
+export async function sendWelcomeEmail(payload: WelcomeEmailPayload): Promise<void> {
+  const { client, fromEmail } = await getUncachableResendClient();
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="max-width:600px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);padding:28px 32px;">
+      <p style="margin:0 0 4px;font-size:11px;color:#bfdbfe;letter-spacing:0.08em;text-transform:uppercase;">GHC Beacon · Welcome</p>
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">Your account is ready</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 20px;font-size:14px;color:#374151;">
+        Hi <strong>${payload.name}</strong>,<br/><br/>
+        An account has been created for you on <strong>GHC Beacon</strong> for <strong>${payload.companyName}</strong>. Use the credentials below to log in for the first time. You will be asked to set a new password immediately after signing in.
+      </p>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
+        <p style="margin:0 0 4px;font-size:11px;color:#0369a1;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Your Login Credentials</p>
+        <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;">
+          <tr>
+            <td style="padding:6px 0;color:#6b7280;width:110px;">Email / ID</td>
+            <td style="padding:6px 0;color:#0f172a;font-weight:600;">${payload.email}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6b7280;">Temp Password</td>
+            <td style="padding:6px 0;font-family:monospace;font-size:15px;font-weight:700;color:#1d4ed8;letter-spacing:0.04em;">${payload.password}</td>
+          </tr>
+        </table>
+      </div>
+      <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-bottom:24px;">
+        <p style="margin:0;font-size:13px;color:#78350f;">
+          ⚠ <strong>You will be required to change this password on first login.</strong> Please keep these credentials secure and do not share them.
+        </p>
+      </div>
+      <a href="${payload.loginUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">
+        Log in to GHC Beacon →
+      </a>
+    </div>
+    <div style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;">
+        GHC Beacon &mdash; Performance Management Platform &bull; Confidential — For internal use only
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const testEmail = process.env.RESEND_TEST_EMAIL;
+  const effectiveTo = testEmail ? [testEmail] : [payload.to];
+
+  const result = await client.emails.send({
+    from: fromEmail,
+    to: effectiveTo,
+    subject: `Your GHC Beacon account is ready — ${payload.companyName}`,
+    html,
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message || "Failed to send welcome email");
+  }
+}
+
 // ── KPI Alert Email ───────────────────────────────────────────────────────────
 export interface KpiAlertEmailPayload {
   to: string;

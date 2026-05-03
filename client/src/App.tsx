@@ -15,7 +15,11 @@ import { OwnerAuthProvider, useOwnerAuth } from "@/lib/owner-auth";
 import AuthPage from "@/pages/auth";
 import LandingPage from "@/pages/landing";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sparkles, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import ExecutiveHomePage from "@/pages/executive-home";
 
 import UserManagementPage from "@/pages/user-management";
@@ -46,6 +50,116 @@ import OwnerLogins from "@/pages/owner-logins";
 import OwnerUsersPage from "@/pages/owner-users";
 import OwnerFeatureUsage from "@/pages/owner-feature-usage";
 import OwnerCompanyUsage from "@/pages/owner-company-usage";
+
+function ForcePasswordChangeModal() {
+  const { toast } = useToast();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNext, setShowNext] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (next !== confirm) {
+      toast({ title: "Passwords don't match", description: "New password and confirmation must match.", variant: "destructive" });
+      return;
+    }
+    if (next.length < 6) {
+      toast({ title: "Password too short", description: "New password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiRequest("POST", "/api/auth/change-password", { currentPassword: current, newPassword: next });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({ title: "Password updated", description: "You can now access the platform." });
+    } catch (err: any) {
+      toast({ title: "Failed to change password", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-card border rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-gradient-to-br from-primary to-blue-500 px-8 py-6">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/20 mb-4">
+            <Lock className="h-6 w-6 text-white" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Set your password</h2>
+          <p className="text-sm text-blue-100 mt-1">You must create a new password before accessing the platform.</p>
+        </div>
+        <form onSubmit={handleSubmit} className="px-8 py-6 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="fc-current">Temporary Password</Label>
+            <div className="relative">
+              <Input
+                id="fc-current"
+                type={showCurrent ? "text" : "password"}
+                value={current}
+                onChange={e => setCurrent(e.target.value)}
+                placeholder="Enter the password from your email"
+                required
+                className="pr-9"
+                data-testid="input-fc-current"
+              />
+              <button type="button" tabIndex={-1} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowCurrent(v => !v)}>
+                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fc-new">New Password</Label>
+            <div className="relative">
+              <Input
+                id="fc-new"
+                type={showNext ? "text" : "password"}
+                value={next}
+                onChange={e => setNext(e.target.value)}
+                placeholder="At least 6 characters"
+                required
+                className="pr-9"
+                data-testid="input-fc-new"
+              />
+              <button type="button" tabIndex={-1} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowNext(v => !v)}>
+                {showNext ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fc-confirm">Confirm New Password</Label>
+            <div className="relative">
+              <Input
+                id="fc-confirm"
+                type={showConfirm ? "text" : "password"}
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                placeholder="Re-enter new password"
+                required
+                className="pr-9"
+                data-testid="input-fc-confirm"
+              />
+              <button type="button" tabIndex={-1} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowConfirm(v => !v)}>
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <Button type="submit" className="w-full mt-2" disabled={saving || !current || !next || !confirm} data-testid="button-fc-submit">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Lock className="h-4 w-4 mr-2" />}
+            {saving ? "Saving…" : "Set Password & Continue"}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 function AppRouter() {
   const { isAdmin } = useAuth();
@@ -111,6 +225,10 @@ function AppLayout() {
     if (path === "/login") return <AuthPage />;
     if (path === "/guide") return <GuidePage />;
     return <LandingPage />;
+  }
+
+  if (user.mustChangePassword) {
+    return <ForcePasswordChangeModal />;
   }
 
   const isModuleRoute =

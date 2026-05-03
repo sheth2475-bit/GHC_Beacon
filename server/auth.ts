@@ -84,6 +84,7 @@ declare global {
       passwordHash: string;
       companyId: number | null;
       role: string;
+      mustChangePassword: boolean;
       createdAt: Date;
     }
   }
@@ -199,7 +200,7 @@ export function setupAuth(app: Express) {
       const valid = await comparePasswords(currentPassword, user.passwordHash);
       if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
       const passwordHash = await hashPassword(newPassword);
-      await storage.updateUser(user.id, { passwordHash });
+      await storage.updateUser(user.id, { passwordHash, mustChangePassword: false });
       res.json({ message: "Password changed successfully" });
     } catch (err) {
       next(err);

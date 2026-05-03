@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   companyId: number | null;
   role: string;
+  mustChangePassword: boolean;
 }
 
 interface AuthContextType {
