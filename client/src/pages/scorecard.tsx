@@ -1982,29 +1982,38 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     const html2canvas = (await import("html2canvas")).default;
     const el = dashboardExportRef.current;
     if (!el) throw new Error("Dashboard content not found");
-    // Scroll to top so html2canvas captures from the beginning
+
     const prevScrollY = window.scrollY;
     window.scrollTo(0, 0);
-    // Hide UI controls that shouldn't appear in exports
+
+    // Hide UI controls
     const hideEls = Array.from(el.querySelectorAll<HTMLElement>("[data-export-hide]"));
     hideEls.forEach(e => { e.style.display = "none"; });
+
+    // Expand to a wide capture width so the grid lays out landscape
+    const CAPTURE_W = 2400;
+    const prevStyle = el.style.cssText;
+    el.style.cssText += `;width:${CAPTURE_W}px!important;max-width:${CAPTURE_W}px!important;min-width:${CAPTURE_W}px!important;`;
+
+    // Allow browser to reflow at the new width
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
     try {
       const canvas = await html2canvas(el, {
-        scale: 3,
+        scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
         allowTaint: false,
-        // Capture full element height, not just viewport
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight,
-        width: el.scrollWidth,
+        windowWidth: CAPTURE_W,
+        width: CAPTURE_W,
         height: el.scrollHeight,
         x: 0,
         y: 0,
       });
       return canvas;
     } finally {
+      el.style.cssText = prevStyle;
       hideEls.forEach(e => { e.style.display = ""; });
       window.scrollTo(0, prevScrollY);
     }
@@ -2032,14 +2041,32 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     setExportMenuOpen(false);
     try {
       const [{ jsPDF }, canvas] = await Promise.all([import("jspdf"), captureExportArea()]);
-      const imgW = canvas.width, imgH = canvas.height;
-      // A3 landscape width = 420mm; derive page height from image aspect ratio
-      const pdfW = 420;
-      const pdfH = Math.round((imgH / imgW) * pdfW);
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [pdfW, pdfH] });
-      doc.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, pdfW, pdfH);
+
+      // A3 landscape: 420mm wide × 297mm tall (fixed standard page)
+      const PAGE_W = 420; // mm
+      const PAGE_H = 297; // mm
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      // Content scaled to page width in mm
+      const scaledContentH = (imgH / imgW) * PAGE_W;
+      const numPages = Math.max(1, Math.ceil(scaledContentH / PAGE_H));
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
+
+      for (let i = 0; i < numPages; i++) {
+        if (i > 0) doc.addPage("a3", "landscape");
+        // Shift image up by i * PAGE_H so each page shows the next slice
+        doc.addImage(dataUrl, "JPEG", 0, -(i * PAGE_H), PAGE_W, scaledContentH);
+      }
+
       doc.save(`${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pdf`);
-      toast({ title: "PDF exported", description: `${dept.name} scorecard saved as PDF` });
+      toast({
+        title: "PDF exported",
+        description: `${dept.name} scorecard — ${numPages} A3 landscape page${numPages > 1 ? "s" : ""}`,
+      });
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
     } finally {
@@ -2054,23 +2081,37 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       const [PptxGenJSMod, canvas] = await Promise.all([import("pptxgenjs"), captureExportArea()]);
       const PptxGenJS = PptxGenJSMod.default;
       const pres = new PptxGenJS();
-      pres.layout = "LAYOUT_WIDE"; // 13.33 × 7.5 in
-      const sl = pres.addSlide();
-      // Fit image to slide maintaining aspect ratio, centered
-      const slideW = 13.33, slideH = 7.5;
-      const imgAR = canvas.width / canvas.height;
-      const slideAR = slideW / slideH;
-      let imgW = slideW, imgH = slideH, imgX = 0, imgY = 0;
-      if (imgAR > slideAR) {
-        imgH = slideW / imgAR;
-        imgY = (slideH - imgH) / 2;
-      } else {
-        imgW = slideH * imgAR;
-        imgX = (slideW - imgW) / 2;
+      pres.layout = "LAYOUT_WIDE"; // 13.33 × 7.5 in (widescreen)
+
+      const SLIDE_W = 13.33; // inches
+      const SLIDE_H = 7.5;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      // Total scaled content height on slide width
+      const scaledH = (imgH / imgW) * SLIDE_W;
+      const numSlides = Math.max(1, Math.ceil(scaledH / SLIDE_H));
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
+
+      for (let i = 0; i < numSlides; i++) {
+        const sl = pres.addSlide();
+        // Slide shows content window from [i*SLIDE_H, (i+1)*SLIDE_H]
+        sl.addImage({
+          data: dataUrl,
+          x: 0,
+          y: -(i * SLIDE_H),
+          w: SLIDE_W,
+          h: scaledH,
+        });
       }
-      sl.addImage({ data: canvas.toDataURL("image/jpeg", 0.95), x: imgX, y: imgY, w: imgW, h: imgH });
+
       await pres.writeFile({ fileName: `${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pptx` });
-      toast({ title: "PowerPoint exported", description: `${dept.name} scorecard saved as PPTX` });
+      toast({
+        title: "PowerPoint exported",
+        description: `${dept.name} scorecard — ${numSlides} widescreen slide${numSlides > 1 ? "s" : ""}`,
+      });
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
     } finally {
@@ -2101,6 +2142,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   }
 
   return (
+    <>
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto" ref={dashboardExportRef}>
       {/* Back + period */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4" data-export-hide>
@@ -3015,6 +3057,13 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         </DialogContent>
       </Dialog>
     </div>
+    <KpiAlertsPanel
+      open={alertsPanel}
+      onClose={() => setAlertsPanel(false)}
+      departments={depts.map(d => ({ id: d.id, name: d.name }))}
+      getKpisForDept={(id) => loadKpiOverride(id) ?? getKpisForDept(id)}
+    />
+    </>
   );
 }
 
@@ -3294,14 +3343,6 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
           </div>
         </CardContent>
       </Card>
-
-      {/* ── KPI Alerts Panel ── */}
-      <KpiAlertsPanel
-        open={alertsPanel}
-        onClose={() => setAlertsPanel(false)}
-        departments={depts.map(d => ({ id: d.id, name: d.name }))}
-        getKpisForDept={(id) => loadKpiOverride(id) ?? getKpisForDept(id)}
-      />
 
     </div>
   );
