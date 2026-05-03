@@ -184,6 +184,28 @@ export function setupAuth(app: Express) {
     });
   });
 
+  app.post("/api/auth/change-password", async (req: Request, res: any, next: any) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current password and new password are required" });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: "New password must be at least 6 characters" });
+      }
+      const user = await storage.getUser(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const valid = await comparePasswords(currentPassword, user.passwordHash);
+      if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
+      const passwordHash = await hashPassword(newPassword);
+      await storage.updateUser(user.id, { passwordHash });
+      res.json({ message: "Password changed successfully" });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   app.get("/api/auth/me", (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const { passwordHash: _, ...safeUser } = req.user!;

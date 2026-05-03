@@ -11,7 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageHeader } from "@/components/page-header";
 import { LoadingPage } from "@/components/loading-state";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, User, Building2, Database, Trash2, Plus, Save, X, Target, ShieldCheck, Key, Loader2, Bot } from "lucide-react";
+import { Settings, User, Building2, Database, Plus, Save, X, Target, ShieldCheck, Key, Loader2, Bot, Lock, Eye, EyeOff } from "lucide-react";
 import type { Department } from "@shared/schema";
 
 const INDUSTRIES = [
@@ -131,6 +131,8 @@ export default function SettingsPage() {
           {infoRow("Email", user?.email, "text-setting-email")}
         </CardContent>
       </Card>
+
+      <ChangePasswordCard />
 
       <Card>
         <CardHeader>
@@ -268,6 +270,142 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ChangePasswordCard() {
+  const { toast } = useToast();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const changeMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/auth/change-password", { currentPassword, newPassword });
+    },
+    onSuccess: () => {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Password changed", description: "Your password has been updated successfully." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to change password", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords don't match", description: "New password and confirmation must match.", variant: "destructive" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast({ title: "Password too short", description: "New password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+    changeMutation.mutate();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Lock className="h-4 w-4" />Change Password
+        </CardTitle>
+        <CardDescription>Update your login password</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
+          <div className="space-y-2">
+            <Label htmlFor="currentPassword">Current Password</Label>
+            <div className="relative">
+              <Input
+                id="currentPassword"
+                type={showCurrent ? "text" : "password"}
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                placeholder="Enter current password"
+                required
+                data-testid="input-current-password"
+                className="pr-9"
+              />
+              <button
+                type="button"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowCurrent(v => !v)}
+                tabIndex={-1}
+                data-testid="button-toggle-current-password"
+              >
+                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="newPassword">New Password</Label>
+            <div className="relative">
+              <Input
+                id="newPassword"
+                type={showNew ? "text" : "password"}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                required
+                data-testid="input-new-password"
+                className="pr-9"
+              />
+              <button
+                type="button"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowNew(v => !v)}
+                tabIndex={-1}
+                data-testid="button-toggle-new-password"
+              >
+                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirm New Password</Label>
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter new password"
+                required
+                data-testid="input-confirm-password"
+                className="pr-9"
+              />
+              <button
+                type="button"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowConfirm(v => !v)}
+                tabIndex={-1}
+                data-testid="button-toggle-confirm-password"
+              >
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={changeMutation.isPending || !currentPassword || !newPassword || !confirmPassword}
+            data-testid="button-change-password"
+          >
+            {changeMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Lock className="h-4 w-4 mr-2" />}
+            {changeMutation.isPending ? "Changing..." : "Change Password"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
