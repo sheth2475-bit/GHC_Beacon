@@ -1980,20 +1980,31 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     const html2canvas = (await import("html2canvas")).default;
     const el = dashboardExportRef.current;
     if (!el) throw new Error("Dashboard content not found");
+    // Scroll to top so html2canvas captures from the beginning
+    const prevScrollY = window.scrollY;
+    window.scrollTo(0, 0);
     // Hide UI controls that shouldn't appear in exports
     const hideEls = Array.from(el.querySelectorAll<HTMLElement>("[data-export-hide]"));
     hideEls.forEach(e => { e.style.display = "none"; });
     try {
       const canvas = await html2canvas(el, {
-        scale: 4,
+        scale: 3,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
         allowTaint: false,
+        // Capture full element height, not just viewport
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        width: el.scrollWidth,
+        height: el.scrollHeight,
+        x: 0,
+        y: 0,
       });
       return canvas;
     } finally {
       hideEls.forEach(e => { e.style.display = ""; });
+      window.scrollTo(0, prevScrollY);
     }
   }
 
@@ -2020,10 +2031,10 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     try {
       const [{ jsPDF }, canvas] = await Promise.all([import("jspdf"), captureExportArea()]);
       const imgW = canvas.width, imgH = canvas.height;
-      // Fit to A4 landscape width; extend page height to fit all content
-      const pdfW = 297;
-      const pdfH = Math.max(210, Math.round((imgH / imgW) * pdfW));
-      const doc = new jsPDF({ orientation: pdfH > pdfW ? "portrait" : "landscape", unit: "mm", format: [pdfW, pdfH] });
+      // A3 landscape width = 420mm; derive page height from image aspect ratio
+      const pdfW = 420;
+      const pdfH = Math.round((imgH / imgW) * pdfW);
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [pdfW, pdfH] });
       doc.addImage(canvas.toDataURL("image/jpeg", 0.96), "JPEG", 0, 0, pdfW, pdfH);
       doc.save(`${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pdf`);
       toast({ title: "PDF exported", description: `${dept.name} scorecard saved as PDF` });
