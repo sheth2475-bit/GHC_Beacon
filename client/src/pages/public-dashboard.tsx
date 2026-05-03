@@ -276,7 +276,7 @@ function MiniChart({ insight, filteredData, color, hideComparison }: { insight: 
       <div className="flex flex-col items-center justify-center h-40">
         <div className="text-4xl font-black tracking-tight" style={{ color: c0 }}>{formatKpiValue(kpi.value, displayFormat, kpiVf)}</div>
         <p className="text-xs text-muted-foreground mt-1.5 text-center px-2">{kpi.label}</p>
-        {typeof kpi.comparisonValue === "number" && (
+        {!hideComparison && typeof kpi.comparisonValue === "number" && (
           <p className={`text-[10px] mt-1 font-semibold ${Number(kpi.variance) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
             vs {kpi.comparisonLabel || "Comparison"} {formatKpiValue(kpi.comparisonValue, displayFormat, kpiVf)} · {formatVariancePct(kpi.variancePct)}
           </p>
@@ -412,7 +412,7 @@ function FullChart({ insight, filteredData, color, hideComparison }: { insight: 
       <div className="flex-1 flex flex-col items-center justify-center gap-3">
         <div className="text-8xl font-black tracking-tight">{formatKpiValue(kpi.value, displayFormat, kpiVf)}</div>
         <p className="text-lg text-muted-foreground">{kpi.label}</p>
-        {typeof kpi.comparisonValue === "number" && (
+        {!hideComparison && typeof kpi.comparisonValue === "number" && (
           <p className={`text-sm font-semibold ${Number(kpi.variance) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
             vs {kpi.comparisonLabel || "Comparison"} {formatKpiValue(kpi.comparisonValue, displayFormat, kpiVf)} · {formatVariancePct(kpi.variancePct)}
           </p>
