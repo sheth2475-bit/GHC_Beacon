@@ -756,14 +756,33 @@ function ScorecardLanding() {
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const [, nav] = useLocation();
 
-  // ── Sync from DB on mount ─────────────────────────────────────────────────
+  // ── Sync from DB via TanStack Query (same cache as sidebar) ──────────────
+  const { data: _landingDeptRows, isFetched: _landingDeptFetched } = useQuery<any[]>({
+    queryKey: ["/api/scorecard/departments"],
+  });
+  const { data: _landingActualsData, isFetched: _landingActualsFetched } = useQuery<Record<string, Record<string, number>>>({
+    queryKey: ["/api/scorecard/actuals"],
+  });
+
   useEffect(() => {
-    syncDepartmentsFromDb().then(depts => {
-      if (depts) setDepartments(depts);
-      setDeptSynced(true);
-    });
-    syncActualsFromDb().then(merged => { if (merged) setStore(merged); });
-  }, []);
+    if (!_landingDeptFetched) return;
+    if (_landingDeptRows) {
+      const depts: BscDepartment[] = _landingDeptRows.map((r: any) => ({ id: r.deptId, name: r.name, icon: r.icon, color: r.color }));
+      setDepartments(depts);
+      if (depts.length > 0) localStorage.setItem(DEPT_KEY, JSON.stringify(depts));
+      else localStorage.removeItem(DEPT_KEY);
+    }
+    setDeptSynced(true);
+  }, [_landingDeptFetched, _landingDeptRows]);
+
+  useEffect(() => {
+    if (!_landingActualsFetched || !_landingActualsData) return;
+    setStore(_landingActualsData);
+    if (Object.keys(_landingActualsData).length > 0)
+      localStorage.setItem(STORE_KEY, JSON.stringify(_landingActualsData));
+    else
+      localStorage.removeItem(STORE_KEY);
+  }, [_landingActualsFetched, _landingActualsData]);
 
   const shiftMonth = (delta: number) => {
     setMonth(m => {
@@ -1453,22 +1472,28 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     onError: () => toast({ title: "Failed to update share link", variant: "destructive" }),
   });
 
-  // ── Sync departments + actuals from DB on mount ───────────────────────────
-  useEffect(() => {
-    syncDepartmentsFromDb().then(synced => {
-      if (synced) setDepts(synced);
-      setDeptsSynced(true);
-    }).catch(() => setDeptsSynced(true));
-  }, []);
+  // ── Sync departments + actuals from DB via TanStack Query ────────────────
+  const { data: _detailDeptRows, isFetched: _detailDeptFetched } = useQuery<any[]>({
+    queryKey: ["/api/scorecard/departments"],
+  });
+  const { data: _detailActualsData, isFetched: _detailActualsFetched } = useQuery<Record<string, Record<string, number>>>({
+    queryKey: ["/api/scorecard/actuals"],
+  });
 
   useEffect(() => {
-    syncActualsFromDb().then(merged => {
-      if (merged) {
-        setStore(merged);
-        localStorage.setItem(CORP_SEED_VER, "ok");
-      }
-    });
-  }, [deptId]);
+    if (!_detailDeptFetched) return;
+    if (_detailDeptRows) {
+      const synced: BscDepartment[] = _detailDeptRows.map((r: any) => ({ id: r.deptId, name: r.name, icon: r.icon, color: r.color }));
+      setDepts(synced);
+    }
+    setDeptsSynced(true);
+  }, [_detailDeptFetched, _detailDeptRows]);
+
+  useEffect(() => {
+    if (!_detailActualsFetched || !_detailActualsData) return;
+    setStore(_detailActualsData);
+    if (Object.keys(_detailActualsData).length > 0) localStorage.setItem(CORP_SEED_VER, "ok");
+  }, [_detailActualsFetched, _detailActualsData]);
 
   // Pre-fill form when period changes
   useEffect(() => {
@@ -3110,9 +3135,13 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
   const [, nav]           = useLocation();
   const today             = new Date();
 
+  const { data: _kpiActualsData, isFetched: _kpiActualsFetched } = useQuery<Record<string, Record<string, number>>>({
+    queryKey: ["/api/scorecard/actuals"],
+  });
   useEffect(() => {
-    syncActualsFromDb().then(merged => { if (merged) setStore(merged); });
-  }, []);
+    if (!_kpiActualsFetched || !_kpiActualsData) return;
+    setStore(_kpiActualsData);
+  }, [_kpiActualsFetched, _kpiActualsData]);
 
   // Search predefined KPIs AND any user-uploaded overrides (custom KPIs live here)
   const allKpis = loadAllEffectiveKpis();
