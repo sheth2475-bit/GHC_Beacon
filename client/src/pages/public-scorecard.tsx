@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,6 +9,7 @@ import {
   Loader2, Globe, AlertTriangle, AlertCircle, CheckCircle2,
   TrendingUp, TrendingDown, ChevronLeft, ChevronRight,
   Trophy, ArrowUpRight, ArrowDownRight, Minus, Maximize2, X,
+  Download, FileImage, FileText, Presentation, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -142,6 +143,100 @@ export default function PublicScorecard() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [dashFilter, setDashFilter] = useState<{ status: "green" | "amber" | "red" | null; perspective: string | null }>({ status: null, perspective: null });
+
+  const exportRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const kpiSectionRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setExportMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [exportMenuOpen]);
+
+  function sliceCanvas(src: HTMLCanvasElement, fromY: number, toY: number): HTMLCanvasElement {
+    const sliceH = Math.max(1, Math.round(toY - fromY));
+    const out = document.createElement("canvas");
+    out.width = src.width; out.height = sliceH;
+    out.getContext("2d")!.drawImage(src, 0, -Math.round(fromY));
+    return out;
+  }
+
+  async function captureArea(): Promise<{ canvas: HTMLCanvasElement; breakPx: number }> {
+    const html2canvas = (await import("html2canvas")).default;
+    const el = exportRef.current!;
+    const CAPTURE_W = 2400;
+    const prevStyle = el.style.cssText;
+    el.style.cssText += `;width:${CAPTURE_W}px!important;max-width:${CAPTURE_W}px!important;min-width:${CAPTURE_W}px!important;`;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    let breakPx = 0;
+    if (kpiSectionRef.current) {
+      const containerRect = el.getBoundingClientRect();
+      const sectionRect = kpiSectionRef.current.getBoundingClientRect();
+      breakPx = Math.round((sectionRect.top - containerRect.top) * 2);
+    }
+    try {
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, allowTaint: false, windowWidth: CAPTURE_W, width: CAPTURE_W, height: el.scrollHeight, x: 0, y: 0 });
+      return { canvas, breakPx };
+    } finally {
+      el.style.cssText = prevStyle;
+    }
+  }
+
+  async function handleExportImage() {
+    setExporting(true); setExportMenuOpen(false);
+    try {
+      const { canvas } = await captureArea();
+      const link = document.createElement("a");
+      link.download = `${data?.dept.name ?? "Scorecard"}_${MONTHS[month]}_${year}.png`;
+      link.href = canvas.toDataURL("image/png"); link.click();
+    } catch(e: any) { alert("Export failed: " + e.message); } finally { setExporting(false); }
+  }
+
+  async function handleExportPdf() {
+    setExporting(true); setExportMenuOpen(false);
+    try {
+      const [{ jsPDF }, { canvas, breakPx }] = await Promise.all([import("jspdf"), captureArea()]);
+      const PAGE_W = 420, PAGE_H = 297;
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
+      const addSec = (sec: HTMLCanvasElement, first: boolean) => {
+        const sh = (sec.height / sec.width) * PAGE_W;
+        const np = Math.max(1, Math.ceil(sh / PAGE_H));
+        const url = sec.toDataURL("image/jpeg", 0.94);
+        for (let i = 0; i < np; i++) { if (!first || i > 0) doc.addPage("a3", "landscape"); doc.addImage(url, "JPEG", 0, -(i * PAGE_H), PAGE_W, sh); }
+        return np;
+      };
+      const safe = breakPx > 10 && breakPx < canvas.height - 10 ? breakPx : 0;
+      let total = addSec(sliceCanvas(canvas, 0, safe || canvas.height), true);
+      if (safe > 0) total += addSec(sliceCanvas(canvas, safe, canvas.height), false);
+      doc.save(`${data?.dept.name ?? "Scorecard"}_${MONTHS[month]}_${year}.pdf`);
+    } catch(e: any) { alert("Export failed: " + e.message); } finally { setExporting(false); }
+  }
+
+  async function handleExportPptx() {
+    setExporting(true); setExportMenuOpen(false);
+    try {
+      const [PptxMod, { canvas, breakPx }] = await Promise.all([import("pptxgenjs"), captureArea()]);
+      const pres = new PptxMod.default(); pres.layout = "LAYOUT_WIDE";
+      const SW = 13.33, SH = 7.5;
+      const addSec = (sec: HTMLCanvasElement) => {
+        const sh = (sec.height / sec.width) * SW;
+        const ns = Math.max(1, Math.ceil(sh / SH));
+        const url = sec.toDataURL("image/jpeg", 0.94);
+        for (let i = 0; i < ns; i++) pres.addSlide().addImage({ data: url, x: 0, y: -(i * SH), w: SW, h: sh });
+        return ns;
+      };
+      const safe = breakPx > 10 && breakPx < canvas.height - 10 ? breakPx : 0;
+      addSec(sliceCanvas(canvas, 0, safe || canvas.height));
+      if (safe > 0) addSec(sliceCanvas(canvas, safe, canvas.height));
+      await pres.writeFile({ fileName: `${data?.dept.name ?? "Scorecard"}_${MONTHS[month]}_${year}.pptx` });
+    } catch(e: any) { alert("Export failed: " + e.message); } finally { setExporting(false); }
+  }
 
   // Auto-jump to most recent period with data
   useEffect(() => {
@@ -281,12 +376,38 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
           <img src="/ghc-beacon-logo.jpg" alt="GHC Beacon" className="h-8 w-8 rounded-md object-cover" />
           <span className="font-bold text-lg tracking-tight">GHC Beacon</span>
         </div>
-        <Badge variant="secondary" className="gap-1.5">
-          <Globe className="h-3 w-3" /> Public Scorecard
-        </Badge>
+        <div className="flex items-center gap-3">
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setExportMenuOpen(o => !o)}
+              disabled={exporting}
+              className="flex items-center gap-1.5 text-xs font-medium border rounded-lg px-3 py-1.5 hover:bg-muted/50 transition-colors disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              Export
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </button>
+            {exportMenuOpen && (
+              <div className="absolute right-0 top-9 z-50 bg-card border rounded-xl shadow-lg p-1.5 w-48">
+                <button onClick={handleExportImage} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg hover:bg-muted/60 transition-colors text-left">
+                  <FileImage className="h-4 w-4 text-muted-foreground" />Image (PNG)
+                </button>
+                <button onClick={handleExportPdf} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg hover:bg-muted/60 transition-colors text-left">
+                  <FileText className="h-4 w-4 text-muted-foreground" />PDF (A3 Landscape)
+                </button>
+                <button onClick={handleExportPptx} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg hover:bg-muted/60 transition-colors text-left">
+                  <Presentation className="h-4 w-4 text-muted-foreground" />PowerPoint
+                </button>
+              </div>
+            )}
+          </div>
+          <Badge variant="secondary" className="gap-1.5">
+            <Globe className="h-3 w-3" /> Public Scorecard
+          </Badge>
+        </div>
       </header>
 
-      <main className="max-w-screen-2xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-screen-2xl mx-auto px-6 py-8 space-y-6" ref={exportRef}>
 
         {/* Dept header + period + health */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -689,6 +810,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
         </div>
 
         {/* ── KPI Scorecard Table ── */}
+        <div ref={kpiSectionRef}>
         <WidgetShell
           title={`KPI Scorecard — ${MONTHS[month]} ${year}`}
           contentClassName="p-0 pb-0 mt-3"
@@ -790,6 +912,7 @@ function ScorecardView({ dept, store, kpiDefinitions, year, month, setYear, setM
             </table>
           </div>
         </WidgetShell>
+        </div>
       </main>
 
       <footer className="border-t py-4 text-center text-xs text-muted-foreground">

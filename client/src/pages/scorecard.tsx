@@ -746,6 +746,7 @@ function ScorecardLanding() {
   const [deptSynced, setDeptSynced] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [landingAlertsPanel, setLandingAlertsPanel] = useState(false);
   const { toast } = useToast();
   const today = new Date();
   const [year,  setYear]  = useState(() => readPersistedPeriod().year);
@@ -859,6 +860,7 @@ function ScorecardLanding() {
   }, [departments, store, pk]);
 
   return (
+    <>
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
 
       {/* ── Page header ── */}
@@ -886,6 +888,7 @@ function ScorecardLanding() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          <AlertsBellButton onClick={() => setLandingAlertsPanel(true)} />
           <Button onClick={() => setShowAdd(true)} data-testid="button-add-department">
             <Plus className="h-4 w-4 mr-1.5" />Add Department
           </Button>
@@ -1061,6 +1064,13 @@ function ScorecardLanding() {
       <AddDeptDialog open={showAdd} onClose={()=>setShowAdd(false)} onAdd={handleAdd} />
 
     </div>
+    <KpiAlertsPanel
+      open={landingAlertsPanel}
+      onClose={() => setLandingAlertsPanel(false)}
+      departments={departments.map(d => ({ id: d.id, name: d.name }))}
+      getKpisForDept={(id) => loadKpiOverride(id) ?? getKpisForDept(id)}
+    />
+  </>
   );
 }
 
@@ -1978,7 +1988,16 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [exportMenuOpen]);
 
-  async function captureExportArea(): Promise<HTMLCanvasElement> {
+  function sliceCanvas(src: HTMLCanvasElement, fromY: number, toY: number): HTMLCanvasElement {
+    const sliceH = Math.max(1, Math.round(toY - fromY));
+    const out = document.createElement("canvas");
+    out.width = src.width;
+    out.height = sliceH;
+    out.getContext("2d")!.drawImage(src, 0, -Math.round(fromY));
+    return out;
+  }
+
+  async function captureExportArea(): Promise<{ canvas: HTMLCanvasElement; breakPx: number }> {
     const html2canvas = (await import("html2canvas")).default;
     const el = dashboardExportRef.current;
     if (!el) throw new Error("Dashboard content not found");
@@ -1998,6 +2017,14 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     // Allow browser to reflow at the new width
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+    // Measure KPI scorecard section top for page-break calculation (canvas scale = 2)
+    let breakPx = 0;
+    if (scorecardRef.current) {
+      const containerRect = el.getBoundingClientRect();
+      const sectionRect = scorecardRef.current.getBoundingClientRect();
+      breakPx = Math.round((sectionRect.top - containerRect.top) * 2);
+    }
+
     try {
       const canvas = await html2canvas(el, {
         scale: 2,
@@ -2011,7 +2038,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         x: 0,
         y: 0,
       });
-      return canvas;
+      return { canvas, breakPx };
     } finally {
       el.style.cssText = prevStyle;
       hideEls.forEach(e => { e.style.display = ""; });
@@ -2023,7 +2050,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     setExporting(true);
     setExportMenuOpen(false);
     try {
-      const canvas = await captureExportArea();
+      const { canvas } = await captureExportArea();
       const link = document.createElement("a");
       link.download = `${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -2040,32 +2067,36 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     setExporting(true);
     setExportMenuOpen(false);
     try {
-      const [{ jsPDF }, canvas] = await Promise.all([import("jspdf"), captureExportArea()]);
+      const [{ jsPDF }, { canvas, breakPx }] = await Promise.all([import("jspdf"), captureExportArea()]);
 
-      // A3 landscape: 420mm wide × 297mm tall (fixed standard page)
-      const PAGE_W = 420; // mm
+      const PAGE_W = 420; // mm  A3 landscape
       const PAGE_H = 297; // mm
 
-      const imgW = canvas.width;
-      const imgH = canvas.height;
-
-      // Content scaled to page width in mm
-      const scaledContentH = (imgH / imgW) * PAGE_W;
-      const numPages = Math.max(1, Math.ceil(scaledContentH / PAGE_H));
-
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
 
-      for (let i = 0; i < numPages; i++) {
-        if (i > 0) doc.addPage("a3", "landscape");
-        // Shift image up by i * PAGE_H so each page shows the next slice
-        doc.addImage(dataUrl, "JPEG", 0, -(i * PAGE_H), PAGE_W, scaledContentH);
-      }
+      const addCanvasSection = (sec: HTMLCanvasElement, isFirst: boolean) => {
+        const scaledH = (sec.height / sec.width) * PAGE_W;
+        const nPages = Math.max(1, Math.ceil(scaledH / PAGE_H));
+        const url = sec.toDataURL("image/jpeg", 0.94);
+        for (let i = 0; i < nPages; i++) {
+          if (!isFirst || i > 0) doc.addPage("a3", "landscape");
+          doc.addImage(url, "JPEG", 0, -(i * PAGE_H), PAGE_W, scaledH);
+        }
+        return nPages;
+      };
+
+      // Split: overview section (charts/KPIs summary) on page 1, KPI Scorecard table starts page 2
+      const safeBreak = breakPx > 10 && breakPx < canvas.height - 10 ? breakPx : 0;
+      const overviewCanvas = sliceCanvas(canvas, 0, safeBreak || canvas.height);
+      const kpiCanvas = safeBreak > 0 ? sliceCanvas(canvas, safeBreak, canvas.height) : null;
+
+      let totalPages = addCanvasSection(overviewCanvas, true);
+      if (kpiCanvas) totalPages += addCanvasSection(kpiCanvas, false);
 
       doc.save(`${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pdf`);
       toast({
         title: "PDF exported",
-        description: `${dept.name} scorecard — ${numPages} A3 landscape page${numPages > 1 ? "s" : ""}`,
+        description: `${dept.name} scorecard — ${totalPages} A3 landscape page${totalPages > 1 ? "s" : ""}`,
       });
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
@@ -2078,39 +2109,35 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     setExporting(true);
     setExportMenuOpen(false);
     try {
-      const [PptxGenJSMod, canvas] = await Promise.all([import("pptxgenjs"), captureExportArea()]);
+      const [PptxGenJSMod, { canvas, breakPx }] = await Promise.all([import("pptxgenjs"), captureExportArea()]);
       const PptxGenJS = PptxGenJSMod.default;
       const pres = new PptxGenJS();
-      pres.layout = "LAYOUT_WIDE"; // 13.33 × 7.5 in (widescreen)
+      pres.layout = "LAYOUT_WIDE";
 
-      const SLIDE_W = 13.33; // inches
+      const SLIDE_W = 13.33;
       const SLIDE_H = 7.5;
 
-      const imgW = canvas.width;
-      const imgH = canvas.height;
+      const addCanvasSection = (sec: HTMLCanvasElement) => {
+        const scaledH = (sec.height / sec.width) * SLIDE_W;
+        const nSlides = Math.max(1, Math.ceil(scaledH / SLIDE_H));
+        const url = sec.toDataURL("image/jpeg", 0.94);
+        for (let i = 0; i < nSlides; i++) {
+          pres.addSlide().addImage({ data: url, x: 0, y: -(i * SLIDE_H), w: SLIDE_W, h: scaledH });
+        }
+        return nSlides;
+      };
 
-      // Total scaled content height on slide width
-      const scaledH = (imgH / imgW) * SLIDE_W;
-      const numSlides = Math.max(1, Math.ceil(scaledH / SLIDE_H));
+      const safeBreak = breakPx > 10 && breakPx < canvas.height - 10 ? breakPx : 0;
+      const overviewCanvas = sliceCanvas(canvas, 0, safeBreak || canvas.height);
+      const kpiCanvas = safeBreak > 0 ? sliceCanvas(canvas, safeBreak, canvas.height) : null;
 
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
-
-      for (let i = 0; i < numSlides; i++) {
-        const sl = pres.addSlide();
-        // Slide shows content window from [i*SLIDE_H, (i+1)*SLIDE_H]
-        sl.addImage({
-          data: dataUrl,
-          x: 0,
-          y: -(i * SLIDE_H),
-          w: SLIDE_W,
-          h: scaledH,
-        });
-      }
+      let totalSlides = addCanvasSection(overviewCanvas);
+      if (kpiCanvas) totalSlides += addCanvasSection(kpiCanvas);
 
       await pres.writeFile({ fileName: `${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pptx` });
       toast({
         title: "PowerPoint exported",
-        description: `${dept.name} scorecard — ${numSlides} widescreen slide${numSlides > 1 ? "s" : ""}`,
+        description: `${dept.name} scorecard — ${totalSlides} widescreen slide${totalSlides > 1 ? "s" : ""}`,
       });
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
@@ -2417,7 +2444,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
               focusContent={
                 <div className="h-full min-h-[400px] flex flex-col">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={scoreTrend} margin={{ top:20, right:20, bottom:10, left:-10 }}>
+                    <LineChart data={scoreTrend} margin={{ top:28, right:24, bottom:10, left:-10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="label" tick={{ fontSize:13 }} />
                       <YAxis domain={[0,100]} tick={{ fontSize:13 }} />
@@ -2435,19 +2462,19 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                 </div>
               }
             >
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={scoreTrend} margin={{ top:10, right:8, bottom:0, left:-20 }}>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={scoreTrend} margin={{ top:24, right:16, bottom:4, left:-16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="label" tick={{ fontSize:10 }} />
-                  <YAxis domain={[0,100]} tick={{ fontSize:10 }} />
+                  <YAxis domain={[0,100]} tick={{ fontSize:10 }} tickCount={5} />
                   <Tooltip contentStyle={{ fontSize:11, borderRadius:6, border:"1px solid hsl(var(--border))" }}
                     formatter={(v:any) => [`${v}%`, "Score"]} />
                   <Line type="monotone" dataKey="score" stroke={statusColor} strokeWidth={2.5}
-                    dot={{ r:3, fill:statusColor }} activeDot={{ r:5 }}>
+                    dot={{ r:4, fill:statusColor }} activeDot={{ r:6 }}>
                     <LabelList dataKey="score" position="top" content={(p:any) => {
                       const { x, y, value } = p;
-                      if (value === 0 || x === undefined || y === undefined) return null;
-                      return <text x={x} y={y-6} fill={statusColor} fontSize={9} textAnchor="middle" fontWeight={700}>{value}%</text>;
+                      if (value === undefined || value === null || x === undefined || y === undefined) return null;
+                      return <text x={x} y={y-8} fill={statusColor} fontSize={10} textAnchor="middle" fontWeight={700}>{value}%</text>;
                     }} />
                   </Line>
                 </LineChart>
