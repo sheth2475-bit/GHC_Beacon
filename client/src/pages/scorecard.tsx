@@ -19,7 +19,7 @@ import {
   RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
   Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles, Globe, Copy, Link2,
-  FileImage, FileText, Loader2, ChevronDown, Lock,
+  FileImage, FileText, Loader2, ChevronDown, Lock, Presentation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2011,16 +2011,345 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     setExporting(true);
     setExportMenuOpen(false);
     try {
-      const canvas = await captureExportArea();
       const { jsPDF } = await import("jspdf");
-      const imgW = canvas.width;
-      const imgH = canvas.height;
-      const pdfW = 297; // A4 landscape mm
-      const pdfH = Math.round((imgH / imgW) * pdfW);
-      const pdf = new jsPDF({ orientation: pdfW > pdfH ? "landscape" : "portrait", unit: "mm", format: [pdfW, Math.max(pdfH, 210)] });
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pdfW, pdfH);
-      pdf.save(`${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pdf`);
+      const W = 297, H = 210, ML = 12, MR = 12;
+      const CW = W - ML - MR;
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      const hex2rgb = (hex: string): [number, number, number] => {
+        const h = hex.replace("#", "");
+        return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+      };
+      const fmtVal = (v: number | null, unit: string) => {
+        if (v === null) return "—";
+        if (unit === "%" || unit === "percent") return `${v}%`;
+        if (unit === "#" || !unit) return String(v);
+        return `${v} ${unit}`;
+      };
+
+      const deptRgb = hex2rgb(dept.color);
+
+      // ── Header bar ──────────────────────────────────────────────────────────
+      doc.setFillColor(...deptRgb);
+      doc.rect(0, 0, W, 16, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${dept.name.toUpperCase()} — BALANCED SCORECARD`, ML, 11);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`${MONTHS[month]} ${year}`, W - MR, 7, { align: "right" });
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`Score: ${hp}%  —  ${statusLabel}`, W - MR, 13, { align: "right" });
+
+      // ── Perspective summary boxes ────────────────────────────────────────────
+      let y = 20;
+      const boxW = (CW - 9) / 4;
+      perspScores.forEach((ps, i) => {
+        const bx = ML + i * (boxW + 3);
+        const pRgb = hex2rgb(ps.color);
+        doc.setFillColor(...pRgb);
+        doc.roundedRect(bx, y, boxW, 18, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(15);
+        doc.text(`${ps.score}%`, bx + boxW / 2, y + 9, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text(PERSP_LABEL[ps.p], bx + boxW / 2, y + 14.5, { align: "center" });
+      });
+
+      // ── KPI table ───────────────────────────────────────────────────────────
+      y = 44;
+      const cols: { label: string; w: number; align: "left" | "center" | "right" }[] = [
+        { label: "St", w: 9,  align: "center" },
+        { label: "KPI Name", w: 80, align: "left" },
+        { label: "Perspective", w: 28, align: "left" },
+        { label: "Target",  w: 24, align: "right" },
+        { label: "Actual",  w: 24, align: "right" },
+        { label: "Ach %",   w: 22, align: "right" },
+        { label: "Wt %",    w: 18, align: "right" },
+        { label: "Score",   w: 22, align: "right" },
+        { label: "Trend",   w: 16, align: "center" },
+      ]; // total 243mm < CW 273mm — extra space absorbed by KPI Name
+
+      const drawHeader = (yh: number) => {
+        doc.setFillColor(30, 41, 59);
+        doc.rect(ML, yh, CW, 7.5, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        let cx = ML;
+        cols.forEach(col => {
+          const tx = col.align === "right" ? cx + col.w - 1.5 : col.align === "center" ? cx + col.w / 2 : cx + 1.5;
+          doc.text(col.label, tx, yh + 5, { align: col.align });
+          cx += col.w;
+        });
+      };
+      drawHeader(y);
+      y += 7.5;
+
+      const ROW_H = 6.5;
+      const rowsToExport = kpiData.filter(d => d.actual !== null);
+      let pageNum = 1;
+
+      rowsToExport.forEach((d, idx) => {
+        if (y + ROW_H > H - 11) {
+          // footer on current page
+          doc.setFillColor(248, 250, 252);
+          doc.rect(0, H - 10, W, 10, "F");
+          doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(148, 163, 184);
+          doc.text(`GHC Beacon · ${dept.name} BSC · ${MONTHS[month]} ${year}`, ML, H - 4);
+          doc.text(`Page ${pageNum}`, W - MR, H - 4, { align: "right" });
+          doc.addPage(); pageNum++;
+          y = 10;
+          drawHeader(y); y += 7.5;
+        }
+
+        // alternating row bg
+        if (idx % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(ML, y, CW, ROW_H, "F"); }
+        // row border
+        doc.setDrawColor(226, 232, 240); doc.line(ML, y + ROW_H, ML + CW, y + ROW_H);
+
+        let cx = ML;
+
+        // Status dot
+        const dotRgb: [number,number,number] = d.status === "green" ? [16,185,129] : d.status === "amber" ? [245,158,11] : [239,68,68];
+        doc.setFillColor(...dotRgb);
+        doc.circle(cx + cols[0].w / 2, y + ROW_H / 2, 2, "F");
+        cx += cols[0].w;
+
+        // KPI Name
+        doc.setTextColor(20, 20, 20); doc.setFont("helvetica", "normal"); doc.setFontSize(7.2);
+        const name = d.kpi.name.length > 42 ? d.kpi.name.slice(0, 41) + "…" : d.kpi.name;
+        doc.text(name, cx + 1.5, y + 4.4); cx += cols[1].w;
+
+        // Perspective
+        const pRgb2 = hex2rgb(PERSP_COLORS[d.kpi.perspective] || "#64748b");
+        doc.setTextColor(...pRgb2); doc.setFont("helvetica", "bold"); doc.setFontSize(7);
+        doc.text(d.kpi.perspective, cx + 1.5, y + 4.4); cx += cols[2].w;
+
+        // Target / Actual
+        doc.setTextColor(60, 60, 60); doc.setFont("helvetica", "normal"); doc.setFontSize(7.2);
+        doc.text(fmtVal(d.kpi.target, d.kpi.unit), cx + cols[3].w - 1.5, y + 4.4, { align: "right" }); cx += cols[3].w;
+        doc.text(fmtVal(d.actual, d.kpi.unit), cx + cols[4].w - 1.5, y + 4.4, { align: "right" }); cx += cols[4].w;
+
+        // Ach%
+        if (d.ach !== null) {
+          const ac: [number,number,number] = d.ach >= 95 ? [16,185,129] : d.ach >= 80 ? [245,158,11] : [239,68,68];
+          doc.setTextColor(...ac); doc.setFont("helvetica", "bold");
+        }
+        doc.text(d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", cx + cols[5].w - 1.5, y + 4.4, { align: "right" });
+        doc.setTextColor(60, 60, 60); doc.setFont("helvetica", "normal"); cx += cols[5].w;
+
+        // Wt%
+        doc.text(`${d.w.toFixed(1)}%`, cx + cols[6].w - 1.5, y + 4.4, { align: "right" }); cx += cols[6].w;
+        // Score
+        doc.text(d.weightedScore !== null ? d.weightedScore.toFixed(1) : "—", cx + cols[7].w - 1.5, y + 4.4, { align: "right" }); cx += cols[7].w;
+
+        // Trend
+        const prevVal = getActual(d.kpi.id, ppk);
+        const trend = getTrend(d.actual, prevVal);
+        const tChar = trend === "up" ? "▲" : trend === "down" ? "▼" : "→";
+        const tRgb: [number,number,number] = trend === "up" ? [16,185,129] : trend === "down" ? [239,68,68] : [148,163,184];
+        doc.setTextColor(...tRgb); doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+        doc.text(tChar, cx + cols[8].w / 2, y + 4.8, { align: "center" });
+
+        y += ROW_H;
+      });
+
+      // ── Total weight row ─────────────────────────────────────────────────────
+      if (y + 7 <= H - 11) {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(ML, y, CW, 7, "F");
+        doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
+        const cx0 = ML + cols[0].w + cols[1].w + cols[2].w + cols[3].w + cols[4].w;
+        doc.text("100.0%", cx0 + cols[5].w - 1.5, y + 4.8, { align: "right" });
+        const cx1 = cx0 + cols[5].w + cols[6].w;
+        doc.text(`${hp}%`, cx1 + cols[7].w - 1.5, y + 4.8, { align: "right" });
+        doc.setTextColor(30, 41, 59);
+        doc.text("Overall Score = Σ(Ach% × Weight) ÷ Total Weight", ML + cols[0].w + 1.5, y + 4.8);
+        y += 7;
+      }
+
+      // ── Footer on last page ──────────────────────────────────────────────────
+      const totalPages = (doc as any).getNumberOfPages ? (doc as any).getNumberOfPages() : pageNum;
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(0, H - 10, W, 10, "F");
+        doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(148, 163, 184);
+        doc.text(`GHC Beacon · ${dept.name} Balanced Scorecard · ${MONTHS[month]} ${year}`, ML, H - 4);
+        doc.text(`Page ${p} of ${totalPages}`, W - MR, H - 4, { align: "right" });
+      }
+
+      doc.save(`${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pdf`);
       toast({ title: "PDF exported", description: `${dept.name} scorecard saved as PDF` });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportPptx() {
+    setExporting(true);
+    setExportMenuOpen(false);
+    try {
+      const PptxGenJS = (await import("pptxgenjs")).default;
+      const pres = new PptxGenJS();
+      pres.layout = "LAYOUT_WIDE"; // 13.33 × 7.5 in
+
+      const dc = dept.color.replace("#", "");
+      const c = (hex: string) => hex.replace("#", "");
+      const fmtV = (v: number | null, unit: string) => {
+        if (v === null) return "—";
+        if (unit === "%" || unit === "percent") return `${v}%`;
+        if (unit === "#" || !unit) return String(v);
+        return `${v} ${unit}`;
+      };
+
+      // ── Slide 1: Cover ────────────────────────────────────────────────────
+      let sl = pres.addSlide();
+      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
+      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 2.1, fill: { color: dc } });
+      sl.addText(dept.name.toUpperCase(), { x: 0.45, y: 0.18, w: 10, h: 0.9, fontSize: 38, bold: true, color: "FFFFFF", fontFace: "Calibri" });
+      sl.addText("BALANCED SCORECARD", { x: 0.45, y: 1.0, w: 9, h: 0.5, fontSize: 15, color: "FFFFFF", fontFace: "Calibri" });
+      sl.addText(`${MONTHS[month]} ${year}`, { x: 10.5, y: 0.3, w: 2.5, h: 0.5, fontSize: 14, bold: true, color: "FFFFFF", align: "right", fontFace: "Calibri" });
+
+      const scColor = statusColor.replace("#", "");
+      sl.addShape("roundRect" as any, { x: 0.45, y: 2.5, w: 3.6, h: 3.1, fill: { color: scColor }, rectRadius: 0.12 });
+      sl.addText(`${hp}%`, { x: 0.45, y: 2.65, w: 3.6, h: 1.6, fontSize: 64, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      sl.addText(statusLabel, { x: 0.45, y: 4.15, w: 3.6, h: 0.5, fontSize: 15, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      sl.addText("Overall Performance Score", { x: 0.45, y: 4.6, w: 3.6, h: 0.35, fontSize: 9, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+
+      const stBoxes = [
+        { label: "On Track",  val: onTrack,  color: "10B981", x: 4.5 },
+        { label: "At Risk",   val: atRisk,   color: "F59E0B", x: 7.2 },
+        { label: "Off Track", val: offTrack, color: "EF4444", x: 9.9 },
+      ];
+      stBoxes.forEach(b => {
+        sl.addShape("roundRect" as any, { x: b.x, y: 2.65, w: 2.3, h: 1.8, fill: { color: b.color }, rectRadius: 0.1 });
+        sl.addText(String(b.val), { x: b.x, y: 2.7, w: 2.3, h: 1.1, fontSize: 44, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+        sl.addText(b.label, { x: b.x, y: 3.7, w: 2.3, h: 0.45, fontSize: 12, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      });
+      sl.addText(`${kpiData.filter(d => d.actual !== null).length} KPIs tracked`, { x: 4.5, y: 5.1, w: 7.8, h: 0.4, fontSize: 11, color: "64748B", align: "center", fontFace: "Calibri" });
+      sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
+
+      // ── Slide 2: Perspective Performance ──────────────────────────────────
+      sl = pres.addSlide();
+      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
+      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 1.05, fill: { color: dc } });
+      sl.addText("PERSPECTIVE PERFORMANCE", { x: 0.4, y: 0.1, w: 10, h: 0.45, fontSize: 20, bold: true, color: "FFFFFF", fontFace: "Calibri" });
+      sl.addText(`${dept.name} · ${MONTHS[month]} ${year}`, { x: 0.4, y: 0.58, w: 10, h: 0.32, fontSize: 11, color: "FFFFFF", fontFace: "Calibri" });
+      sl.addText(`${hp}% Overall`, { x: 10, y: 0.28, w: 3, h: 0.4, fontSize: 13, bold: true, color: "FFFFFF", align: "right", fontFace: "Calibri" });
+
+      perspScores.forEach((ps, i) => {
+        const pc = c(ps.color);
+        const bx = 0.28 + i * 3.22;
+        sl.addShape("roundRect" as any, { x: bx, y: 1.25, w: 3.0, h: 5.0, fill: { color: pc }, rectRadius: 0.14 });
+        sl.addText(PERSP_LABEL[ps.p], { x: bx, y: 1.38, w: 3.0, h: 0.5, fontSize: 12, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+        sl.addText(`${ps.score}%`, { x: bx, y: 2.0, w: 3.0, h: 1.4, fontSize: 54, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+        sl.addText(ps.label, { x: bx, y: 3.32, w: 3.0, h: 0.4, fontSize: 12, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+        const pKpis = kpiData.filter(d => d.kpi.perspective === ps.p && d.actual !== null);
+        sl.addText(`${pKpis.filter(d => d.status === "green").length}/${pKpis.length} On Track`, { x: bx, y: 3.78, w: 3.0, h: 0.35, fontSize: 10, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+        const tStr = ps.trend > 0.5 ? `▲ +${ps.trend.toFixed(1)}pts vs prev` : ps.trend < -0.5 ? `▼ ${ps.trend.toFixed(1)}pts vs prev` : "→ Stable vs prev";
+        sl.addText(tStr, { x: bx, y: 4.2, w: 3.0, h: 0.35, fontSize: 9, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      });
+      sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
+
+      // ── Slide 3: KPI Highlights ────────────────────────────────────────────
+      sl = pres.addSlide();
+      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
+      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 1.05, fill: { color: dc } });
+      sl.addText("KPI HIGHLIGHTS", { x: 0.4, y: 0.1, w: 10, h: 0.45, fontSize: 20, bold: true, color: "FFFFFF", fontFace: "Calibri" });
+      sl.addText(`${dept.name} · ${MONTHS[month]} ${year}`, { x: 0.4, y: 0.58, w: 10, h: 0.32, fontSize: 11, color: "FFFFFF", fontFace: "Calibri" });
+
+      const hlHdr = (cells: string[], fillColor: string) => cells.map(t => ({ text: t, options: { bold: true, fontSize: 8.5, fill: { color: fillColor }, color: "FFFFFF", align: "center" as const } }));
+      const colHdr = ["KPI Name", "Perspective", "Target", "Actual", "Ach %", "Status"];
+
+      sl.addShape("rect" as any, { x: 0.28, y: 1.15, w: 6.12, h: 0.4, fill: { color: "10B981" } });
+      sl.addText("TOP PERFORMING KPIs", { x: 0.28, y: 1.15, w: 6.12, h: 0.4, fontSize: 11, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      const topRows = [
+        hlHdr(colHdr, "1E293B"),
+        ...topKpis.map(d => [
+          { text: d.kpi.name, options: { fontSize: 7.5, color: "1E293B", align: "left" as const } },
+          { text: d.kpi.perspective, options: { fontSize: 7.5, bold: true, color: c(PERSP_COLORS[d.kpi.perspective] || "#64748B"), align: "left" as const } },
+          { text: fmtV(d.kpi.target, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
+          { text: fmtV(d.actual, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
+          { text: d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", options: { fontSize: 8, bold: true, color: "10B981", align: "right" as const } },
+          { text: "● On Track", options: { fontSize: 7.5, bold: true, color: "10B981", align: "center" as const } },
+        ]),
+      ];
+      sl.addTable(topRows as any, { x: 0.28, y: 1.55, w: 6.12, colW: [2.25, 1.2, 0.75, 0.75, 0.65, 0.72], border: { type: "solid", color: "E2E8F0", pt: 0.5 }, rowH: 0.31 });
+
+      sl.addShape("rect" as any, { x: 6.93, y: 1.15, w: 6.12, h: 0.4, fill: { color: "EF4444" } });
+      sl.addText("LOWEST PERFORMING KPIs", { x: 6.93, y: 1.15, w: 6.12, h: 0.4, fontSize: 11, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      const lowRows = [
+        hlHdr(colHdr, "1E293B"),
+        ...lowestKpis.map(d => {
+          const stC = d.status === "green" ? "10B981" : d.status === "amber" ? "F59E0B" : "EF4444";
+          const stL = d.status === "green" ? "● On Track" : d.status === "amber" ? "● At Risk" : "● Critical";
+          return [
+            { text: d.kpi.name, options: { fontSize: 7.5, color: "1E293B", align: "left" as const } },
+            { text: d.kpi.perspective, options: { fontSize: 7.5, bold: true, color: c(PERSP_COLORS[d.kpi.perspective] || "#64748B"), align: "left" as const } },
+            { text: fmtV(d.kpi.target, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
+            { text: fmtV(d.actual, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
+            { text: d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", options: { fontSize: 8, bold: true, color: stC, align: "right" as const } },
+            { text: stL, options: { fontSize: 7.5, bold: true, color: stC, align: "center" as const } },
+          ];
+        }),
+      ];
+      sl.addTable(lowRows as any, { x: 6.93, y: 1.55, w: 6.12, colW: [2.25, 1.2, 0.75, 0.75, 0.65, 0.72], border: { type: "solid", color: "E2E8F0", pt: 0.5 }, rowH: 0.31 });
+      sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
+
+      // ── Slide 4+: Full KPI Scorecard ──────────────────────────────────────
+      const allRows = kpiData.filter(d => d.actual !== null);
+      const ROWS_PER_SLIDE = 19;
+      const chunks: typeof allRows[] = [];
+      for (let i = 0; i < allRows.length; i += ROWS_PER_SLIDE) chunks.push(allRows.slice(i, i + ROWS_PER_SLIDE));
+
+      const scHdr = ["Status", "KPI Name", "Perspective", "Target", "Actual", "Ach %", "Wt %", "Score Pts", "Trend"];
+      const scColW = [0.55, 3.8, 1.5, 1.3, 1.3, 1.1, 0.9, 1.1, 0.58];
+
+      chunks.forEach((chunk, ci) => {
+        sl = pres.addSlide();
+        sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
+        sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 1.05, fill: { color: dc } });
+        sl.addText("KPI SCORECARD", { x: 0.4, y: 0.1, w: 9, h: 0.45, fontSize: 20, bold: true, color: "FFFFFF", fontFace: "Calibri" });
+        sl.addText(`${dept.name} · ${MONTHS[month]} ${year}${chunks.length > 1 ? `  ·  Page ${ci + 1} of ${chunks.length}` : ""}`, { x: 0.4, y: 0.58, w: 9, h: 0.32, fontSize: 11, color: "FFFFFF", fontFace: "Calibri" });
+        sl.addText(`Overall: ${hp}% — ${statusLabel}`, { x: 10, y: 0.28, w: 3, h: 0.4, fontSize: 12, bold: true, color: "FFFFFF", align: "right", fontFace: "Calibri" });
+
+        const tblRows = [
+          scHdr.map(h => ({ text: h, options: { bold: true, fontSize: 8.5, fill: { color: "1E293B" }, color: "FFFFFF", align: "center" as const } })),
+          ...chunk.map((d, ri) => {
+            const stC = d.status === "green" ? "10B981" : d.status === "amber" ? "F59E0B" : "EF4444";
+            const achC = d.ach !== null ? (d.ach >= 95 ? "10B981" : d.ach >= 80 ? "F59E0B" : "EF4444") : "94A3B8";
+            const prevV = getActual(d.kpi.id, ppk);
+            const tr = getTrend(d.actual, prevV);
+            const tChar = tr === "up" ? "▲" : tr === "down" ? "▼" : "→";
+            const tColor = tr === "up" ? "10B981" : tr === "down" ? "EF4444" : "94A3B8";
+            const rf = ri % 2 === 0 ? "FFFFFF" : "F8FAFC";
+            return [
+              { text: "●", options: { fontSize: 13, bold: true, color: stC, align: "center" as const, fill: { color: rf } } },
+              { text: d.kpi.name, options: { fontSize: 7.5, color: "1E293B", align: "left" as const, fill: { color: rf } } },
+              { text: d.kpi.perspective, options: { fontSize: 7.5, bold: true, color: c(PERSP_COLORS[d.kpi.perspective] || "#64748B"), align: "left" as const, fill: { color: rf } } },
+              { text: fmtV(d.kpi.target, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
+              { text: fmtV(d.actual, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
+              { text: d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", options: { fontSize: 8, bold: true, color: achC, align: "right" as const, fill: { color: rf } } },
+              { text: `${d.w.toFixed(1)}%`, options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
+              { text: d.weightedScore !== null ? d.weightedScore.toFixed(1) : "—", options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
+              { text: tChar, options: { fontSize: 11, bold: true, color: tColor, align: "center" as const, fill: { color: rf } } },
+            ];
+          }),
+        ];
+        sl.addTable(tblRows as any, { x: 0.25, y: 1.12, w: 12.83, colW: scColW, border: { type: "solid", color: "E2E8F0", pt: 0.5 }, rowH: 0.27 });
+        sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
+      });
+
+      await pres.writeFile({ fileName: `${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pptx` });
+      toast({ title: "PowerPoint exported", description: `${dept.name} scorecard saved as PPTX` });
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
     } finally {
@@ -2103,7 +2432,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
               <ChevronDown className="h-3 w-3 opacity-60" />
             </Button>
             {exportMenuOpen && (
-              <div className="absolute right-0 top-9 z-50 bg-card border rounded-xl shadow-lg p-1.5 w-44" data-testid="export-menu">
+              <div className="absolute right-0 top-9 z-50 bg-card border rounded-xl shadow-lg p-1.5 w-52" data-testid="export-menu">
                 <button
                   onClick={handleExportImage}
                   className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-muted/60 transition-colors text-left"
@@ -2123,7 +2452,18 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                   <FileText className="h-4 w-4 text-red-500 shrink-0" />
                   <span>
                     <span className="font-medium block">Save as PDF</span>
-                    <span className="text-[10px] text-muted-foreground">A4, dashboard view</span>
+                    <span className="text-[10px] text-muted-foreground">A4 landscape, vector text</span>
+                  </span>
+                </button>
+                <button
+                  onClick={handleExportPptx}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-muted/60 transition-colors text-left"
+                  data-testid="button-export-pptx"
+                >
+                  <Presentation className="h-4 w-4 text-orange-500 shrink-0" />
+                  <span>
+                    <span className="font-medium block">Save as PowerPoint</span>
+                    <span className="text-[10px] text-muted-foreground">4-slide PPTX deck</span>
                   </span>
                 </button>
               </div>
