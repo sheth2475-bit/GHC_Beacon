@@ -257,6 +257,11 @@ async function saveStoreToDB(d: Record<string, Record<string, number>>): Promise
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ store: d }),
     });
+    if (res.ok) {
+      // Keep TanStack Query cache in sync so navigating away and back
+      // shows the freshly-saved data instead of the stale cached version.
+      queryClient.setQueryData(["/api/scorecard/actuals"], d);
+    }
     return res.ok;
   } catch {
     return false;
