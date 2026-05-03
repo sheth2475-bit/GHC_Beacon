@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -765,9 +766,11 @@ function ScorecardLanding() {
   const { data: _landingDeptRows, isFetched: _landingDeptFetched } = useQuery<any[]>({
     queryKey: ["/api/scorecard/departments"],
   });
-  const { data: _landingActualsData, isFetched: _landingActualsFetched } = useQuery<Record<string, Record<string, number>>>({
+  const { data: _landingActualsData, isFetched: _landingActualsFetched, isLoading: _landingActualsLoading } = useQuery<Record<string, Record<string, number>>>({
     queryKey: ["/api/scorecard/actuals"],
   });
+  // True only during first-ever load when localStorage has no cached data (common on mobile)
+  const storeIsLoading = _landingActualsLoading && Object.keys(store).length === 0;
 
   useEffect(() => {
     if (!_landingDeptFetched) return;
@@ -1017,8 +1020,12 @@ function ScorecardLanding() {
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-2xl font-bold tabular-nums leading-none" style={{ color: hc }}>{hp}%</p>
-                    {hpDelta !== 0 && prevHp > 0 && (
+                    {storeIsLoading ? (
+                      <Skeleton className="h-7 w-14 ml-auto" />
+                    ) : (
+                      <p className="text-2xl font-bold tabular-nums leading-none" style={{ color: hc }}>{hp}%</p>
+                    )}
+                    {!storeIsLoading && hpDelta !== 0 && prevHp > 0 && (
                       <p className="text-xs flex items-center justify-end gap-0.5 mt-0.5"
                         style={{ color: hpDelta > 0 ? "#10b981" : "#ef4444" }}>
                         {hpDelta > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
@@ -1040,15 +1047,20 @@ function ScorecardLanding() {
 
                 {/* Health bar */}
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${hp}%`, background: hc }} />
+                  {storeIsLoading
+                    ? <Skeleton className="h-full w-full rounded-full" />
+                    : <div className="h-full rounded-full transition-all duration-500" style={{ width: `${hp}%`, background: hc }} />
+                  }
                 </div>
 
                 <div className="mt-3 rounded-lg bg-muted/40 px-2 py-1.5 flex items-center justify-between gap-2">
                   <span className="text-[10px] text-muted-foreground">Freshness</span>
-                  <span className="text-[10px] font-semibold" data-testid={`text-dept-freshness-${dept.id}`}>
-                    {latestDeptPeriod || "No data"} · {completeness}%
-                  </span>
+                  {storeIsLoading
+                    ? <Skeleton className="h-3 w-20" />
+                    : <span className="text-[10px] font-semibold" data-testid={`text-dept-freshness-${dept.id}`}>
+                        {latestDeptPeriod || "No data"} · {completeness}%
+                      </span>
+                  }
                 </div>
 
                 {/* Footer: CTA */}
@@ -1481,9 +1493,11 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const { data: _detailDeptRows, isFetched: _detailDeptFetched } = useQuery<any[]>({
     queryKey: ["/api/scorecard/departments"],
   });
-  const { data: _detailActualsData, isFetched: _detailActualsFetched } = useQuery<Record<string, Record<string, number>>>({
+  const { data: _detailActualsData, isFetched: _detailActualsFetched, isLoading: _detailActualsLoading } = useQuery<Record<string, Record<string, number>>>({
     queryKey: ["/api/scorecard/actuals"],
   });
+  // True only on first-ever load with no localStorage fallback (common on mobile)
+  const detailStoreIsLoading = _detailActualsLoading && Object.keys(store).length === 0;
 
   useEffect(() => {
     if (!_detailDeptFetched) return;
@@ -1500,12 +1514,14 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     if (Object.keys(_detailActualsData).length > 0) localStorage.setItem(CORP_SEED_VER, "ok");
   }, [_detailActualsFetched, _detailActualsData]);
 
-  // Pre-fill form when period changes
+  // Pre-fill form when period changes OR when store loads from server (mobile: no localStorage)
   useEffect(() => {
+    if (hasUnsaved) return; // Don't overwrite in-progress edits
     const pre: Record<string,string> = {};
     kpis.forEach(k => { const v = store?.[pk]?.[k.id]; if (v !== undefined) pre[k.id] = String(v); });
     setEntryVals(pre);
-  }, [pk]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pk, store]);
 
   const allActuals: Record<string, number|null> = {};
   kpis.forEach(k => { allActuals[k.id] = getActual(k.id); });
@@ -2296,12 +2312,22 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           </Button>
           <div className="text-center">
             <p className="text-xs text-muted-foreground">Performance Score</p>
-            <HealthRing pct={hp} size={56} />
+            {detailStoreIsLoading ? <Skeleton className="h-14 w-14 rounded-full mx-auto mt-1" /> : <HealthRing pct={hp} size={56} />}
           </div>
           <div className="flex flex-col gap-1 text-xs">
-            <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" />{onTrack} on track</span>
-            <span className="flex items-center gap-1.5 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />{atRisk} at risk</span>
-            <span className="flex items-center gap-1.5 text-red-600"><AlertCircle className="h-3.5 w-3.5" />{offTrack} off track</span>
+            {detailStoreIsLoading ? (
+              <>
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" />{onTrack} on track</span>
+                <span className="flex items-center gap-1.5 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" />{atRisk} at risk</span>
+                <span className="flex items-center gap-1.5 text-red-600"><AlertCircle className="h-3.5 w-3.5" />{offTrack} off track</span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -2371,14 +2397,27 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                     </PieChart>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <Trophy className="h-8 w-8 mb-1" style={{ color: statusColor }} />
-                      <p className="text-4xl font-extrabold tabular-nums" style={{ color: statusColor }}>{hp}%</p>
-                      <p className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</p>
+                      {detailStoreIsLoading
+                        ? <Skeleton className="h-10 w-20 mt-1" />
+                        : <p className="text-4xl font-extrabold tabular-nums" style={{ color: statusColor }}>{hp}%</p>
+                      }
+                      <p className="text-sm font-semibold" style={{ color: statusColor }}>{detailStoreIsLoading ? "" : statusLabel}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-8 text-center">
-                    <div><p className="text-4xl font-bold text-emerald-600">{onTrack}</p><p className="text-sm text-muted-foreground">On Track</p></div>
-                    <div><p className="text-4xl font-bold text-amber-500">{atRisk}</p><p className="text-sm text-muted-foreground">At Risk</p></div>
-                    <div><p className="text-4xl font-bold text-red-600">{offTrack}</p><p className="text-sm text-muted-foreground">Off Track</p></div>
+                    {detailStoreIsLoading ? (
+                      <>
+                        <div><Skeleton className="h-10 w-10 mx-auto mb-1" /><p className="text-sm text-muted-foreground">On Track</p></div>
+                        <div><Skeleton className="h-10 w-10 mx-auto mb-1" /><p className="text-sm text-muted-foreground">At Risk</p></div>
+                        <div><Skeleton className="h-10 w-10 mx-auto mb-1" /><p className="text-sm text-muted-foreground">Off Track</p></div>
+                      </>
+                    ) : (
+                      <>
+                        <div><p className="text-4xl font-bold text-emerald-600">{onTrack}</p><p className="text-sm text-muted-foreground">On Track</p></div>
+                        <div><p className="text-4xl font-bold text-amber-500">{atRisk}</p><p className="text-sm text-muted-foreground">At Risk</p></div>
+                        <div><p className="text-4xl font-bold text-red-600">{offTrack}</p><p className="text-sm text-muted-foreground">Off Track</p></div>
+                      </>
+                    )}
                   </div>
                 </div>
               }
@@ -2397,10 +2436,13 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-4xl font-extrabold tabular-nums leading-none" style={{ color: statusColor }}>{hp}%</p>
+                  {detailStoreIsLoading
+                    ? <Skeleton className="h-10 w-20 mb-2" />
+                    : <p className="text-4xl font-extrabold tabular-nums leading-none" style={{ color: statusColor }}>{hp}%</p>
+                  }
                   <div className="flex items-center gap-1.5 mt-1.5">
                     <CheckCircle2 className="h-4 w-4" style={{ color: statusColor }} />
-                    <span className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</span>
+                    <span className="text-sm font-semibold" style={{ color: statusColor }}>{detailStoreIsLoading ? "Loading…" : statusLabel}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">Target: ≥ 85%</p>
                   <p className="text-xs text-muted-foreground">{MONTHS[month]} {year}</p>
