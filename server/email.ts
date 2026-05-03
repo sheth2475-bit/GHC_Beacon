@@ -344,3 +344,53 @@ export async function sendActionReminder(payload: ReminderPayload): Promise<void
     throw new Error(result.error.message || "Failed to send email");
   }
 }
+
+// ── KPI Alert Email ───────────────────────────────────────────────────────────
+export interface KpiAlertEmailPayload {
+  to: string;
+  alertName: string;
+  kpiName: string;
+  deptName: string;
+  periodKey: string;
+  message: string;
+  severity: "info" | "warning" | "critical";
+  achPct: number | null;
+  companyName: string;
+}
+
+export async function sendKpiAlertEmail(payload: KpiAlertEmailPayload): Promise<void> {
+  const { client, fromEmail } = await getUncachableResendClient();
+  const severityColor = payload.severity === "critical" ? "#dc2626" : payload.severity === "warning" ? "#d97706" : "#2563eb";
+  const severityLabel = payload.severity === "critical" ? "Critical" : payload.severity === "warning" ? "Warning" : "Info";
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+    <div style="background:linear-gradient(135deg,${severityColor},${severityColor}cc);padding:24px 32px;">
+      <p style="margin:0 0 4px;font-size:11px;color:rgba(255,255,255,0.8);letter-spacing:.08em;text-transform:uppercase;">GHC Beacon · KPI Alert</p>
+      <h1 style="margin:0;font-size:20px;font-weight:700;color:#fff;">${payload.alertName}</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px 20px;margin-bottom:20px;border-left:4px solid ${severityColor};">
+        <span style="background:${severityColor}1a;color:${severityColor};padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600;">${severityLabel}</span>
+        <p style="margin:10px 0 0;font-size:15px;color:#111827;font-weight:500;">${payload.message}</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+        <tr><td style="padding:5px 0;color:#6b7280;width:130px;">KPI</td><td style="padding:5px 0;color:#111827;font-weight:500;">${payload.kpiName}</td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;">Department</td><td style="padding:5px 0;color:#111827;">${payload.deptName}</td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;">Period</td><td style="padding:5px 0;color:#111827;">${payload.periodKey}</td></tr>
+        ${payload.achPct !== null ? `<tr><td style="padding:5px 0;color:#6b7280;">Achievement</td><td style="padding:5px 0;color:${severityColor};font-weight:700;">${payload.achPct.toFixed(1)}%</td></tr>` : ""}
+      </table>
+      <p style="margin:0;font-size:12px;color:#9ca3af;">This alert was triggered automatically by <strong>GHC Beacon</strong> for <strong>${payload.companyName}</strong>. Log in to review.</p>
+    </div>
+  </div>
+</body></html>`;
+  const testEmail = process.env.RESEND_TEST_EMAIL;
+  const res = await client.emails.send({
+    from: fromEmail,
+    to: testEmail ? [testEmail] : [payload.to],
+    subject: `[${severityLabel}] KPI Alert: ${payload.kpiName} — ${payload.periodKey}`,
+    html,
+  });
+  if (res.error) throw new Error(res.error.message || "Failed to send alert email");
+}

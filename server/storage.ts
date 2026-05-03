@@ -10,6 +10,7 @@ import {
   analyticsDashboardNarratives, analyticsDashboardChat,
   analyticsDatasets, analyticsDatasetColumns, analyticsInsights, analyticsAutoInsights,
   analyticsDashboardDefinitions, analyticsDashboardItems,
+  kpiAlerts, kpiAlertEvents,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -38,6 +39,8 @@ import {
   type AnalyticsAutoInsight, type InsertAnalyticsAutoInsight,
   type AnalyticsDashboardDefinition, type InsertAnalyticsDashboardDefinition,
   type AnalyticsDashboardItem, type InsertAnalyticsDashboardItem,
+  type KpiAlert, type InsertKpiAlert,
+  type KpiAlertEvent, type InsertKpiAlertEvent,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -260,6 +263,16 @@ export interface IStorage {
   createWorkflowGroup(data: import("@shared/schema").InsertWorkflowGroup): Promise<import("@shared/schema").WorkflowGroup>;
   updateWorkflowGroup(id: number, data: Partial<import("@shared/schema").InsertWorkflowGroup>): Promise<import("@shared/schema").WorkflowGroup>;
   deleteWorkflowGroup(id: number): Promise<void>;
+
+  // KPI Alerts
+  getKpiAlerts(companyId: number): Promise<KpiAlert[]>;
+  createKpiAlert(data: InsertKpiAlert): Promise<KpiAlert>;
+  updateKpiAlert(id: number, data: Partial<InsertKpiAlert>): Promise<KpiAlert>;
+  deleteKpiAlert(id: number): Promise<void>;
+  getKpiAlertEvents(companyId: number, onlyUnread?: boolean): Promise<KpiAlertEvent[]>;
+  acknowledgeKpiAlertEvent(id: number): Promise<void>;
+  acknowledgeAllKpiAlertEvents(companyId: number): Promise<void>;
+  evaluateKpiAlerts(companyId: number, store: Record<string, Record<string, number>>): Promise<KpiAlertEvent[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1262,6 +1275,120 @@ export class DatabaseStorage implements IStorage {
       }
     }
     if (rows.length > 0) await db.insert(bscActuals).values(rows);
+  }
+
+  // ── KPI Alerts ──────────────────────────────────────────────────────────────
+  async getKpiAlerts(companyId: number): Promise<KpiAlert[]> {
+    return db.select().from(kpiAlerts).where(eq(kpiAlerts.companyId, companyId)).orderBy(desc(kpiAlerts.createdAt));
+  }
+
+  async createKpiAlert(data: InsertKpiAlert): Promise<KpiAlert> {
+    const [alert] = await db.insert(kpiAlerts).values(data).returning();
+    return alert;
+  }
+
+  async updateKpiAlert(id: number, data: Partial<InsertKpiAlert>): Promise<KpiAlert> {
+    const [updated] = await db.update(kpiAlerts).set(data).where(eq(kpiAlerts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteKpiAlert(id: number): Promise<void> {
+    await db.delete(kpiAlerts).where(eq(kpiAlerts.id, id));
+  }
+
+  async getKpiAlertEvents(companyId: number, onlyUnread = false): Promise<KpiAlertEvent[]> {
+    const cond = onlyUnread
+      ? and(eq(kpiAlertEvents.companyId, companyId), eq(kpiAlertEvents.acknowledged, false))
+      : eq(kpiAlertEvents.companyId, companyId);
+    return db.select().from(kpiAlertEvents).where(cond).orderBy(desc(kpiAlertEvents.createdAt)).limit(200);
+  }
+
+  async acknowledgeKpiAlertEvent(id: number): Promise<void> {
+    await db.update(kpiAlertEvents).set({ acknowledged: true }).where(eq(kpiAlertEvents.id, id));
+  }
+
+  async acknowledgeAllKpiAlertEvents(companyId: number): Promise<void> {
+    await db.update(kpiAlertEvents).set({ acknowledged: true }).where(eq(kpiAlertEvents.companyId, companyId));
+  }
+
+  async evaluateKpiAlerts(companyId: number, store: Record<string, Record<string, number>>): Promise<KpiAlertEvent[]> {
+    const alerts = await db.select().from(kpiAlerts)
+      .where(and(eq(kpiAlerts.companyId, companyId), eq(kpiAlerts.isActive, true)));
+    if (alerts.length === 0) return [];
+
+    const periods = Object.keys(store).sort().reverse(); // newest first
+    const firedEvents: KpiAlertEvent[] = [];
+
+    for (const alert of alerts) {
+      // Find latest two periods with data for this KPI
+      let latestPeriod: string | null = null, currentActual: number | null = null, prevActual: number | null = null;
+      for (const p of periods) {
+        const v = store[p]?.[alert.kpiId];
+        if (v !== undefined && v !== null) {
+          if (latestPeriod === null) { latestPeriod = p; currentActual = v; }
+          else { prevActual = v; break; }
+        }
+      }
+      if (latestPeriod === null || currentActual === null) continue;
+
+      // Skip if event already fired for this alert + period
+      const existing = await db.select({ id: kpiAlertEvents.id }).from(kpiAlertEvents)
+        .where(and(eq(kpiAlertEvents.alertId, alert.id), eq(kpiAlertEvents.periodKey, latestPeriod))).limit(1);
+      if (existing.length > 0) continue;
+
+      // Compute Ach%
+      const computeAch = (actual: number): number | null => {
+        if (!alert.targetValue || alert.targetValue === 0) return null;
+        return alert.lowerIsBetter
+          ? Math.round((alert.targetValue / actual) * 1000) / 10
+          : Math.round((actual / alert.targetValue) * 1000) / 10;
+      };
+      const achPct = computeAch(currentActual);
+      const prevAchPct = prevActual !== null ? computeAch(prevActual) : null;
+
+      let triggered = false, message = "", severity: "info" | "warning" | "critical" = "warning";
+      switch (alert.conditionType) {
+        case "ach_below":
+          if (achPct !== null && achPct < (alert.threshold ?? 80)) {
+            triggered = true;
+            message = `${alert.kpiName} achievement is ${achPct.toFixed(1)}%, below the alert threshold of ${alert.threshold ?? 80}%`;
+            severity = achPct < 70 ? "critical" : "warning";
+          }
+          break;
+        case "ach_above":
+          if (achPct !== null && achPct > (alert.threshold ?? 110)) {
+            triggered = true;
+            message = `${alert.kpiName} achievement is ${achPct.toFixed(1)}%, above the threshold of ${alert.threshold ?? 110}%`;
+            severity = "info";
+          }
+          break;
+        case "status_red":
+          if (achPct !== null && achPct < 80) {
+            triggered = true;
+            message = `${alert.kpiName} is Off Track at ${achPct.toFixed(1)}% achievement for ${latestPeriod}`;
+            severity = achPct < 60 ? "critical" : "warning";
+          }
+          break;
+        case "drop_pct":
+          if (achPct !== null && prevAchPct !== null) {
+            const drop = prevAchPct - achPct;
+            if (drop >= (alert.threshold ?? 10)) {
+              triggered = true;
+              message = `${alert.kpiName} achievement dropped by ${drop.toFixed(1)}% (from ${prevAchPct.toFixed(1)}% to ${achPct.toFixed(1)}%)`;
+              severity = drop >= 20 ? "critical" : "warning";
+            }
+          }
+          break;
+      }
+      if (!triggered) continue;
+
+      const [event] = await db.insert(kpiAlertEvents).values({
+        alertId: alert.id, companyId, kpiId: alert.kpiId, kpiName: alert.kpiName,
+        deptId: alert.deptId, message, periodKey: latestPeriod, achPct, severity, acknowledged: false,
+      }).returning();
+      firedEvents.push(event);
+    }
+    return firedEvents;
   }
 }
 

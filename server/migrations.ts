@@ -472,6 +472,44 @@ export async function runMigrations() {
       await client.query(`INSERT INTO bsc_hr_dept_seed_v1 DEFAULT VALUES`);
     }
 
+    // ── KPI Alert Rules ──────────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kpi_alerts (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        dept_id TEXT NOT NULL,
+        kpi_id TEXT NOT NULL,
+        kpi_name TEXT NOT NULL,
+        name TEXT NOT NULL,
+        condition_type TEXT NOT NULL,
+        threshold REAL,
+        target_value REAL,
+        lower_is_better BOOLEAN NOT NULL DEFAULT false,
+        notify_email BOOLEAN NOT NULL DEFAULT false,
+        email_address TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kpi_alert_events (
+        id SERIAL PRIMARY KEY,
+        alert_id INTEGER NOT NULL REFERENCES kpi_alerts(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        kpi_id TEXT NOT NULL,
+        kpi_name TEXT NOT NULL,
+        dept_id TEXT NOT NULL,
+        message TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        ach_pct REAL,
+        severity TEXT NOT NULL DEFAULT 'warning',
+        acknowledged BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[migrations] kpi_alerts + kpi_alert_events tables ready");
+
     // ── Orphan user cleanup ───────────────────────────────────────────────────
     // Delete users with no company_id that are not part of the demo accounts.
     // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai

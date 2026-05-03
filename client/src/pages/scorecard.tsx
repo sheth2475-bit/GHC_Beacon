@@ -19,8 +19,9 @@ import {
   RefreshCw, Building2, Edit2, BarChart2, Trophy,
   GripVertical, ArrowUpRight, ArrowDownRight, ArrowRight,
   Target, Zap, Eye, Maximize2, X, Lightbulb, Sparkles, Globe, Copy, Link2,
-  FileImage, FileText, Loader2, ChevronDown, Lock, Presentation,
+  FileImage, FileText, Loader2, ChevronDown, Lock, Presentation, Bell,
 } from "lucide-react";
+import { KpiAlertsPanel, AlertsBellButton } from "@/pages/kpi-alerts-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -1372,6 +1373,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
   const [dashFilter, setDashFilter] = useState<{ status: "green"|"amber"|"red"|null; perspective: string|null }>({ status: null, perspective: null });
   const [shareDialog, setShareDialog] = useState(false);
+  const [alertsPanel, setAlertsPanel] = useState(false);
   const [shareEnabled, setShareEnabled] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -2188,6 +2190,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
               </div>
             )}
           </div>
+          <AlertsBellButton onClick={() => setAlertsPanel(true)} />
           <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setShareDialog(true)} data-testid="button-share-scorecard" data-export-hide>
             <Globe className="h-3.5 w-3.5" />Share
             {shareEnabled && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-0.5" />}
@@ -3291,6 +3294,14 @@ function KpiDetail({ kpiId }: { kpiId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── KPI Alerts Panel ── */}
+      <KpiAlertsPanel
+        open={alertsPanel}
+        onClose={() => setAlertsPanel(false)}
+        departments={depts.map(d => ({ id: d.id, name: d.name }))}
+        getKpisForDept={(id) => loadKpiOverride(id) ?? getKpisForDept(id)}
+      />
 
     </div>
   );

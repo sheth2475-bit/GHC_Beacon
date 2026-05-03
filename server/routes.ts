@@ -4880,6 +4880,34 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       if (!company) return res.status(404).json({ message: "Company not found" });
       const { store } = req.body as { store: Record<string, Record<string, number>> };
       await storage.saveBscActualsBatch(company.id, store);
+      // Evaluate KPI alerts after saving — fire and forget (don't block response)
+      storage.evaluateKpiAlerts(company.id, store).then(async (events) => {
+        if (events.length === 0) return;
+        try {
+          const { sendKpiAlertEmail } = await import("./email");
+          const companyData = await storage.getCompany(company.id);
+          for (const ev of events) {
+            // Find the alert to get email settings
+            const alerts = await storage.getKpiAlerts(company.id);
+            const alert = alerts.find(a => a.id === ev.alertId);
+            if (alert?.notifyEmail && alert.emailAddress) {
+              const depts = await storage.getBscDepartments(company.id);
+              const dept = depts.find(d => d.deptId === ev.deptId);
+              await sendKpiAlertEmail({
+                to: alert.emailAddress,
+                alertName: alert.name,
+                kpiName: ev.kpiName,
+                deptName: dept?.name ?? ev.deptId,
+                periodKey: ev.periodKey,
+                message: ev.message,
+                severity: ev.severity as any,
+                achPct: ev.achPct,
+                companyName: companyData?.companyName ?? "Your Company",
+              }).catch(() => {}); // swallow email errors
+            }
+          }
+        } catch { /* swallow */ }
+      }).catch(() => {});
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -5016,6 +5044,81 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
+  });
+
+  // ── KPI Alert Rules ──────────────────────────────────────────────────────────
+  app.get("/api/scorecard/alerts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      res.json(await storage.getKpiAlerts(company.id));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/scorecard/alerts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const company = await storage.getCompanyByUserId(user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const alert = await storage.createKpiAlert({ ...req.body, companyId: company.id, userId: user.id });
+      res.status(201).json(alert);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/scorecard/alerts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const alerts = await storage.getKpiAlerts(company.id);
+      if (!alerts.find(a => a.id === Number(req.params.id))) return res.status(404).json({ message: "Not found" });
+      res.json(await storage.updateKpiAlert(Number(req.params.id), req.body));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/scorecard/alerts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      await storage.deleteKpiAlert(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── KPI Alert Events (notifications) ─────────────────────────────────────────
+  app.get("/api/scorecard/alert-events", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const onlyUnread = req.query.unread === "1";
+      res.json(await storage.getKpiAlertEvents(company.id, onlyUnread));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/scorecard/alert-events/:id/ack", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.acknowledgeKpiAlertEvent(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/scorecard/alert-events/ack-all", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      await storage.acknowledgeAllKpiAlertEvents(company.id);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manually trigger alert evaluation against current actuals
+  app.post("/api/scorecard/alerts/check", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const store = await storage.getBscActuals(company.id);
+      const events = await storage.evaluateKpiAlerts(company.id, store);
+      res.json({ fired: events.length, events });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.all(/^\/api\//, (_req: Request, res: Response) => {

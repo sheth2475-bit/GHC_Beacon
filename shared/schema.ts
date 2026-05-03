@@ -809,3 +809,44 @@ export const analyticsUserDashboardAccess = pgTable("analytics_user_dashboard_ac
 });
 export type AnalyticsUserDashboardAccess = typeof analyticsUserDashboardAccess.$inferSelect;
 
+// ── KPI Alert Rules ───────────────────────────────────────────────────────────
+export const kpiAlerts = pgTable("kpi_alerts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  deptId: text("dept_id").notNull(),
+  kpiId: text("kpi_id").notNull(),
+  kpiName: text("kpi_name").notNull(),
+  name: text("name").notNull(),
+  conditionType: text("condition_type").notNull(), // 'ach_below' | 'ach_above' | 'status_red' | 'drop_pct'
+  threshold: real("threshold"),
+  targetValue: real("target_value"),
+  lowerIsBetter: boolean("lower_is_better").default(false).notNull(),
+  notifyEmail: boolean("notify_email").default(false).notNull(),
+  emailAddress: text("email_address"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+export const insertKpiAlertSchema = createInsertSchema(kpiAlerts).omit({ id: true, createdAt: true });
+export type InsertKpiAlert = z.infer<typeof insertKpiAlertSchema>;
+export type KpiAlert = typeof kpiAlerts.$inferSelect;
+
+// ── KPI Alert Events (fired notifications) ────────────────────────────────────
+export const kpiAlertEvents = pgTable("kpi_alert_events", {
+  id: serial("id").primaryKey(),
+  alertId: integer("alert_id").notNull().references(() => kpiAlerts.id, { onDelete: "cascade" }),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  kpiId: text("kpi_id").notNull(),
+  kpiName: text("kpi_name").notNull(),
+  deptId: text("dept_id").notNull(),
+  message: text("message").notNull(),
+  periodKey: text("period_key").notNull(),
+  achPct: real("ach_pct"),
+  severity: text("severity").notNull().default("warning"), // 'info' | 'warning' | 'critical'
+  acknowledged: boolean("acknowledged").default(false).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+export const insertKpiAlertEventSchema = createInsertSchema(kpiAlertEvents).omit({ id: true, createdAt: true });
+export type InsertKpiAlertEvent = z.infer<typeof insertKpiAlertEventSchema>;
+export type KpiAlertEvent = typeof kpiAlertEvents.$inferSelect;
+
