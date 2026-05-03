@@ -316,11 +316,20 @@ function normalizeSeriesData(d: Record<string, unknown>): { name: string; value:
   return [];
 }
 
-/** Returns true when an insight's stored data includes a comparison series (e.g. prev year). */
+/** Returns true when an insight has a comparison series — checks both the stored rendered data
+ *  (chartConfig.data.comparisonLabel) and the top-level config fields (comparisonMeasure /
+ *  comparisonLabel) used by newer insights that haven't been re-rendered yet. */
 function insightHasComparison(insight: AnalyticsInsight): boolean {
-  const data = (insight.chartConfig as { data?: Record<string, unknown> } | null)?.data;
+  const cfg = insight.chartConfig as Record<string, unknown> | null;
+  if (!cfg) return false;
+  // Top-level comparisonMeasure / comparisonLabel (new-style insights)
+  if (cfg.comparisonMeasure && typeof cfg.comparisonMeasure === "string") return true;
+  if (cfg.comparisonLabel && typeof cfg.comparisonLabel === "string") return true;
+  // Nested inside data (old-style stored render)
+  const data = (cfg as { data?: Record<string, unknown> }).data;
   if (!data) return false;
-  return !!(data as { comparisonLabel?: string }).comparisonLabel;
+  if ((data as { comparisonLabel?: string }).comparisonLabel) return true;
+  return normalizeSeriesData(data as Record<string, unknown>).some(d => typeof d.comparisonValue === "number");
 }
 
 function generateSmartNarrative(insight: AnalyticsInsight, filteredData?: unknown): string | null {
@@ -746,7 +755,8 @@ function FocusInsightOverlay({ item, filteredData, onClose }: { item: InsightFul
   const narrativeText = smartNarrative || item.insight.narrative;
   const themePalette = getPalette(item.colorOverride);
   const hasComparisonData = insightHasComparison(item.insight);
-  const comparisonLabel = ((item.insight.chartConfig as { data?: { comparisonLabel?: string } } | null)?.data?.comparisonLabel) || "Comparison";
+  const _focusCfg = item.insight.chartConfig as { data?: { comparisonLabel?: string }; comparisonLabel?: string } | null;
+  const comparisonLabel = _focusCfg?.data?.comparisonLabel || _focusCfg?.comparisonLabel || "Comparison";
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-background" data-testid="focus-mode-overlay">
@@ -803,7 +813,8 @@ function InsightCard({ item, idx, total, onRemove, onMoveUp, onMoveDown, filtere
   const currentTheme = item.colorOverride || DEFAULT_THEME;
   const currentPalette = getPalette(currentTheme);
   const hasComparisonData = insightHasComparison(item.insight);
-  const comparisonLabel = ((item.insight.chartConfig as { data?: { comparisonLabel?: string } } | null)?.data?.comparisonLabel) || "Comparison";
+  const _cardCfg = item.insight.chartConfig as { data?: { comparisonLabel?: string }; comparisonLabel?: string } | null;
+  const comparisonLabel = _cardCfg?.data?.comparisonLabel || _cardCfg?.comparisonLabel || "Comparison";
 
   return (
     <div className="group rounded-xl border bg-card overflow-hidden hover:shadow-md transition-all" data-testid={`item-insight-${item.id}`}>

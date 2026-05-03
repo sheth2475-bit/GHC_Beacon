@@ -689,7 +689,8 @@ export default function AnalyticsExplorePage() {
   const activeChartType = chartOverride || result?.chartType || "";
   const currentChartLabel = CHART_TYPE_OPTIONS.find(o => o.value === activeChartType)?.label || "Auto";
   const currentDisplayFormat = (result?.chartConfig?.displayFormat === "full" ? "full" : "compact") as NumberDisplayFormat;
-  const resultHasComparison = !!(result?.chartConfig?.data as { comparisonLabel?: string } | null | undefined)?.comparisonLabel;
+  const _resCfg = result?.chartConfig as { data?: { comparisonLabel?: string }; comparisonLabel?: string; comparisonMeasure?: string } | null | undefined;
+  const resultHasComparison = !!(_resCfg?.data?.comparisonLabel || _resCfg?.comparisonLabel || _resCfg?.comparisonMeasure);
 
   const setNumberDisplayFormat = (displayFormat: NumberDisplayFormat) => {
     setResult(prev => prev ? {

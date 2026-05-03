@@ -158,10 +158,14 @@ function normalizeSeriesData(d: Record<string, unknown>): { name: string; value:
   return [];
 }
 function insightHasComparison(insight: AnalyticsInsight): boolean {
-  const data = (insight.chartConfig as { data?: Record<string, unknown> } | null)?.data;
+  const cfg = insight.chartConfig as Record<string, unknown> | null;
+  if (!cfg) return false;
+  if (cfg.comparisonMeasure && typeof cfg.comparisonMeasure === "string") return true;
+  if (cfg.comparisonLabel && typeof cfg.comparisonLabel === "string") return true;
+  const data = (cfg as { data?: Record<string, unknown> }).data;
   if (!data) return false;
-  return !!(data as { comparisonLabel?: string }).comparisonLabel ||
-    normalizeSeriesData(data as Record<string, unknown>).some(d => typeof d.comparisonValue === "number");
+  if ((data as { comparisonLabel?: string }).comparisonLabel) return true;
+  return normalizeSeriesData(data as Record<string, unknown>).some(d => typeof d.comparisonValue === "number");
 }
 
 // ─── Client-side filter compute helpers ───────────────────────────────────────
