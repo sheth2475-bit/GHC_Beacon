@@ -4845,6 +4845,16 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       const company = await storage.getCompanyByUserId((req as any).user.id);
       if (!company) return res.status(404).json({ message: "Company not found" });
       const departments = req.body as { deptId: string; name: string; icon: string; color: string; sortOrder: number }[];
+      // Safety guard: refuse to wipe all departments if the payload is empty but
+      // departments already exist — this prevents a frontend bug from silently deleting
+      // production data. A genuine "delete all" must go dept-by-dept.
+      if (!Array.isArray(departments)) return res.status(400).json({ message: "Invalid payload" });
+      if (departments.length === 0) {
+        const existing = await storage.getBscDepartments(company.id);
+        if (existing.length > 0) {
+          return res.status(400).json({ message: "Cannot save empty department list when departments already exist. Delete departments one at a time." });
+        }
+      }
       await storage.saveBscDepartments(company.id, departments);
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
