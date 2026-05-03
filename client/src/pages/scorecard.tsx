@@ -2210,142 +2210,90 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
         return `${v} ${unit}`;
       };
 
-      // ── Slide 1: Cover ────────────────────────────────────────────────────
-      let sl = pres.addSlide();
+      // ── Single slide ──────────────────────────────────────────────────────
+      const sl = pres.addSlide();
       sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
-      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 2.1, fill: { color: dc } });
-      sl.addText(dept.name.toUpperCase(), { x: 0.45, y: 0.18, w: 10, h: 0.9, fontSize: 38, bold: true, color: "FFFFFF", fontFace: "Calibri" });
-      sl.addText("BALANCED SCORECARD", { x: 0.45, y: 1.0, w: 9, h: 0.5, fontSize: 15, color: "FFFFFF", fontFace: "Calibri" });
-      sl.addText(`${MONTHS[month]} ${year}`, { x: 10.5, y: 0.3, w: 2.5, h: 0.5, fontSize: 14, bold: true, color: "FFFFFF", align: "right", fontFace: "Calibri" });
 
-      const scColor = statusColor.replace("#", "");
-      sl.addShape("roundRect" as any, { x: 0.45, y: 2.5, w: 3.6, h: 3.1, fill: { color: scColor }, rectRadius: 0.12 });
-      sl.addText(`${hp}%`, { x: 0.45, y: 2.65, w: 3.6, h: 1.6, fontSize: 64, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-      sl.addText(statusLabel, { x: 0.45, y: 4.15, w: 3.6, h: 0.5, fontSize: 15, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-      sl.addText("Overall Performance Score", { x: 0.45, y: 4.6, w: 3.6, h: 0.35, fontSize: 9, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-
-      const stBoxes = [
-        { label: "On Track",  val: onTrack,  color: "10B981", x: 4.5 },
-        { label: "At Risk",   val: atRisk,   color: "F59E0B", x: 7.2 },
-        { label: "Off Track", val: offTrack, color: "EF4444", x: 9.9 },
-      ];
-      stBoxes.forEach(b => {
-        sl.addShape("roundRect" as any, { x: b.x, y: 2.65, w: 2.3, h: 1.8, fill: { color: b.color }, rectRadius: 0.1 });
-        sl.addText(String(b.val), { x: b.x, y: 2.7, w: 2.3, h: 1.1, fontSize: 44, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-        sl.addText(b.label, { x: b.x, y: 3.7, w: 2.3, h: 0.45, fontSize: 12, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      // Header band
+      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 0.68, fill: { color: dc } });
+      sl.addText(`${dept.name.toUpperCase()}  —  BALANCED SCORECARD`, {
+        x: 0.22, y: 0.06, w: 8.5, h: 0.35, fontSize: 17, bold: true, color: "FFFFFF", fontFace: "Calibri",
       });
-      sl.addText(`${kpiData.filter(d => d.actual !== null).length} KPIs tracked`, { x: 4.5, y: 5.1, w: 7.8, h: 0.4, fontSize: 11, color: "64748B", align: "center", fontFace: "Calibri" });
-      sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
+      sl.addText(`${MONTHS[month]} ${year}`, {
+        x: 0.22, y: 0.38, w: 4, h: 0.24, fontSize: 10, color: "FFFFFF", fontFace: "Calibri",
+      });
+      sl.addText(`Overall Score:  ${hp}%  —  ${statusLabel}`, {
+        x: 8.5, y: 0.06, w: 4.6, h: 0.56, fontSize: 13, bold: true, color: "FFFFFF", align: "right", fontFace: "Calibri",
+      });
 
-      // ── Slide 2: Perspective Performance ──────────────────────────────────
-      sl = pres.addSlide();
-      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
-      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 1.05, fill: { color: dc } });
-      sl.addText("PERSPECTIVE PERFORMANCE", { x: 0.4, y: 0.1, w: 10, h: 0.45, fontSize: 20, bold: true, color: "FFFFFF", fontFace: "Calibri" });
-      sl.addText(`${dept.name} · ${MONTHS[month]} ${year}`, { x: 0.4, y: 0.58, w: 10, h: 0.32, fontSize: 11, color: "FFFFFF", fontFace: "Calibri" });
-      sl.addText(`${hp}% Overall`, { x: 10, y: 0.28, w: 3, h: 0.4, fontSize: 13, bold: true, color: "FFFFFF", align: "right", fontFace: "Calibri" });
+      // ── Summary stats strip (y=0.72 h=0.62) ───────────────────────────────
+      // On Track / At Risk / Off Track  |  4 perspective boxes
+      const statY = 0.72, statH = 0.62;
+      const statBoxes = [
+        { label: "On Track",  val: onTrack,  color: "10B981" },
+        { label: "At Risk",   val: atRisk,   color: "F59E0B" },
+        { label: "Off Track", val: offTrack, color: "EF4444" },
+      ];
+      statBoxes.forEach((b, i) => {
+        const bx = 0.18 + i * 1.18;
+        sl.addShape("roundRect" as any, { x: bx, y: statY, w: 1.1, h: statH, fill: { color: b.color }, rectRadius: 0.07 });
+        sl.addText(String(b.val), { x: bx, y: statY + 0.03, w: 1.1, h: 0.32, fontSize: 20, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+        sl.addText(b.label, { x: bx, y: statY + 0.36, w: 1.1, h: 0.22, fontSize: 8, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+      });
 
+      // 4 perspective boxes (x starts after stat boxes)
+      const pBx0 = 3.78, pBw = 2.35;
       perspScores.forEach((ps, i) => {
-        const pc = c(ps.color);
-        const bx = 0.28 + i * 3.22;
-        sl.addShape("roundRect" as any, { x: bx, y: 1.25, w: 3.0, h: 5.0, fill: { color: pc }, rectRadius: 0.14 });
-        sl.addText(PERSP_LABEL[ps.p], { x: bx, y: 1.38, w: 3.0, h: 0.5, fontSize: 12, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-        sl.addText(`${ps.score}%`, { x: bx, y: 2.0, w: 3.0, h: 1.4, fontSize: 54, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-        sl.addText(ps.label, { x: bx, y: 3.32, w: 3.0, h: 0.4, fontSize: 12, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-        const pKpis = kpiData.filter(d => d.kpi.perspective === ps.p && d.actual !== null);
-        sl.addText(`${pKpis.filter(d => d.status === "green").length}/${pKpis.length} On Track`, { x: bx, y: 3.78, w: 3.0, h: 0.35, fontSize: 10, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-        const tStr = ps.trend > 0.5 ? `▲ +${ps.trend.toFixed(1)}pts vs prev` : ps.trend < -0.5 ? `▼ ${ps.trend.toFixed(1)}pts vs prev` : "→ Stable vs prev";
-        sl.addText(tStr, { x: bx, y: 4.2, w: 3.0, h: 0.35, fontSize: 9, color: "FFFFFF", align: "center", fontFace: "Calibri" });
+        const bx = pBx0 + i * (pBw + 0.07);
+        sl.addShape("roundRect" as any, { x: bx, y: statY, w: pBw, h: statH, fill: { color: c(ps.color) }, rectRadius: 0.07 });
+        sl.addText(`${ps.score}%  ${ps.label}`, {
+          x: bx + 0.08, y: statY + 0.04, w: pBw - 0.16, h: 0.3, fontSize: 11, bold: true, color: "FFFFFF", fontFace: "Calibri",
+        });
+        sl.addText(PERSP_LABEL[ps.p], {
+          x: bx + 0.08, y: statY + 0.35, w: pBw - 0.16, h: 0.22, fontSize: 8, color: "FFFFFF", fontFace: "Calibri",
+        });
       });
-      sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
 
-      // ── Slide 3: KPI Highlights ────────────────────────────────────────────
-      sl = pres.addSlide();
-      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
-      sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 1.05, fill: { color: dc } });
-      sl.addText("KPI HIGHLIGHTS", { x: 0.4, y: 0.1, w: 10, h: 0.45, fontSize: 20, bold: true, color: "FFFFFF", fontFace: "Calibri" });
-      sl.addText(`${dept.name} · ${MONTHS[month]} ${year}`, { x: 0.4, y: 0.58, w: 10, h: 0.32, fontSize: 11, color: "FFFFFF", fontFace: "Calibri" });
+      // ── KPI Scorecard table (y=1.38 → y=7.18) ────────────────────────────
+      const tblY = 1.38;
+      const allRows = kpiData.filter(d => d.actual !== null);
+      const scHdr = ["●", "KPI Name", "Perspective", "Target", "Actual", "Ach %", "Wt %", "Score", "Trend"];
+      const scColW = [0.38, 3.9, 1.45, 1.28, 1.28, 1.05, 0.82, 0.95, 0.52];
 
-      const hlHdr = (cells: string[], fillColor: string) => cells.map(t => ({ text: t, options: { bold: true, fontSize: 8.5, fill: { color: fillColor }, color: "FFFFFF", align: "center" as const } }));
-      const colHdr = ["KPI Name", "Perspective", "Target", "Actual", "Ach %", "Status"];
-
-      sl.addShape("rect" as any, { x: 0.28, y: 1.15, w: 6.12, h: 0.4, fill: { color: "10B981" } });
-      sl.addText("TOP PERFORMING KPIs", { x: 0.28, y: 1.15, w: 6.12, h: 0.4, fontSize: 11, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-      const topRows = [
-        hlHdr(colHdr, "1E293B"),
-        ...topKpis.map(d => [
-          { text: d.kpi.name, options: { fontSize: 7.5, color: "1E293B", align: "left" as const } },
-          { text: d.kpi.perspective, options: { fontSize: 7.5, bold: true, color: c(PERSP_COLORS[d.kpi.perspective] || "#64748B"), align: "left" as const } },
-          { text: fmtV(d.kpi.target, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
-          { text: fmtV(d.actual, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
-          { text: d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", options: { fontSize: 8, bold: true, color: "10B981", align: "right" as const } },
-          { text: "● On Track", options: { fontSize: 7.5, bold: true, color: "10B981", align: "center" as const } },
-        ]),
-      ];
-      sl.addTable(topRows as any, { x: 0.28, y: 1.55, w: 6.12, colW: [2.25, 1.2, 0.75, 0.75, 0.65, 0.72], border: { type: "solid", color: "E2E8F0", pt: 0.5 }, rowH: 0.31 });
-
-      sl.addShape("rect" as any, { x: 6.93, y: 1.15, w: 6.12, h: 0.4, fill: { color: "EF4444" } });
-      sl.addText("LOWEST PERFORMING KPIs", { x: 6.93, y: 1.15, w: 6.12, h: 0.4, fontSize: 11, bold: true, color: "FFFFFF", align: "center", fontFace: "Calibri" });
-      const lowRows = [
-        hlHdr(colHdr, "1E293B"),
-        ...lowestKpis.map(d => {
+      const tblRows = [
+        scHdr.map(h => ({ text: h, options: { bold: true, fontSize: 8, fill: { color: "1E293B" }, color: "FFFFFF", align: "center" as const } })),
+        ...allRows.map((d, ri) => {
           const stC = d.status === "green" ? "10B981" : d.status === "amber" ? "F59E0B" : "EF4444";
-          const stL = d.status === "green" ? "● On Track" : d.status === "amber" ? "● At Risk" : "● Critical";
+          const achC = d.ach !== null ? (d.ach >= 95 ? "10B981" : d.ach >= 80 ? "F59E0B" : "EF4444") : "94A3B8";
+          const prevV = getActual(d.kpi.id, ppk);
+          const tr = getTrend(d.actual, prevV);
+          const tChar = tr === "up" ? "▲" : tr === "down" ? "▼" : "→";
+          const tColor = tr === "up" ? "10B981" : tr === "down" ? "EF4444" : "94A3B8";
+          const rf = ri % 2 === 0 ? "FFFFFF" : "F1F5F9";
           return [
-            { text: d.kpi.name, options: { fontSize: 7.5, color: "1E293B", align: "left" as const } },
-            { text: d.kpi.perspective, options: { fontSize: 7.5, bold: true, color: c(PERSP_COLORS[d.kpi.perspective] || "#64748B"), align: "left" as const } },
-            { text: fmtV(d.kpi.target, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
-            { text: fmtV(d.actual, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const } },
-            { text: d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", options: { fontSize: 8, bold: true, color: stC, align: "right" as const } },
-            { text: stL, options: { fontSize: 7.5, bold: true, color: stC, align: "center" as const } },
+            { text: "●", options: { fontSize: 11, bold: true, color: stC, align: "center" as const, fill: { color: rf } } },
+            { text: d.kpi.name, options: { fontSize: 7, color: "1E293B", align: "left" as const, fill: { color: rf } } },
+            { text: d.kpi.perspective, options: { fontSize: 7, bold: true, color: c(PERSP_COLORS[d.kpi.perspective] || "#64748B"), align: "left" as const, fill: { color: rf } } },
+            { text: fmtV(d.kpi.target, d.kpi.unit), options: { fontSize: 7, color: "475569", align: "right" as const, fill: { color: rf } } },
+            { text: fmtV(d.actual, d.kpi.unit), options: { fontSize: 7, color: "475569", align: "right" as const, fill: { color: rf } } },
+            { text: d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", options: { fontSize: 7.5, bold: true, color: achC, align: "right" as const, fill: { color: rf } } },
+            { text: `${d.w.toFixed(1)}%`, options: { fontSize: 7, color: "475569", align: "right" as const, fill: { color: rf } } },
+            { text: d.weightedScore !== null ? d.weightedScore.toFixed(1) : "—", options: { fontSize: 7, color: "475569", align: "right" as const, fill: { color: rf } } },
+            { text: tChar, options: { fontSize: 10, bold: true, color: tColor, align: "center" as const, fill: { color: rf } } },
           ];
         }),
       ];
-      sl.addTable(lowRows as any, { x: 6.93, y: 1.55, w: 6.12, colW: [2.25, 1.2, 0.75, 0.75, 0.65, 0.72], border: { type: "solid", color: "E2E8F0", pt: 0.5 }, rowH: 0.31 });
-      sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
 
-      // ── Slide 4+: Full KPI Scorecard ──────────────────────────────────────
-      const allRows = kpiData.filter(d => d.actual !== null);
-      const ROWS_PER_SLIDE = 19;
-      const chunks: typeof allRows[] = [];
-      for (let i = 0; i < allRows.length; i += ROWS_PER_SLIDE) chunks.push(allRows.slice(i, i + ROWS_PER_SLIDE));
+      sl.addTable(tblRows as any, {
+        x: 0.17, y: tblY, w: 12.99,
+        colW: scColW,
+        border: { type: "solid", color: "E2E8F0", pt: 0.5 },
+        rowH: 0.215,
+      });
 
-      const scHdr = ["Status", "KPI Name", "Perspective", "Target", "Actual", "Ach %", "Wt %", "Score Pts", "Trend"];
-      const scColW = [0.55, 3.8, 1.5, 1.3, 1.3, 1.1, 0.9, 1.1, 0.58];
-
-      chunks.forEach((chunk, ci) => {
-        sl = pres.addSlide();
-        sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "F8FAFC" } });
-        sl.addShape("rect" as any, { x: 0, y: 0, w: "100%", h: 1.05, fill: { color: dc } });
-        sl.addText("KPI SCORECARD", { x: 0.4, y: 0.1, w: 9, h: 0.45, fontSize: 20, bold: true, color: "FFFFFF", fontFace: "Calibri" });
-        sl.addText(`${dept.name} · ${MONTHS[month]} ${year}${chunks.length > 1 ? `  ·  Page ${ci + 1} of ${chunks.length}` : ""}`, { x: 0.4, y: 0.58, w: 9, h: 0.32, fontSize: 11, color: "FFFFFF", fontFace: "Calibri" });
-        sl.addText(`Overall: ${hp}% — ${statusLabel}`, { x: 10, y: 0.28, w: 3, h: 0.4, fontSize: 12, bold: true, color: "FFFFFF", align: "right", fontFace: "Calibri" });
-
-        const tblRows = [
-          scHdr.map(h => ({ text: h, options: { bold: true, fontSize: 8.5, fill: { color: "1E293B" }, color: "FFFFFF", align: "center" as const } })),
-          ...chunk.map((d, ri) => {
-            const stC = d.status === "green" ? "10B981" : d.status === "amber" ? "F59E0B" : "EF4444";
-            const achC = d.ach !== null ? (d.ach >= 95 ? "10B981" : d.ach >= 80 ? "F59E0B" : "EF4444") : "94A3B8";
-            const prevV = getActual(d.kpi.id, ppk);
-            const tr = getTrend(d.actual, prevV);
-            const tChar = tr === "up" ? "▲" : tr === "down" ? "▼" : "→";
-            const tColor = tr === "up" ? "10B981" : tr === "down" ? "EF4444" : "94A3B8";
-            const rf = ri % 2 === 0 ? "FFFFFF" : "F8FAFC";
-            return [
-              { text: "●", options: { fontSize: 13, bold: true, color: stC, align: "center" as const, fill: { color: rf } } },
-              { text: d.kpi.name, options: { fontSize: 7.5, color: "1E293B", align: "left" as const, fill: { color: rf } } },
-              { text: d.kpi.perspective, options: { fontSize: 7.5, bold: true, color: c(PERSP_COLORS[d.kpi.perspective] || "#64748B"), align: "left" as const, fill: { color: rf } } },
-              { text: fmtV(d.kpi.target, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
-              { text: fmtV(d.actual, d.kpi.unit), options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
-              { text: d.ach !== null ? `${d.ach.toFixed(1)}%` : "—", options: { fontSize: 8, bold: true, color: achC, align: "right" as const, fill: { color: rf } } },
-              { text: `${d.w.toFixed(1)}%`, options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
-              { text: d.weightedScore !== null ? d.weightedScore.toFixed(1) : "—", options: { fontSize: 7.5, color: "475569", align: "right" as const, fill: { color: rf } } },
-              { text: tChar, options: { fontSize: 11, bold: true, color: tColor, align: "center" as const, fill: { color: rf } } },
-            ];
-          }),
-        ];
-        sl.addTable(tblRows as any, { x: 0.25, y: 1.12, w: 12.83, colW: scColW, border: { type: "solid", color: "E2E8F0", pt: 0.5 }, rowH: 0.27 });
-        sl.addText("GHC Beacon · Performance Intelligence Platform", { x: 0, y: 7.1, w: 13.33, h: 0.35, fontSize: 8, color: "94A3B8", align: "center", fontFace: "Calibri" });
+      // Footer
+      sl.addText(`GHC Beacon  ·  ${dept.name} Balanced Scorecard  ·  ${MONTHS[month]} ${year}  ·  Overall Score = Σ(Ach% × Weight) ÷ Total Weight`, {
+        x: 0, y: 7.14, w: 13.33, h: 0.33, fontSize: 7.5, color: "94A3B8", align: "center", fontFace: "Calibri",
       });
 
       await pres.writeFile({ fileName: `${dept.name.replace(/\s+/g, "_")}_Scorecard_${MONTHS[month]}_${year}.pptx` });
