@@ -256,6 +256,7 @@ async function saveStoreToDB(d: Record<string, Record<string, number>>): Promise
     const res = await fetch("/api/scorecard/actuals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ store: d }),
     });
     if (res.ok) {
