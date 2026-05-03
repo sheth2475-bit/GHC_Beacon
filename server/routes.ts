@@ -4889,11 +4889,18 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
       // Period keys are "YYYY-MM"; access is determined by kpiId prefix matching deptId.
       const accessibleIds = await getBscAccessibleDeptIds(req, company.id);
       if (accessibleIds !== null) {
+        // KPI prefix → canonical dept alias map (mirrors saveBscActualsBatch)
+        const KPI_PREFIX_ALIASES: Record<string, string> = { cr: "corp" };
         const filtered: typeof store = {};
         for (const [periodKey, vals] of Object.entries(store)) {
           const filteredVals: Record<string, number> = {};
           for (const [kpiId, val] of Object.entries(vals)) {
-            const accessible = accessibleIds.some(did => kpiId === did || kpiId.startsWith(did + "_"));
+            const prefix = kpiId.split("_")[0];
+            const aliasedDept = KPI_PREFIX_ALIASES[prefix];
+            const accessible = accessibleIds.some(did =>
+              kpiId === did || kpiId.startsWith(did + "_") ||
+              (aliasedDept && did === aliasedDept)
+            );
             if (accessible) filteredVals[kpiId] = val;
           }
           if (Object.keys(filteredVals).length > 0) filtered[periodKey] = filteredVals;

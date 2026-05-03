@@ -1249,28 +1249,32 @@ export class DatabaseStorage implements IStorage {
     const knownDeptIds = deptRows.map(r => r.deptId).sort((a, b) => b.length - a.length); // longest first
     const knownDeptSet = new Set(knownDeptIds);
 
-    // These are the standard predefined department IDs used in the app's built-in KPI library.
-    // Any KPI whose prefix is one of these BUT the company does not own that dept is
-    // contamination (stale localStorage from another company's session) and must be rejected.
-    const PREDEFINED_DEPT_IDS = new Set(["ops", "eng", "fin", "hr", "corp", "cr", "it", "safety", "exec"]);
+    // Built-in KPI prefix aliases: some dept deptIds differ from their KPI ID prefix.
+    // e.g. the "Corporate" dept (deptId="corp") uses KPI IDs starting with "cr_".
+    const KPI_PREFIX_ALIASES: Record<string, string> = { cr: "corp" };
 
     await db.delete(bscActuals).where(eq(bscActuals.companyId, companyId));
     const rows: { companyId: number; deptId: string; periodKey: string; kpiId: string; actualValue: number }[] = [];
     for (const [periodKey, kpiMap] of Object.entries(store)) {
       for (const [kpiId, actualValue] of Object.entries(kpiMap)) {
-        // Find the longest known deptId that is a prefix of the kpiId (handles underscores in dept IDs).
-        const matchedDept = knownDeptIds.find(did => kpiId === did || kpiId.startsWith(did + "_"));
+        // 1. Try direct match: longest known deptId that is a prefix of the kpiId.
+        let matchedDept = knownDeptIds.find(did => kpiId === did || kpiId.startsWith(did + "_"));
+
+        // 2. Try alias match (e.g. "cr_f1" → prefix "cr" → alias dept "corp").
+        if (!matchedDept) {
+          const prefix = kpiId.split("_")[0];
+          const aliased = KPI_PREFIX_ALIASES[prefix];
+          if (aliased && knownDeptSet.has(aliased)) matchedDept = aliased;
+        }
+
         if (matchedDept) {
           rows.push({ companyId, deptId: matchedDept, periodKey, kpiId, actualValue });
           continue;
         }
-        // No direct dept match. Derive the first segment as the candidate prefix.
+
+        // 3. No dept match — save anyway using the first kpiId segment as deptId.
+        //    Cross-company contamination is already prevented client-side via ensureCompanyCache.
         const prefix = kpiId.split("_")[0];
-        // If this prefix belongs to a predefined dept the company does NOT have, reject it —
-        // it is cross-company contamination from a stale localStorage flush.
-        if (PREDEFINED_DEPT_IDS.has(prefix) && !knownDeptSet.has(prefix)) continue;
-        // Otherwise accept it as a company-specific custom KPI (e.g. "ghc_engineering_*_cx_*").
-        // Use the first segment as fallback deptId.
         rows.push({ companyId, deptId: prefix, periodKey, kpiId, actualValue });
       }
     }

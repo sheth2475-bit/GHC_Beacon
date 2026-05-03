@@ -784,12 +784,23 @@ function ScorecardLanding() {
   }, [_landingDeptFetched, _landingDeptRows]);
 
   useEffect(() => {
-    if (!_landingActualsFetched || !_landingActualsData) return;
-    setStore(_landingActualsData);
-    if (Object.keys(_landingActualsData).length > 0)
+    if (!_landingActualsFetched) return;
+    if (_landingActualsData && Object.keys(_landingActualsData).length > 0) {
+      setStore(_landingActualsData);
       localStorage.setItem(STORE_KEY, JSON.stringify(_landingActualsData));
-    else
-      localStorage.removeItem(STORE_KEY);
+    } else {
+      // DB returned empty — if localStorage has data, auto-sync it to the server.
+      // This recovers data that was saved locally but silently rejected by a previous
+      // server-side filter bug (cr_* prefix vs corp deptId mismatch).
+      const localData = loadStore();
+      if (Object.keys(localData).length > 0) {
+        saveStoreToDB(localData).then(ok => {
+          if (ok) queryClient.invalidateQueries({ queryKey: ["/api/scorecard/actuals"] });
+        });
+      } else {
+        localStorage.removeItem(STORE_KEY);
+      }
+    }
   }, [_landingActualsFetched, _landingActualsData]);
 
   const shiftMonth = (delta: number) => {
