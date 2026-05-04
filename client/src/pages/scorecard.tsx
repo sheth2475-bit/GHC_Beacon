@@ -1479,6 +1479,10 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const { data: _serverKpiDefs } = useQuery<{ definitions: KpiDef[] | null }>({
     queryKey: ["/api/scorecard/kpi-definitions", deptId],
     enabled: !!deptId,
+    queryFn: () =>
+      fetch(`/api/scorecard/kpi-definitions?deptId=${encodeURIComponent(deptId)}`, {
+        credentials: "include",
+      }).then(r => r.json()),
   });
   useEffect(() => {
     if (!_serverKpiDefs) return;
