@@ -510,6 +510,19 @@ export async function runMigrations() {
     `);
     console.log("[migrations] kpi_alerts + kpi_alert_events tables ready");
 
+    // ── BSC KPI Definitions (custom KPI lists uploaded via Excel) ─────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bsc_kpi_definitions (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        dept_id TEXT NOT NULL,
+        definitions JSONB NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        UNIQUE(company_id, dept_id)
+      )
+    `);
+    console.log("[migrations] bsc_kpi_definitions table ready");
+
     // ── Orphan user cleanup ───────────────────────────────────────────────────
     // Delete users with no company_id that are not part of the demo accounts.
     // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai

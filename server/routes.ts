@@ -4949,6 +4949,29 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── KPI Definitions (custom KPI lists uploaded via Excel) ─────────────────
+  app.get("/api/scorecard/kpi-definitions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const deptId = req.query.deptId as string;
+      if (!deptId) return res.status(400).json({ message: "deptId required" });
+      const defs = await storage.getBscKpiDefinitions(company.id, deptId);
+      res.json({ definitions: defs });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/scorecard/kpi-definitions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const { deptId, definitions } = req.body as { deptId: string; definitions: any[] };
+      if (!deptId || !Array.isArray(definitions)) return res.status(400).json({ message: "deptId and definitions[] required" });
+      await storage.saveBscKpiDefinitions(company.id, deptId, definitions);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // Re-run the batch filter on existing actuals to purge cross-company contamination.
   // Only company admins may call this for their own company.
   app.post("/api/scorecard/actuals/compact", requireAuth, async (req: Request, res: Response) => {

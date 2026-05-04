@@ -761,6 +761,14 @@ export const scorecardShares = pgTable("scorecard_shares", {
 });
 export type ScorecardShare = typeof scorecardShares.$inferSelect;
 
+export const bscKpiDefinitions = pgTable("bsc_kpi_definitions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  deptId: text("dept_id").notNull(),
+  definitions: jsonb("definitions").notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const bscDepartments = pgTable("bsc_departments", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companies.id),

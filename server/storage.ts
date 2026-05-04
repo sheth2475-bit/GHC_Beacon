@@ -1281,6 +1281,24 @@ export class DatabaseStorage implements IStorage {
     if (rows.length > 0) await db.insert(bscActuals).values(rows);
   }
 
+  // ── BSC KPI Definitions ─────────────────────────────────────────────────────
+  async getBscKpiDefinitions(companyId: number, deptId: string): Promise<any[] | null> {
+    const { bscKpiDefinitions } = await import("@shared/schema");
+    const rows = await db.select().from(bscKpiDefinitions)
+      .where(and(eq(bscKpiDefinitions.companyId, companyId), eq(bscKpiDefinitions.deptId, deptId)));
+    return rows.length > 0 ? (rows[0].definitions as any[]) : null;
+  }
+
+  async saveBscKpiDefinitions(companyId: number, deptId: string, definitions: any[]): Promise<void> {
+    const { bscKpiDefinitions } = await import("@shared/schema");
+    await db.insert(bscKpiDefinitions)
+      .values({ companyId, deptId, definitions })
+      .onConflictDoUpdate({
+        target: [bscKpiDefinitions.companyId, bscKpiDefinitions.deptId],
+        set: { definitions, updatedAt: new Date() },
+      });
+  }
+
   // ── KPI Alerts ──────────────────────────────────────────────────────────────
   async getKpiAlerts(companyId: number): Promise<KpiAlert[]> {
     return db.select().from(kpiAlerts).where(eq(kpiAlerts.companyId, companyId)).orderBy(desc(kpiAlerts.createdAt));

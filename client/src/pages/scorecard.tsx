@@ -786,21 +786,46 @@ function ScorecardLanding() {
 
   useEffect(() => {
     if (!_landingActualsFetched) return;
-    if (_landingActualsData && Object.keys(_landingActualsData).length > 0) {
-      setStore(_landingActualsData);
-      localStorage.setItem(STORE_KEY, JSON.stringify(_landingActualsData));
-    } else {
-      // DB returned empty — if localStorage has data, auto-sync it to the server.
-      // This recovers data that was saved locally but silently rejected by a previous
-      // server-side filter bug (cr_* prefix vs corp deptId mismatch).
-      const localData = loadStore();
-      if (Object.keys(localData).length > 0) {
-        saveStoreToDB(localData).then(ok => {
-          if (ok) queryClient.invalidateQueries({ queryKey: ["/api/scorecard/actuals"] });
-        });
-      } else {
-        localStorage.removeItem(STORE_KEY);
+    const dbData = _landingActualsData ?? {};
+    const localData = loadStore();
+
+    // Check if local has any KPI values not present in the DB.
+    // This detects data that was entered on this device but never successfully saved
+    // (e.g. due to the old cr_* prefix filter bug, or a network failure).
+    let localHasUnsynced = false;
+    outer: for (const [pk, kpiMap] of Object.entries(localData)) {
+      for (const kpiId of Object.keys(kpiMap)) {
+        if (!dbData[pk] || !Object.prototype.hasOwnProperty.call(dbData[pk], kpiId)) {
+          localHasUnsynced = true;
+          break outer;
+        }
       }
+    }
+
+    if (localHasUnsynced) {
+      // Merge: start with local data, then let DB values overwrite conflicts
+      // (DB is the authoritative source for values that exist in both places).
+      const merged: Record<string, Record<string, number>> = {};
+      for (const [pk, kpiMap] of Object.entries(localData)) merged[pk] = { ...kpiMap };
+      for (const [pk, kpiMap] of Object.entries(dbData)) merged[pk] = { ...(merged[pk] ?? {}), ...kpiMap };
+      setStore(merged);
+      localStorage.setItem(STORE_KEY, JSON.stringify(merged));
+      // Push merged result to DB so all devices see the complete data set.
+      saveStoreToDB(merged).then(ok => {
+        if (ok) queryClient.invalidateQueries({ queryKey: ["/api/scorecard/actuals"] });
+      });
+    } else if (Object.keys(dbData).length > 0) {
+      // DB has data and local is a subset — use DB as canonical.
+      setStore(dbData);
+      localStorage.setItem(STORE_KEY, JSON.stringify(dbData));
+    } else if (Object.keys(localData).length > 0) {
+      // DB is empty but local has data — push to server.
+      setStore(localData);
+      saveStoreToDB(localData).then(ok => {
+        if (ok) queryClient.invalidateQueries({ queryKey: ["/api/scorecard/actuals"] });
+      });
+    } else {
+      localStorage.removeItem(STORE_KEY);
     }
   }, [_landingActualsFetched, _landingActualsData]);
 
@@ -1449,6 +1474,22 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   // Reload when navigating between departments
   useEffect(() => { setKpiOverride(loadKpiOverride(deptId)); }, [deptId]);
 
+  // Fetch KPI definitions from server so they work on any device, not just the
+  // laptop where the Excel was uploaded. Falls back to localStorage if server has none.
+  const { data: _serverKpiDefs } = useQuery<{ definitions: KpiDef[] | null }>({
+    queryKey: ["/api/scorecard/kpi-definitions", deptId],
+    enabled: !!deptId,
+  });
+  useEffect(() => {
+    if (!_serverKpiDefs) return;
+    const serverDefs = _serverKpiDefs.definitions;
+    if (serverDefs && serverDefs.length > 0) {
+      // Use server definitions as authoritative — save to localStorage as cache
+      saveKpiOverride(deptId, serverDefs);
+      setKpiOverride(serverDefs);
+    }
+  }, [_serverKpiDefs, deptId]);
+
   const deptFound = depts.find(d => d.id === deptId);
   const dept = deptFound || { id: deptId, name: deptId, icon: "🏢", color: "#3B82F6" };
 
@@ -1989,6 +2030,10 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       if (uploadedKpiDefs.length > 0) {
         saveKpiOverride(deptId, uploadedKpiDefs);
         setKpiOverride(uploadedKpiDefs);
+        // Persist to server so any device (mobile, other laptop) loads the same KPI list
+        apiRequest("POST", "/api/scorecard/kpi-definitions", { deptId, definitions: uploadedKpiDefs })
+          .then(() => queryClient.invalidateQueries({ queryKey: ["/api/scorecard/kpi-definitions", deptId] }))
+          .catch(() => {});
       }
 
       // Save weights if any were found in the upload
