@@ -219,17 +219,13 @@ function genericKpis(deptId: string): KpiDef[] {
   ];
 }
 
-// ── Persistence (localStorage cache + DB sync) ────────────────────────────────
-const STORE_KEY        = "ghc_beacon_v2";
-const DEPT_KEY         = "bsc_departments";
-const WEIGHTS_KEY      = "ghc_beacon_weights_v1";
-const CORP_SEED_VER    = "ghc_corp_seed_v4"; // bump when seed data changes
-const BSC_COMPANY_KEY  = "bsc_company_id";   // tracks which company owns the cached data
+// ── Persistence (DB-first — localStorage used only for weights & period UI pref) ──
+const WEIGHTS_KEY = "ghc_beacon_weights_v1";
 
-// Wipe all BSC-related localStorage so stale data never bleeds between accounts
-function clearBscLocalStorage() {
-  [STORE_KEY, DEPT_KEY, WEIGHTS_KEY, CORP_SEED_VER, "ghc_beacon_kpi_override_v1"].forEach(k => localStorage.removeItem(k));
-}
+// In-memory KPI definition cache: deptId → KpiDef[]
+// Populated from the server whenever a department page is opened.
+// Cleared on hard refresh; repopulated on next navigation.
+const _kpiDefsCache: Record<string, KpiDef[]> = {};
 
 function loadWeights(deptId: string): Record<string, number> {
   try {
@@ -245,12 +241,7 @@ function saveWeights(deptId: string, w: Record<string, number>) {
   } catch {}
 }
 
-function loadStore(): Record<string, Record<string, number>> {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch { return {}; }
-}
-function saveStoreLocal(d: Record<string, Record<string, number>>) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(d));
-}
+// Actuals: always write directly to DB — no local cache
 async function saveStoreToDB(d: Record<string, Record<string, number>>): Promise<boolean> {
   try {
     const res = await fetch("/api/scorecard/actuals", {
@@ -260,8 +251,6 @@ async function saveStoreToDB(d: Record<string, Record<string, number>>): Promise
       body: JSON.stringify({ store: d }),
     });
     if (res.ok) {
-      // Keep TanStack Query cache in sync so navigating away and back
-      // shows the freshly-saved data instead of the stale cached version.
       queryClient.setQueryData(["/api/scorecard/actuals"], d);
     }
     return res.ok;
@@ -270,36 +259,21 @@ async function saveStoreToDB(d: Record<string, Record<string, number>>): Promise
   }
 }
 async function saveStore(d: Record<string, Record<string, number>>): Promise<boolean> {
-  saveStoreLocal(d);
   return saveStoreToDB(d);
 }
 
-// KPI Override — stores the FULL KPI set for a department as defined by the last Excel upload.
-// When present, this completely replaces the predefined KPIs for that department.
-const KPI_OVERRIDE_KEY = "ghc_beacon_kpi_override_v1";
-
+// KPI Override — in-memory cache only (populated from server on dept load, not localStorage)
 function loadKpiOverride(deptId: string): KpiDef[] | null {
-  try {
-    const all = JSON.parse(localStorage.getItem(KPI_OVERRIDE_KEY) || "{}");
-    return all[deptId] ?? null;
-  } catch { return null; }
+  return _kpiDefsCache[deptId] ?? null;
 }
 function saveKpiOverride(deptId: string, kpis: KpiDef[]) {
-  try {
-    const all = JSON.parse(localStorage.getItem(KPI_OVERRIDE_KEY) || "{}");
-    all[deptId] = kpis;
-    localStorage.setItem(KPI_OVERRIDE_KEY, JSON.stringify(all));
-  } catch {}
+  _kpiDefsCache[deptId] = kpis;
 }
-// Returns ALL KPI definitions: predefined + any user-uploaded overrides across all departments.
-// Override KPIs win over predefined ones when IDs collide (user may have updated targets etc).
+// Returns ALL KPI definitions: predefined + any server-loaded custom overrides.
 function loadAllEffectiveKpis(): KpiDef[] {
   const map = new Map<string, KpiDef>();
   Object.values(DEPT_KPIS).flat().forEach(k => map.set(k.id, k));
-  try {
-    const all = JSON.parse(localStorage.getItem(KPI_OVERRIDE_KEY) || "{}");
-    Object.values(all).flat().forEach((k: any) => map.set(k.id, k));
-  } catch {}
+  Object.values(_kpiDefsCache).flat().forEach((k: KpiDef) => map.set(k.id, k));
   return [...map.values()];
 }
 
@@ -313,12 +287,8 @@ function parsePerspective(val: string): Perspective | null {
   return null;
 }
 
-function loadDepartments(): BscDepartment[] {
-  try { const d = localStorage.getItem(DEPT_KEY); return d ? JSON.parse(d) : []; }
-  catch { return []; }
-}
+// Departments: always write to DB — no localStorage
 async function saveDepartments(d: BscDepartment[]): Promise<boolean> {
-  localStorage.setItem(DEPT_KEY, JSON.stringify(d));
   try {
     const res = await fetch("/api/scorecard/departments", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -328,63 +298,8 @@ async function saveDepartments(d: BscDepartment[]): Promise<boolean> {
   } catch { return false; }
 }
 
-// Guard: if the logged-in company differs from what's cached, wipe all BSC localStorage
-// so stale data from another account never bleeds through.
-async function ensureCompanyCache() {
-  try {
-    const res = await fetch("/api/auth/me");
-    if (!res.ok) return;
-    const user = await res.json() as { companyId: number };
-    const stored = localStorage.getItem(BSC_COMPANY_KEY);
-    if (stored !== String(user.companyId)) {
-      clearBscLocalStorage();
-      localStorage.setItem(BSC_COMPANY_KEY, String(user.companyId));
-    }
-  } catch {}
-}
-
-async function syncActualsFromDb() {
-  try {
-    const [actualsRes] = await Promise.all([
-      fetch("/api/scorecard/actuals"),
-      ensureCompanyCache(),
-    ]);
-    if (!actualsRes.ok) return undefined;
-    const dbStore = await actualsRes.json() as Record<string, Record<string, number>>;
-    // DB is the single source of truth — replace local cache entirely.
-    // When DB returns empty, remove stale localStorage so old data can't linger.
-    if (Object.keys(dbStore).length === 0) {
-      localStorage.removeItem(STORE_KEY);
-      return {};
-    }
-    localStorage.setItem(STORE_KEY, JSON.stringify(dbStore));
-    return dbStore;
-  } catch { return undefined; }
-}
-
-async function syncDepartmentsFromDb(): Promise<BscDepartment[] | undefined> {
-  try {
-    const res = await fetch("/api/scorecard/departments");
-    if (!res.ok) return undefined;
-    const rows = await res.json() as { deptId: string; name: string; icon: string; color: string }[];
-    if (rows.length === 0) {
-      // No departments on server — clear stale cache so user sees the empty state
-      localStorage.removeItem(DEPT_KEY);
-      return [];
-    }
-    const depts: BscDepartment[] = rows.map(r => ({ id: r.deptId, name: r.name, icon: r.icon, color: r.color }));
-    localStorage.setItem(DEPT_KEY, JSON.stringify(depts));
-    return depts;
-  } catch { return undefined; }
-}
-
-function isSeedStale(): boolean {
-  return localStorage.getItem(CORP_SEED_VER) !== "ok";
-}
-
-function seedCorpSampleData() {
-  const existing = loadStore();
-  // Remove any old Corporate KPI actuals first so stale values don't linger
+// Returns a new store with Corp sample data merged in (caller saves to DB).
+function buildCorpSampleData(existing: Record<string, Record<string, number>>): Record<string, Record<string, number>> {
   const corpKpiIds = new Set((DEPT_KPIS.corp || []).map(k => k.id));
   const merged: Record<string, Record<string, number>> = {};
   for (const [pk, vals] of Object.entries(existing)) {
@@ -400,24 +315,18 @@ function seedCorpSampleData() {
   //          cr_l1=40hrs(hi) cr_l2=12%(lo) cr_l3=100%(hi) cr_l4=80%(hi)
   // Apr-2026 status → 4 green | 9 amber | 2 red → perf score ≈ 84%
   const CORP_SAMPLE_DATA: Record<string, Record<string, number>> = {
-    // Oct-25: cr_l2 now monthly rate (annualized × 12 vs 12% annual target)
     "2025-10": { cr_f1:2.8, cr_f2:15.5, cr_f3:23.8, cr_f4:1012, cr_c1:83.4, cr_c2:3.4, cr_c3:95.8, cr_c4:84.2, cr_i1:0.89, cr_i2:90.1, cr_i3:90.8, cr_l1:26, cr_l2:1.84, cr_l3:82, cr_l4:65 },
     "2025-11": { cr_f1:3.2, cr_f2:17.8, cr_f3:21.2, cr_f4:991,  cr_c1:84.8, cr_c2:3.5, cr_c3:96.4, cr_c4:85.5, cr_i1:0.78, cr_i2:90.8, cr_i3:91.2, cr_l1:28, cr_l2:1.73, cr_l3:84, cr_l4:67 },
     "2025-12": { cr_f1:3.8, cr_f2:17.8, cr_f3:20.6, cr_f4:974,  cr_c1:86.4, cr_c2:3.6, cr_c3:97.1, cr_c4:86.8, cr_i1:0.68, cr_i2:91.5, cr_i3:92.1, cr_l1:30, cr_l2:1.60, cr_l3:86, cr_l4:70 },
-    // Jan-26: ARMS 5% actual vs 5% milestone=Green; Leadership 10% actual vs expected 17%=Red (1/6 elapsed)
     "2026-01": { cr_f1:3.4, cr_f2:17.6, cr_f3:21.4, cr_f4:1002, cr_c1:85.8, cr_c2:3.5, cr_c3:96.8, cr_c4:85.1, cr_i1:0.74, cr_i2:91.2, cr_i3:91.6, cr_l1:27, cr_l2:1.70, cr_l3:83, cr_l4:68, cr_l5:5,  "m_cr_l5":5,  cr_l6:10 },
-    // Feb-26: ARMS 15% actual vs 15% milestone=Green; Leadership 35% vs expected 33%=Green (2/6)
     "2026-02": { cr_f1:3.9, cr_f2:17.8, cr_f3:20.9, cr_f4:982,  cr_c1:87.1, cr_c2:3.6, cr_c3:96.9, cr_c4:86.8, cr_i1:0.72, cr_i2:91.8, cr_i3:91.9, cr_l1:29, cr_l2:1.57, cr_l3:84, cr_l4:69, cr_l5:15, "m_cr_l5":15, cr_l6:35 },
-    // Mar-26: ARMS 12% vs 20% milestone=Red; Leadership 45% vs expected 50%=Amber (3/6)
     "2026-03": { cr_f1:4.0, cr_f2:17.9, cr_f3:20.8, cr_f4:971,  cr_c1:88.5, cr_c2:3.7, cr_c3:97.2, cr_c4:87.8, cr_i1:0.71, cr_i2:91.9, cr_i3:92.0, cr_l1:31, cr_l2:1.52, cr_l3:85, cr_l4:70, cr_l5:12, "m_cr_l5":20, cr_l6:45 },
-    // Apr-26: ARMS 25% vs 30% milestone=Amber; Leadership 60% vs expected 67%=Amber (4/6)
     "2026-04": { cr_f1:4.2, cr_f2:17.8, cr_f3:21.3, cr_f4:968,  cr_c1:89.2, cr_c2:3.8, cr_c3:97.4, cr_c4:88.6, cr_i1:0.58, cr_i2:92.1, cr_i3:91.4, cr_l1:32, cr_l2:1.44, cr_l3:85, cr_l4:68, cr_l5:25, "m_cr_l5":30, cr_l6:60 },
   };
   for (const [pk, vals] of Object.entries(CORP_SAMPLE_DATA)) {
     merged[pk] = { ...(merged[pk] || {}), ...vals };
   }
-  saveStoreLocal(merged);
-  localStorage.setItem(CORP_SEED_VER, "ok");
+  return merged;
 }
 function getKpisForDept(id: string): KpiDef[] {
   return DEPT_KPIS[id] || genericKpis(id);
@@ -747,8 +656,8 @@ function latestPeriodWithData(store: Record<string, Record<string, number>>, dep
 }
 
 function ScorecardLanding() {
-  const [departments, setDepartments] = useState<BscDepartment[]>(loadDepartments);
-  const [store, setStore] = useState(loadStore);
+  const [departments, setDepartments] = useState<BscDepartment[]>([]);
+  const [store, setStore] = useState<Record<string, Record<string, number>>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [deptSynced, setDeptSynced] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -770,7 +679,7 @@ function ScorecardLanding() {
   const { data: _landingActualsData, isFetched: _landingActualsFetched, isLoading: _landingActualsLoading } = useQuery<Record<string, Record<string, number>>>({
     queryKey: ["/api/scorecard/actuals"],
   });
-  // True only during first-ever load when localStorage has no cached data (common on mobile)
+  // Show loading state until DB data arrives
   const storeIsLoading = _landingActualsLoading && Object.keys(store).length === 0;
 
   useEffect(() => {
@@ -778,55 +687,14 @@ function ScorecardLanding() {
     if (_landingDeptRows) {
       const depts: BscDepartment[] = _landingDeptRows.map((r: any) => ({ id: r.deptId, name: r.name, icon: r.icon, color: r.color }));
       setDepartments(depts);
-      if (depts.length > 0) localStorage.setItem(DEPT_KEY, JSON.stringify(depts));
-      else localStorage.removeItem(DEPT_KEY);
     }
     setDeptSynced(true);
   }, [_landingDeptFetched, _landingDeptRows]);
 
   useEffect(() => {
     if (!_landingActualsFetched) return;
-    const dbData = _landingActualsData ?? {};
-    const localData = loadStore();
-
-    // Check if local has any KPI values not present in the DB.
-    // This detects data that was entered on this device but never successfully saved
-    // (e.g. due to the old cr_* prefix filter bug, or a network failure).
-    let localHasUnsynced = false;
-    outer: for (const [pk, kpiMap] of Object.entries(localData)) {
-      for (const kpiId of Object.keys(kpiMap)) {
-        if (!dbData[pk] || !Object.prototype.hasOwnProperty.call(dbData[pk], kpiId)) {
-          localHasUnsynced = true;
-          break outer;
-        }
-      }
-    }
-
-    if (localHasUnsynced) {
-      // Merge: start with local data, then let DB values overwrite conflicts
-      // (DB is the authoritative source for values that exist in both places).
-      const merged: Record<string, Record<string, number>> = {};
-      for (const [pk, kpiMap] of Object.entries(localData)) merged[pk] = { ...kpiMap };
-      for (const [pk, kpiMap] of Object.entries(dbData)) merged[pk] = { ...(merged[pk] ?? {}), ...kpiMap };
-      setStore(merged);
-      localStorage.setItem(STORE_KEY, JSON.stringify(merged));
-      // Push merged result to DB so all devices see the complete data set.
-      saveStoreToDB(merged).then(ok => {
-        if (ok) queryClient.invalidateQueries({ queryKey: ["/api/scorecard/actuals"] });
-      });
-    } else if (Object.keys(dbData).length > 0) {
-      // DB has data and local is a subset — use DB as canonical.
-      setStore(dbData);
-      localStorage.setItem(STORE_KEY, JSON.stringify(dbData));
-    } else if (Object.keys(localData).length > 0) {
-      // DB is empty but local has data — push to server.
-      setStore(localData);
-      saveStoreToDB(localData).then(ok => {
-        if (ok) queryClient.invalidateQueries({ queryKey: ["/api/scorecard/actuals"] });
-      });
-    } else {
-      localStorage.removeItem(STORE_KEY);
-    }
+    // DB is always the single source of truth — use it directly.
+    setStore(_landingActualsData ?? {});
   }, [_landingActualsFetched, _landingActualsData]);
 
   const shiftMonth = (delta: number) => {
@@ -1440,8 +1308,8 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const today = new Date();
   const [year, setYear]     = useState(() => readPersistedPeriod().year);
   const [month, setMonth]   = useState(() => readPersistedPeriod().month);
-  const [store, setStore]   = useState(loadStore);
-  const [depts, setDepts]   = useState(loadDepartments);
+  const [store, setStore]   = useState<Record<string, Record<string, number>>>({});
+  const [depts, setDepts]   = useState<BscDepartment[]>([]);
   const [deptsSynced, setDeptsSynced] = useState(false);
   const [entryVals, setEntryVals] = useState<Record<string, string>>({});
   const [milestoneVals, setMilestoneVals] = useState<Record<string, string>>({});
@@ -1474,8 +1342,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   // Reload when navigating between departments
   useEffect(() => { setKpiOverride(loadKpiOverride(deptId)); }, [deptId]);
 
-  // Fetch KPI definitions from server so they work on any device, not just the
-  // laptop where the Excel was uploaded. Falls back to localStorage if server has none.
+  // Fetch KPI definitions from server — this is the authoritative source on any device.
   const { data: _serverKpiDefs } = useQuery<{ definitions: KpiDef[] | null }>({
     queryKey: ["/api/scorecard/kpi-definitions", deptId],
     enabled: !!deptId,
@@ -1488,8 +1355,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     if (!_serverKpiDefs) return;
     const serverDefs = _serverKpiDefs.definitions;
     if (serverDefs && serverDefs.length > 0) {
-      // Use server definitions as authoritative — save to localStorage as cache
-      saveKpiOverride(deptId, serverDefs);
+      saveKpiOverride(deptId, serverDefs); // populates in-memory _kpiDefsCache
       setKpiOverride(serverDefs);
     }
   }, [_serverKpiDefs, deptId]);
@@ -1553,7 +1419,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   const { data: _detailActualsData, isFetched: _detailActualsFetched, isLoading: _detailActualsLoading } = useQuery<Record<string, Record<string, number>>>({
     queryKey: ["/api/scorecard/actuals"],
   });
-  // True only on first-ever load with no localStorage fallback (common on mobile)
+  // True while DB data is still loading (no local cache fallback)
   const detailStoreIsLoading = _detailActualsLoading && Object.keys(store).length === 0;
 
   useEffect(() => {
@@ -1568,10 +1434,9 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
   useEffect(() => {
     if (!_detailActualsFetched || !_detailActualsData) return;
     setStore(_detailActualsData);
-    if (Object.keys(_detailActualsData).length > 0) localStorage.setItem(CORP_SEED_VER, "ok");
   }, [_detailActualsFetched, _detailActualsData]);
 
-  // Pre-fill form when period changes OR when store loads from server (mobile: no localStorage)
+  // Pre-fill form when period changes OR when store loads from server
   useEffect(() => {
     if (hasUnsaved) return; // Don't overwrite in-progress edits
     const pre: Record<string,string> = {};
@@ -1734,7 +1599,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     }
     const updated = { ...store, [pk]: { ...(store[pk]||{}), ...updates } };
     setStore(updated);
-    saveStoreLocal(updated);
     setSaved(s => ({ ...s, [id]: true }));
     setHasUnsaved(false);
     const ok = await saveStoreToDB(updated);
@@ -1757,7 +1621,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     if (!Object.keys(updates).length) { toast({ title:"Nothing to save", description:"Enter at least one value first." }); return; }
     const updated = { ...store, [pk]: { ...(store[pk]||{}), ...updates } };
     setStore(updated);
-    saveStoreLocal(updated);
     setHasUnsaved(false);
     setSaving(true);
     const ok = await saveStoreToDB(updated);
@@ -1831,7 +1694,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
     XLSX.utils.book_append_sheet(wb, ws1, `Actuals ${year}`);
 
     // Sheet 2: Historical — all stored periods
-    const storeNow = loadStore();
+    const storeNow = store;
     const storedYears = [...new Set(Object.keys(storeNow).map(p => Number(p.slice(0,4))))].sort();
     const histCols: { label: string; year: number; mi: number }[] = [];
     storedYears.forEach(y => {
@@ -1909,7 +1772,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       });
 
       // Build updated store across all detected columns
-      const updatedStore = { ...loadStore() };
+      const updatedStore = { ...store };
       const updatedWeights: Record<string, number> = { ...loadWeights(deptId) };
       let totalUpdates = 0;
 
@@ -2056,7 +1919,6 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
       }
 
       setStore({ ...updatedStore });
-      saveStoreLocal(updatedStore);
 
       // Refresh form values for current period
       const pre: Record<string,string> = {};
@@ -2303,8 +2165,7 @@ function DepartmentDetail({ deptId }: { deptId: string }) {
           {deptId === "corp" && (
             <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5"
               onClick={async () => {
-                seedCorpSampleData();
-                const seeded = loadStore();
+                const seeded = buildCorpSampleData(store);
                 setStore(seeded);
                 toast({ title: "Sample data loaded — saving…", description: "7 months of Corporate data applied." });
                 const ok = await saveStoreToDB(seeded);
@@ -3239,7 +3100,7 @@ const RagDot = (props: any) => {
 };
 
 function KpiDetail({ kpiId }: { kpiId: string }) {
-  const [store, setStore] = useState(loadStore);
+  const [store, setStore] = useState<Record<string, Record<string, number>>>({});
   const [, nav]           = useLocation();
   const today             = new Date();
 
