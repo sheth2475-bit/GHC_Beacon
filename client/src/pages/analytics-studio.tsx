@@ -12,7 +12,7 @@ import {
   Clock, Upload, Sparkles, ChevronRight, Database,
   Lightbulb, LayoutDashboard, FileSpreadsheet,
   AlertTriangle, ArrowRight, Play, MoreVertical, Eye, Pencil,
-  ExternalLink, Link as LinkIcon,
+  ExternalLink, Link as LinkIcon, X, Maximize2,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsInsight, AnalyticsDashboardDefinition, PowerBiDashboard } from "@shared/schema";
 import {
@@ -280,14 +280,60 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
   );
 }
 
+// ── Power BI in-app viewer ────────────────────────────────────────────────────
+function PowerBiViewer({ pbi, onClose }: { pbi: PowerBiDashboard; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-background" data-testid="powerbi-viewer">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <LinkIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <span className="text-sm font-semibold">{pbi.name}</span>
+          <span className="text-[11px] text-muted-foreground bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 font-medium">Power BI</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <a
+            href={pbi.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+            data-testid="button-powerbi-open-external"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Open in new tab
+          </a>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors"
+            data-testid="button-powerbi-close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      {/* iframe */}
+      <div className="flex-1 relative">
+        <iframe
+          src={pbi.url}
+          className="absolute inset-0 w-full h-full border-0"
+          title={pbi.name}
+          allowFullScreen
+          data-testid="iframe-powerbi"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Power BI Dashboard card ───────────────────────────────────────────────────
-function PowerBiThumbnail({ pbi, onDelete }: { pbi: PowerBiDashboard; onDelete: (id: number) => void }) {
+function PowerBiThumbnail({ pbi, onOpen, onDelete }: { pbi: PowerBiDashboard; onOpen: (p: PowerBiDashboard) => void; onDelete: (id: number) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div
       className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
       data-testid={`card-powerbi-${pbi.id}`}
-      onClick={() => window.open(pbi.url, "_blank", "noopener,noreferrer")}
+      onClick={() => onOpen(pbi)}
     >
       {/* Thumbnail */}
       <div className="relative aspect-video bg-gradient-to-br from-amber-500/20 to-orange-500/10 flex items-center justify-center border-b overflow-hidden rounded-t-xl">
@@ -302,7 +348,7 @@ function PowerBiThumbnail({ pbi, onDelete }: { pbi: PowerBiDashboard; onDelete: 
         </div>
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
           <span className="flex items-center gap-1.5 bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full">
-            <ExternalLink className="h-3.5 w-3.5" /> Open
+            <Maximize2 className="h-3.5 w-3.5" /> Open
           </span>
         </div>
       </div>
@@ -324,8 +370,8 @@ function PowerBiThumbnail({ pbi, onDelete }: { pbi: PowerBiDashboard; onDelete: 
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-8 z-20 w-36 rounded-xl border bg-card shadow-lg py-1">
-              <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted flex items-center gap-1.5" onClick={e => { e.stopPropagation(); window.open(pbi.url, "_blank", "noopener,noreferrer"); setMenuOpen(false); }}>
-                <ExternalLink className="h-3 w-3" /> Open
+              <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted flex items-center gap-1.5" onClick={e => { e.stopPropagation(); onOpen(pbi); setMenuOpen(false); }}>
+                <Maximize2 className="h-3 w-3" /> Open
               </button>
               <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted text-red-500" onClick={e => { e.stopPropagation(); onDelete(pbi.id); setMenuOpen(false); }} data-testid={`button-delete-powerbi-${pbi.id}`}>Delete</button>
             </div>
@@ -359,6 +405,7 @@ export default function AnalyticsStudioPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ type: "dataset" | "insight" | "definition" | "powerbi"; id: number } | null>(null);
+  const [pbiViewer, setPbiViewer] = useState<PowerBiDashboard | null>(null);
 
   const section: Section = (() => {
     const tab = new URLSearchParams(searchParams).get("tab");
@@ -442,6 +489,8 @@ export default function AnalyticsStudioPage() {
   );
 
   return (
+    <>
+    {pbiViewer && <PowerBiViewer pbi={pbiViewer} onClose={() => setPbiViewer(null)} />}
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* Top search bar */}
@@ -548,7 +597,7 @@ export default function AnalyticsStudioPage() {
                 {isLoading ? <SkeletonGrid /> : (
                   <div className={GRID}>
                     {filteredPbi.slice(0, 4).map(p => (
-                      <PowerBiThumbnail key={p.id} pbi={p} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
+                      <PowerBiThumbnail key={p.id} pbi={p} onOpen={setPbiViewer} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
                     ))}
                     {filteredDef.slice(0, 8 - Math.min(filteredPbi.length, 4)).map(d => (
                       <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
@@ -636,7 +685,7 @@ export default function AnalyticsStudioPage() {
             {isLoading ? <SkeletonGrid /> : (
               <div className={GRID}>
                 {filteredPbi.map(p => (
-                  <PowerBiThumbnail key={p.id} pbi={p} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
+                  <PowerBiThumbnail key={p.id} pbi={p} onOpen={setPbiViewer} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
                 ))}
                 {filteredDef.map(d => (
                   <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
@@ -755,5 +804,6 @@ export default function AnalyticsStudioPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   );
 }
