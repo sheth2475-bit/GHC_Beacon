@@ -13,10 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2, Copy, KeyRound, ArrowRight, Target, LayoutDashboard, Globe } from "lucide-react";
+import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2, Copy, KeyRound, ArrowRight, Target, LayoutDashboard, Globe, Link as LinkIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import type { TeamMember, Department, UserDepartmentAccess, BscDepartment, AnalyticsDashboardDefinition } from "@shared/schema";
+import type { TeamMember, Department, UserDepartmentAccess, BscDepartment, AnalyticsDashboardDefinition, PowerBiDashboard } from "@shared/schema";
 
 interface CompanyUser {
   id: number;
@@ -583,6 +583,125 @@ function DashboardAccessContent({ user }: { user: CompanyUser }) {
   );
 }
 
+// ── Power BI Dashboard Access ─────────────────────────────────────────────────
+interface PbiAccessEntry {
+  id: number; userId: number; dashboardId: number;
+  dashboardName: string | null; visibility: string | null;
+}
+
+function PowerBiAccessContent({ user }: { user: CompanyUser }) {
+  const { toast } = useToast();
+  const [newDashboardId, setNewDashboardId] = useState("");
+
+  const { data: allPbi = [] } = useQuery<PowerBiDashboard[]>({
+    queryKey: ["/api/powerbi-access/available"],
+    queryFn: () => apiRequest("GET", "/api/powerbi-access/available").then(r => r.json()),
+  });
+
+  const { data: access = [], isLoading } = useQuery<PbiAccessEntry[]>({
+    queryKey: ["/api/users", user.id, "powerbi-access"],
+    queryFn: () => apiRequest("GET", `/api/users/${user.id}/powerbi-access`).then(r => r.json()),
+  });
+
+  const addMut = useMutation({
+    mutationFn: ({ dashboardId }: { dashboardId: number }) =>
+      apiRequest("POST", `/api/users/${user.id}/powerbi-access`, { dashboardId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "powerbi-access"] });
+      setNewDashboardId("");
+      toast({ title: "Power BI access granted" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (dashboardId: number) => apiRequest("DELETE", `/api/users/${user.id}/powerbi-access/${dashboardId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "powerbi-access"] });
+      toast({ title: "Power BI access removed" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  if (user.role === "admin") {
+    return (
+      <div className="py-6 flex flex-col items-center gap-3 text-center">
+        <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+          <Shield className="h-6 w-6 text-amber-600" />
+        </div>
+        <div>
+          <p className="font-medium">Admin — Full Power BI Access</p>
+          <p className="text-sm text-muted-foreground">Admins can see all Power BI dashboards.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const assignedIds = new Set(access.map(a => a.dashboardId));
+  const privatePbi = allPbi.filter(p => p.visibility === "private" && !assignedIds.has(p.id));
+
+  return (
+    <div className="space-y-4 py-2">
+      <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
+        <p><strong>Company Power BI dashboards</strong> are visible to all users automatically.</p>
+        <p className="mt-1">Grant access below to give this user visibility of <strong>private</strong> Power BI dashboards.</p>
+      </div>
+
+      {isLoading && <div className="h-12 bg-muted rounded animate-pulse" />}
+
+      {!isLoading && access.length === 0 && (
+        <div className="text-center py-4 text-sm text-muted-foreground">
+          No private Power BI access yet. Grant access below.
+        </div>
+      )}
+
+      {!isLoading && access.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Has Access To</p>
+          {access.map(entry => (
+            <div key={entry.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50 border">
+              <div className="flex items-center gap-2 min-w-0">
+                <LinkIcon className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span className="text-sm font-medium truncate">{entry.dashboardName || `Dashboard #${entry.dashboardId}`}</span>
+                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Private</span>
+              </div>
+              <button onClick={() => removeMut.mutate(entry.dashboardId)} disabled={removeMut.isPending}
+                className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {privatePbi.length > 0 && (
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Grant Private Power BI Access</p>
+          <div className="flex gap-2">
+            <Select value={newDashboardId} onValueChange={setNewDashboardId}>
+              <SelectTrigger className="flex-1 h-8 text-sm"><SelectValue placeholder="Select dashboard" /></SelectTrigger>
+              <SelectContent>
+                {privatePbi.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full" size="sm" disabled={!newDashboardId || addMut.isPending}
+            onClick={() => addMut.mutate({ dashboardId: parseInt(newDashboardId) })}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {addMut.isPending ? "Granting…" : "Grant Access"}
+          </Button>
+        </div>
+      )}
+
+      {allPbi.filter(p => p.visibility === "private").length === 0 && (
+        <div className="text-center py-2 text-sm text-muted-foreground">
+          No private Power BI dashboards exist. Dashboards set to "Company" visibility are accessible to everyone.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: CompanyUser; departments: Department[]; isSelf: boolean; triggerLabel?: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -649,15 +768,18 @@ function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: C
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="w-full grid grid-cols-3 mb-2">
-            <TabsTrigger value="general" className="text-xs gap-1.5">
-              <Building2 className="h-3.5 w-3.5" />Departments
+          <TabsList className="w-full grid grid-cols-4 mb-2">
+            <TabsTrigger value="general" className="text-xs gap-1">
+              <Building2 className="h-3.5 w-3.5" />Depts
             </TabsTrigger>
-            <TabsTrigger value="scorecard" className="text-xs gap-1.5">
+            <TabsTrigger value="scorecard" className="text-xs gap-1">
               <Target className="h-3.5 w-3.5" />Scorecard
             </TabsTrigger>
-            <TabsTrigger value="dashboards" className="text-xs gap-1.5">
+            <TabsTrigger value="dashboards" className="text-xs gap-1">
               <LayoutDashboard className="h-3.5 w-3.5" />Dashboards
+            </TabsTrigger>
+            <TabsTrigger value="powerbi" className="text-xs gap-1">
+              <LinkIcon className="h-3.5 w-3.5" />Power BI
             </TabsTrigger>
           </TabsList>
 
@@ -751,6 +873,11 @@ function DeptAccessDialog({ user, departments, isSelf, triggerLabel }: { user: C
           {/* ── Analytics Dashboard Access ── */}
           <TabsContent value="dashboards" className="max-h-[420px] overflow-y-auto">
             <DashboardAccessContent user={user} />
+          </TabsContent>
+
+          {/* ── Power BI Dashboard Access ── */}
+          <TabsContent value="powerbi" className="max-h-[420px] overflow-y-auto">
+            <PowerBiAccessContent user={user} />
           </TabsContent>
         </Tabs>
 

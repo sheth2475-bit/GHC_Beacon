@@ -534,6 +534,19 @@ export async function runMigrations() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
       )
     `);
+    // Add visibility column if not present (idempotent)
+    await client.query(`ALTER TABLE power_bi_dashboards ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'company'`);
+    // Access control table for private Power BI dashboards
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS power_bi_dashboard_access (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        dashboard_id INTEGER NOT NULL REFERENCES power_bi_dashboards(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        UNIQUE(user_id, dashboard_id)
+      )
+    `);
     console.log("[migrations] power_bi_dashboards table ready");
 
     // ── Orphan user cleanup ───────────────────────────────────────────────────

@@ -733,46 +733,63 @@ export default function AnalyticsStudioPage() {
 
         {/* ── DASHBOARDS ── */}
         {section === "dashboards" && (
-          <section data-testid="section-analytics-dashboards">
-            <SectionHeading
-              icon={LayoutDashboard}
-              title="Dashboards"
-              count={filteredDef.length + filteredPbi.length}
-              action={
-                <div className="flex items-center gap-2">
+          <div className="space-y-8" data-testid="section-analytics-dashboards">
+            {/* Sub-section 1: Dashboards */}
+            <section>
+              <SectionHeading
+                icon={LayoutDashboard}
+                title="Dashboards"
+                count={filteredDef.length}
+                action={
+                  <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/dashboards/new")} data-testid="button-new-dashboard">
+                    <Plus className="h-3 w-3" /> New Dashboard
+                  </Button>
+                }
+              />
+              {isLoading ? <SkeletonGrid /> : (
+                <div className={GRID}>
+                  {filteredDef.length > 0 ? filteredDef.map(d => (
+                    <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
+                  )) : (
+                    <EmptyState
+                      icon={LayoutDashboard}
+                      title="No dashboards yet"
+                      desc="Create a dashboard and pin saved insights to it."
+                      action={<Button onClick={() => navigate("/analytics/dashboards/new")} size="sm" className="gap-2"><Plus className="h-3.5 w-3.5" /> Create Dashboard</Button>}
+                    />
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* Sub-section 2: Power BI Dashboards */}
+            <section>
+              <SectionHeading
+                icon={LinkIcon}
+                title="Power BI Dashboards"
+                count={filteredPbi.length}
+                action={
                   <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10" onClick={() => navigate("/analytics/upload")} data-testid="button-link-powerbi">
                     <LinkIcon className="h-3 w-3" /> Link Power BI
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/dashboards/new")} data-testid="button-new-dashboard">
-                    <Plus className="h-3 w-3" /> New
-                  </Button>
+                }
+              />
+              {isLoading ? <SkeletonGrid /> : (
+                <div className={GRID}>
+                  {filteredPbi.length > 0 ? filteredPbi.map(p => (
+                    <PowerBiThumbnail key={p.id} pbi={p} onOpen={setPbiViewer} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
+                  )) : (
+                    <EmptyState
+                      icon={LinkIcon}
+                      title="No Power BI dashboards yet"
+                      desc="Link an existing Power BI report to view it here."
+                      action={<Button onClick={() => navigate("/analytics/upload")} variant="outline" size="sm" className="gap-2"><LinkIcon className="h-3.5 w-3.5" /> Link Power BI</Button>}
+                    />
+                  )}
                 </div>
-              }
-            />
-            {isLoading ? <SkeletonGrid /> : (
-              <div className={GRID}>
-                {filteredPbi.map(p => (
-                  <PowerBiThumbnail key={p.id} pbi={p} onOpen={setPbiViewer} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
-                ))}
-                {filteredDef.map(d => (
-                  <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
-                ))}
-                {filteredDef.length === 0 && filteredPbi.length === 0 && (
-                  <EmptyState
-                    icon={LayoutDashboard}
-                    title="No dashboards yet"
-                    desc="Create a dashboard and pin saved insights to it, or link an existing Power BI report."
-                    action={
-                      <div className="flex gap-2">
-                        <Button onClick={() => navigate("/analytics/upload")} variant="outline" size="sm" className="gap-2"><LinkIcon className="h-3.5 w-3.5" /> Link Power BI</Button>
-                        <Button onClick={() => navigate("/analytics/dashboards/new")} size="sm" className="gap-2"><Plus className="h-3.5 w-3.5" /> Create Dashboard</Button>
-                      </div>
-                    }
-                  />
-                )}
-              </div>
-            )}
-          </section>
+              )}
+            </section>
+          </div>
         )}
 
         {/* ── INSIGHTS ── */}

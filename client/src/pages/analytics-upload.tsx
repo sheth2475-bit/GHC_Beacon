@@ -12,6 +12,7 @@ import {
   Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Loader2,
   CheckCircle2, AlertCircle, X, Database, Sparkles,
   FileImage, Presentation, LayoutDashboard, Link as LinkIcon,
+  Globe, Lock,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsDatasetColumn, AnalyticsDashboardDefinition } from "@shared/schema";
 
@@ -38,6 +39,7 @@ export default function AnalyticsUploadPage() {
   // Power BI specific state
   const [pbiName, setPbiName] = useState("");
   const [pbiUrl, setPbiUrl] = useState("");
+  const [pbiVisibility, setPbiVisibility] = useState<"company" | "private">("company");
   const [pbiSaved, setPbiSaved] = useState(false);
 
   const uploadMutation = useMutation({
@@ -96,7 +98,7 @@ export default function AnalyticsUploadPage() {
   });
 
   const pbiMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/powerbi-dashboards", { name: pbiName.trim(), url: pbiUrl.trim() }).then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/powerbi-dashboards", { name: pbiName.trim(), url: pbiUrl.trim(), visibility: pbiVisibility }).then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/powerbi-dashboards"] });
       setPbiSaved(true);
@@ -255,8 +257,37 @@ export default function AnalyticsUploadPage() {
                           data-testid="input-powerbi-url"
                         />
                         <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" /> Paste the full Power BI report or dashboard link. Clicking the card will open it in a new tab.
+                          <AlertCircle className="h-3 w-3" /> Paste the full Power BI report or dashboard link.
                         </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold">Visibility</Label>
+                        <div className="grid grid-cols-2 gap-2 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPbiVisibility("company")}
+                            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${pbiVisibility === "company" ? "border-amber-500 bg-amber-500/5" : "border-border hover:border-amber-400/50"}`}
+                            data-testid="button-pbi-visibility-company"
+                          >
+                            <Globe className="h-4 w-4 text-amber-600 shrink-0" />
+                            <div>
+                              <p className="text-xs font-semibold">Company</p>
+                              <p className="text-[10px] text-muted-foreground">Visible to all users</p>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPbiVisibility("private")}
+                            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${pbiVisibility === "private" ? "border-amber-500 bg-amber-500/5" : "border-border hover:border-amber-400/50"}`}
+                            data-testid="button-pbi-visibility-private"
+                          >
+                            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                            <div>
+                              <p className="text-xs font-semibold">Private</p>
+                              <p className="text-[10px] text-muted-foreground">Grant access per user</p>
+                            </div>
+                          </button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

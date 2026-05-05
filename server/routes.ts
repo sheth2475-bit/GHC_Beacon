@@ -12,7 +12,7 @@ import { promisify } from "util";
 import multer from "multer";
 import { db } from "./db";
 import { eq, and, inArray, or } from "drizzle-orm";
-import { analyticsDashboardDefinitions, bscDepartments, bscActuals, scorecardShares, bscDeptAccess, analyticsUserDashboardAccess } from "@shared/schema";
+import { analyticsDashboardDefinitions, bscDepartments, bscActuals, scorecardShares, bscDeptAccess, analyticsUserDashboardAccess, powerBiDashboardAccess, powerBiDashboards } from "@shared/schema";
 
 const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -5184,10 +5184,25 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
   // ── Power BI Dashboards ───────────────────────────────────────────────────
   app.get("/api/powerbi-dashboards", requireAuth, async (req: Request, res: Response) => {
     try {
-      const company = await storage.getCompanyByUserId((req as any).user.id);
+      const user = req.user as Express.User;
+      const company = await storage.getCompanyByUserId(user.id);
       if (!company) return res.status(404).json({ message: "Company not found" });
       const rows = await storage.getPowerBiDashboards(company.id);
-      res.json(rows);
+
+      // Admins see all dashboards
+      if (user.role === "admin") return res.json(rows);
+
+      // Non-admins: company-wide OR own OR explicitly granted private
+      const access = await db.select().from(powerBiDashboardAccess)
+        .where(and(eq(powerBiDashboardAccess.userId, user.id), eq(powerBiDashboardAccess.companyId, company.id)));
+      const grantedIds = new Set(access.map(a => a.dashboardId));
+
+      const visible = rows.filter(r =>
+        r.visibility === "company" ||
+        r.createdBy === user.id ||
+        (r.visibility === "private" && grantedIds.has(r.id))
+      );
+      res.json(visible);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -5195,13 +5210,14 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     try {
       const company = await storage.getCompanyByUserId((req as any).user.id);
       if (!company) return res.status(404).json({ message: "Company not found" });
-      const { name, url } = req.body;
+      const { name, url, visibility } = req.body;
       if (!name || !url) return res.status(400).json({ message: "name and url are required" });
       const row = await storage.createPowerBiDashboard({
         companyId: company.id,
         createdBy: (req as any).user.id,
         name: String(name).trim(),
         url: String(url).trim(),
+        visibility: visibility === "private" ? "private" : "company",
       });
       res.status(201).json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -5211,6 +5227,66 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     try {
       await storage.deletePowerBiDashboard(Number(req.params.id));
       res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Power BI Dashboard Access (per-user grant) ────────────────────────────
+  // GET /api/users/:id/powerbi-access — list user's Power BI access grants
+  app.get("/api/users/:id/powerbi-access", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Not found" });
+      const rows = await db.select({
+        id: powerBiDashboardAccess.id,
+        userId: powerBiDashboardAccess.userId,
+        dashboardId: powerBiDashboardAccess.dashboardId,
+        dashboardName: powerBiDashboards.name,
+        visibility: powerBiDashboards.visibility,
+      }).from(powerBiDashboardAccess)
+        .leftJoin(powerBiDashboards, eq(powerBiDashboardAccess.dashboardId, powerBiDashboards.id))
+        .where(and(eq(powerBiDashboardAccess.userId, id), eq(powerBiDashboardAccess.companyId, company.id)));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POST /api/users/:id/powerbi-access — grant access to a private Power BI dashboard
+  app.post("/api/users/:id/powerbi-access", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Not found" });
+      const { dashboardId } = req.body as { dashboardId: number };
+      if (!dashboardId) return res.status(400).json({ message: "dashboardId required" });
+      await db.delete(powerBiDashboardAccess)
+        .where(and(eq(powerBiDashboardAccess.userId, id), eq(powerBiDashboardAccess.dashboardId, dashboardId)));
+      const [entry] = await db.insert(powerBiDashboardAccess)
+        .values({ userId: id, companyId: company.id, dashboardId })
+        .returning();
+      res.json(entry);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // DELETE /api/users/:id/powerbi-access/:dashboardId — revoke Power BI access
+  app.delete("/api/users/:id/powerbi-access/:dashboardId", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const dashboardId = parseInt(req.params.dashboardId);
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Not found" });
+      await db.delete(powerBiDashboardAccess)
+        .where(and(eq(powerBiDashboardAccess.userId, id), eq(powerBiDashboardAccess.dashboardId, dashboardId)));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // GET /api/powerbi-access/available — list all company Power BI dashboards for access assignment
+  app.get("/api/powerbi-access/available", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Not found" });
+      const rows = await storage.getPowerBiDashboards(company.id);
+      res.json(rows);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

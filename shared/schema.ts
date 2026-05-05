@@ -866,9 +866,22 @@ export const powerBiDashboards = pgTable("power_bi_dashboards", {
   createdBy: integer("created_by").notNull().references(() => users.id),
   name: text("name").notNull(),
   url: text("url").notNull(),
+  visibility: text("visibility").notNull().default("company"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 export const insertPowerBiDashboardSchema = createInsertSchema(powerBiDashboards).omit({ id: true, createdAt: true });
 export type InsertPowerBiDashboard = z.infer<typeof insertPowerBiDashboardSchema>;
 export type PowerBiDashboard = typeof powerBiDashboards.$inferSelect;
+
+// ── Power BI Dashboard User Access ───────────────────────────────────────────
+// Maps a user to specific private Power BI dashboards.
+// Company-wide dashboards (visibility="company") need no entry — all see them.
+export const powerBiDashboardAccess = pgTable("power_bi_dashboard_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  dashboardId: integer("dashboard_id").notNull().references(() => powerBiDashboards.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+export type PowerBiDashboardAccess = typeof powerBiDashboardAccess.$inferSelect;
 
