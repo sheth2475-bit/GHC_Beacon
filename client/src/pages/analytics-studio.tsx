@@ -281,7 +281,16 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
 }
 
 // ── Power BI in-app viewer ────────────────────────────────────────────────────
+function isPublicEmbedUrl(url: string) {
+  try {
+    const u = new URL(url);
+    return u.hostname === "app.powerbi.com" && u.pathname.startsWith("/view");
+  } catch { return false; }
+}
+
 function PowerBiViewer({ pbi, onClose }: { pbi: PowerBiDashboard; onClose: () => void }) {
+  const canEmbed = isPublicEmbedUrl(pbi.url);
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" data-testid="powerbi-viewer">
       {/* Header bar */}
@@ -291,17 +300,17 @@ function PowerBiViewer({ pbi, onClose }: { pbi: PowerBiDashboard; onClose: () =>
             <LinkIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
           </div>
           <span className="text-sm font-semibold">{pbi.name}</span>
-          <span className="text-[11px] text-muted-foreground bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 font-medium">Power BI</span>
+          <span className="text-[11px] bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 font-medium">Power BI</span>
         </div>
         <div className="flex items-center gap-2">
           <a
             href={pbi.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted border"
             data-testid="button-powerbi-open-external"
           >
-            <ExternalLink className="h-3.5 w-3.5" /> Open in new tab
+            <ExternalLink className="h-3.5 w-3.5" /> Open in Power BI
           </a>
           <button
             onClick={onClose}
@@ -312,16 +321,44 @@ function PowerBiViewer({ pbi, onClose }: { pbi: PowerBiDashboard; onClose: () =>
           </button>
         </div>
       </div>
-      {/* iframe */}
-      <div className="flex-1 relative">
-        <iframe
-          src={pbi.url}
-          className="absolute inset-0 w-full h-full border-0"
-          title={pbi.name}
-          allowFullScreen
-          data-testid="iframe-powerbi"
-        />
-      </div>
+
+      {/* Content */}
+      {canEmbed ? (
+        <div className="flex-1 relative">
+          <iframe
+            src={pbi.url}
+            className="absolute inset-0 w-full h-full border-0"
+            title={pbi.name}
+            allowFullScreen
+            data-testid="iframe-powerbi"
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+            <LinkIcon className="h-9 w-9 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="max-w-md space-y-2">
+            <h2 className="text-lg font-bold">{pbi.name}</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Microsoft Power BI blocks authenticated reports from being embedded in other websites for security reasons.
+              You need to open this report directly in Power BI.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Tip: To embed a Power BI report inside this app, use the <span className="font-semibold">Publish to web</span> feature in Power BI to get a public embed link (starts with <code className="bg-muted px-1 rounded">app.powerbi.com/view?r=</code>).
+            </p>
+          </div>
+          <a
+            href={pbi.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-sm px-6 py-3 rounded-xl transition-colors"
+            data-testid="button-powerbi-open-large"
+          >
+            <ExternalLink className="h-4 w-4" /> Open in Power BI
+          </a>
+        </div>
+      )}
     </div>
   );
 }
