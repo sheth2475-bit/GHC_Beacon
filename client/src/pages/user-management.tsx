@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Trash2, Shield, Eye, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2, Copy, KeyRound, ArrowRight, Target, LayoutDashboard, Globe, Link as LinkIcon } from "lucide-react";
+import { UserPlus, Trash2, Shield, Eye, EyeOff, Mail, User, Users, Pencil, Building2, Plus, Lock, CheckCircle2, Edit2, Copy, KeyRound, ArrowRight, Target, LayoutDashboard, Globe, Link as LinkIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import type { TeamMember, Department, UserDepartmentAccess, BscDepartment, AnalyticsDashboardDefinition, PowerBiDashboard } from "@shared/schema";
@@ -591,36 +591,35 @@ interface PbiAccessEntry {
 
 function PowerBiAccessContent({ user }: { user: CompanyUser }) {
   const { toast } = useToast();
-  const [newDashboardId, setNewDashboardId] = useState("");
 
-  const { data: allPbi = [] } = useQuery<PowerBiDashboard[]>({
+  const { data: allPbi = [], isLoading: pbiLoading } = useQuery<PowerBiDashboard[]>({
     queryKey: ["/api/powerbi-access/available"],
     queryFn: () => apiRequest("GET", "/api/powerbi-access/available").then(r => r.json()),
   });
 
-  const { data: access = [], isLoading } = useQuery<PbiAccessEntry[]>({
+  const { data: access = [], isLoading: accessLoading } = useQuery<PbiAccessEntry[]>({
     queryKey: ["/api/users", user.id, "powerbi-access"],
     queryFn: () => apiRequest("GET", `/api/users/${user.id}/powerbi-access`).then(r => r.json()),
   });
 
-  const addMut = useMutation({
-    mutationFn: ({ dashboardId }: { dashboardId: number }) =>
+  const grantMut = useMutation({
+    mutationFn: (dashboardId: number) =>
       apiRequest("POST", `/api/users/${user.id}/powerbi-access`, { dashboardId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "powerbi-access"] });
-      setNewDashboardId("");
-      toast({ title: "Power BI access granted" });
+      toast({ title: "Access granted" });
     },
-    onError: () => toast({ title: "Failed", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to grant access", variant: "destructive" }),
   });
 
-  const removeMut = useMutation({
-    mutationFn: (dashboardId: number) => apiRequest("DELETE", `/api/users/${user.id}/powerbi-access/${dashboardId}`),
+  const revokeMut = useMutation({
+    mutationFn: (dashboardId: number) =>
+      apiRequest("DELETE", `/api/users/${user.id}/powerbi-access/${dashboardId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "powerbi-access"] });
-      toast({ title: "Power BI access removed" });
+      toast({ title: "Access removed" });
     },
-    onError: () => toast({ title: "Failed", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to remove access", variant: "destructive" }),
   });
 
   if (user.role === "admin") {
@@ -637,67 +636,69 @@ function PowerBiAccessContent({ user }: { user: CompanyUser }) {
     );
   }
 
-  const assignedIds = new Set(access.map(a => a.dashboardId));
-  const privatePbi = allPbi.filter(p => p.visibility === "private" && !assignedIds.has(p.id));
+  const isLoading = pbiLoading || accessLoading;
+  const grantedIds = new Set(access.map(a => a.dashboardId));
+  const isPending = grantMut.isPending || revokeMut.isPending;
+
+  if (isLoading) return <div className="space-y-2 py-2">{[1,2,3].map(i => <div key={i} className="h-12 bg-muted rounded-lg animate-pulse" />)}</div>;
+
+  if (allPbi.length === 0) {
+    return (
+      <div className="text-center py-8 text-sm text-muted-foreground">
+        No Power BI dashboards have been linked yet.
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4 py-2">
-      <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
-        <p><strong>Company Power BI dashboards</strong> are visible to all users automatically.</p>
-        <p className="mt-1">Grant access below to give this user visibility of <strong>private</strong> Power BI dashboards.</p>
-      </div>
-
-      {isLoading && <div className="h-12 bg-muted rounded animate-pulse" />}
-
-      {!isLoading && access.length === 0 && (
-        <div className="text-center py-4 text-sm text-muted-foreground">
-          No private Power BI access yet. Grant access below.
-        </div>
-      )}
-
-      {!isLoading && access.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Has Access To</p>
-          {access.map(entry => (
-            <div key={entry.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50 border">
-              <div className="flex items-center gap-2 min-w-0">
-                <LinkIcon className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                <span className="text-sm font-medium truncate">{entry.dashboardName || `Dashboard #${entry.dashboardId}`}</span>
-                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Private</span>
+    <div className="space-y-1.5 py-2">
+      {allPbi.map(pbi => {
+        const isCompany = pbi.visibility === "company";
+        const hasAccess = isCompany || grantedIds.has(pbi.id);
+        return (
+          <div
+            key={pbi.id}
+            className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors ${
+              isCompany
+                ? "bg-muted/30 border-dashed"
+                : hasAccess
+                  ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                  : "bg-card"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isCompany ? "bg-muted" : "bg-amber-500/10"}`}>
+                <LinkIcon className={`h-3.5 w-3.5 ${isCompany ? "text-muted-foreground" : "text-amber-600"}`} />
               </div>
-              <button onClick={() => removeMut.mutate(entry.dashboardId)} disabled={removeMut.isPending}
-                className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{pbi.name}</p>
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  {isCompany
+                    ? <><Globe className="h-2.5 w-2.5" /> Company — visible to everyone</>
+                    : <><Lock className="h-2.5 w-2.5" /> Private</>
+                  }
+                </p>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
-
-      {privatePbi.length > 0 && (
-        <div className="space-y-2 border-t pt-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Grant Private Power BI Access</p>
-          <div className="flex gap-2">
-            <Select value={newDashboardId} onValueChange={setNewDashboardId}>
-              <SelectTrigger className="flex-1 h-8 text-sm"><SelectValue placeholder="Select dashboard" /></SelectTrigger>
-              <SelectContent>
-                {privatePbi.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {isCompany ? (
+              <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-md shrink-0">Always on</span>
+            ) : (
+              <button
+                disabled={isPending}
+                onClick={() => hasAccess ? revokeMut.mutate(pbi.id) : grantMut.mutate(pbi.id)}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all shrink-0 disabled:opacity-50 ${
+                  hasAccess
+                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-red-100 hover:text-red-600"
+                    : "bg-muted text-muted-foreground hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+                }`}
+                data-testid={`button-pbi-access-toggle-${pbi.id}`}
+              >
+                {hasAccess ? <><Eye className="h-3.5 w-3.5" /> Can view</> : <><EyeOff className="h-3.5 w-3.5" /> No access</>}
+              </button>
+            )}
           </div>
-          <Button className="w-full" size="sm" disabled={!newDashboardId || addMut.isPending}
-            onClick={() => addMut.mutate({ dashboardId: parseInt(newDashboardId) })}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            {addMut.isPending ? "Granting…" : "Grant Access"}
-          </Button>
-        </div>
-      )}
-
-      {allPbi.filter(p => p.visibility === "private").length === 0 && (
-        <div className="text-center py-2 text-sm text-muted-foreground">
-          No private Power BI dashboards exist. Dashboards set to "Company" visibility are accessible to everyone.
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }
