@@ -12,7 +12,7 @@ import {
   Clock, Upload, Sparkles, ChevronRight, Database,
   Lightbulb, LayoutDashboard, FileSpreadsheet,
   AlertTriangle, ArrowRight, Play, MoreVertical, Eye, Pencil,
-  ExternalLink, Link as LinkIcon, X, Maximize2,
+  ExternalLink, Link as LinkIcon, X, Maximize2, Loader2,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsInsight, AnalyticsDashboardDefinition, PowerBiDashboard } from "@shared/schema";
 import {
@@ -280,21 +280,43 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
   );
 }
 
-// ── Power BI popup opener ─────────────────────────────────────────────────────
-function openPowerBiPopup(url: string, name: string) {
-  const w = Math.min(1400, Math.round(window.screen.width * 0.88));
-  const h = Math.min(900, Math.round(window.screen.height * 0.88));
-  const left = Math.round((window.screen.width - w) / 2);
-  const top = Math.round((window.screen.height - h) / 2);
-  window.open(
-    url,
-    `pbi_${name}`,
-    `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
-  );
+// ── Build the best embeddable URL from any Power BI link ─────────────────────
+function buildEmbedUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (u.hostname !== "app.powerbi.com") return raw;
+
+    // Already a public embed or reportEmbed link — use as-is
+    if (u.pathname.startsWith("/view") || u.pathname.startsWith("/reportEmbed")) {
+      return raw;
+    }
+
+    // Standard report URL: /groups/{groupId}/reports/{reportId}[/...]
+    const reportMatch = u.pathname.match(/\/groups\/([^/]+)\/reports\/([^/]+)/);
+    if (reportMatch) {
+      const groupId = reportMatch[1];
+      const reportId = reportMatch[2];
+      const page = u.searchParams.get("pageName") || "";
+      return `https://app.powerbi.com/reportEmbed?reportId=${reportId}&groupId=${groupId}&autoAuth=true${page ? `&pageName=${page}` : ""}`;
+    }
+
+    // Dashboard URL: /groups/{groupId}/dashboards/{dashboardId}
+    const dashMatch = u.pathname.match(/\/groups\/([^/]+)\/dashboards\/([^/]+)/);
+    if (dashMatch) {
+      const groupId = dashMatch[1];
+      const dashboardId = dashMatch[2];
+      return `https://app.powerbi.com/dashboardEmbed?dashboardId=${dashboardId}&groupId=${groupId}&autoAuth=true`;
+    }
+  } catch { /* fall through */ }
+  return raw;
 }
 
 // ── Power BI in-app viewer ────────────────────────────────────────────────────
 function PowerBiViewer({ pbi, onClose }: { pbi: PowerBiDashboard; onClose: () => void }) {
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const embedUrl = buildEmbedUrl(pbi.url);
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" data-testid="powerbi-viewer">
       {/* Header bar */}
@@ -305,40 +327,67 @@ function PowerBiViewer({ pbi, onClose }: { pbi: PowerBiDashboard; onClose: () =>
           </div>
           <span className="text-sm font-semibold">{pbi.name}</span>
           <span className="text-[11px] bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/20 font-medium">Power BI</span>
+          {loading && !failed && (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+            </span>
+          )}
         </div>
-        <button
-          onClick={onClose}
-          className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors"
-          data-testid="button-powerbi-close"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {failed && (
+            <a
+              href={pbi.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs font-medium border px-3 py-1.5 rounded-lg hover:bg-muted transition-colors"
+              data-testid="button-powerbi-open-external"
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Open in Power BI
+            </a>
+          )}
+          <button onClick={onClose} className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted transition-colors" data-testid="button-powerbi-close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Launch panel */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-8 p-8 text-center bg-gradient-to-br from-amber-500/5 to-background">
-        <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-amber-500/10 border-2 border-amber-500/20 shadow-xl">
-          <LinkIcon className="h-11 w-11 text-amber-600 dark:text-amber-400" />
-        </div>
+      {/* iframe */}
+      <div className="flex-1 relative bg-muted/20">
+        {!failed && (
+          <iframe
+            key={embedUrl}
+            src={embedUrl}
+            className="absolute inset-0 w-full h-full border-0"
+            title={pbi.name}
+            allowFullScreen
+            allow="fullscreen"
+            onLoad={() => setLoading(false)}
+            onError={() => { setFailed(true); setLoading(false); }}
+            data-testid="iframe-powerbi"
+          />
+        )}
 
-        <div className="max-w-sm space-y-2">
-          <h2 className="text-xl font-bold">{pbi.name}</h2>
-          <p className="text-sm text-muted-foreground">
-            Click below to open this Power BI dashboard in a dedicated window — it will launch centred on your screen so you can view it alongside the app.
-          </p>
-        </div>
-
-        <button
-          onClick={() => { openPowerBiPopup(pbi.url, pbi.name); }}
-          className="inline-flex items-center gap-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-sm px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-amber-600/20"
-          data-testid="button-powerbi-launch"
-        >
-          <Maximize2 className="h-4 w-4" /> Open Dashboard
-        </button>
-
-        <p className="text-[11px] text-muted-foreground max-w-xs">
-          The dashboard opens in its own browser window. Keep this panel open to track your dashboards and switch back easily.
-        </p>
+        {/* Fallback — shown if iframe errors or we detect a block */}
+        {failed && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <LinkIcon className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="max-w-sm space-y-2">
+              <h3 className="font-bold">{pbi.name}</h3>
+              <p className="text-sm text-muted-foreground">Your organisation's Power BI settings prevent in-app embedding. Open it directly in Power BI instead.</p>
+            </div>
+            <a
+              href={pbi.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-sm px-6 py-3 rounded-xl transition-colors"
+              data-testid="button-powerbi-open-large"
+            >
+              <ExternalLink className="h-4 w-4" /> Open in Power BI
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
