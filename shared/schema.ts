@@ -859,3 +859,16 @@ export const insertKpiAlertEventSchema = createInsertSchema(kpiAlertEvents).omit
 export type InsertKpiAlertEvent = z.infer<typeof insertKpiAlertEventSchema>;
 export type KpiAlertEvent = typeof kpiAlertEvents.$inferSelect;
 
+// ── Power BI / External Dashboards ───────────────────────────────────────────
+export const powerBiDashboards = pgTable("power_bi_dashboards", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+export const insertPowerBiDashboardSchema = createInsertSchema(powerBiDashboards).omit({ id: true, createdAt: true });
+export type InsertPowerBiDashboard = z.infer<typeof insertPowerBiDashboardSchema>;
+export type PowerBiDashboard = typeof powerBiDashboards.$inferSelect;
+

@@ -523,6 +523,19 @@ export async function runMigrations() {
     `);
     console.log("[migrations] bsc_kpi_definitions table ready");
 
+    // ── Power BI / External Dashboards ────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS power_bi_dashboards (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[migrations] power_bi_dashboards table ready");
+
     // ── Orphan user cleanup ───────────────────────────────────────────────────
     // Delete users with no company_id that are not part of the demo accounts.
     // Demo accounts: demo@performo.ai, exec@performo.ai, member@performo.ai

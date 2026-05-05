@@ -8,12 +8,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
-  BarChart3, Plus, Search, Trash2, Globe, Lock, Building2,
+  BarChart3, Plus, Search, Globe, Lock, Building2,
   Clock, Upload, Sparkles, ChevronRight, Database,
   Lightbulb, LayoutDashboard, FileSpreadsheet,
   AlertTriangle, ArrowRight, Play, MoreVertical, Eye, Pencil,
+  ExternalLink, Link as LinkIcon,
 } from "lucide-react";
-import type { AnalyticsDataset, AnalyticsInsight, AnalyticsDashboardDefinition } from "@shared/schema";
+import type { AnalyticsDataset, AnalyticsInsight, AnalyticsDashboardDefinition, PowerBiDashboard } from "@shared/schema";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -279,6 +280,62 @@ function DashboardThumbnail({ def, onDelete }: { def: AnalyticsDashboardDefiniti
   );
 }
 
+// ── Power BI Dashboard card ───────────────────────────────────────────────────
+function PowerBiThumbnail({ pbi, onDelete }: { pbi: PowerBiDashboard; onDelete: (id: number) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <div
+      className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+      data-testid={`card-powerbi-${pbi.id}`}
+      onClick={() => window.open(pbi.url, "_blank", "noopener,noreferrer")}
+    >
+      {/* Thumbnail */}
+      <div className="relative aspect-video bg-gradient-to-br from-amber-500/20 to-orange-500/10 flex items-center justify-center border-b overflow-hidden rounded-t-xl">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "repeating-linear-gradient(45deg,transparent,transparent 8px,hsl(var(--border)) 8px,hsl(var(--border)) 9px)" }} />
+        <div className="relative flex flex-col items-center gap-2">
+          <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+            <LinkIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
+            Power BI
+          </span>
+        </div>
+        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <span className="flex items-center gap-1.5 bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full">
+            <ExternalLink className="h-3.5 w-3.5" /> Open
+          </span>
+        </div>
+      </div>
+      {/* Info */}
+      <div className="flex items-start gap-2.5 p-3" onClick={e => e.stopPropagation()}>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 shrink-0 mt-0.5">
+          <LinkIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold leading-tight line-clamp-2 mb-1" data-testid={`text-powerbi-name-${pbi.id}`}>{pbi.name}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{pbi.url}</p>
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+            <Clock className="h-2.5 w-2.5" /> {fmtDate(pbi.createdAt)}
+          </p>
+        </div>
+        <div className="relative">
+          <button onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }} className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-all" data-testid={`button-menu-powerbi-${pbi.id}`}>
+            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-8 z-20 w-36 rounded-xl border bg-card shadow-lg py-1">
+              <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted flex items-center gap-1.5" onClick={e => { e.stopPropagation(); window.open(pbi.url, "_blank", "noopener,noreferrer"); setMenuOpen(false); }}>
+                <ExternalLink className="h-3 w-3" /> Open
+              </button>
+              <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted text-red-500" onClick={e => { e.stopPropagation(); onDelete(pbi.id); setMenuOpen(false); }} data-testid={`button-delete-powerbi-${pbi.id}`}>Delete</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Section heading ───────────────────────────────────────────────────────────
 function SectionHeading({ icon: Icon, title, count, action }: { icon: React.ElementType; title: string; count?: number; action?: React.ReactNode }) {
   return (
@@ -301,7 +358,7 @@ export default function AnalyticsStudioPage() {
   const searchParams = useSearch();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "dataset" | "insight" | "definition"; id: number } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "dataset" | "insight" | "definition" | "powerbi"; id: number } | null>(null);
 
   const section: Section = (() => {
     const tab = new URLSearchParams(searchParams).get("tab");
@@ -312,6 +369,12 @@ export default function AnalyticsStudioPage() {
   const { data: datasets = [], isLoading: loadingDS } = useQuery<AnalyticsDataset[]>({ queryKey: ["/api/v2/analytics/datasets"], refetchOnMount: "always" });
   const { data: insights = [], isLoading: loadingIns } = useQuery<AnalyticsInsight[]>({ queryKey: ["/api/v2/analytics/insights"], refetchOnMount: "always" });
   const { data: definitions = [], isLoading: loadingDef } = useQuery<AnalyticsDashboardDefinition[]>({ queryKey: ["/api/v2/analytics/definitions"], refetchOnMount: "always" });
+  const { data: powerBiDashboards = [], isLoading: loadingPbi } = useQuery<PowerBiDashboard[]>({ queryKey: ["/api/powerbi-dashboards"], refetchOnMount: "always" });
+
+  const deletePbiMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/powerbi-dashboards/${id}`).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/powerbi-dashboards"] }); toast({ title: "Dashboard removed" }); },
+  });
 
   const deleteDatasetMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/v2/analytics/datasets/${id}`).then(r => r.json()),
@@ -335,6 +398,7 @@ export default function AnalyticsStudioPage() {
     if (!deleteTarget) return;
     if (deleteTarget.type === "dataset") deleteDatasetMutation.mutate(deleteTarget.id);
     else if (deleteTarget.type === "insight") deleteInsightMutation.mutate(deleteTarget.id);
+    else if (deleteTarget.type === "powerbi") deletePbiMutation.mutate(deleteTarget.id);
     else deleteDefMutation.mutate(deleteTarget.id);
     setDeleteTarget(null);
   };
@@ -343,8 +407,9 @@ export default function AnalyticsStudioPage() {
   const filteredDS = datasets.filter(d => !q || d.name.toLowerCase().includes(q));
   const filteredIns = insights.filter(i => !q || i.title.toLowerCase().includes(q) || i.question?.toLowerCase().includes(q));
   const filteredDef = definitions.filter(d => !q || d.title.toLowerCase().includes(q));
+  const filteredPbi = powerBiDashboards.filter(p => !q || p.name.toLowerCase().includes(q) || p.url.toLowerCase().includes(q));
 
-  const isLoading = loadingDS || loadingIns || loadingDef;
+  const isLoading = loadingDS || loadingIns || loadingDef || loadingPbi;
   const latestDataset = [...datasets].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
   const latestDashboard = [...definitions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
   const latestInsight = [...insights].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -468,12 +533,12 @@ export default function AnalyticsStudioPage() {
             )}
 
             {/* Dashboards section */}
-            {(filteredDef.length > 0 || isLoading) && (
+            {(filteredDef.length > 0 || filteredPbi.length > 0 || isLoading) && (
               <section data-testid="section-analytics-home-dashboards">
                 <SectionHeading
                   icon={LayoutDashboard}
                   title="Dashboards"
-                  count={filteredDef.length}
+                  count={filteredDef.length + filteredPbi.length}
                   action={
                     <Link href="/analytics?tab=dashboards" className="text-xs text-primary hover:underline flex items-center gap-1">
                       View all <ChevronRight className="h-3 w-3" />
@@ -482,7 +547,10 @@ export default function AnalyticsStudioPage() {
                 />
                 {isLoading ? <SkeletonGrid /> : (
                   <div className={GRID}>
-                    {filteredDef.slice(0, 8).map(d => (
+                    {filteredPbi.slice(0, 4).map(p => (
+                      <PowerBiThumbnail key={p.id} pbi={p} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
+                    ))}
+                    {filteredDef.slice(0, 8 - Math.min(filteredPbi.length, 4)).map(d => (
                       <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
                     ))}
                   </div>
@@ -553,23 +621,37 @@ export default function AnalyticsStudioPage() {
             <SectionHeading
               icon={LayoutDashboard}
               title="Dashboards"
-              count={filteredDef.length}
+              count={filteredDef.length + filteredPbi.length}
               action={
-                <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/dashboards/new")} data-testid="button-new-dashboard">
-                  <Plus className="h-3 w-3" /> New
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10" onClick={() => navigate("/analytics/upload")} data-testid="button-link-powerbi">
+                    <LinkIcon className="h-3 w-3" /> Link Power BI
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => navigate("/analytics/dashboards/new")} data-testid="button-new-dashboard">
+                    <Plus className="h-3 w-3" /> New
+                  </Button>
+                </div>
               }
             />
             {isLoading ? <SkeletonGrid /> : (
               <div className={GRID}>
-                {filteredDef.length > 0 ? filteredDef.map(d => (
+                {filteredPbi.map(p => (
+                  <PowerBiThumbnail key={p.id} pbi={p} onDelete={id => setDeleteTarget({ type: "powerbi", id })} />
+                ))}
+                {filteredDef.map(d => (
                   <DashboardThumbnail key={d.id} def={d} onDelete={id => setDeleteTarget({ type: "definition", id })} />
-                )) : (
+                ))}
+                {filteredDef.length === 0 && filteredPbi.length === 0 && (
                   <EmptyState
                     icon={LayoutDashboard}
                     title="No dashboards yet"
-                    desc="Create a dashboard and pin saved insights to it to build a live view."
-                    action={<Button onClick={() => navigate("/analytics/dashboards/new")} size="sm" className="gap-2"><Plus className="h-3.5 w-3.5" /> Create Dashboard</Button>}
+                    desc="Create a dashboard and pin saved insights to it, or link an existing Power BI report."
+                    action={
+                      <div className="flex gap-2">
+                        <Button onClick={() => navigate("/analytics/upload")} variant="outline" size="sm" className="gap-2"><LinkIcon className="h-3.5 w-3.5" /> Link Power BI</Button>
+                        <Button onClick={() => navigate("/analytics/dashboards/new")} size="sm" className="gap-2"><Plus className="h-3.5 w-3.5" /> Create Dashboard</Button>
+                      </div>
+                    }
                   />
                 )}
               </div>

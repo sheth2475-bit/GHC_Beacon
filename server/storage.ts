@@ -10,7 +10,7 @@ import {
   analyticsDashboardNarratives, analyticsDashboardChat,
   analyticsDatasets, analyticsDatasetColumns, analyticsInsights, analyticsAutoInsights,
   analyticsDashboardDefinitions, analyticsDashboardItems,
-  kpiAlerts, kpiAlertEvents,
+  kpiAlerts, kpiAlertEvents, powerBiDashboards,
   type InsertUser, type User, type InsertCompany, type Company,
   type InsertDepartment, type Department, type InsertBusinessGoal, type BusinessGoal,
   type InsertKpi, type Kpi, type InsertKpiActual, type KpiActual,
@@ -41,6 +41,7 @@ import {
   type AnalyticsDashboardItem, type InsertAnalyticsDashboardItem,
   type KpiAlert, type InsertKpiAlert,
   type KpiAlertEvent, type InsertKpiAlertEvent,
+  type PowerBiDashboard, type InsertPowerBiDashboard,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -273,6 +274,11 @@ export interface IStorage {
   acknowledgeKpiAlertEvent(id: number): Promise<void>;
   acknowledgeAllKpiAlertEvents(companyId: number): Promise<void>;
   evaluateKpiAlerts(companyId: number, store: Record<string, Record<string, number>>): Promise<KpiAlertEvent[]>;
+
+  // Power BI Dashboards
+  getPowerBiDashboards(companyId: number): Promise<import("@shared/schema").PowerBiDashboard[]>;
+  createPowerBiDashboard(data: import("@shared/schema").InsertPowerBiDashboard): Promise<import("@shared/schema").PowerBiDashboard>;
+  deletePowerBiDashboard(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1411,6 +1417,19 @@ export class DatabaseStorage implements IStorage {
       firedEvents.push(event);
     }
     return firedEvents;
+  }
+
+  async getPowerBiDashboards(companyId: number): Promise<PowerBiDashboard[]> {
+    return db.select().from(powerBiDashboards)
+      .where(eq(powerBiDashboards.companyId, companyId))
+      .orderBy(desc(powerBiDashboards.createdAt));
+  }
+  async createPowerBiDashboard(data: InsertPowerBiDashboard): Promise<PowerBiDashboard> {
+    const [row] = await db.insert(powerBiDashboards).values(data).returning();
+    return row;
+  }
+  async deletePowerBiDashboard(id: number): Promise<void> {
+    await db.delete(powerBiDashboards).where(eq(powerBiDashboards.id, id));
   }
 }
 

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Upload, FileSpreadsheet, ArrowLeft, ArrowRight, Loader2,
   CheckCircle2, AlertCircle, X, Database, Sparkles,
-  FileImage, Presentation, LayoutDashboard,
+  FileImage, Presentation, LayoutDashboard, Link as LinkIcon,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsDatasetColumn, AnalyticsDashboardDefinition } from "@shared/schema";
 
@@ -33,7 +33,12 @@ export default function AnalyticsUploadPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [result, setResult] = useState<UploadResult | null>(null);
-  const [uploadMode, setUploadMode] = useState<"data" | "visual">("data");
+  const [uploadMode, setUploadMode] = useState<"data" | "visual" | "powerbi">("data");
+
+  // Power BI specific state
+  const [pbiName, setPbiName] = useState("");
+  const [pbiUrl, setPbiUrl] = useState("");
+  const [pbiSaved, setPbiSaved] = useState(false);
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -87,6 +92,18 @@ export default function AnalyticsUploadPage() {
     },
     onError: (err: Error) => {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const pbiMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/powerbi-dashboards", { name: pbiName.trim(), url: pbiUrl.trim() }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/powerbi-dashboards"] });
+      setPbiSaved(true);
+      toast({ title: "Dashboard linked!", description: `"${pbiName}" has been added to your Dashboards section.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to save", description: err.message, variant: "destructive" });
     },
   });
 
@@ -145,16 +162,17 @@ export default function AnalyticsUploadPage() {
           </div>
           <div>
             <h1 className="text-xl font-black tracking-tight">Upload Dataset</h1>
-            <p className="text-xs text-muted-foreground">Upload Excel/CSV data, or generate a starter dataset and dashboard from a screenshot or PowerPoint</p>
+            <p className="text-xs text-muted-foreground">Upload Excel/CSV data, generate from a visual, or link a Power BI dashboard</p>
           </div>
         </div>
 
         {!result ? (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Mode selector — 3 options */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="button"
-                onClick={() => { setUploadMode("data"); setFile(null); }}
+                onClick={() => { setUploadMode("data"); setFile(null); setPbiSaved(false); }}
                 className={`text-left rounded-xl border p-3 transition-all ${uploadMode === "data" ? "border-primary bg-primary/5 shadow-sm" : "bg-card hover:border-primary/40"}`}
                 data-testid="button-mode-data-upload"
               >
@@ -166,7 +184,7 @@ export default function AnalyticsUploadPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setUploadMode("visual"); setFile(null); }}
+                onClick={() => { setUploadMode("visual"); setFile(null); setPbiSaved(false); }}
                 className={`text-left rounded-xl border p-3 transition-all ${uploadMode === "visual" ? "border-primary bg-primary/5 shadow-sm" : "bg-card hover:border-primary/40"}`}
                 data-testid="button-mode-visual-upload"
               >
@@ -176,67 +194,160 @@ export default function AnalyticsUploadPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">Generate starter data, insights, and a dashboard from an existing visual.</p>
               </button>
+              <button
+                type="button"
+                onClick={() => { setUploadMode("powerbi"); setFile(null); setPbiSaved(false); }}
+                className={`text-left rounded-xl border p-3 transition-all ${uploadMode === "powerbi" ? "border-amber-500 bg-amber-500/5 shadow-sm" : "bg-card hover:border-amber-500/40"}`}
+                data-testid="button-mode-powerbi"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <LinkIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-sm font-bold">Power BI Dashboard</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Link an existing Power BI report or dashboard by URL.</p>
+              </button>
             </div>
 
-            {/* Drop zone */}
-            <div
-              className={`relative rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer ${dragOver ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/50 hover:bg-muted/30"}`}
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => !file && fileInputRef.current?.click()}
-              data-testid="dropzone-upload"
-            >
-              <input ref={fileInputRef} type="file" accept={uploadMode === "visual" ? ".png,.jpg,.jpeg,.webp,.pptx" : ".xlsx,.xlsm,.xls,.csv"} className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} data-testid="input-file" />
-              <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                {file ? (
-                  <>
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 mb-3">
-                      <CheckCircle2 className="h-7 w-7 text-emerald-600" />
-                    </div>
-                    <p className="font-bold text-sm mb-0.5">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
-                    <button className="mt-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={e => { e.stopPropagation(); setFile(null); }}>
-                      <X className="h-3 w-3" /> Remove
-                    </button>
-                  </>
+            {/* ── Power BI mode ── */}
+            {uploadMode === "powerbi" && (
+              <>
+                {pbiSaved ? (
+                  <Card className="border-emerald-500/20 bg-emerald-500/5">
+                    <CardContent className="p-5 flex items-center gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-bold text-sm">"{pbiName}" added to Dashboards</p>
+                        <p className="text-xs text-muted-foreground">You'll find it in the Dashboards section of Analytics Studio.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ) : (
-                  <>
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mb-3">
-                      {uploadMode === "visual" ? <Presentation className="h-7 w-7 text-primary/60" /> : <FileSpreadsheet className="h-7 w-7 text-primary/60" />}
-                    </div>
-                    <p className="font-bold text-sm mb-1">{dragOver ? "Drop to upload" : "Drop your file here"}</p>
-                    <p className="text-xs text-muted-foreground mb-3">or click to browse</p>
-                    <p className="text-[11px] text-muted-foreground/60">
-                      {uploadMode === "visual" ? "Supports .png, .jpg, .webp, .pptx · creates starter Excel data + dashboard · Max 20 MB" : "Supports .xlsx, .xlsm, .xls, .csv · multi-sheet Excel modeling · Max 20 MB"}
-                    </p>
-                  </>
+                  <Card>
+                    <CardContent className="p-4 space-y-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 border border-amber-500/20">
+                          <LinkIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold">Link Power BI Dashboard</p>
+                          <p className="text-xs text-muted-foreground">Paste the report URL and give it a name — it will appear as a card in your Dashboards section.</p>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="pbi-name" className="text-xs font-semibold">Dashboard Name *</Label>
+                        <Input
+                          id="pbi-name"
+                          value={pbiName}
+                          onChange={e => setPbiName(e.target.value)}
+                          placeholder="e.g. Sales Performance Dashboard"
+                          className="mt-1.5 h-9"
+                          data-testid="input-powerbi-name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="pbi-url" className="text-xs font-semibold">Power BI URL *</Label>
+                        <Input
+                          id="pbi-url"
+                          value={pbiUrl}
+                          onChange={e => setPbiUrl(e.target.value)}
+                          placeholder="https://app.powerbi.com/..."
+                          className="mt-1.5 h-9"
+                          data-testid="input-powerbi-url"
+                        />
+                        <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> Paste the full Power BI report or dashboard link. Clicking the card will open it in a new tab.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </div>
-            </div>
 
-            {/* Metadata */}
-            <Card>
-              <CardContent className="p-4 space-y-4">
-                <div>
-                  <Label htmlFor="ds-name" className="text-xs font-semibold">Dataset Name *</Label>
-                  <Input id="ds-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Q1 Sales Data" className="mt-1.5 h-9" data-testid="input-dataset-name" />
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => navigate("/analytics")} data-testid="button-cancel">Cancel</Button>
+                  {!pbiSaved ? (
+                    <Button
+                      onClick={() => pbiMutation.mutate()}
+                      disabled={!pbiName.trim() || !pbiUrl.trim() || pbiMutation.isPending}
+                      className="gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                      data-testid="button-powerbi-submit"
+                    >
+                      {pbiMutation.isPending
+                        ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
+                        : <><LinkIcon className="h-4 w-4" /> Add to Dashboards</>}
+                    </Button>
+                  ) : (
+                    <Button onClick={() => navigate("/analytics?tab=dashboards")} className="gap-2" data-testid="button-go-dashboards">
+                      <LayoutDashboard className="h-4 w-4" /> View Dashboards <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                <div>
-                  <Label htmlFor="ds-desc" className="text-xs font-semibold">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                  <Textarea id="ds-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="Briefly describe what this dataset contains…" className="mt-1.5 resize-none" rows={2} data-testid="input-dataset-description" />
-                </div>
-              </CardContent>
-            </Card>
+              </>
+            )}
 
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => navigate("/analytics")} data-testid="button-cancel">Cancel</Button>
-              <Button onClick={handleSubmit} disabled={!file || !name || uploadMutation.isPending || visualUploadMutation.isPending} className="gap-2" data-testid="button-upload-submit">
-                {uploadMutation.isPending || visualUploadMutation.isPending
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> {uploadMode === "visual" ? "Generating…" : "Uploading…"}</>
-                  : <><Upload className="h-4 w-4" /> {uploadMode === "visual" ? "Generate Dataset & Dashboard" : "Upload & Detect Columns"}</>}
-              </Button>
-            </div>
+            {/* ── File upload modes ── */}
+            {uploadMode !== "powerbi" && (
+              <>
+                {/* Drop zone */}
+                <div
+                  className={`relative rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer ${dragOver ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/50 hover:bg-muted/30"}`}
+                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  onClick={() => !file && fileInputRef.current?.click()}
+                  data-testid="dropzone-upload"
+                >
+                  <input ref={fileInputRef} type="file" accept={uploadMode === "visual" ? ".png,.jpg,.jpeg,.webp,.pptx" : ".xlsx,.xlsm,.xls,.csv"} className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} data-testid="input-file" />
+                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                    {file ? (
+                      <>
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 mb-3">
+                          <CheckCircle2 className="h-7 w-7 text-emerald-600" />
+                        </div>
+                        <p className="font-bold text-sm mb-0.5">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+                        <button className="mt-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={e => { e.stopPropagation(); setFile(null); }}>
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mb-3">
+                          {uploadMode === "visual" ? <Presentation className="h-7 w-7 text-primary/60" /> : <FileSpreadsheet className="h-7 w-7 text-primary/60" />}
+                        </div>
+                        <p className="font-bold text-sm mb-1">{dragOver ? "Drop to upload" : "Drop your file here"}</p>
+                        <p className="text-xs text-muted-foreground mb-3">or click to browse</p>
+                        <p className="text-[11px] text-muted-foreground/60">
+                          {uploadMode === "visual" ? "Supports .png, .jpg, .webp, .pptx · creates starter Excel data + dashboard · Max 20 MB" : "Supports .xlsx, .xlsm, .xls, .csv · multi-sheet Excel modeling · Max 20 MB"}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Metadata */}
+                <Card>
+                  <CardContent className="p-4 space-y-4">
+                    <div>
+                      <Label htmlFor="ds-name" className="text-xs font-semibold">Dataset Name *</Label>
+                      <Input id="ds-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Q1 Sales Data" className="mt-1.5 h-9" data-testid="input-dataset-name" />
+                    </div>
+                    <div>
+                      <Label htmlFor="ds-desc" className="text-xs font-semibold">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                      <Textarea id="ds-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="Briefly describe what this dataset contains…" className="mt-1.5 resize-none" rows={2} data-testid="input-dataset-description" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => navigate("/analytics")} data-testid="button-cancel">Cancel</Button>
+                  <Button onClick={handleSubmit} disabled={!file || !name || uploadMutation.isPending || visualUploadMutation.isPending} className="gap-2" data-testid="button-upload-submit">
+                    {uploadMutation.isPending || visualUploadMutation.isPending
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> {uploadMode === "visual" ? "Generating…" : "Uploading…"}</>
+                      : <><Upload className="h-4 w-4" /> {uploadMode === "visual" ? "Generate Dataset & Dashboard" : "Upload & Detect Columns"}</>}
+                  </Button>
+                </div>
+              </>
+            )}
           </>
         ) : (
           /* Success state */

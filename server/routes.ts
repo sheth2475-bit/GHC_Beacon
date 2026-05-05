@@ -5181,6 +5181,39 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── Power BI Dashboards ───────────────────────────────────────────────────
+  app.get("/api/powerbi-dashboards", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const rows = await storage.getPowerBiDashboards(company.id);
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/powerbi-dashboards", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const company = await storage.getCompanyByUserId((req as any).user.id);
+      if (!company) return res.status(404).json({ message: "Company not found" });
+      const { name, url } = req.body;
+      if (!name || !url) return res.status(400).json({ message: "name and url are required" });
+      const row = await storage.createPowerBiDashboard({
+        companyId: company.id,
+        createdBy: (req as any).user.id,
+        name: String(name).trim(),
+        url: String(url).trim(),
+      });
+      res.status(201).json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/powerbi-dashboards/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deletePowerBiDashboard(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.all(/^\/api\//, (_req: Request, res: Response) => {
     res.status(404).json({ message: "API endpoint not found" });
   });
