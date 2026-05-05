@@ -13,6 +13,7 @@ import {
   Lightbulb, LayoutDashboard, FileSpreadsheet,
   AlertTriangle, ArrowRight, Play, MoreVertical, Eye, Pencil,
   ExternalLink, Link as LinkIcon, X, Maximize2, Loader2,
+  Users, UserCheck, UserX, ShieldCheck,
 } from "lucide-react";
 import type { AnalyticsDataset, AnalyticsInsight, AnalyticsDashboardDefinition, PowerBiDashboard } from "@shared/schema";
 import {
@@ -20,6 +21,8 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 const CHART_TYPE_LABEL: Record<string, string> = {
   kpi: "KPI Card", bar: "Bar Chart", line: "Line Chart", pie: "Pie Chart",
@@ -394,58 +397,200 @@ function PowerBiViewer({ pbi, onClose }: { pbi: PowerBiDashboard; onClose: () =>
 }
 
 // ── Power BI Dashboard card ───────────────────────────────────────────────────
-function PowerBiThumbnail({ pbi, onOpen, onDelete }: { pbi: PowerBiDashboard; onOpen: (p: PowerBiDashboard) => void; onDelete: (id: number) => void }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+// ── Power BI Access Dialog ────────────────────────────────────────────────────
+interface PbiUserAccess { userId: number; userName: string | null; userEmail: string | null; userRole: string | null; accessId: number; }
+interface CompanyUserSimple { id: number; name: string; email: string; role: string; }
+
+function PowerBiAccessDialog({ pbi, open, onClose }: { pbi: PowerBiDashboard; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+
+  const { data: allUsers = [] } = useQuery<CompanyUserSimple[]>({
+    queryKey: ["/api/users"],
+    enabled: open,
+  });
+
+  const { data: granted = [], isLoading } = useQuery<PbiUserAccess[]>({
+    queryKey: ["/api/powerbi-dashboards", pbi.id, "access"],
+    queryFn: () => apiRequest("GET", `/api/powerbi-dashboards/${pbi.id}/access`).then(r => r.json()),
+    enabled: open,
+  });
+
+  const grantMut = useMutation({
+    mutationFn: (userId: number) => apiRequest("POST", `/api/powerbi-dashboards/${pbi.id}/access`, { userId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/powerbi-dashboards", pbi.id, "access"] });
+      toast({ title: "Access granted" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const revokeMut = useMutation({
+    mutationFn: (userId: number) => apiRequest("DELETE", `/api/powerbi-dashboards/${pbi.id}/access/${userId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/powerbi-dashboards", pbi.id, "access"] });
+      toast({ title: "Access revoked" });
+    },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const grantedIds = new Set(granted.map(g => g.userId));
+  // Non-admin users (exclude admins — they always have access)
+  const nonAdmins = allUsers.filter(u => u.role !== "admin");
+
   return (
-    <div
-      className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
-      data-testid={`card-powerbi-${pbi.id}`}
-      onClick={() => onOpen(pbi)}
-    >
-      {/* Thumbnail */}
-      <div className="relative aspect-video bg-gradient-to-br from-amber-500/20 to-orange-500/10 flex items-center justify-center border-b overflow-hidden rounded-t-xl">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "repeating-linear-gradient(45deg,transparent,transparent 8px,hsl(var(--border)) 8px,hsl(var(--border)) 9px)" }} />
-        <div className="relative flex flex-col items-center gap-2">
-          <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-            <LinkIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
-            Power BI
-          </span>
-        </div>
-        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <span className="flex items-center gap-1.5 bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full">
-            <Maximize2 className="h-3.5 w-3.5" /> Open
-          </span>
-        </div>
-      </div>
-      {/* Info */}
-      <div className="flex items-start gap-2.5 p-3" onClick={e => e.stopPropagation()}>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 shrink-0 mt-0.5">
-          <LinkIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold leading-tight line-clamp-2 mb-1" data-testid={`text-powerbi-name-${pbi.id}`}>{pbi.name}</p>
-          <p className="text-[11px] text-muted-foreground truncate">{pbi.url}</p>
-          <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-            <Clock className="h-2.5 w-2.5" /> {fmtDate(pbi.createdAt)}
-          </p>
-        </div>
-        <div className="relative">
-          <button onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }} className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-all" data-testid={`button-menu-powerbi-${pbi.id}`}>
-            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-8 z-20 w-36 rounded-xl border bg-card shadow-lg py-1">
-              <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted flex items-center gap-1.5" onClick={e => { e.stopPropagation(); onOpen(pbi); setMenuOpen(false); }}>
-                <Maximize2 className="h-3 w-3" /> Open
-              </button>
-              <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted text-red-500" onClick={e => { e.stopPropagation(); onDelete(pbi.id); setMenuOpen(false); }} data-testid={`button-delete-powerbi-${pbi.id}`}>Delete</button>
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-md" onClick={e => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-amber-600" />
+            Manage Access — {pbi.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        {pbi.visibility === "company" ? (
+          <div className="py-6 flex flex-col items-center gap-3 text-center">
+            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <Globe className="h-6 w-6 text-green-600" />
             </div>
-          )}
+            <div>
+              <p className="font-semibold">Company-wide dashboard</p>
+              <p className="text-sm text-muted-foreground mt-1">All users can view this dashboard automatically. To restrict access, re-link it with "Private" visibility.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 py-1">
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
+              <Lock className="h-3 w-3 inline mr-1" />
+              <strong>Private</strong> — only users toggled on below can view this dashboard.
+            </div>
+
+            {isLoading ? (
+              <div className="space-y-2">
+                {[1,2,3].map(i => <div key={i} className="h-12 bg-muted rounded-lg animate-pulse" />)}
+              </div>
+            ) : nonAdmins.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No non-admin users in your company.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                {/* Admins row — always have access */}
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-dashed">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Admins</p>
+                      <p className="text-[11px] text-muted-foreground">Always have access</p>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px]">Always on</Badge>
+                </div>
+
+                {nonAdmins.map(user => {
+                  const hasAccess = grantedIds.has(user.id);
+                  const isPending = grantMut.isPending || revokeMut.isPending;
+                  return (
+                    <div key={user.id} className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${hasAccess ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-card"}`}>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 text-sm font-bold">
+                          {user.name?.charAt(0).toUpperCase() ?? "?"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{user.name}</p>
+                          <p className="text-[11px] text-muted-foreground">{user.email} · <span className="capitalize">{user.role?.replace("_", " ")}</span></p>
+                        </div>
+                      </div>
+                      <button
+                        disabled={isPending}
+                        onClick={() => hasAccess ? revokeMut.mutate(user.id) : grantMut.mutate(user.id)}
+                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all disabled:opacity-50 ${hasAccess ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-red-100 hover:text-red-600" : "bg-muted text-muted-foreground hover:bg-amber-100 hover:text-amber-700"}`}
+                        data-testid={`button-pbi-access-${user.id}`}
+                      >
+                        {hasAccess ? <><UserCheck className="h-3.5 w-3.5" /> Can view</> : <><UserX className="h-3.5 w-3.5" /> No access</>}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PowerBiThumbnail({ pbi, onOpen, onDelete }: { pbi: PowerBiDashboard; onOpen: (p: PowerBiDashboard) => void; onDelete: (id: number) => void }) {
+  const { user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
+  const isAdmin = user?.role === "admin";
+
+  return (
+    <>
+      <div
+        className="group relative flex flex-col rounded-xl bg-card border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+        data-testid={`card-powerbi-${pbi.id}`}
+        onClick={() => onOpen(pbi)}
+      >
+        {/* Thumbnail */}
+        <div className="relative aspect-video bg-gradient-to-br from-amber-500/20 to-orange-500/10 flex items-center justify-center border-b overflow-hidden rounded-t-xl">
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "repeating-linear-gradient(45deg,transparent,transparent 8px,hsl(var(--border)) 8px,hsl(var(--border)) 9px)" }} />
+          <div className="relative flex flex-col items-center gap-2">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+              <LinkIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
+              Power BI
+            </span>
+          </div>
+          {/* Visibility badge */}
+          <div className="absolute top-2 left-2">
+            {pbi.visibility === "private"
+              ? <span className="flex items-center gap-1 text-[10px] font-semibold bg-slate-800/70 text-white px-2 py-0.5 rounded-full backdrop-blur-sm"><Lock className="h-2.5 w-2.5" /> Private</span>
+              : <span className="flex items-center gap-1 text-[10px] font-semibold bg-slate-800/70 text-white px-2 py-0.5 rounded-full backdrop-blur-sm"><Globe className="h-2.5 w-2.5" /> Company</span>
+            }
+          </div>
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <span className="flex items-center gap-1.5 bg-white text-black text-xs font-bold px-3 py-1.5 rounded-full">
+              <Maximize2 className="h-3.5 w-3.5" /> Open
+            </span>
+          </div>
+        </div>
+        {/* Info */}
+        <div className="flex items-start gap-2.5 p-3" onClick={e => e.stopPropagation()}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 shrink-0 mt-0.5">
+            <LinkIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight line-clamp-2 mb-1" data-testid={`text-powerbi-name-${pbi.id}`}>{pbi.name}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{pbi.url}</p>
+            <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+              <Clock className="h-2.5 w-2.5" /> {fmtDate(pbi.createdAt)}
+            </p>
+          </div>
+          <div className="relative">
+            <button onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }} className="opacity-0 group-hover:opacity-100 h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-all" data-testid={`button-menu-powerbi-${pbi.id}`}>
+              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-8 z-20 w-44 rounded-xl border bg-card shadow-lg py-1">
+                <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted flex items-center gap-1.5" onClick={e => { e.stopPropagation(); onOpen(pbi); setMenuOpen(false); }}>
+                  <Maximize2 className="h-3 w-3" /> Open
+                </button>
+                {isAdmin && (
+                  <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted flex items-center gap-1.5 text-amber-700 dark:text-amber-400" onClick={e => { e.stopPropagation(); setAccessOpen(true); setMenuOpen(false); }} data-testid={`button-manage-access-powerbi-${pbi.id}`}>
+                    <Users className="h-3 w-3" /> Manage Access
+                  </button>
+                )}
+                <button className="w-full text-left text-xs px-3 py-1.5 hover:bg-muted text-red-500" onClick={e => { e.stopPropagation(); onDelete(pbi.id); setMenuOpen(false); }} data-testid={`button-delete-powerbi-${pbi.id}`}>Delete</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      {isAdmin && <PowerBiAccessDialog pbi={pbi} open={accessOpen} onClose={() => setAccessOpen(false)} />}
+    </>
   );
 }
 

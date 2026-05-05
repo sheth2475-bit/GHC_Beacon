@@ -12,7 +12,7 @@ import { promisify } from "util";
 import multer from "multer";
 import { db } from "./db";
 import { eq, and, inArray, or } from "drizzle-orm";
-import { analyticsDashboardDefinitions, bscDepartments, bscActuals, scorecardShares, bscDeptAccess, analyticsUserDashboardAccess, powerBiDashboardAccess, powerBiDashboards } from "@shared/schema";
+import { analyticsDashboardDefinitions, bscDepartments, bscActuals, scorecardShares, bscDeptAccess, analyticsUserDashboardAccess, powerBiDashboardAccess, powerBiDashboards, users } from "@shared/schema";
 
 const uploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -5226,6 +5226,55 @@ Return the complete refined slide JSON with VISIBLE fields updated:`,
   app.delete("/api/powerbi-dashboards/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await storage.deletePowerBiDashboard(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // GET /api/powerbi-dashboards/:id/access — list users who have access to a specific dashboard
+  app.get("/api/powerbi-dashboards/:id/access", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const dashboardId = parseInt(req.params.id);
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Not found" });
+      const rows = await db.select({
+        userId: powerBiDashboardAccess.userId,
+        userName: users.name,
+        userEmail: users.email,
+        userRole: users.role,
+        accessId: powerBiDashboardAccess.id,
+      }).from(powerBiDashboardAccess)
+        .leftJoin(users, eq(powerBiDashboardAccess.userId, users.id))
+        .where(and(eq(powerBiDashboardAccess.dashboardId, dashboardId), eq(powerBiDashboardAccess.companyId, company.id)));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // POST /api/powerbi-dashboards/:id/access — grant a user access to this dashboard
+  app.post("/api/powerbi-dashboards/:id/access", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const dashboardId = parseInt(req.params.id);
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Not found" });
+      const { userId } = req.body as { userId: number };
+      if (!userId) return res.status(400).json({ message: "userId required" });
+      await db.delete(powerBiDashboardAccess)
+        .where(and(eq(powerBiDashboardAccess.userId, userId), eq(powerBiDashboardAccess.dashboardId, dashboardId)));
+      const [entry] = await db.insert(powerBiDashboardAccess)
+        .values({ userId, companyId: company.id, dashboardId })
+        .returning();
+      res.json(entry);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // DELETE /api/powerbi-dashboards/:id/access/:userId — revoke a user's access to this dashboard
+  app.delete("/api/powerbi-dashboards/:id/access/:userId", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const dashboardId = parseInt(req.params.id);
+      const userId = parseInt(req.params.userId);
+      const company = await getCompanyForUser(req);
+      if (!company) return res.status(404).json({ message: "Not found" });
+      await db.delete(powerBiDashboardAccess)
+        .where(and(eq(powerBiDashboardAccess.userId, userId), eq(powerBiDashboardAccess.dashboardId, dashboardId)));
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
